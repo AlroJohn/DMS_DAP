@@ -1,0 +1,31 @@
+{
+  "name": "@shared",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prisma:push": "prisma db push --schema=../../apps/backend/prisma/schema.prisma",
+    "prisma:generate": "prisma generate --schema=../../apps/backend/prisma/schema.prisma",
+    "prisma:studio": "prisma studio --schema=../../apps/backend/prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema=../../apps/backend/prisma/schema.prisma",
+    "prisma:deploy": "prisma migrate deploy --schema=../../apps/backend/prisma/schema.prisma",
+    "prisma:reset": "prisma migrate reset --schema=../../apps/backend/prisma/schema.prisma",
+    "prisma:seed": "prisma db seed --schema=../../apps/backend/prisma/schema.prisma"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^6.8.2",
+    "@supabase/supabase-js": "^2.75.1"
+  },
+  "devDependencies": {
+    "prisma": "^6.8.2",
+    "tsx": "^4.7.0"
+  },
+  "prisma": {
+    "schema": "../../apps/backend/prisma/schema.prisma",
+    "seed": "tsx ../../apps/backend/prisma/seed.ts"
+  }
+}

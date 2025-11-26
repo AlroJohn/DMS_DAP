@@ -1,0 +1,772 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  account_id                 String               @id @default(uuid()) @db.Uuid
+  department_id              String?              @db.Uuid
+  email                      String               @unique
+  password                   String?
+  google_provider_id         String?              @unique
+  microsoft_provider_id      String?              @unique
+  is_active                  Boolean              @default(true)
+  email_verified             Boolean              @default(false)
+  last_login                 DateTime?
+  created_at                 DateTime             @default(now())
+  updated_at                 DateTime             @default(now()) @updatedAt
+  department                 Department?          @relation(fields: [department_id], references: [department_id])
+  // documents_checked_out      Document[]           @relation("DocumentCheckedOutBy")
+  documents_restored         Document[]           @relation("DocumentRestoredBy")
+  document_files             DocumentFile[]       @relation("AccountUploadedFiles")
+  password_reset_tokens      PasswordResetToken[]
+  permission_audit_performed PermissionAuditLog[] @relation("PermissionAuditPerformedBy")
+  roles_created              Role[]               @relation("RoleCreatedBy")
+  roles_updated              Role[]               @relation("RoleUpdatedBy")
+  role_permissions_granted   RolePermission[]
+  saved_searches             SavedSearch[]
+  session_logs               SessionLog[]
+  user                       User?
+  UserFeedback               UserFeedback[]
+  sent_invitations           UserInvitation[]
+  user_permissions_granted   UserPermission[]     @relation("UserPermissionGrantedBy")
+  user_role_assignments      UserRole[]           @relation("UserRoleAssignedBy")
+  sessions                   UserSession[]
+  userCheckouts              UserCheckout[]
+}
+
+model User {
+  user_id                    String                     @id @default(uuid()) @db.Uuid
+  account_id                 String                     @unique @db.Uuid
+  department_id              String                     @db.Uuid
+  first_name                 String
+  last_name                  String
+  middle_name                String?
+  user_name                  String?                    @unique
+  title                      String?
+  type                       String?
+  avatar                     String?
+  active                     Boolean                    @default(true)
+  created_at                 DateTime                   @default(now())
+  updated_at                 DateTime                   @default(now()) @updatedAt
+  notifications              Notification[]
+  notification_subscriptions NotificationSubscription[]
+  permission_audit_target    PermissionAuditLog[]       @relation("PermissionAuditTargetUser")
+  account                    Account                    @relation(fields: [account_id], references: [account_id], onDelete: Cascade)
+  user_permissions           UserPermission[]
+  user_roles                 UserRole[]
+}
+
+model Department {
+  department_id String           @id @default(uuid()) @db.Uuid
+  name          String
+  code          String           @unique
+  active        Boolean          @default(true)
+  created_at    DateTime         @default(now())
+  created_by    String           @db.Uuid
+  updated_at    DateTime         @default(now()) @updatedAt
+  Account       Account[]
+  invitations   UserInvitation[]
+}
+
+model Document {
+  document_id               String                      @id @default(uuid()) @db.Uuid
+  title                     String
+  description               String?
+  document_code             String                      @unique
+  document_type             String
+  classification            DocClassification           @default(simple)
+  origin                    DocOrigin                   @default(external)
+  status                    DocStatus                   @default(dispatch)
+  created_at                DateTime                    @default(now())
+  updated_at                DateTime                    @default(now()) @updatedAt
+  deleted_at                DateTime?
+  restored_at               DateTime?
+  restored_by               String?                     @db.Uuid
+  // checked_out_at            DateTime?
+  // checked_out_by            String?                     @db.Uuid
+  // checked_out_by_account    Account?                    @relation("DocumentCheckedOutBy", fields: [checked_out_by], references: [account_id])
+  restored_by_account       Account?                    @relation("DocumentRestoredBy", fields: [restored_by], references: [account_id])
+  DocumentAdditionalDetails DocumentAdditionalDetails[]
+  files                     DocumentFile[]              @relation("DocumentFiles")
+  // account                   Account?                    @relation(fields: [accountAccount_id], references: [account_id])
+}
+
+model DocumentAdditionalDetails {
+  detail_id               String    @id @default(uuid()) @db.Uuid
+  document_id             String    @db.Uuid
+  received_by             String?   @db.Uuid // User ID who received/acknowledged the document
+  work_flow_id            Json? // Array of department IDs tracking document routing path: [first:, dest_dept_1_id, second:dest_dept_2_id, ...]. First element is the originating department.
+  received_by_departments Json? // Array of user IDs that have received/acknowledged this document: [first:"user_id_1", second:"user_id_2"...]. first element is the originating department user.
+  work_flow_status        Json? // Object tracking the status of each document in the workflow: {created:("at:"datetime", status:"dispatch"), released_1:("at:"datetime", status:"intransit"), released_2:("at:"datetime", status:"intransit")..., received:("at:"datetime", status:"received"), completed:("at:"datetime", status:"completed")}
+  blockchain_project_uuid String? // DOCONCHAIN project UUID after signing
+  blockchain_tx_hash      String? // Blockchain transaction hash
+  blockchain_status       String? // Signing status: 'pending', 'signed', 'failed', null
+  blockchain_redirect_url String? // URL to launch DocOnChain signing session
+  signed_at               DateTime? // Timestamp when document was signed
+  signed_by               String?   @db.Uuid // User ID who signed the document
+  remarks                 String?
+  deleted_by              String?   @db.Uuid
+  restored_by             String?   @db.Uuid
+  created_at              DateTime  @default(now())
+  updated_at              DateTime  @default(now()) @updatedAt
+  deleted_at              DateTime?
+  restored_at             DateTime?
+  account_id              String?   @db.Uuid
+  Document                Document  @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
+
+  @@index([document_id])
+}
+
+model DocumentType {
+  type_id     String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  description String?
+  active      Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @default(now()) @updatedAt
+}
+
+model DocumentAction {
+  document_action_id  String                @id @default(uuid()) @db.Uuid
+  action_name         String
+  description         String?
+  sender_tag          String?
+  recipient_tag       String?
+  status              Boolean               @default(true)
+  action_date         DateTime              @default(now())
+  created_at          DateTime              @default(now())
+  updated_at          DateTime              @default(now()) @updatedAt
+  required_permission PermissionDefinition? @relation(fields: [permission_id], references: [permission_id])
+  permission_id       String?               @db.Uuid
+}
+
+model DocumentMetadata {
+  metadata_id       String        @id @default(uuid()) @db.Uuid
+  file_id           String        @unique @db.Uuid
+  file_size         BigInt?
+  file_type         String?
+  mime_type         String?
+  author            String?
+  creator           String?
+  producer          String?
+  creation_date     DateTime?
+  modification_date DateTime?
+  security_level    SecurityLevel @default(public)
+  retention_period  Int?
+  is_encrypted      Boolean       @default(false)
+  checksum          String?
+  version           String        @default("1.0")
+  created_at        DateTime      @default(now())
+  updated_at        DateTime      @default(now()) @updatedAt
+  DocumentFile      DocumentFile  @relation(fields: [file_id], references: [file_id], onDelete: Cascade)
+}
+
+model DocumentFile {
+  checkout            Boolean           @default(false)
+  checked_out_by      UserCheckout[]
+  file_id             String            @id @default(uuid()) @db.Uuid
+  document_id         String            @db.Uuid
+  original_name       String
+  stored_name         String
+  storage_path        String
+  file_size           BigInt
+  mime_type           String
+  checksum            String?
+  version             String            @default("1.0")
+  is_primary          Boolean           @default(false)
+  uploaded_by         String            @db.Uuid
+  uploaded_at         DateTime          @default(now())
+  updated_at          DateTime          @default(now()) @updatedAt
+  version_group_id    String?           @db.Uuid // UUID to group related versions of the same document
+  Document            Document          @relation("DocumentFiles", fields: [document_id], references: [document_id], onDelete: Cascade)
+  uploaded_by_account Account           @relation("AccountUploadedFiles", fields: [uploaded_by], references: [account_id])
+  DocumentMetadata    DocumentMetadata?
+
+  @@index([document_id])
+  @@index([uploaded_by])
+  @@index([version_group_id])
+}
+
+model UserCheckout {
+  checkout_id            String       @id @default(uuid()) @db.Uuid
+  file_id                String       @db.Uuid
+  checked_out_at         DateTime     @default(now())
+  checked_out_by         String       @db.Uuid
+  checked_out_by_account Account      @relation(fields: [checked_out_by], references: [account_id])
+  documentFile           DocumentFile @relation(fields: [file_id], references: [file_id])
+}
+
+model Notification {
+  notification_id String    @id @default(uuid()) @db.Uuid
+  user_id         String    @db.Uuid
+  title           String
+  message         String
+  type            String
+  workflow_event  String?
+  is_read         Boolean   @default(false)
+  is_deleted      Boolean   @default(false)
+  metadata        Json?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @default(now()) @updatedAt
+  read_at         DateTime?
+  user            User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+}
+
+model NotificationSubscription {
+  subscription_id   String   @id @default(uuid()) @db.Uuid
+  user_id           String   @db.Uuid
+  notification_type String
+  is_active         Boolean  @default(true)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @default(now()) @updatedAt
+  user              User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+}
+
+model UserFeedback {
+  feedback_id   String   @id @default(uuid()) @db.Uuid
+  account_id    String   @db.Uuid
+  feedback_text String
+  created_at    DateTime @default(now())
+  account       Account  @relation(fields: [account_id], references: [account_id], onDelete: Cascade)
+}
+
+model SavedSearch {
+  search_id          String   @id @default(uuid()) @db.Uuid
+  name               String
+  description        String?
+  query              String
+  filters            Json?
+  created_by         String   @db.Uuid
+  created_at         DateTime @default(now())
+  updated_at         DateTime @default(now()) @updatedAt
+  last_run           DateTime @default(now())
+  results_count      Int      @default(0)
+  is_favorite        Boolean  @default(false)
+  is_scheduled       Boolean  @default(false)
+  schedule_frequency String?
+  creator            Account  @relation(fields: [created_by], references: [account_id], onDelete: Cascade)
+}
+
+model Role {
+  role_id                 String               @id @default(uuid()) @db.Uuid
+  name                    String               @unique
+  code                    String               @unique
+  description             String?
+  is_system_role          Boolean              @default(false)
+  is_active               Boolean              @default(true)
+  created_at              DateTime             @default(now())
+  updated_at              DateTime             @default(now()) @updatedAt
+  created_by              String               @db.Uuid
+  updated_by              String?              @db.Uuid
+  permission_audit_target PermissionAuditLog[]
+  created_by_account      Account              @relation("RoleCreatedBy", fields: [created_by], references: [account_id])
+  updated_by_account      Account?             @relation("RoleUpdatedBy", fields: [updated_by], references: [account_id])
+  role_permissions        RolePermission[]
+  invitations             UserInvitation[]
+  user_roles              UserRole[]
+}
+
+model PermissionDefinition {
+  permission_id         String               @id @default(uuid()) @db.Uuid
+  permission            Permission           @unique
+  resource_type         ResourceType
+  description           String?
+  is_active             Boolean              @default(true)
+  created_at            DateTime             @default(now())
+  updated_at            DateTime             @default(now()) @updatedAt
+  permission_audit_logs PermissionAuditLog[]
+  role_permissions      RolePermission[]
+  user_permissions      UserPermission[]
+  documentActions       DocumentAction[]
+}
+
+model RolePermission {
+  id                 String               @id @default(uuid()) @db.Uuid
+  role_id            String               @db.Uuid
+  permission_id      String               @db.Uuid
+  scope              PermissionScope      @default(department)
+  granted_by         String               @db.Uuid
+  granted_at         DateTime             @default(now())
+  expires_at         DateTime?
+  is_active          Boolean              @default(true)
+  granted_by_account Account              @relation(fields: [granted_by], references: [account_id])
+  permission         PermissionDefinition @relation(fields: [permission_id], references: [permission_id], onDelete: Cascade)
+  role               Role                 @relation(fields: [role_id], references: [role_id], onDelete: Cascade)
+
+  @@unique([role_id, permission_id, scope])
+}
+
+model UserRole {
+  id                  String    @id @default(uuid()) @db.Uuid
+  user_id             String    @db.Uuid
+  role_id             String    @db.Uuid
+  assigned_by         String    @db.Uuid
+  assigned_at         DateTime  @default(now())
+  expires_at          DateTime?
+  is_active           Boolean   @default(true)
+  assigned_by_account Account   @relation("UserRoleAssignedBy", fields: [assigned_by], references: [account_id])
+  role                Role      @relation(fields: [role_id], references: [role_id], onDelete: Cascade)
+  user                User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@unique([user_id, role_id])
+}
+
+model UserPermission {
+  id                 String               @id @default(uuid()) @db.Uuid
+  user_id            String               @db.Uuid
+  permission_id      String               @db.Uuid
+  scope              PermissionScope      @default(department)
+  granted_by         String               @db.Uuid
+  granted_at         DateTime             @default(now())
+  expires_at         DateTime?
+  is_active          Boolean              @default(true)
+  granted_by_account Account              @relation("UserPermissionGrantedBy", fields: [granted_by], references: [account_id])
+  permission         PermissionDefinition @relation(fields: [permission_id], references: [permission_id], onDelete: Cascade)
+  user               User                 @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@unique([user_id, permission_id, scope])
+}
+
+model PermissionAuditLog {
+  audit_id                          String                @id @default(uuid()) @db.Uuid
+  action                            PermissionAction
+  target_user_id                    String?               @db.Uuid
+  target_role_id                    String?               @db.Uuid
+  permission_id                     String?               @db.Uuid
+  performed_by                      String                @db.Uuid
+  performed_at                      DateTime              @default(now())
+  old_values                        String?
+  new_values                        String?
+  ip_address                        String?
+  user_agent                        String?
+  permissionDefinitionPermission_id String?               @db.Uuid
+  performed_by_account              Account               @relation("PermissionAuditPerformedBy", fields: [performed_by], references: [account_id])
+  PermissionDefinition              PermissionDefinition? @relation(fields: [permissionDefinitionPermission_id], references: [permission_id])
+  target_role                       Role?                 @relation(fields: [target_role_id], references: [role_id])
+  target_user                       User?                 @relation("PermissionAuditTargetUser", fields: [target_user_id], references: [user_id])
+}
+
+model UserSession {
+  session_id         String        @id @default(uuid()) @db.Uuid
+  account_id         String        @db.Uuid
+  session_token      String        @unique
+  refresh_token      String?       @unique
+  device_info        String?
+  ip_address         String?
+  user_agent         String?
+  location           String?
+  is_active          Boolean       @default(true)
+  expires_at         DateTime
+  refresh_expires_at DateTime?
+  last_activity      DateTime      @default(now())
+  created_at         DateTime      @default(now())
+  updated_at         DateTime      @default(now()) @updatedAt
+  login_method       LoginMethod   @default(password)
+  mfa_verified       Boolean       @default(false)
+  mfa_method         MfaMethod?
+  security_level     SecurityLevel @default(internal)
+  session_logs       SessionLog[]
+  account            Account       @relation(fields: [account_id], references: [account_id], onDelete: Cascade)
+
+  @@index([account_id])
+  @@index([session_token])
+  @@index([expires_at])
+}
+
+model SessionLog {
+  log_id     String        @id @default(uuid()) @db.Uuid
+  session_id String        @db.Uuid
+  account_id String        @db.Uuid
+  action     SessionAction
+  details    String?
+  ip_address String?
+  user_agent String?
+  location   String?
+  risk_score Int?
+  created_at DateTime      @default(now())
+  account    Account       @relation(fields: [account_id], references: [account_id], onDelete: Cascade)
+  session    UserSession   @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
+
+  @@index([session_id])
+  @@index([account_id])
+  @@index([created_at])
+}
+
+model UserInvitation {
+  invitation_id      String           @id @default(uuid()) @db.Uuid
+  email              String
+  first_name         String
+  last_name          String
+  department_id      String           @db.Uuid
+  role_id            String           @db.Uuid
+  invited_by         String           @db.Uuid
+  invitation_token   String           @unique
+  expires_at         DateTime
+  accepted_at        DateTime?
+  created_at         DateTime         @default(now())
+  updated_at         DateTime         @default(now()) @updatedAt
+  status             InvitationStatus @default(pending)
+  department         Department       @relation(fields: [department_id], references: [department_id])
+  invited_by_account Account          @relation(fields: [invited_by], references: [account_id])
+  role               Role             @relation(fields: [role_id], references: [role_id])
+
+  @@index([invitation_token])
+  @@index([email])
+  @@index([expires_at])
+}
+
+model PasswordResetToken {
+  token_id   String    @id @default(uuid()) @db.Uuid
+  account_id String    @db.Uuid
+  token      String    @unique
+  expires_at DateTime
+  used_at    DateTime?
+  created_at DateTime  @default(now())
+  updated_at DateTime  @default(now()) @updatedAt
+  ip_address String?
+  user_agent String?
+  account    Account   @relation(fields: [account_id], references: [account_id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([account_id])
+  @@index([expires_at])
+}
+
+enum DocClassification {
+  simple
+  complex
+  highly_technical
+}
+
+enum DocDelivery {
+  mail
+  facsimile
+  email
+  personal
+}
+
+enum DocOrigin {
+  internal
+  external
+}
+
+enum DocStatus {
+  dispatch
+  received
+  intransit
+  completed
+  canceled
+  deleted
+  archive
+  // checked_out
+}
+
+enum IntransitStatus {
+  incoming
+  processing
+  completed
+  cancelled
+}
+
+enum LogAction {
+  created
+  viewed
+  edited
+  deleted
+  released
+  received
+  completed
+  returned
+  cancelled
+  uncompleted
+  uploaded
+  downloaded
+  shared
+  archived
+  transferred
+  custody_changed
+  verified
+  tampered
+  moved_to_recycle_bin
+  restored_from_recycle_bin
+  permanently_deleted
+  bulk_deleted
+  bulk_restored
+  auto_deleted
+}
+
+enum SecurityLevel {
+  public
+  internal
+  confidential
+  restricted
+  top_secret
+}
+
+enum UploadStatus {
+  pending
+  uploading
+  completed
+  failed
+  cancelled
+  processing
+}
+
+enum StorageProvider {
+  local
+  aws_s3
+  azure_blob
+  google_cloud
+  dropbox
+}
+
+enum LogSeverity {
+  info
+  warning
+  error
+  critical
+}
+
+enum VerificationStatus {
+  pending
+  verified
+  failed
+  tampered
+}
+
+enum CustodyType {
+  physical
+  digital
+  temporary
+  permanent
+  administrative
+}
+
+enum TransferMethod {
+  hand_delivery
+  courier
+  mail
+  email
+  digital_transfer
+  encrypted_upload
+  secure_portal
+}
+
+enum CustodyStatus {
+  pending
+  in_transit
+  received
+  acknowledged
+  expired
+  cancelled
+  disputed
+}
+
+enum TransferType {
+  internal
+  external
+  emergency
+  routine
+  confidential
+  bulk
+}
+
+enum TransferStatus {
+  initiated
+  approved
+  in_transit
+  delivered
+  failed
+  cancelled
+  returned
+}
+
+enum RecycleBinStatus {
+  deleted
+  restored
+  permanently_deleted
+  scheduled_for_deletion
+}
+
+enum DeletionReason {
+  user_request
+  system_cleanup
+  policy_compliance
+  storage_optimization
+  security_purge
+  expired_retention
+  duplicate_removal
+}
+
+enum Permission {
+  document_read
+  document_write
+  document_edit
+  document_delete
+  document_create
+  document_upload
+  document_download
+  document_share
+  document_sign
+  document_archive
+  document_restore
+  document_move
+  document_copy
+  document_action_read
+  document_action_create
+  document_action_edit
+  document_action_delete
+  document_metadata_read
+  document_metadata_write
+  document_metadata_edit
+  document_routing_read
+  document_routing_create
+  document_routing_edit
+  document_routing_delete
+  document_routing_approve
+  document_transfer_initiate
+  document_transfer_approve
+  document_transfer_receive
+  document_transfer_reject
+  document_transfer_track
+  document_custody_view
+  document_custody_transfer
+  document_custody_receive
+  document_custody_witness
+  document_audit_read
+  document_audit_export
+  document_audit_verify
+  document_recycle_view
+  document_recycle_restore
+  document_recycle_permanent_delete
+  document_recycle_bulk_restore
+  document_recycle_bulk_delete
+  document_type_read
+  document_type_create
+  document_type_edit
+  document_type_delete
+  department_read
+  department_create
+  department_edit
+  department_delete
+  department_users_manage
+  user_read
+  user_create
+  user_edit
+  user_delete
+  user_activate
+  user_deactivate
+  role_read
+  role_create
+  role_edit
+  role_delete
+  role_assign
+  permission_edit
+  permission_create
+  permission_delete
+  permission_read
+  permission_assign
+  permission_revoke
+  system_settings_read
+  system_settings_write
+  system_logs_read
+  system_backup
+  system_restore
+  system_maintenance
+  notification_read
+  notification_send
+  notification_manage
+  report_read
+  report_generate
+  report_export
+  report_schedule
+  api_read
+  api_write
+  api_delete
+  api_admin
+}
+
+enum ResourceType {
+  document
+  document_detail
+  document_metadata
+  document_upload
+  document_type
+  document_routing
+  document_transfer
+  document_custody
+  document_audit
+  document_recycle
+  department
+  user
+  role
+  permission
+  notification
+  report
+  system
+}
+
+enum PermissionScope {
+  global
+  department
+  user
+  custom
+}
+
+enum PermissionAction {
+  granted
+  revoked
+  role_assigned
+  role_removed
+  permission_created
+  permission_updated
+  permission_deleted
+  role_created
+  role_updated
+  role_deleted
+}
+
+enum LoginMethod {
+  password
+  google
+  microsoft
+  sso
+  api_key
+  certificate
+}
+
+enum MfaMethod {
+  sms
+  email
+  authenticator_app
+  hardware_token
+  biometric
+}
+
+enum SessionAction {
+  login
+  logout
+  refresh
+  activity
+  security_check
+  password_change
+  permission_change
+  device_change
+  location_change
+  suspicious_activity
+  session_expired
+  force_logout
+  concurrent_session
+}
+
+enum InvitationStatus {
+  pending
+  accepted
+  expired
+  cancelled
+}

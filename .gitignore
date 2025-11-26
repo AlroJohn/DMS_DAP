@@ -1,0 +1,20 @@
+node_modules/
+.continue/*
+ai_docs/
+.turbo/*
+.turbo/daemon/*.log
+AGENTS.md
+CLAUDE.md
+QWEN.md
+.env
+*.env
+*.env.local
+*.log
+
+# This section is edited to include "hi"
+hi
+.turbo/
+.history/
+apps/backend/.turbo/*
+dist/
+dist

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [
+        "apps/**/.next/**",
+        "apps/**/dist/**",
+        "packages/**/dist/**"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "start": {},
+    "lint": {},
+    "clean": {},
+    "prisma:generate": {
+      "cache": false,
+      "outputs": ["apps/backend/prisma/generated/**"]
+    },
+    "prisma:push": {
+      "cache": false
+    },
+    "prisma:studio": {
+      "cache": false,
+      "persistent": true
+    },
+    "prisma:migrate": {
+      "cache": false
+    },
+    "prisma:deploy": {
+      "cache": false
+    },
+    "prisma:reset": {
+      "cache": false
+    },
+    "prisma:seed": {
+      "cache": false
+    }
+  }
+}
