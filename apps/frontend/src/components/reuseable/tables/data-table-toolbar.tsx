@@ -71,6 +71,21 @@ import {
 import { CreateDocumentModal } from "@/components/modals/create-document-modal";
 import { UploadDocumentModal } from "@/app/(private)/documents/[id]/components/upload-document-modal";
 import { DocumentFiltersModal } from "@/components/modals/document-filters-modal";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  canViewDocuments,
+  canEditDocumentDetails,
+  canEditDocument,
+  canViewDocument,
+  canSignDocument,
+  canReleaseDocument,
+  canCompleteDocument,
+  canCancelDocument,
+  canArchiveDocument,
+  canDeleteDocument,
+  hasAnyPermission,
+  hasPermission
+} from "@/lib/document-permissions";
 
 import {
   DOC_CLASSIFICATION_OPTIONS,
@@ -409,6 +424,7 @@ export function DataTableToolbar<TData>({
   viewType = 'document', // Default to document view
 }: DataTableToolbarProps<TData>) {
   const router = useRouter();
+  const { user: currentUser } = useAuth();
   const isFiltered = table.getState().columnFilters.length > 0;
   const [isCreateModalOpen, setCreateModalOpen] = React.useState(false);
   const [isBulkTransmitOpen, setBulkTransmitOpen] = React.useState(false);
@@ -425,6 +441,29 @@ export function DataTableToolbar<TData>({
   // Get selected rows
   const selectedRows = table.getFilteredSelectedRowModel().rows;
   const hasSelection = selectedRows.length > 0;
+
+  // Permission checks - similar to data-table-row-action
+  const canViewDetails = canViewDocuments(currentUser);
+  const canViewDoc = canViewDocument(currentUser);
+
+  // Since toolbar doesn't have individual documents, we'll create a mock document for permission checks
+  // We'll use basic document structure for permission evaluations based on view type
+  const effectiveDocument = {
+    id: "",
+    documentId: "",
+    status: viewType === 'outgoing' ? 'outgoing' : 'active',
+    isOwned: viewType === 'owned' || viewType === 'document' || viewType === 'recycle-bin' || viewType === 'archive',
+    department_id: currentUser?.department_id
+  };
+
+  const canEditDetails = canEditDocumentDetails(currentUser, effectiveDocument);
+  const canEditDoc = canEditDocument(currentUser, effectiveDocument);
+  const canSignDoc = canSignDocument(currentUser, effectiveDocument);
+  const canRelease = canReleaseDocument(currentUser, effectiveDocument);
+  const canComplete = canCompleteDocument(currentUser, effectiveDocument);
+  const canCancel = canCancelDocument(currentUser, effectiveDocument);
+  const canArchive = canArchiveDocument(currentUser, effectiveDocument);
+  const canDelete = canDeleteDocument(currentUser, effectiveDocument);
 
   // Action handlers
   const handleBulkDelete = async () => {
@@ -1008,8 +1047,8 @@ export function DataTableToolbar<TData>({
           {/* Bulk Actions - Only show when there are selected rows */}
           {hasSelection && (
             <div className="flex gap-2">
-              {/* Show Complete only in shared view */}
-              {viewType === 'shared' && (
+              {/* Show Complete only in shared view and if user has permission */}
+              {viewType === 'shared' && canComplete && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -1019,51 +1058,59 @@ export function DataTableToolbar<TData>({
                   Complete
                 </Button>
               )}
-              {/* Show Cancel and Archive in outgoing view */}
+              {/* Show Cancel and Archive in outgoing view and if user has permissions */}
               {viewType === 'outgoing' && (
                 <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsBulkCancelOpen(true)}
-                  >
-                    <XCircle className="mr-2 h-4 w-4" />
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsBulkArchiveOpen(true)}
-                  >
-                    <Archive className="mr-2 h-4 w-4" />
-                    Archive
-                  </Button>
+                  {canCancel && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsBulkCancelOpen(true)}
+                    >
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Cancel
+                    </Button>
+                  )}
+                  {canArchive && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsBulkArchiveOpen(true)}
+                    >
+                      <Archive className="mr-2 h-4 w-4" />
+                      Archive
+                    </Button>
+                  )}
                 </>
               )}
-              {/* Show Archive and Delete in document and owned views */}
+              {/* Show Archive and Delete in document and owned views and if user has permissions */}
               {(viewType === 'document' || viewType === 'owned') && (
                 <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsBulkArchiveOpen(true)}
-                  >
-                    <Archive className="mr-2 h-4 w-4" />
-                    Archive
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsBulkDeleteOpen(true)}
-                    className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                  </Button>
+                  {canArchive && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsBulkArchiveOpen(true)}
+                    >
+                      <Archive className="mr-2 h-4 w-4" />
+                      Archive
+                    </Button>
+                  )}
+                  {canDelete && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsBulkDeleteOpen(true)}
+                      className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </Button>
+                  )}
                 </>
               )}
-              {/* Show Restore in archive and recycle-bin views */}
-              {(viewType === 'archive' || viewType === 'recycle-bin') && (
+              {/* Show Restore in archive and recycle-bin views and if user has permission */}
+              {(viewType === 'archive' || viewType === 'recycle-bin') && canArchive && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -1075,8 +1122,8 @@ export function DataTableToolbar<TData>({
               )}
             </div>
           )}
-          {/* Show Transmit button only if not in recycle-bin view */}
-          {viewType !== 'recycle-bin' && (
+          {/* Show Transmit button only if not in recycle-bin view and user has release permission */}
+          {viewType !== 'recycle-bin' && canRelease && (
             <Button
               variant="default"
               size="sm"
@@ -1094,8 +1141,8 @@ export function DataTableToolbar<TData>({
               Transmit
             </Button>
           )}
-          {/* Show Empty Recycle Bin button for recycle-bin view */}
-          {viewType === 'recycle-bin' && (
+          {/* Show Empty Recycle Bin button for recycle-bin view and if user has delete permission */}
+          {viewType === 'recycle-bin' && canDelete && (
             <Button
               variant="destructive"
               size="sm"
@@ -1105,7 +1152,7 @@ export function DataTableToolbar<TData>({
               Empty Recycle Bin
             </Button>
           )}
-          {showUploadButton && (
+          {showUploadButton && canEditDoc && (
             <Button
               variant="default"
               size="sm"
