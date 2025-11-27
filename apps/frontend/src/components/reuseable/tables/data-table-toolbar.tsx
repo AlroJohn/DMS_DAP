@@ -399,7 +399,7 @@ interface DataTableToolbarProps<TData> {
   table: Table<TData>;
   excludedFilters?: string[]; // New prop
   showUploadButton?: boolean; // Prop to control upload button visibility
-  viewType?: 'document' | 'owned' | 'shared' | 'outgoing' | 'archive'; // View type to control which actions are shown
+  viewType?: 'document' | 'owned' | 'shared' | 'outgoing' | 'archive' | 'recycle-bin'; // View type to control which actions are shown
 }
 
 export function DataTableToolbar<TData>({
@@ -420,6 +420,7 @@ export function DataTableToolbar<TData>({
   const [isBulkCompleteOpen, setIsBulkCompleteOpen] = React.useState(false);
   const [isBulkCancelOpen, setIsBulkCancelOpen] = React.useState(false);
   const [isBulkRestoreOpen, setIsBulkRestoreOpen] = React.useState(false);
+  const [isEmptyRecycleBinOpen, setIsEmptyRecycleBinOpen] = React.useState(false);
 
   // Get selected rows
   const selectedRows = table.getFilteredSelectedRowModel().rows;
@@ -650,7 +651,7 @@ export function DataTableToolbar<TData>({
       const documentIds = selectedRows
         .map((row) => {
           const item = row.original as Record<string, unknown>;
-          // For archive view, we might have document_id instead of id
+          // For archive and recycle-bin views, we might have document_id instead of id
           const id = typeof item.id === 'string' ? item.id :
                     typeof item.document_id === 'string' ? item.document_id : undefined;
           return id;
@@ -662,17 +663,22 @@ export function DataTableToolbar<TData>({
         return;
       }
 
-      // Process each document individually using the restore endpoint
+      // Process each document individually using the appropriate restore endpoint
       const results = await Promise.allSettled(
-        documentIds.map(id =>
-          fetch(`/api/archive/${id}/restore`, {
+        documentIds.map(id => {
+          // Use different endpoints based on view type
+          const endpoint = viewType === 'recycle-bin'
+            ? `/api/documents/${id}/restore`
+            : `/api/archive/${id}/restore`;
+
+          return fetch(endpoint, {
             method: 'POST', // Using POST for restore action
             headers: {
               'Content-Type': 'application/json',
             },
             credentials: 'include',
-          })
-        )
+          });
+        })
       );
 
       // Count successful operations
@@ -696,6 +702,59 @@ export function DataTableToolbar<TData>({
       toast.error('Failed to restore documents');
     } finally {
       setIsBulkRestoreOpen(false);
+    }
+  };
+
+  const handleEmptyRecycleBin = async () => {
+    try {
+      // We need to first fetch all documents in the recycle bin to get their IDs
+      // Then send them to the bulk delete endpoint
+      const response = await fetch('/api/documents/recycle-bin?page=1&limit=1000', { // Fetch a large number to get all
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to fetch documents from recycle bin');
+      }
+
+      const data = await response.json();
+      const documents = data.documents || data.data?.documents || [];
+      const documentIds = documents.map((doc: any) => doc.id || doc.document_id).filter(Boolean);
+
+      if (documentIds.length === 0) {
+        toast.info("No documents to delete.");
+        setIsEmptyRecycleBinOpen(false);
+        return;
+      }
+
+      // Now delete all documents permanently using the bulk delete endpoint
+      const deleteResponse = await fetch('/api/documents/bulk-delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ documentIds })
+      });
+
+      if (!deleteResponse.ok) {
+        const errorData = await deleteResponse.json();
+        throw new Error(errorData.error?.message || 'Failed to empty recycle bin');
+      }
+
+      toast.success("Recycle bin emptied successfully.");
+      // Refresh the table after emptying
+      window.location.reload(); // Simple refresh for now
+    } catch (error: any) {
+      console.error('Error emptying recycle bin:', error);
+      toast.error(error.message || 'Failed to empty recycle bin');
+    } finally {
+      setIsEmptyRecycleBinOpen(false);
     }
   };
 
@@ -873,6 +932,31 @@ export function DataTableToolbar<TData>({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Empty Recycle Bin Confirmation Dialog */}
+      <Dialog open={isEmptyRecycleBinOpen} onOpenChange={setIsEmptyRecycleBinOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Empty Recycle Bin</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to permanently delete all documents in the recycle bin? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsEmptyRecycleBinOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleEmptyRecycleBin}
+            >
+              Empty Recycle Bin
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-1 items-center gap-2">
           {/* Only show the search bar and filters directly if we're not implementing the modal approach */}
@@ -978,8 +1062,8 @@ export function DataTableToolbar<TData>({
                   </Button>
                 </>
               )}
-              {/* Show Restore in archive view */}
-              {viewType === 'archive' && (
+              {/* Show Restore in archive and recycle-bin views */}
+              {(viewType === 'archive' || viewType === 'recycle-bin') && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -991,22 +1075,36 @@ export function DataTableToolbar<TData>({
               )}
             </div>
           )}
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => {
-              if (selectedRows.length === 0) {
-                toast.error("Please select documents to transmit");
-                return;
-              }
-              setSelectedDocuments(selectedRows.map((row) => row.original));
-              toast.info(`Preparing to transmit ${selectedRows.length} document${selectedRows.length !== 1 ? 's' : ''}`);
-              setBulkTransmitOpen(true);
-            }}
-          >
-            <Send className="mr-2 h-4 w-4" />
-            Transmit
-          </Button>
+          {/* Show Transmit button only if not in recycle-bin view */}
+          {viewType !== 'recycle-bin' && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => {
+                if (selectedRows.length === 0) {
+                  toast.error("Please select documents to transmit");
+                  return;
+                }
+                setSelectedDocuments(selectedRows.map((row) => row.original));
+                toast.info(`Preparing to transmit ${selectedRows.length} document${selectedRows.length !== 1 ? 's' : ''}`);
+                setBulkTransmitOpen(true);
+              }}
+            >
+              <Send className="mr-2 h-4 w-4" />
+              Transmit
+            </Button>
+          )}
+          {/* Show Empty Recycle Bin button for recycle-bin view */}
+          {viewType === 'recycle-bin' && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setIsEmptyRecycleBinOpen(true)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Empty Recycle Bin
+            </Button>
+          )}
           {showUploadButton && (
             <Button
               variant="default"

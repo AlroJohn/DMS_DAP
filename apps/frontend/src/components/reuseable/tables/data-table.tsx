@@ -42,7 +42,7 @@ interface DataTableProps<TData, TValue> {
   excludedFilters?: string[];
   onSelectionChange?: (selectedRows: TData[]) => void;
   showUploadButton?: boolean; // Prop to control upload button visibility
-  viewType?: "document" | "owned" | "shared" | "outgoing" | "archive"; // View type to control which actions are shown in toolbar
+  viewType?: "document" | "owned" | "shared" | "outgoing" | "archive" | "recycle-bin"; // View type to control which actions are shown in toolbar
   initialState?: {
     columnVisibility?: Record<string, boolean>;
   };
