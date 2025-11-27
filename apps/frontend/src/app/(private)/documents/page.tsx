@@ -92,14 +92,26 @@ export default function DocumentsPage() {
     };
   }, [socket, refetch]);
 
+  // Check if the error is authentication-related
+  const isAuthError = error && error.includes('Authentication required');
+
   return (
     <div className="w-full flex h-full flex-col bg-background">
-      {error && (
+      {error && !isAuthError && (
         <div className="mb-4">
           <Alert variant="destructive" className="max-w-md">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </div>
+      )}
+      {isAuthError && (
+        <div className="mb-4">
+          <Alert variant="destructive" className="max-w-md">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Authentication Required</AlertTitle>
+            <AlertDescription>You must be logged in to view documents.</AlertDescription>
           </Alert>
         </div>
       )}
