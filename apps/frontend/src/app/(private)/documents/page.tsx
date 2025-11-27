@@ -6,15 +6,16 @@ import { useDocuments } from "@/hooks/use-documents";
 import { useSocket } from "@/components/providers/providers";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 
 export default function DocumentsPage() {
   const { documents, isLoading, error, refetch } = useDocuments(1, 50);
   const { socket } = useSocket();
-  const mountedRef = useRef(true);
+  const mountedRef = useRef(false);
 
-  // Clean up mounted ref on unmount
+  // Mark component as mounted and clean up on unmount
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
       mountedRef.current = false;
     };
@@ -24,21 +25,24 @@ export default function DocumentsPage() {
   // table `columns` expect `ReceivedDocument` items. Map the documents
   // into the table-friendly shape to satisfy TypeScript and ensure the
   // table has required fields (id, qrCode, barcode, document, etc.).
-  const mappedDocuments: ReceivedDocument[] = (documents || []).map(
-    (d: any) => ({
-      id: d.document_id || d.id || "",
-      qrCode: d.qrCode || "",
-      barcode: d.barcode || "",
-      document: d.title || d.document || "",
-      documentId: d.document_code || d.documentId || d.id || "",
-      contactPerson: d.contactPerson || "",
-      contactOrganization: d.contactOrganization || "",
-      type: (d.document_type || d.type || "General") as string,
-      classification: (d.classification || "") as string,
-      status: (d.status || "") as string,
-      activity: d.activity || "",
-      activityTime: d.activityTime || d.created_at || "",
-    })
+  // Memoize to prevent unnecessary recalculations and state updates during render
+  const mappedDocuments: ReceivedDocument[] = useMemo(
+    () =>
+      (documents || []).map((d: any) => ({
+        id: d.document_id || d.id || "",
+        qrCode: d.qrCode || "",
+        barcode: d.barcode || "",
+        document: d.title || d.document || "",
+        documentId: d.document_code || d.documentId || d.id || "",
+        contactPerson: d.contactPerson || "",
+        contactOrganization: d.contactOrganization || "",
+        type: (d.document_type || d.type || "General") as string,
+        classification: (d.classification || "") as string,
+        status: (d.status || "") as string,
+        activity: d.activity || "",
+        activityTime: d.activityTime || d.created_at || "",
+      })),
+    [documents]
   );
 
   // Listen for real-time document updates
