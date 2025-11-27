@@ -6,11 +6,19 @@ import { useDocuments } from "@/hooks/use-documents";
 import { useSocket } from "@/components/providers/providers";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export default function DocumentsPage() {
   const { documents, isLoading, error, refetch } = useDocuments(1, 50);
   const { socket } = useSocket();
+  const mountedRef = useRef(true);
+
+  // Clean up mounted ref on unmount
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // The `useDocuments` hook returns a raw Document[] shape while the
   // table `columns` expect `ReceivedDocument` items. Map the documents
@@ -38,26 +46,32 @@ export default function DocumentsPage() {
     if (!socket) return;
 
     const handleDocumentAdded = () => {
-      try {
-        refetch();
-      } catch (err) {
-        console.error("Error refetching documents on documentAdded:", err);
+      if (mountedRef.current) {
+        try {
+          refetch();
+        } catch (err) {
+          console.error("Error refetching documents on documentAdded:", err);
+        }
       }
     };
 
     const handleDocumentUpdated = () => {
-      try {
-        refetch();
-      } catch (err) {
-        console.error("Error refetching documents on documentUpdated:", err);
+      if (mountedRef.current) {
+        try {
+          refetch();
+        } catch (err) {
+          console.error("Error refetching documents on documentUpdated:", err);
+        }
       }
     };
 
     const handleDocumentDeleted = () => {
-      try {
-        refetch();
-      } catch (err) {
-        console.error("Error refetching documents on documentDeleted:", err);
+      if (mountedRef.current) {
+        try {
+          refetch();
+        } catch (err) {
+          console.error("Error refetching documents on documentDeleted:", err);
+        }
       }
     };
 

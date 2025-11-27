@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './use-auth';
 
 export interface DocumentListItem {
@@ -56,9 +56,17 @@ export function useDocuments(page: number = 1, limit: number = 10): UseDocuments
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const fetchDocuments = useCallback(async () => {
     try {
+      if (!isMountedRef.current) return;
       setIsLoading(true);
       setError(null);
 
@@ -80,21 +88,30 @@ export function useDocuments(page: number = 1, limit: number = 10): UseDocuments
 
       const result = await response.json().catch(() => ({}));
 
+      if (!isMountedRef.current) return;
+
       if (result.success) {
-        setDocuments((result.data || []) as DocumentListItem[]);
-        setPagination((result.pagination || null) as Pagination | null);
+        if (isMountedRef.current) {
+          setDocuments((result.data || []) as DocumentListItem[]);
+          setPagination((result.pagination || null) as Pagination | null);
+        }
       } else {
         // Try to extract message from different error shapes
         const errMsg = result.error?.message || result?.error || result?.message || 'Failed to fetch documents';
         throw new Error(errMsg);
       }
     } catch (err: any) {
+      if (!isMountedRef.current) return;
       console.error('Error fetching documents:', err);
       setError(err.message || 'An error occurred while fetching documents');
-      setDocuments([]);
-      setPagination(null);
+      if (isMountedRef.current) {
+        setDocuments([]);
+        setPagination(null);
+      }
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [user, page, limit]);
 

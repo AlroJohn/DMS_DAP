@@ -92,9 +92,9 @@ export function DataTable<TData, TValue>({
   });
 
   React.useEffect(() => {
-    let isMounted = true; // Track if component is still mounted
+    const isMountedRef = React.useRef(true);
 
-    if (onSelectionChange && isMounted) {
+    if (onSelectionChange && isMountedRef.current) {
       const selectedRows = table
         .getSelectedRowModel()
         .rows.map((row) => row.original as TData);
@@ -103,7 +103,7 @@ export function DataTable<TData, TValue>({
 
     // Cleanup function
     return () => {
-      isMounted = false;
+      isMountedRef.current = false;
     };
   }, [onSelectionChange, table, rowSelection]);
 
