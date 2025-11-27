@@ -56,9 +56,10 @@ export function useDocuments(page: number = 1, limit: number = 10): UseDocuments
   const [isLoading, setIsLoading] = useState(false); // Start with false and set to true when fetching
   const [error, setError] = useState<string | null>(null);
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
-  const isMountedRef = useRef(true);
+  const isMountedRef = useRef(false);
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
     };
@@ -129,6 +130,9 @@ export function useDocuments(page: number = 1, limit: number = 10): UseDocuments
 
   // Set initial loading state when user becomes available
   useEffect(() => {
+    // Ensure component is mounted before any state updates
+    if (!isMountedRef.current) return;
+
     // If auth is still loading, keep loading state
     if (isAuthLoading) {
       setIsLoading(true);

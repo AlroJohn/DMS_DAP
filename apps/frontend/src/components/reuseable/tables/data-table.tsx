@@ -67,6 +67,7 @@ export function DataTable<TData, TValue>({
     []
   );
   const [sorting, setSorting] = React.useState<SortingState>([]);
+  const isMountedRef = React.useRef(false);
 
   const isSelectionChangeMountedRef = React.useRef(true);
 
@@ -99,20 +100,22 @@ export function DataTable<TData, TValue>({
     getFacetedUniqueValues: getFacetedUniqueValues(),
   });
 
+  // Mark component as mounted after first render
   React.useEffect(() => {
-    let isMounted = true; // Track if component is still mounted
-
-    if (onSelectionChange && isMounted) {
-      const selectedRows = table
-        .getSelectedRowModel()
-        .rows.map((row) => row.original as TData);
-      onSelectionChange(selectedRows);
-    }
-
-    // Cleanup function
+    isMountedRef.current = true;
     return () => {
-      isMounted = false;
+      isMountedRef.current = false;
     };
+  }, []);
+
+  // Handle selection changes only after component is mounted
+  React.useEffect(() => {
+    if (!isMountedRef.current || !onSelectionChange) return;
+
+    const selectedRows = table
+      .getSelectedRowModel()
+      .rows.map((row) => row.original as TData);
+    onSelectionChange(selectedRows);
   }, [onSelectionChange, table, rowSelection]);
 
   return (
