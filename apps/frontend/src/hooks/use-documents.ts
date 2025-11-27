@@ -55,7 +55,7 @@ export function useDocuments(page: number = 1, limit: number = 10): UseDocuments
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [isLoading, setIsLoading] = useState(false); // Start with false and set to true when fetching
   const [error, setError] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -125,14 +125,29 @@ export function useDocuments(page: number = 1, limit: number = 10): UseDocuments
         setIsLoading(false);
       }
     }
-  }, [user, page, limit]);
+  }, [page, limit]);
 
   // Set initial loading state when user becomes available
   useEffect(() => {
-    if (user) {
-      // Set loading to true initially when user is available
+    // If auth is still loading, keep loading state
+    if (isAuthLoading) {
       setIsLoading(true);
-      setError(null);
+      return;
+    }
+
+    // If user is not authenticated, set error and stop loading
+    if (!isAuthenticated) {
+      if (isMountedRef.current) {
+        setError('Authentication required to access documents');
+        setIsLoading(false);
+        setDocuments([]);
+        setPagination(null);
+      }
+      return;
+    }
+
+    // If user is authenticated, fetch documents
+    if (isAuthenticated) {
       fetchDocuments();
     } else {
       // If no user, set loading to false and clear data
@@ -141,7 +156,7 @@ export function useDocuments(page: number = 1, limit: number = 10): UseDocuments
       setIsLoading(false);
       setError(null);
     }
-  }, [user, page, limit, fetchDocuments]);
+  }, [isAuthenticated, isAuthLoading, page, limit, fetchDocuments]);
 
   return {
     documents,
