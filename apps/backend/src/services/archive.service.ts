@@ -208,16 +208,6 @@ export class ArchiveService {
         // Map document type ID to name
         const typeName = typeMap.get(doc.document_type) || doc.document_type;
 
-        // Get document type information to populate more fields
-        let documentTypeDetail = null;
-        try {
-          documentTypeDetail = await prisma.documentType.findUnique({
-            where: { type_id: doc.document_type }
-          });
-        } catch (e) {
-          console.error('Error fetching document type detail:', e);
-        }
-
         // Get classification and other document details with fallbacks
         const classification = doc.classification || 'Simple';
         const status = doc.status || 'archive'; // Explicitly set to archive status
@@ -234,14 +224,14 @@ export class ArchiveService {
           description: doc.description || '',
           document_code: doc.document_code,
           document_type: doc.document_type,
-          type: documentTypeDetail?.name || doc.document_type, // Use the name instead of ID
+          type: typeName, // Changed to use typeName from the map
           classification: classification,
           origin: doc.origin || 'external',
           status: status,
           created_at: doc.created_at.toISOString(),
           updated_at: doc.updated_at.toISOString(),
-          deleted_at: doc.deleted_at ? doc.deleted_at.toISOString() : null,
-          restored_at: doc.restored_at ? doc.restored_at.toISOString() : null,
+          deleted_at: doc.deleted_at ? new Date(doc.deleted_at).toISOString() : null,
+          restored_at: doc.restored_at ? new Date(doc.restored_at).toISOString() : null,
           restored_by: doc.restored_by || null,
 
           // Fields expected by the DataTable
@@ -361,15 +351,11 @@ export class ArchiveService {
         }
       }
 
-      // Get document type information to populate more fields
-      let documentTypeDetail = null;
-      try {
-        documentTypeDetail = await prisma.documentType.findUnique({
-          where: { type_id: document.document_type }
-        });
-      } catch (e) {
-        console.error('Error fetching document type detail:', e);
-      }
+      // Get the document type name
+      const documentType = await prisma.documentType.findUnique({
+        where: { type_id: document.document_type }
+      });
+      const typeName = documentType?.name || document.document_type;
 
       // Get classification and other document details with fallbacks
       const classification = document.classification || 'Simple';
@@ -386,14 +372,14 @@ export class ArchiveService {
         description: document.description || '',
         document_code: document.document_code,
         document_type: document.document_type,
-        type: documentTypeDetail?.name || document.document_type, // Use the name instead of ID
+        type: typeName, // Changed to use typeName
         classification: classification,
         origin: document.origin || 'external',
         status: status,
         created_at: document.created_at.toISOString(),
         updated_at: document.updated_at.toISOString(),
-        deleted_at: document.deleted_at ? document.deleted_at.toISOString() : null,
-        restored_at: document.restored_at ? document.restored_at.toISOString() : null,
+        deleted_at: document.deleted_at ? new Date(document.deleted_at).toISOString() : null,
+        restored_at: document.restored_at ? new Date(document.restored_at).toISOString() : null,
         restored_by: document.restored_by || null,
 
         // Fields expected by the DataTable

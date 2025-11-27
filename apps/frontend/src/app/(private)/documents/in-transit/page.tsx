@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { DataTable } from "@/components/reuseable/tables/data-table";
 import { outgoingColumns, type OutgoingDocument } from "./outgoing-columns";
 import { incomingColumns, type IncomingDocument } from "./incoming-columns";
@@ -17,7 +17,18 @@ export default function InTransitDocumentsPage() {
   const [activeTab, setActiveTab] = useState<"incoming" | "outgoing">(
     "incoming"
   );
+  const [displayedIncoming, setDisplayedIncoming] = useState<IncomingDocument[]>([]);
+  const [displayedOutgoing, setDisplayedOutgoing] = useState<OutgoingDocument[]>([]);
   const { socket } = useSocket();
+  const mountedRef = useRef(false);
+
+  // Mark component as mounted and clean up on unmount
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // Fetch incoming documents
   const {
@@ -35,24 +46,36 @@ export default function InTransitDocumentsPage() {
     refetch: refetchOutgoing,
   } = useOutgoingDocuments(1, 100);
 
+  useEffect(() => {
+    if (!isLoadingIncoming) {
+      setDisplayedIncoming(incomingDocuments);
+    }
+  }, [incomingDocuments, isLoadingIncoming]);
+
+  useEffect(() => {
+    if (!isLoadingOutgoing) {
+      setDisplayedOutgoing(outgoingDocuments);
+    }
+  }, [outgoingDocuments, isLoadingOutgoing]);
+
   // Listen for real-time document updates
   useEffect(() => {
     if (!socket) return;
 
-    const handleDocumentAdded = () => {
-      refetchIncoming();
-      refetchOutgoing();
+    const safeRefetch = async () => {
+      if (mountedRef.current) {
+        try {
+          await refetchIncoming();
+          await refetchOutgoing();
+        } catch (err) {
+          console.error("Error refetching in-transit documents:", err);
+        }
+      }
     };
 
-    const handleDocumentUpdated = () => {
-      refetchIncoming();
-      refetchOutgoing();
-    };
-
-    const handleDocumentDeleted = () => {
-      refetchIncoming();
-      refetchOutgoing();
-    };
+    const handleDocumentAdded = safeRefetch;
+    const handleDocumentUpdated = safeRefetch;
+    const handleDocumentDeleted = safeRefetch;
 
     // Listen for document-related events
     socket.on("documentAdded", handleDocumentAdded);
@@ -71,6 +94,10 @@ export default function InTransitDocumentsPage() {
     };
   }, [socket, refetchIncoming, refetchOutgoing]);
 
+  // Check if the errors are authentication-related
+  const isAuthErrorIncoming = incomingError && incomingError.includes('Authentication required');
+  const isAuthErrorOutgoing = outgoingError && outgoingError.includes('Authentication required');
+
   return (
     <div className="flex h-full flex-col gap-4 bg-background">
       <Tabs
@@ -86,12 +113,21 @@ export default function InTransitDocumentsPage() {
         </TabsList>
 
         <TabsContent value="incoming" className="mt-4">
-          {incomingError && (
+          {incomingError && !isAuthErrorIncoming && (
             <div className="mb-4">
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Error</AlertTitle>
                 <AlertDescription>Error loading incoming documents: {incomingError}</AlertDescription>
+              </Alert>
+            </div>
+          )}
+          {isAuthErrorIncoming && (
+            <div className="mb-4">
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Authentication Required</AlertTitle>
+                <AlertDescription>You must be logged in to view documents.</AlertDescription>
               </Alert>
             </div>
           )}
@@ -104,12 +140,21 @@ export default function InTransitDocumentsPage() {
         </TabsContent>
 
         <TabsContent value="outgoing" className="mt-4">
-          {outgoingError && (
+          {outgoingError && !isAuthErrorOutgoing && (
             <div className="mb-4">
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Error</AlertTitle>
                 <AlertDescription>Error loading outgoing documents: {outgoingError}</AlertDescription>
+              </Alert>
+            </div>
+          )}
+          {isAuthErrorOutgoing && (
+            <div className="mb-4">
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Authentication Required</AlertTitle>
+                <AlertDescription>You must be logged in to view documents.</AlertDescription>
               </Alert>
             </div>
           )}

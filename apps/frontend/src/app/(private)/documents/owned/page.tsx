@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { DataTable } from "@/components/reuseable/tables/data-table";
 import { createOwnedDocumentColumns } from "@/app/(private)/documents/owned/columns";
 import { Document, useDocumentsOwned } from "@/hooks/use-documents-owned";
@@ -12,11 +12,27 @@ import { useDocumentTypes } from "@/hooks/use-document-types";
 export default function OwnedDocumentsPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
+  const [displayedDocuments, setDisplayedDocuments] = useState<Document[]>([]);
+  const mountedRef = useRef(false);
 
   const { documents, pagination, isLoading, error, refetch } =
     useDocumentsOwned(page, limit);
   const { socket } = useSocket();
   const { documentTypes } = useDocumentTypes();
+
+  useEffect(() => {
+    if (!isLoading) {
+      setDisplayedDocuments(documents);
+    }
+  }, [documents, isLoading]);
+
+  // Mark component as mounted and clean up on unmount
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const documentTypeMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -36,10 +52,12 @@ export default function OwnedDocumentsPage() {
     if (!socket) return;
 
     const safeRefetch = async () => {
-      try {
-        await refetch();
-      } catch (err) {
-        console.error("Error refetching owned documents:", err);
+      if (mountedRef.current) {
+        try {
+          await refetch();
+        } catch (err) {
+          console.error("Error refetching owned documents:", err);
+        }
       }
     };
 
@@ -66,9 +84,12 @@ export default function OwnedDocumentsPage() {
     };
   }, [socket, refetch]);
 
+  // Check if the error is authentication-related
+  const isAuthError = error && error.includes('Authentication required');
+
   return (
     <div className="flex h-full flex-col bg-background">
-      {error && (
+      {error && !isAuthError && (
         <div className="p-6">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -82,6 +103,15 @@ export default function OwnedDocumentsPage() {
                 Try again
               </button>
             </AlertDescription>
+          </Alert>
+        </div>
+      )}
+      {isAuthError && (
+        <div className="p-6">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Authentication Required</AlertTitle>
+            <AlertDescription>You must be logged in to view documents.</AlertDescription>
           </Alert>
         </div>
       )}

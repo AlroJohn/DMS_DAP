@@ -77,7 +77,10 @@ export function UploadDocumentModal({
 
     for (const file of selectedFiles) {
       // Only accept PDF files
-      if (!file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf')) {
+      if (
+        !file.type.includes("pdf") &&
+        !file.name.toLowerCase().endsWith(".pdf")
+      ) {
         toast.error(`File "${file.name}" is not a PDF file`);
         continue;
       }
@@ -183,30 +186,43 @@ export function UploadDocumentModal({
           additionalFileForm.append("files", files[i]); // Use the 'files' field for additional uploads
 
           // Generate a unique versionGroupId for each file during bulk upload
-          const versionGroupId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-            const r = Math.random() * 16 | 0;
-            const v = c === 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-          });
+          const versionGroupId = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+            /[xy]/g,
+            function (c) {
+              const r = (Math.random() * 16) | 0;
+              const v = c === "x" ? r : (r & 0x3) | 0x8;
+              return v.toString(16);
+            }
+          );
           additionalFileForm.append("versionGroupId", versionGroupId);
 
-          const additionalResponse = await fetch(`/api/documents/${documentId}/files`, {
-            method: "POST",
-            credentials: "include",
-            body: additionalFileForm,
-          });
+          const additionalResponse = await fetch(
+            `/api/documents/${documentId}/files`,
+            {
+              method: "POST",
+              credentials: "include",
+              body: additionalFileForm,
+            }
+          );
 
           if (!additionalResponse.ok) {
-            const errorData = await additionalResponse.json().catch(() => ({ error: { message: "Failed to upload additional file" } }));
+            const errorData = await additionalResponse.json().catch(() => ({
+              error: { message: "Failed to upload additional file" },
+            }));
             throw new Error(
-              errorData.error?.message || `Failed to upload additional file: ${files[i].name}`
+              errorData.error?.message ||
+                `Failed to upload additional file: ${files[i].name}`
             );
           }
         }
       }
 
       setUploadProgress(100);
-      toast.success(`Document "${title}" created with ${files.length} file${files.length > 1 ? 's' : ''}!`);
+      toast.success(
+        `Document "${title}" created with ${files.length} file${
+          files.length > 1 ? "s" : ""
+        }!`
+      );
 
       // Emit document upload completed event via Socket.IO
       if (socket) {
@@ -299,7 +315,10 @@ export function UploadDocumentModal({
                       const validFiles: File[] = [];
                       for (const file of newFiles) {
                         // Only accept PDF files
-                        if (file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf')) {
+                        if (
+                          file.type.includes("pdf") ||
+                          file.name.toLowerCase().endsWith(".pdf")
+                        ) {
                           validFiles.push(file);
                         } else {
                           toast.error(`File "${file.name}" is not a PDF file`);
@@ -490,7 +509,7 @@ export function UploadDocumentModal({
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="type" className="text-sm font-medium">
                         Document Type *
@@ -505,7 +524,7 @@ export function UploadDocumentModal({
                             selectedType
                               ? "border-primary/50 ring-1 ring-primary/20"
                               : ""
-                          } text-base transition-all focus:ring-2 focus:ring-primary/30 focus:border-primary`}
+                          } text-base w-full transition-all focus:ring-2 focus:ring-primary/30 focus:border-primary`}
                         >
                           <SelectValue
                             placeholder={
@@ -529,49 +548,48 @@ export function UploadDocumentModal({
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="classification"
-                      className="text-sm font-medium"
-                    >
-                      Classification
-                    </Label>
-                    <Select
-                      value={selectedClassification}
-                      onValueChange={setSelectedClassification}
-                    >
-                      <SelectTrigger
-                        className={`${
-                          selectedClassification
-                            ? "border-primary/50 ring-1 ring-primary/20"
-                            : ""
-                        } text-base transition-all focus:ring-2 focus:ring-primary/30 focus:border-primary`}
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="classification"
+                        className="text-sm font-medium"
                       >
-                        <SelectValue placeholder="Select classification" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem
-                          value="simple"
-                          className="text-base py-2 px-3"
+                        Classification
+                      </Label>
+                      <Select
+                        value={selectedClassification}
+                        onValueChange={setSelectedClassification}
+                      >
+                        <SelectTrigger
+                          className={`${
+                            selectedClassification
+                              ? "border-primary/50 ring-1 ring-primary/20"
+                              : ""
+                          } text-base w-full transition-all focus:ring-2 focus:ring-primary/30 focus:border-primary`}
                         >
-                          Simple
-                        </SelectItem>
-                        <SelectItem
-                          value="complex"
-                          className="text-base py-2 px-3"
-                        >
-                          Complex
-                        </SelectItem>
-                        <SelectItem
-                          value="highly_technical"
-                          className="text-base py-2 px-3"
-                        >
-                          Highly Technical
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                          <SelectValue placeholder="Select classification" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem
+                            value="simple"
+                            className="text-base py-2 px-3"
+                          >
+                            Simple
+                          </SelectItem>
+                          <SelectItem
+                            value="complex"
+                            className="text-base py-2 px-3"
+                          >
+                            Complex
+                          </SelectItem>
+                          <SelectItem
+                            value="highly_technical"
+                            className="text-base py-2 px-3"
+                          >
+                            Highly Technical
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

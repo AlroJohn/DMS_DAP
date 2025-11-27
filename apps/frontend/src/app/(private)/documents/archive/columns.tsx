@@ -61,7 +61,11 @@ const formatText = (text: string): string => {
     .replace(/^\w/, (c) => c.toUpperCase());
 };
 
-export const columns: ColumnDef<ArchiveDocument>[] = [
+export const createArchiveColumns = ({
+  documentTypeMap,
+}: {
+  documentTypeMap: Record<string, string>;
+}): ColumnDef<ArchiveDocument>[] => [
   {
     id: "select",
     header: ({ table }) => (

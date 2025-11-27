@@ -1,16 +1,40 @@
 "use client";
 
 import { DataTable } from "@/components/reuseable/tables/data-table";
-import { columns, type ArchiveDocument } from "./columns";
+import { createArchiveColumns, type ArchiveDocument } from "./columns";
 import { useArchive } from "@/hooks/use-archive";
 import { useSocket } from "@/components/providers/providers";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { useDocumentTypes } from "@/hooks/use-document-types";
 
 export default function ArchivePage() {
   const { archivedDocuments: rawArchivedDocuments, loading, error, fetchArchivedDocuments } = useArchive();
   const { socket } = useSocket();
+  const { documentTypes } = useDocumentTypes();
+  const mountedRef = useRef(false);
+
+  const documentTypeMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    documentTypes.forEach((type) => {
+      map[type.type_id] = type.name;
+    });
+    return map;
+  }, [documentTypes]);
+
+  const columns = useMemo(
+    () => createArchiveColumns({ documentTypeMap }),
+    [documentTypeMap]
+  );
+
+  // Mark component as mounted and clean up on unmount
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // Transform the raw archived documents to match the ArchiveDocument type
   const mappedDocuments: ArchiveDocument[] = (rawArchivedDocuments || []).map(
@@ -22,7 +46,7 @@ export default function ArchivePage() {
       documentId: d.document_code || d.documentId || d.id || "",
       contactPerson: d.contactPerson || "",
       contactOrganization: d.contactOrganization || "",
-      type: (d.document_type || d.type || "General") as string,
+      type: d.type as string,
       classification: (d.classification || "") as string,
       currentLocation: (d.currentLocation || "Archive") as string,
       status: (d.status || "completed") as string,
@@ -53,26 +77,32 @@ export default function ArchivePage() {
     if (!socket) return;
 
     const handleDocumentAdded = () => {
-      try {
-        fetchArchivedDocuments();
-      } catch (err) {
-        console.error("Error refetching documents on documentAdded:", err);
+      if (mountedRef.current) {
+        try {
+          fetchArchivedDocuments();
+        } catch (err) {
+          console.error("Error refetching documents on documentAdded:", err);
+        }
       }
     };
 
     const handleDocumentUpdated = () => {
-      try {
-        fetchArchivedDocuments();
-      } catch (err) {
-        console.error("Error refetching documents on documentUpdated:", err);
+      if (mountedRef.current) {
+        try {
+          fetchArchivedDocuments();
+        } catch (err) {
+          console.error("Error refetching documents on documentUpdated:", err);
+        }
       }
     };
 
     const handleDocumentDeleted = () => {
-      try {
-        fetchArchivedDocuments();
-      } catch (err) {
-        console.error("Error refetching documents on documentDeleted:", err);
+      if (mountedRef.current) {
+        try {
+          fetchArchivedDocuments();
+        } catch (err) {
+          console.error("Error refetching documents on documentDeleted:", err);
+        }
       }
     };
 
@@ -93,14 +123,26 @@ export default function ArchivePage() {
     };
   }, [socket, fetchArchivedDocuments]);
 
+  // Check if the error is authentication-related
+  const isAuthError = error && error.includes('Authentication required');
+
   return (
     <div className="w-full flex h-full flex-col bg-background">
-      {error && (
+      {error && !isAuthError && (
         <div className="mb-4">
           <Alert variant="destructive" className="max-w-md">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </div>
+      )}
+      {isAuthError && (
+        <div className="mb-4">
+          <Alert variant="destructive" className="max-w-md">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Authentication Required</AlertTitle>
+            <AlertDescription>You must be logged in to view documents.</AlertDescription>
           </Alert>
         </div>
       )}

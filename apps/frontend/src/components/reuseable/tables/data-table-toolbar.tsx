@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { useState, useEffect } from "react";
 import {
   Command,
   CommandEmpty,
@@ -68,6 +69,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Label } from "@/components/ui/label";
 import { CreateDocumentModal } from "@/components/modals/create-document-modal";
 import { UploadDocumentModal } from "@/app/(private)/documents/[id]/components/upload-document-modal";
 import { DocumentFiltersModal } from "@/components/modals/document-filters-modal";
@@ -84,7 +87,7 @@ import {
   canArchiveDocument,
   canDeleteDocument,
   hasAnyPermission,
-  hasPermission
+  hasPermission,
 } from "@/lib/document-permissions";
 
 import {
@@ -250,12 +253,628 @@ export function DataTableFacetedFilter<TData, TValue>({
 import { toast } from "sonner";
 import { BulkTransmitModal } from "@/components/modals/bulk-transmit-modal";
 
+// Define interfaces for document scanner modal
+interface Department {
+  department_id: string;
+  name: string;
+  code: string;
+  active: boolean;
+}
+
+interface DocumentAction {
+  document_action_id: string;
+  action_name: string;
+  description?: string;
+  sender_tag?: string;
+  recipient_tag?: string;
+  status: boolean;
+  action_date: string; // ISO string format
+  created_at: string; // ISO string format
+  updated_at: string; // ISO string format
+  permission_id?: string;
+}
+
+interface DocumentScannerModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+interface DocumentDetails {
+  id: string;
+  documentId: string;
+  document: string;
+  description?: string;
+  classification: string;
+  status: string;
+  origin: string;
+  department_id: string;
+  contactPerson?: string;
+  createdAt: string;
+}
+
 // DataTableViewOptions Component
 // ============================================================================
 
 interface DataTableViewOptionsProps<TData> {
   table: Table<TData>;
 }
+
+// Document Scanner Modal Component
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation } from "@tanstack/react-query";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+
+const scannerDocumentSchema = z.object({
+  documentCode: z.string().min(1, "Document code is required"),
+  departmentId: z.string().min(1, "Please select a department."),
+  requestActions: z
+    .array(z.string())
+    .min(1, "Please select at least one action."),
+  remarks: z.string().optional(),
+});
+
+type ScannerDocumentForm = z.infer<typeof scannerDocumentSchema>;
+
+export function DocumentScannerModal({
+  isOpen,
+  onClose,
+}: DocumentScannerModalProps) {
+  const { user: currentUser } = useAuth();
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [documentActions, setDocumentActions] = useState<DocumentAction[]>([]);
+  const [documentDetails, setDocumentDetails] = useState<DocumentDetails | null>(null);
+  const [loadingDepartments, setLoadingDepartments] = useState(false);
+  const [loadingActions, setLoadingActions] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const form = useForm<ScannerDocumentForm>({
+    resolver: zodResolver(scannerDocumentSchema),
+    defaultValues: {
+      documentCode: "",
+      departmentId: "",
+      requestActions: [],
+      remarks: "",
+    },
+  });
+
+  // Reset form and document details when modal opens/closes
+  useEffect(() => {
+    if (isOpen) {
+      form.reset({
+        documentCode: "",
+        departmentId: "",
+        requestActions: [],
+        remarks: "",
+      });
+      setDocumentDetails(null);
+      setError(null);
+    } else {
+      setDocumentDetails(null);
+      setError(null);
+    }
+  }, [isOpen, form]);
+
+  // Fetch departments and document actions when modal opens and we have document details
+  useEffect(() => {
+    if (isOpen && documentDetails) {
+      fetchDepartments();
+      fetchDocumentActions();
+    }
+  }, [isOpen, documentDetails]);
+
+  const fetchDepartments = async () => {
+    try {
+      setLoadingDepartments(true);
+      const response = await fetch("/api/admin/departments", {
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          // Filter out the current user's department from the list of available departments
+          const filteredDepartments =
+            result.data?.filter(
+              (dept: Department) =>
+                dept.department_id !== currentUser?.department_id
+            ) || [];
+          setDepartments(filteredDepartments);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching departments:", error);
+    } finally {
+      setLoadingDepartments(false);
+    }
+  };
+
+  const fetchDocumentActions = async () => {
+    try {
+      setLoadingActions(true);
+      const response = await fetch(
+        "/api/admin/document-actions?activeOnly=true",
+        {
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setDocumentActions(result.data || []);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching document actions:", error);
+    } finally {
+      setLoadingActions(false);
+    }
+  };
+
+  // Function to scan and fetch document by code
+  const scanDocument = async (documentCode: string) => {
+    if (!documentCode.trim()) {
+      setError("Please enter a document code");
+      return;
+    }
+
+    try {
+      setScanning(true);
+      setError(null);
+
+      const response = await fetch(`/api/documents/code/${documentCode}`, {
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Document not found");
+      }
+
+      const result = await response.json();
+      if (result.success && result.document) {
+        const document = result.document;
+        setDocumentDetails({
+          id: document.document_id || document.id,
+          documentId: document.document_code || document.documentId,
+          document: document.title || document.document,
+          description: document.description,
+          classification: document.classification || document.classification,
+          status: document.status,
+          origin: document.origin || document.origin,
+          department_id: document.department_id || document.department_id,
+          contactPerson: document.contactPerson || `${currentUser?.first_name || ''} ${currentUser?.last_name || ''}`.trim(),
+          createdAt: document.created_at || document.createdAt,
+        });
+      } else {
+        throw new Error("Document not found");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to fetch document details");
+      setDocumentDetails(null);
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const { mutate: releaseDocument, isPending: isReleasing } = useMutation({
+    mutationFn: async (data: ScannerDocumentForm) => {
+      if (!documentDetails) throw new Error("No document to release");
+
+      // Prepare the payload to send the array of action names
+      const payload = {
+        departmentId: data.departmentId,
+        requestActions: data.requestActions,
+        remarks: data.remarks,
+      };
+
+      const response = await fetch(`/api/documents/${documentDetails.id}/release`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("❌ Release error:", errorData);
+        throw new Error(errorData.error || "Failed to release document.");
+      }
+
+      const result = await response.json();
+      console.log("✅ Release success:", result);
+      return result;
+    },
+    onSuccess: () => {
+      toast.success("Document released successfully!");
+      form.reset();
+      setDocumentDetails(null);
+      onClose();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to release document.");
+    },
+  });
+
+  const { mutate: completeDocument, isPending: isCompleting } = useMutation({
+    mutationFn: async () => {
+      if (!documentDetails) throw new Error("No document to complete");
+
+      const response = await fetch(`/api/documents/${documentDetails.id}/complete`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to complete document.");
+      }
+
+      const result = await response.json();
+      console.log("✅ Complete success:", result);
+      return result;
+    },
+    onSuccess: () => {
+      toast.success("Document completed successfully!");
+      form.reset();
+      setDocumentDetails(null);
+      onClose();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to complete document.");
+    },
+  });
+
+  const handleScanSubmit = (data: ScannerDocumentForm) => {
+    scanDocument(data.documentCode);
+  };
+
+  const handleReleaseSubmit = (data: ScannerDocumentForm) => {
+    // Validate that all selected actions are in the available document actions
+    const allValidActions = data.requestActions.every((actionName) =>
+      documentActions.some((action) => action.action_name === actionName)
+    );
+
+    if (!allValidActions && documentActions.length > 0) {
+      toast.error("Please select valid actions only.");
+      return;
+    }
+
+    releaseDocument(data);
+  };
+
+  const handleComplete = () => {
+    if (documentDetails) {
+      completeDocument();
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col p-0">
+        <DialogHeader className="sticky top-0 z-10 p-6 pb-4">
+          <DialogTitle>Document Scanner</DialogTitle>
+          <DialogDescription>
+            Scan a document by entering its code to view details and take actions.
+          </DialogDescription>
+        </DialogHeader>
+        <ScrollArea className="flex-1 overflow-y-auto px-6">
+          <div className="space-y-4">
+            {!documentDetails ? (
+              // Scanner input view
+              <Form {...form}>
+                <form
+                  id="document-scanner-form"
+                  onSubmit={form.handleSubmit(handleScanSubmit)}
+                  className="space-y-4"
+                >
+                  <FormField
+                    control={form.control}
+                    name="documentCode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Document Code</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Enter document code to scan..."
+                            {...field}
+                            disabled={scanning}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {error && (
+                    <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
+                      {error}
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={scanning}
+                  >
+                    {scanning ? "Scanning..." : "Scan Document"}
+                  </Button>
+                </form>
+              </Form>
+            ) : (
+              // Document details view
+              <div className="space-y-4">
+                <div className="grid gap-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="doc-code" className="text-right">
+                      Code
+                    </Label>
+                    <Input
+                      id="doc-code"
+                      value={documentDetails.documentId}
+                      readOnly
+                      className="col-span-3"
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="doc-name" className="text-right">
+                      Name
+                    </Label>
+                    <Input
+                      id="doc-name"
+                      value={documentDetails.document}
+                      readOnly
+                      className="col-span-3"
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="doc-classification" className="text-right">
+                      Classification
+                    </Label>
+                    <Input
+                      id="doc-classification"
+                      value={documentDetails.classification}
+                      readOnly
+                      className="col-span-3"
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="doc-status" className="text-right">
+                      Status
+                    </Label>
+                    <Input
+                      id="doc-status"
+                      value={documentDetails.status}
+                      readOnly
+                      className="col-span-3"
+                    />
+                  </div>
+                  {documentDetails.description && (
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="doc-desc" className="text-right">
+                        Description
+                      </Label>
+                      <Input
+                        id="doc-desc"
+                        value={documentDetails.description}
+                        readOnly
+                        className="col-span-3"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Action forms */}
+                <div className="pt-4 space-y-4">
+                  <Form {...form}>
+                    <form
+                      id="document-release-form"
+                      onSubmit={form.handleSubmit(handleReleaseSubmit)}
+                      className="space-y-4"
+                    >
+                      <h3 className="font-medium">Release Document</h3>
+
+                      <FormField
+                        control={form.control}
+                        name="departmentId"
+                        render={({ field }) => (
+                          <FormItem className="w-full grid grid-cols-4 items-center gap-4">
+                            <FormLabel>Release To</FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              value={field.value}
+                            >
+                              <FormControl className="w-full">
+                                <SelectTrigger className="w-full col-span-3">
+                                  <SelectValue
+                                    placeholder={
+                                      currentUser?.department_id
+                                        ? "Select a different department"
+                                        : "Select a department"
+                                    }
+                                  />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent className="max-h-52">
+                                {loadingDepartments ? (
+                                  <SelectItem value="loading" disabled>
+                                    Loading departments...
+                                  </SelectItem>
+                                ) : departments.length > 0 ? (
+                                  departments.map((dep) => (
+                                    <SelectItem
+                                      key={dep.department_id}
+                                      value={dep.department_id}
+                                    >
+                                      {dep.name}
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  <SelectItem value="no-departments" disabled>
+                                    {currentUser?.department_id
+                                      ? "No other departments available"
+                                      : "No departments available"}
+                                  </SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="requestActions"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Request Action(s)</FormLabel>
+                            <div className="rounded-md border border-input p-4">
+                              {loadingActions ? (
+                                <div className="py-2 text-sm text-muted-foreground">
+                                  Loading actions...
+                                </div>
+                              ) : documentActions.length > 0 ? (
+                                documentActions.map((action) => {
+                                  return (
+                                    <div
+                                      key={action.document_action_id}
+                                      className="flex items-center space-x-2 py-1"
+                                    >
+                                      <Checkbox
+                                        id={`action-${action.document_action_id}`}
+                                        checked={field.value?.includes(
+                                          action.action_name
+                                        )}
+                                        onCheckedChange={(checked) => {
+                                          if (checked) {
+                                            field.onChange([
+                                              ...(field.value || []),
+                                              action.action_name,
+                                            ]);
+                                          } else {
+                                            field.onChange(
+                                              field.value?.filter(
+                                                (value: string) =>
+                                                  value !== action.action_name
+                                              )
+                                            );
+                                          }
+                                        }}
+                                      />
+                                      <Label
+                                        htmlFor={`action-${action.document_action_id}`}
+                                        className="text-sm font-normal cursor-pointer"
+                                      >
+                                        {action.action_name}
+                                      </Label>
+                                    </div>
+                                  );
+                                })
+                              ) : (
+                                <div className="py-2 text-sm text-muted-foreground">
+                                  No actions available
+                                </div>
+                              )}
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="remarks"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Remarks</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Add any remarks here..."
+                                className="resize-none"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className="flex gap-2">
+                        <Button
+                          type="submit"
+                          disabled={isReleasing}
+                          className="flex-1"
+                        >
+                          {isReleasing ? "Releasing..." : "Release Document"}
+                        </Button>
+                      </div>
+                    </form>
+                  </Form>
+
+                  <div className="border-t pt-4">
+                    <h3 className="font-medium mb-2">Other Actions</h3>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={handleComplete}
+                        disabled={isCompleting}
+                        className="flex-1"
+                      >
+                        {isCompleting ? "Completing..." : "Complete Document"}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => setDocumentDetails(null)}
+                        className="flex-1"
+                      >
+                        Scan Another
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+        <DialogFooter className="flex sm:justify-end p-6 pt-4">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// DataTableViewOptions Component
+// ============================================================================
 
 export function DataTableViewOptions<TData>({
   table,
@@ -414,14 +1033,20 @@ interface DataTableToolbarProps<TData> {
   table: Table<TData>;
   excludedFilters?: string[]; // New prop
   showUploadButton?: boolean; // Prop to control upload button visibility
-  viewType?: 'document' | 'owned' | 'shared' | 'outgoing' | 'archive' | 'recycle-bin'; // View type to control which actions are shown
+  viewType?:
+    | "document"
+    | "owned"
+    | "shared"
+    | "outgoing"
+    | "archive"
+    | "recycle-bin"; // View type to control which actions are shown
 }
 
 export function DataTableToolbar<TData>({
   table,
   excludedFilters = [],
   showUploadButton = false, // Default to false to maintain existing behavior
-  viewType = 'document', // Default to document view
+  viewType = "document", // Default to document view
 }: DataTableToolbarProps<TData>) {
   const router = useRouter();
   const { user: currentUser } = useAuth();
@@ -436,7 +1061,9 @@ export function DataTableToolbar<TData>({
   const [isBulkCompleteOpen, setIsBulkCompleteOpen] = React.useState(false);
   const [isBulkCancelOpen, setIsBulkCancelOpen] = React.useState(false);
   const [isBulkRestoreOpen, setIsBulkRestoreOpen] = React.useState(false);
-  const [isEmptyRecycleBinOpen, setIsEmptyRecycleBinOpen] = React.useState(false);
+  const [isEmptyRecycleBinOpen, setIsEmptyRecycleBinOpen] =
+    React.useState(false);
+  const [isScannerModalOpen, setScannerModalOpen] = React.useState(false);
 
   // Get selected rows
   const selectedRows = table.getFilteredSelectedRowModel().rows;
@@ -451,9 +1078,13 @@ export function DataTableToolbar<TData>({
   const effectiveDocument = {
     id: "",
     documentId: "",
-    status: viewType === 'outgoing' ? 'outgoing' : 'active',
-    isOwned: viewType === 'owned' || viewType === 'document' || viewType === 'recycle-bin' || viewType === 'archive',
-    department_id: currentUser?.department_id
+    status: viewType === "outgoing" ? "outgoing" : "active",
+    isOwned:
+      viewType === "owned" ||
+      viewType === "document" ||
+      viewType === "recycle-bin" ||
+      viewType === "archive",
+    department_id: currentUser?.department_id,
   };
 
   const canEditDetails = canEditDocumentDetails(currentUser, effectiveDocument);
@@ -474,7 +1105,7 @@ export function DataTableToolbar<TData>({
       const documentIds = selectedRows
         .map((row) => {
           const item = row.original as Record<string, unknown>;
-          return typeof item.id === 'string' ? item.id : undefined;
+          return typeof item.id === "string" ? item.id : undefined;
         })
         .filter((id): id is string => id !== undefined && id.length > 0);
 
@@ -485,36 +1116,40 @@ export function DataTableToolbar<TData>({
 
       // Process each document individually using the same endpoint as single delete
       const results = await Promise.allSettled(
-        documentIds.map(id =>
+        documentIds.map((id) =>
           fetch(`/api/documents/${id}`, {
-            method: 'DELETE',
+            method: "DELETE",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
-            credentials: 'include',
+            credentials: "include",
           })
         )
       );
 
       // Count successful operations
-      const successfulCount = results.filter(result =>
-        result.status === 'fulfilled' && result.value.ok
+      const successfulCount = results.filter(
+        (result) => result.status === "fulfilled" && result.value.ok
       ).length;
 
       if (successfulCount > 0) {
-        toast.success(`${successfulCount} document(s) moved to recycle bin successfully.`);
+        toast.success(
+          `${successfulCount} document(s) moved to recycle bin successfully.`
+        );
       }
 
       // Handle any failures
       const failedCount = results.length - successfulCount;
       if (failedCount > 0) {
-        toast.error(`${failedCount} document(s) failed to move to recycle bin.`);
+        toast.error(
+          `${failedCount} document(s) failed to move to recycle bin.`
+        );
       }
 
       table.toggleAllRowsSelected(false); // Clear selection
     } catch (error: any) {
-      console.error('Error moving documents to recycle bin:', error);
-      toast.error('Failed to move documents to recycle bin');
+      console.error("Error moving documents to recycle bin:", error);
+      toast.error("Failed to move documents to recycle bin");
     } finally {
       setIsBulkDeleteOpen(false);
     }
@@ -528,7 +1163,7 @@ export function DataTableToolbar<TData>({
       const documentIds = selectedRows
         .map((row) => {
           const item = row.original as Record<string, unknown>;
-          return typeof item.id === 'string' ? item.id : undefined;
+          return typeof item.id === "string" ? item.id : undefined;
         })
         .filter((id): id is string => id !== undefined && id.length > 0);
 
@@ -539,20 +1174,20 @@ export function DataTableToolbar<TData>({
 
       // Process each document individually using the same endpoint as single cancel
       const results = await Promise.allSettled(
-        documentIds.map(id =>
+        documentIds.map((id) =>
           fetch(`/api/documents/${id}/cancel`, {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
-            credentials: 'include',
+            credentials: "include",
           })
         )
       );
 
       // Count successful operations
-      const successfulCount = results.filter(result =>
-        result.status === 'fulfilled' && result.value.ok
+      const successfulCount = results.filter(
+        (result) => result.status === "fulfilled" && result.value.ok
       ).length;
 
       if (successfulCount > 0) {
@@ -567,8 +1202,8 @@ export function DataTableToolbar<TData>({
 
       table.toggleAllRowsSelected(false); // Clear selection
     } catch (error: any) {
-      console.error('Error cancelling documents:', error);
-      toast.error('Failed to cancel documents');
+      console.error("Error cancelling documents:", error);
+      toast.error("Failed to cancel documents");
     } finally {
       setIsBulkCancelOpen(false);
     }
@@ -582,7 +1217,7 @@ export function DataTableToolbar<TData>({
       const documentIds = selectedRows
         .map((row) => {
           const item = row.original as Record<string, unknown>;
-          return typeof item.id === 'string' ? item.id : undefined;
+          return typeof item.id === "string" ? item.id : undefined;
         })
         .filter((id): id is string => id !== undefined && id.length > 0);
 
@@ -593,20 +1228,20 @@ export function DataTableToolbar<TData>({
 
       // Process each document individually using the same endpoint as single archive
       const results = await Promise.allSettled(
-        documentIds.map(id =>
+        documentIds.map((id) =>
           fetch(`/api/archive/${id}/archive`, {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
-            credentials: 'include',
+            credentials: "include",
           })
         )
       );
 
       // Count successful operations
-      const successfulCount = results.filter(result =>
-        result.status === 'fulfilled' && result.value.ok
+      const successfulCount = results.filter(
+        (result) => result.status === "fulfilled" && result.value.ok
       ).length;
 
       if (successfulCount > 0) {
@@ -621,8 +1256,8 @@ export function DataTableToolbar<TData>({
 
       table.toggleAllRowsSelected(false); // Clear selection
     } catch (error: any) {
-      console.error('Error archiving documents:', error);
-      toast.error('Failed to archive documents');
+      console.error("Error archiving documents:", error);
+      toast.error("Failed to archive documents");
     } finally {
       setIsBulkArchiveOpen(false);
     }
@@ -636,7 +1271,7 @@ export function DataTableToolbar<TData>({
       const documentIds = selectedRows
         .map((row) => {
           const item = row.original as Record<string, unknown>;
-          return typeof item.id === 'string' ? item.id : undefined;
+          return typeof item.id === "string" ? item.id : undefined;
         })
         .filter((id): id is string => id !== undefined && id.length > 0);
 
@@ -647,20 +1282,20 @@ export function DataTableToolbar<TData>({
 
       // Process each document individually using the same endpoint as single complete
       const results = await Promise.allSettled(
-        documentIds.map(id =>
+        documentIds.map((id) =>
           fetch(`/api/documents/${id}/complete`, {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
-            credentials: 'include',
+            credentials: "include",
           })
         )
       );
 
       // Count successful operations
-      const successfulCount = results.filter(result =>
-        result.status === 'fulfilled' && result.value.ok
+      const successfulCount = results.filter(
+        (result) => result.status === "fulfilled" && result.value.ok
       ).length;
 
       if (successfulCount > 0) {
@@ -675,8 +1310,8 @@ export function DataTableToolbar<TData>({
 
       table.toggleAllRowsSelected(false); // Clear selection
     } catch (error: any) {
-      console.error('Error completing documents:', error);
-      toast.error('Failed to complete documents');
+      console.error("Error completing documents:", error);
+      toast.error("Failed to complete documents");
     } finally {
       setIsBulkCompleteOpen(false);
     }
@@ -691,8 +1326,12 @@ export function DataTableToolbar<TData>({
         .map((row) => {
           const item = row.original as Record<string, unknown>;
           // For archive and recycle-bin views, we might have document_id instead of id
-          const id = typeof item.id === 'string' ? item.id :
-                    typeof item.document_id === 'string' ? item.document_id : undefined;
+          const id =
+            typeof item.id === "string"
+              ? item.id
+              : typeof item.document_id === "string"
+              ? item.document_id
+              : undefined;
           return id;
         })
         .filter((id): id is string => id !== undefined && id.length > 0);
@@ -704,25 +1343,26 @@ export function DataTableToolbar<TData>({
 
       // Process each document individually using the appropriate restore endpoint
       const results = await Promise.allSettled(
-        documentIds.map(id => {
+        documentIds.map((id) => {
           // Use different endpoints based on view type
-          const endpoint = viewType === 'recycle-bin'
-            ? `/api/documents/${id}/restore`
-            : `/api/archive/${id}/restore`;
+          const endpoint =
+            viewType === "recycle-bin"
+              ? `/api/documents/${id}/restore`
+              : `/api/archive/${id}/restore`;
 
           return fetch(endpoint, {
-            method: 'POST', // Using POST for restore action
+            method: "POST", // Using POST for restore action
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
-            credentials: 'include',
+            credentials: "include",
           });
         })
       );
 
       // Count successful operations
-      const successfulCount = results.filter(result =>
-        result.status === 'fulfilled' && result.value.ok
+      const successfulCount = results.filter(
+        (result) => result.status === "fulfilled" && result.value.ok
       ).length;
 
       if (successfulCount > 0) {
@@ -737,8 +1377,8 @@ export function DataTableToolbar<TData>({
 
       table.toggleAllRowsSelected(false); // Clear selection
     } catch (error: any) {
-      console.error('Error restoring documents:', error);
-      toast.error('Failed to restore documents');
+      console.error("Error restoring documents:", error);
+      toast.error("Failed to restore documents");
     } finally {
       setIsBulkRestoreOpen(false);
     }
@@ -748,22 +1388,31 @@ export function DataTableToolbar<TData>({
     try {
       // We need to first fetch all documents in the recycle bin to get their IDs
       // Then send them to the bulk delete endpoint
-      const response = await fetch('/api/documents/recycle-bin?page=1&limit=1000', { // Fetch a large number to get all
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      });
+      const response = await fetch(
+        "/api/documents/recycle-bin?page=1&limit=1000",
+        {
+          // Fetch a large number to get all
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to fetch documents from recycle bin');
+        throw new Error(
+          errorData.error?.message ||
+            "Failed to fetch documents from recycle bin"
+        );
       }
 
       const data = await response.json();
       const documents = data.documents || data.data?.documents || [];
-      const documentIds = documents.map((doc: any) => doc.id || doc.document_id).filter(Boolean);
+      const documentIds = documents
+        .map((doc: any) => doc.id || doc.document_id)
+        .filter(Boolean);
 
       if (documentIds.length === 0) {
         toast.info("No documents to delete.");
@@ -772,26 +1421,26 @@ export function DataTableToolbar<TData>({
       }
 
       // Now delete all documents permanently using the bulk delete endpoint
-      const deleteResponse = await fetch('/api/documents/bulk-delete', {
-        method: 'DELETE',
+      const deleteResponse = await fetch("/api/documents/bulk-delete", {
+        method: "DELETE",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        credentials: 'include',
-        body: JSON.stringify({ documentIds })
+        credentials: "include",
+        body: JSON.stringify({ documentIds }),
       });
 
       if (!deleteResponse.ok) {
         const errorData = await deleteResponse.json();
-        throw new Error(errorData.error?.message || 'Failed to empty recycle bin');
+        throw new Error(
+          errorData.error?.message || "Failed to empty recycle bin"
+        );
       }
 
       toast.success("Recycle bin emptied successfully.");
-      // Refresh the table after emptying
-      window.location.reload(); // Simple refresh for now
     } catch (error: any) {
-      console.error('Error emptying recycle bin:', error);
-      toast.error(error.message || 'Failed to empty recycle bin');
+      console.error("Error emptying recycle bin:", error);
+      toast.error(error.message || "Failed to empty recycle bin");
     } finally {
       setIsEmptyRecycleBinOpen(false);
     }
@@ -855,7 +1504,8 @@ export function DataTableToolbar<TData>({
           <DialogHeader>
             <DialogTitle>Confirm Bulk Delete</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete {selectedRows.length} document(s)? This action cannot be undone.
+              Are you sure you want to delete {selectedRows.length} document(s)?
+              This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -865,10 +1515,7 @@ export function DataTableToolbar<TData>({
             >
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleBulkDelete}
-            >
+            <Button variant="destructive" onClick={handleBulkDelete}>
               Delete
             </Button>
           </DialogFooter>
@@ -880,7 +1527,8 @@ export function DataTableToolbar<TData>({
           <DialogHeader>
             <DialogTitle>Confirm Bulk Archive</DialogTitle>
             <DialogDescription>
-              Are you sure you want to archive {selectedRows.length} document(s)?
+              Are you sure you want to archive {selectedRows.length}{" "}
+              document(s)?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -890,11 +1538,7 @@ export function DataTableToolbar<TData>({
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleBulkArchive}
-            >
-              Archive
-            </Button>
+            <Button onClick={handleBulkArchive}>Archive</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -904,7 +1548,8 @@ export function DataTableToolbar<TData>({
           <DialogHeader>
             <DialogTitle>Confirm Bulk Complete</DialogTitle>
             <DialogDescription>
-              Are you sure you want to complete {selectedRows.length} document(s)?
+              Are you sure you want to complete {selectedRows.length}{" "}
+              document(s)?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -914,11 +1559,7 @@ export function DataTableToolbar<TData>({
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleBulkComplete}
-            >
-              Complete
-            </Button>
+            <Button onClick={handleBulkComplete}>Complete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -938,10 +1579,7 @@ export function DataTableToolbar<TData>({
             >
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleBulkCancel}
-            >
+            <Button variant="destructive" onClick={handleBulkCancel}>
               Cancel
             </Button>
           </DialogFooter>
@@ -953,7 +1591,8 @@ export function DataTableToolbar<TData>({
           <DialogHeader>
             <DialogTitle>Confirm Bulk Restore</DialogTitle>
             <DialogDescription>
-              Are you sure you want to restore {selectedRows.length} document(s) from archive?
+              Are you sure you want to restore {selectedRows.length} document(s)
+              from archive?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -963,21 +1602,21 @@ export function DataTableToolbar<TData>({
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleBulkRestore}
-            >
-              Restore
-            </Button>
+            <Button onClick={handleBulkRestore}>Restore</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
       {/* Empty Recycle Bin Confirmation Dialog */}
-      <Dialog open={isEmptyRecycleBinOpen} onOpenChange={setIsEmptyRecycleBinOpen}>
+      <Dialog
+        open={isEmptyRecycleBinOpen}
+        onOpenChange={setIsEmptyRecycleBinOpen}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Confirm Empty Recycle Bin</DialogTitle>
             <DialogDescription>
-              Are you sure you want to permanently delete all documents in the recycle bin? This action cannot be undone.
+              Are you sure you want to permanently delete all documents in the
+              recycle bin? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -987,15 +1626,16 @@ export function DataTableToolbar<TData>({
             >
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleEmptyRecycleBin}
-            >
+            <Button variant="destructive" onClick={handleEmptyRecycleBin}>
               Empty Recycle Bin
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <DocumentScannerModal
+        isOpen={isScannerModalOpen}
+        onClose={() => setScannerModalOpen(false)}
+      />
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-1 items-center gap-2">
           {/* Only show the search bar and filters directly if we're not implementing the modal approach */}
@@ -1048,7 +1688,7 @@ export function DataTableToolbar<TData>({
           {hasSelection && (
             <div className="flex gap-2">
               {/* Show Complete only in shared view and if user has permission */}
-              {viewType === 'shared' && canComplete && (
+              {viewType === "shared" && canComplete && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -1059,7 +1699,7 @@ export function DataTableToolbar<TData>({
                 </Button>
               )}
               {/* Show Cancel and Archive in outgoing view and if user has permissions */}
-              {viewType === 'outgoing' && (
+              {viewType === "outgoing" && (
                 <>
                   {canCancel && (
                     <Button
@@ -1084,7 +1724,7 @@ export function DataTableToolbar<TData>({
                 </>
               )}
               {/* Show Archive and Delete in document and owned views and if user has permissions */}
-              {(viewType === 'document' || viewType === 'owned') && (
+              {(viewType === "document" || viewType === "owned") && (
                 <>
                   {canArchive && (
                     <Button
@@ -1110,20 +1750,21 @@ export function DataTableToolbar<TData>({
                 </>
               )}
               {/* Show Restore in archive and recycle-bin views and if user has permission */}
-              {(viewType === 'archive' || viewType === 'recycle-bin') && canArchive && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsBulkRestoreOpen(true)}
-                >
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Restore
-                </Button>
-              )}
+              {(viewType === "archive" || viewType === "recycle-bin") &&
+                canArchive && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsBulkRestoreOpen(true)}
+                  >
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Restore
+                  </Button>
+                )}
             </div>
           )}
           {/* Show Transmit button only if not in recycle-bin view and user has release permission */}
-          {viewType !== 'recycle-bin' && canRelease && (
+          {viewType !== "recycle-bin" && canRelease && (
             <Button
               variant="default"
               size="sm"
@@ -1133,7 +1774,11 @@ export function DataTableToolbar<TData>({
                   return;
                 }
                 setSelectedDocuments(selectedRows.map((row) => row.original));
-                toast.info(`Preparing to transmit ${selectedRows.length} document${selectedRows.length !== 1 ? 's' : ''}`);
+                toast.info(
+                  `Preparing to transmit ${selectedRows.length} document${
+                    selectedRows.length !== 1 ? "s" : ""
+                  }`
+                );
                 setBulkTransmitOpen(true);
               }}
             >
@@ -1142,7 +1787,7 @@ export function DataTableToolbar<TData>({
             </Button>
           )}
           {/* Show Empty Recycle Bin button for recycle-bin view and if user has delete permission */}
-          {viewType === 'recycle-bin' && canDelete && (
+          {viewType === "recycle-bin" && canDelete && (
             <Button
               variant="destructive"
               size="sm"
@@ -1162,6 +1807,15 @@ export function DataTableToolbar<TData>({
               Document
             </Button>
           )}
+          {/* Document Scanner Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setScannerModalOpen(true)}
+          >
+            <Search className="mr-2 h-4 w-4" />
+            Scanner
+          </Button>
           <DataTableViewOptions table={table} />
         </div>
       </div>

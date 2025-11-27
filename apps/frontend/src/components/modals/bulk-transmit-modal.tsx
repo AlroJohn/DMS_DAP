@@ -140,7 +140,6 @@ export function BulkTransmitModal({ documents, isOpen, onClose }: BulkTransmitMo
             toast.success(`Successfully transmitted ${documents.length} document(s)!`)
             form.reset()
             onClose()
-            setTimeout(() => window.location.reload(), 1000)
         },
         onError: (error: Error) => {
             toast.error(error.message || 'Failed to transmit documents.')

@@ -186,7 +186,6 @@ export function ViewDocumentsModal({
       });
 
       if (response.ok) {
-        window.location.reload(); // Refresh to show latest data
         toast.success('Document data refreshed');
       } else {
         toast.error('Failed to refresh document data');

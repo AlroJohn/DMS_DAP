@@ -195,7 +195,6 @@ export function ReleaseDocumentModal({
       toast.success("Document released successfully!");
       form.reset();
       onClose();
-      setTimeout(() => window.location.reload(), 1000);
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to release document.");

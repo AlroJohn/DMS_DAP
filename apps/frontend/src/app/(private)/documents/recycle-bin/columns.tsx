@@ -238,7 +238,7 @@ export const columns: ColumnDef<RecycleBinDocument, unknown>[] = [
       return (
         <Badge
           variant={classification === "Highly technical" ? "destructive" : "secondary"}
-          className="font-medium text-xs px-1.5 py-0.5"
+          className="font-medium text-x s px-1.5 py-0.5"
         >
           {formatText(classification)}
         </Badge>

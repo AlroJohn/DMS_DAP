@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { DataTable } from "@/components/reuseable/tables/data-table";
 import { columns } from "./columns";
 import { useSharedDocuments } from "@/hooks/use-shared-documents";
@@ -18,6 +18,15 @@ export default function SharedDocumentsPage() {
     refetch,
   } = useSharedDocuments(1, 100);
   const { socket } = useSocket();
+  const mountedRef = useRef(false);
+
+  // Mark component as mounted and clean up on unmount
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // Only fetch documents if user is authenticated
   const isLoading = authLoading || documentsLoading;
@@ -26,38 +35,26 @@ export default function SharedDocumentsPage() {
   useEffect(() => {
     if (!socket || !user) return;
 
-    const handleDocumentAdded = () => {
-      refetch();
+    const safeRefetch = async () => {
+      if (mountedRef.current) {
+        try {
+          await refetch();
+        } catch (err) {
+          console.error("Error refetching shared documents:", err);
+        }
+      }
     };
 
-    const handleDocumentUpdated = () => {
-      refetch();
-    };
-
-    const handleDocumentDeleted = () => {
-      refetch();
-    };
-
-    const handleDocumentShared = () => {
-      refetch();
-    };
-
-    const handleDocumentAddedToUser = () => {
-      refetch();
-    };
+    const handleDocumentAdded = safeRefetch;
+    const handleDocumentUpdated = safeRefetch;
+    const handleDocumentDeleted = safeRefetch;
+    const handleDocumentShared = safeRefetch;
+    const handleDocumentAddedToUser = safeRefetch;
 
     // Listen for checkout-related events
-    const handleCheckout = () => {
-      refetch();
-    };
-
-    const handleCheckin = () => {
-      refetch();
-    };
-
-    const handleCheckoutOverridden = () => {
-      refetch();
-    };
+    const handleCheckout = safeRefetch;
+    const handleCheckin = safeRefetch;
+    const handleCheckoutOverridden = safeRefetch;
 
     // Listen for document-related events
     socket.on("documentAdded", handleDocumentAdded);
@@ -105,15 +102,27 @@ export default function SharedDocumentsPage() {
     });
   }, [documents]);
 
+  // Check if the error is authentication-related
+  const isAuthError = error && error.includes('Authentication required');
+
   return (
     <div className="flex h-full flex-col gap-4 bg-background">
       <div className="flex flex-col gap-1.5"></div>
-      {error && (
+      {error && !isAuthError && (
         <div className="mb-4">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>Error loading shared documents: {error}</AlertDescription>
+          </Alert>
+        </div>
+      )}
+      {isAuthError && (
+        <div className="mb-4">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Authentication Required</AlertTitle>
+            <AlertDescription>You must be logged in to view documents.</AlertDescription>
           </Alert>
         </div>
       )}
