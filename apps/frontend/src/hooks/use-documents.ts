@@ -53,7 +53,7 @@ interface UseDocumentsResult {
 export function useDocuments(page: number = 1, limit: number = 10): UseDocumentsResult {
   const [documents, setDocuments] = useState<DocumentListItem[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Start with false and set to true when fetching
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
   const isMountedRef = useRef(true);
@@ -65,11 +65,15 @@ export function useDocuments(page: number = 1, limit: number = 10): UseDocuments
   }, []);
 
   const fetchDocuments = useCallback(async () => {
-    try {
-      if (!isMountedRef.current) return;
+    if (!isMountedRef.current) return;
+
+    // Only set loading to true if component is still mounted
+    if (isMountedRef.current) {
       setIsLoading(true);
       setError(null);
+    }
 
+    try {
       const response = await fetch(
         `/api/documents?page=${page}&limit=${limit}`,
         {
@@ -94,6 +98,10 @@ export function useDocuments(page: number = 1, limit: number = 10): UseDocuments
         if (isMountedRef.current) {
           setDocuments((result.data || []) as DocumentListItem[]);
           setPagination((result.pagination || null) as Pagination | null);
+          // Only set loading to false if component is still mounted after successful fetch
+          if (isMountedRef.current) {
+            setIsLoading(false);
+          }
         }
       } else {
         // Try to extract message from different error shapes
@@ -107,19 +115,33 @@ export function useDocuments(page: number = 1, limit: number = 10): UseDocuments
       if (isMountedRef.current) {
         setDocuments([]);
         setPagination(null);
+        // Only set loading to false if component is still mounted after error
+        setIsLoading(false);
       }
     } finally {
+      // In the finally block, only set loading to false if component is mounted
+      // This is safe as finally will execute but we check mount status
       if (isMountedRef.current) {
         setIsLoading(false);
       }
     }
   }, [user, page, limit]);
 
+  // Set initial loading state when user becomes available
   useEffect(() => {
     if (user) {
+      // Set loading to true initially when user is available
+      setIsLoading(true);
+      setError(null);
       fetchDocuments();
+    } else {
+      // If no user, set loading to false and clear data
+      setDocuments([]);
+      setPagination(null);
+      setIsLoading(false);
+      setError(null);
     }
-  }, [user, page, limit]);
+  }, [user, page, limit, fetchDocuments]);
 
   return {
     documents,

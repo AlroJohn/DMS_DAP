@@ -68,6 +68,14 @@ export function DataTable<TData, TValue>({
   );
   const [sorting, setSorting] = React.useState<SortingState>([]);
 
+  const isSelectionChangeMountedRef = React.useRef(true);
+
+  React.useEffect(() => {
+    return () => {
+      isSelectionChangeMountedRef.current = false;
+    };
+  }, []);
+
   const table = useReactTable({
     data,
     columns,
@@ -92,19 +100,12 @@ export function DataTable<TData, TValue>({
   });
 
   React.useEffect(() => {
-    const isMountedRef = React.useRef(true);
-
-    if (onSelectionChange && isMountedRef.current) {
+    if (onSelectionChange && isSelectionChangeMountedRef.current) {
       const selectedRows = table
         .getSelectedRowModel()
         .rows.map((row) => row.original as TData);
       onSelectionChange(selectedRows);
     }
-
-    // Cleanup function
-    return () => {
-      isMountedRef.current = false;
-    };
   }, [onSelectionChange, table, rowSelection]);
 
   return (
