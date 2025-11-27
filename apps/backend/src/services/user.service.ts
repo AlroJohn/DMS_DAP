@@ -25,6 +25,7 @@ export interface UpdateUserData {
   department_id?: string;
   role_id?: string; // Add role_id to allow updating user's role
   active?: boolean;
+  signature?: string | null; // Base64 encoded signature
 }
 
 export interface UserWithRelations {
@@ -405,20 +406,25 @@ export class UserService {
 
               // Update user in transaction
             await prisma.$transaction(async (tx) => {
+              // Build update data object, only including defined fields
+              const updateData: any = {
+                updated_at: new Date(),
+              };
+
+              if (userData.first_name !== undefined) updateData.first_name = userData.first_name;
+              if (userData.last_name !== undefined) updateData.last_name = userData.last_name;
+              if (userData.middle_name !== undefined) updateData.middle_name = userData.middle_name;
+              if (userData.user_name !== undefined) updateData.user_name = userData.user_name;
+              if (userData.title !== undefined) updateData.title = userData.title;
+              if (userData.type !== undefined) updateData.type = userData.type;
+              if (userData.department_id !== undefined) updateData.department_id = userData.department_id;
+              if (userData.active !== undefined) updateData.active = userData.active;
+              if (userData.signature !== undefined) updateData.signature = userData.signature;
+
               // Update user
               await tx.user.update({
                 where: { user_id: userId },
-                data: {
-                  first_name: userData.first_name,
-                  last_name: userData.last_name,
-                  middle_name: userData.middle_name,
-                  user_name: userData.user_name,
-                  title: userData.title,
-                  type: userData.type,
-                  department_id: userData.department_id,
-                  active: userData.active,
-                  updated_at: new Date(),
-                }
+                data: updateData
               });
       
               // Update account department if department_id changed

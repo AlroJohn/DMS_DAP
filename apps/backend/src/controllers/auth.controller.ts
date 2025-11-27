@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthService, LoginCredentials, RegisterData } from '../services/auth.service';
 import { PermissionService } from '../services/permission.service';
+import { UserService, UpdateUserData } from '../services/user.service';
 import { asyncHandler } from '../middleware/error-handler';
 import { sendSuccess, sendError, validateRequiredFields } from '../utils/response';
 import { AuthRequest } from '../middleware/auth-middleware';
@@ -10,10 +11,12 @@ import { parseExpiresIn } from '../utils/time'; // Import parseExpiresIn
 export class AuthController {
   private authService: AuthService;
   private permissionService: PermissionService;
+  private userService: UserService;
 
   constructor() {
     this.authService = new AuthService();
     this.permissionService = new PermissionService();
+    this.userService = new UserService();
   }
 
   /**
@@ -178,6 +181,79 @@ export class AuthController {
     });
 
     return sendSuccess(res, user);
+  });
+
+  /**
+   * PUT /api/auth/profile - Update current user's own profile
+   * Allows users to update their own profile information without admin permissions
+   */
+  updateProfile = asyncHandler(async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
+
+    if (!authReq.user) {
+      return sendError(res, 'User not authenticated', 401);
+    }
+
+    const {
+      first_name,
+      last_name,
+      signature
+    } = req.body;
+
+    // Validate names if provided
+    if (first_name !== undefined) {
+      if (!first_name || first_name.length < 1 || first_name.length > 50) {
+        return sendError(res, 'First name must be between 1 and 50 characters', 400);
+      }
+    }
+
+    if (last_name !== undefined) {
+      if (!last_name || last_name.length < 1 || last_name.length > 50) {
+        return sendError(res, 'Last name must be between 1 and 50 characters', 400);
+      }
+    }
+
+    try {
+      const userData: UpdateUserData = {
+        first_name,
+        last_name,
+        signature: signature !== undefined ? signature : undefined,
+      };
+
+      // Remove undefined fields
+      Object.keys(userData).forEach(key => {
+        if (userData[key as keyof UpdateUserData] === undefined) {
+          delete userData[key as keyof UpdateUserData];
+        }
+      });
+
+      const updatedUser = await this.userService.updateUser(authReq.user.id, userData);
+
+      if (!updatedUser) {
+        return sendError(res, 'User not found', 404);
+      }
+
+      // Get the updated user with all relations
+      const user = await this.authService.getUserById(authReq.user.id);
+
+      if (!user) {
+        return sendError(res, 'Failed to retrieve updated user', 500);
+      }
+
+      return sendSuccess(res, user);
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+
+      if (error.message === 'User not found') {
+        return sendError(res, 'User not found', 404);
+      }
+
+      if (error.message === 'Username already exists') {
+        return sendError(res, 'Username already exists', 409);
+      }
+
+      return sendError(res, 'Failed to update profile', 500);
+    }
   });
 
   /**

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useAuth } from "@/hooks/use-auth"
-import { BadgeCheck, Camera, Mail, Shield, User as UserIcon, ArrowLeft } from "lucide-react"
+import { BadgeCheck, Camera, Mail, Shield, User as UserIcon, ArrowLeft, Loader2, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,11 +11,18 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { Skeleton } from "@/components/ui/skeleton"
+import { SignaturePad } from "@/components/signature-pad"
+import { PenTool } from "lucide-react"
 
 export default function AccountPage() {
-  const { user } = useAuth()
+  const { user, isLoading, login } = useAuth()
   const router = useRouter()
   const [isEditing, setIsEditing] = React.useState(false)
+  const [isSaving, setIsSaving] = React.useState(false)
+  const [isSavingSignature, setIsSavingSignature] = React.useState(false)
+  const [signature, setSignature] = React.useState<string | null>(user?.signature || null)
   const [formData, setFormData] = React.useState({
     first_name: user?.first_name || "",
     last_name: user?.last_name || "",
@@ -31,13 +38,50 @@ export default function AccountPage() {
         email: user.email || "",
         phone: user?.phone || "",
       })
+      setSignature(user?.signature || null)
     }
   }, [user])
 
-  const handleSave = () => {
-    // TODO: Implement API call to save user data
-    console.log("Saving user data:", formData)
-    setIsEditing(false)
+  const handleSave = async () => {
+    if (!user) {
+      toast.error("User data not available")
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const response = await fetch('/api/auth/profile', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          // Note: email and phone updates may require separate endpoints
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error?.message || 'Failed to update profile')
+      }
+
+      toast.success('Profile updated successfully')
+      setIsEditing(false)
+      
+      // Refetch user data to get the latest information
+      if (login) {
+        login()
+      }
+    } catch (error: any) {
+      console.error('Error updating profile:', error)
+      toast.error(error.message || 'Failed to update profile')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleCancel = () => {
@@ -75,6 +119,66 @@ export default function AccountPage() {
       return user.roles[0].name || user.roles[0].code || user.roles[0]
     }
     return null
+  }
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-6 w-full">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.back()}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <Skeleton className="h-9 w-64 mb-2" />
+            <Skeleton className="h-5 w-96" />
+          </div>
+        </div>
+        <div className="flex items-center justify-center py-20">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-muted-foreground">Loading account information...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error state if user is not available
+  if (!user) {
+    return (
+      <div className="flex flex-col gap-6 w-full">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.back()}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Account Settings</h1>
+            <p className="text-muted-foreground">
+              Manage your account information and preferences
+            </p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-20">
+            <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
+            <p className="text-destructive font-medium mb-2">Failed to load account information</p>
+            <p className="text-muted-foreground text-sm mb-4">Please try refreshing the page</p>
+            <Button onClick={() => window.location.reload()}>
+              Refresh Page
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -193,17 +297,16 @@ export default function AccountPage() {
                 id="email"
                 type="email"
                 value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
-                disabled={!isEditing}
+                disabled={true}
                 className="flex-1"
+                title="Email cannot be changed"
               />
               <Badge variant="secondary" className="shrink-0 gap-1 h-10 px-3">
                 <BadgeCheck className="h-3 w-3" />
                 Verified
               </Badge>
             </div>
+            <p className="text-xs text-muted-foreground">Email address cannot be changed</p>
           </div>
 
           <div className="space-y-2">
@@ -222,12 +325,23 @@ export default function AccountPage() {
 
           {isEditing && (
             <div className="flex gap-2 pt-4">
-              <Button onClick={handleSave}>
-                Save Changes
+              <Button 
+                onClick={handleSave}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
               </Button>
               <Button
                 variant="outline"
                 onClick={handleCancel}
+                disabled={isSaving}
               >
                 Cancel
               </Button>
@@ -275,6 +389,54 @@ export default function AccountPage() {
         </CardContent>
       </Card>
 
+      {/* Signature Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <PenTool className="h-5 w-5" />
+            Digital Signature
+          </CardTitle>
+          <CardDescription>Create or update your digital signature for document signing</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SignaturePad
+            value={signature || undefined}
+            onChange={setSignature}
+            width={600}
+            height={200}
+          />
+          <div className="flex gap-2">
+            <Button
+              onClick={handleSaveSignature}
+              disabled={isSavingSignature || !signature}
+            >
+              {isSavingSignature ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Signature"
+              )}
+            </Button>
+            {signature && (
+              <Button
+                variant="outline"
+                onClick={handleClearSignature}
+                disabled={isSavingSignature}
+              >
+                Clear Signature
+              </Button>
+            )}
+          </div>
+          {signature && (
+            <p className="text-xs text-muted-foreground">
+              Your signature will be used when signing documents. You can update it at any time.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Security Card */}
       <Card>
         <CardHeader>
@@ -299,5 +461,83 @@ export default function AccountPage() {
       </Card>
     </div>
   )
+
+  async function handleSaveSignature() {
+    if (!user || !signature) {
+      toast.error("Please create a signature first")
+      return
+    }
+
+    setIsSavingSignature(true)
+    try {
+      const response = await fetch('/api/auth/profile', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          signature: signature,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error?.message || 'Failed to save signature')
+      }
+
+      toast.success('Signature saved successfully')
+      
+      // Refetch user data to get the latest information
+      if (login) {
+        login()
+      }
+    } catch (error: any) {
+      console.error('Error saving signature:', error)
+      toast.error(error.message || 'Failed to save signature')
+    } finally {
+      setIsSavingSignature(false)
+    }
+  }
+
+  async function handleClearSignature() {
+    if (!user) {
+      return
+    }
+
+    setIsSavingSignature(true)
+    try {
+      const response = await fetch('/api/auth/profile', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          signature: null,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error?.message || 'Failed to clear signature')
+      }
+
+      setSignature(null)
+      toast.success('Signature cleared successfully')
+      
+      // Refetch user data to get the latest information
+      if (login) {
+        login()
+      }
+    } catch (error: any) {
+      console.error('Error clearing signature:', error)
+      toast.error(error.message || 'Failed to clear signature')
+    } finally {
+      setIsSavingSignature(false)
+    }
+  }
 }
 

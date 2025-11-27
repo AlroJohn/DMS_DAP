@@ -50,6 +50,7 @@ model User {
   title                      String?
   type                       String?
   avatar                     String?
+  signature                  String?                    @db.Text // Base64 encoded signature
   active                     Boolean                    @default(true)
   created_at                 DateTime                   @default(now())
   updated_at                 DateTime                   @default(now()) @updatedAt

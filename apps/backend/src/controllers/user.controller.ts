@@ -186,7 +186,8 @@ export class UserController {
       title,
       type,
       department_id,
-      active
+      active,
+      signature
     } = req.body;
 
     // Validate names if provided
@@ -208,6 +209,7 @@ export class UserController {
         type,
         department_id,
         active,
+        signature: signature !== undefined ? signature : undefined,
       };
 
       const updatedUser = await this.userService.updateUser(id, userData);

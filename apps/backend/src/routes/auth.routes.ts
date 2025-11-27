@@ -20,6 +20,9 @@ router.post('/logout', authController.logout);
 // GET /api/auth/me - Get current user info (requires authentication)
 router.get('/me', authMiddleware, authController.getCurrentUser);
 
+// PUT /api/auth/profile - Update current user's own profile (requires authentication)
+router.put('/profile', authMiddleware, authController.updateProfile);
+
 // GET /api/auth/socket-token - Get token for Socket.IO authentication (requires authentication)
 router.get('/socket-token', authMiddleware, authController.getSocketToken);
 

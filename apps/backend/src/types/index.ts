@@ -158,6 +158,7 @@ export interface User {
   title?: string | null;
   type?: string | null;
   avatar?: string | null;
+  signature?: string | null; // Base64 encoded signature
   active: boolean;
   created_at: Date;
   updated_at: Date;

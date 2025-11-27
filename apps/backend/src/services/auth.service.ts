@@ -350,6 +350,7 @@ export class AuthService {
       title: user.title,
       type: user.type,
       avatar: user.avatar,
+      signature: user.signature,
       active: user.active,
       created_at: user.created_at,
       updated_at: user.updated_at
