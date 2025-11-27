@@ -10,6 +10,7 @@ import { DoconchainService, SignerMarkPayload, SignerPayload, SignerRole } from 
 import { getSocketInstance } from '../socket';
 import { EmailService, DocumentSharedEmailData, DocumentReleasedEmailData, DocumentCompletedEmailData } from './email.service';
 import { DocumentMetadataService } from './document-metadata.service';
+import { DocumentTrailsService } from './document-trails.service';
 import { NotificationService } from './notification.service';
 import { recordCompletionStatus, recordCreationStatus, recordReceiveStatus } from './workflow-status.service';
 // Import the getSocketInstance function instead of importing io directly from index
@@ -1377,6 +1378,21 @@ export class DocumentService {
       }
     }
 
+    // Create a document trail entry for document creation
+    const documentTrailsService = new DocumentTrailsService();
+    try {
+      await documentTrailsService.createDocumentTrail({
+        document_id: document.document_id,
+        from_department: user.department_id,
+        to_department: user.department_id, // Document created in the same department
+        user_id: userId,
+        status: 'dispatch',
+        remarks: `Document created by ${user.first_name} ${user.last_name} with file upload`
+      });
+    } catch (error) {
+      console.error('Error creating document trail for document creation:', error);
+    }
+
     // Emit socket event to notify frontends of new document
     const io = getSocketInstance();
     io.emit('documentAdded', {
@@ -1796,6 +1812,21 @@ export class DocumentService {
       }
     });
 
+    // Create a document trail entry for document creation
+    const documentTrailsService = new DocumentTrailsService();
+    try {
+      await documentTrailsService.createDocumentTrail({
+        document_id: document.document_id,
+        from_department: user.department_id,
+        to_department: user.department_id, // Document created in the same department
+        user_id: userId,
+        status: 'dispatch',
+        remarks: `Document created by ${user.first_name} ${user.last_name}`
+      });
+    } catch (error) {
+      console.error('Error creating document trail for document creation:', error);
+    }
+
     // Send notifications for document creation
     const notificationService = new NotificationService();
     try {
@@ -2048,6 +2079,26 @@ export class DocumentService {
         }
       });
 
+      // Create a document trail entry for document completion
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        const completingUser = await prisma.user.findUnique({
+          where: { user_id: userId },
+          select: { department_id: true, first_name: true, last_name: true }
+        });
+
+        await documentTrailsService.createDocumentTrail({
+          document_id: documentId,
+          from_department: completingUser?.department_id,
+          to_department: completingUser?.department_id, // Completed in same department
+          user_id: userId,
+          status: 'completed',
+          remarks: `Document completed by ${completingUser?.first_name} ${completingUser?.last_name}`
+        });
+      } catch (error) {
+        console.error('Error creating document trail for document completion:', error);
+      }
+
       await recordCompletionStatus(documentId, { userId });
 
       // Emit socket event for real-time updates
@@ -2200,6 +2251,26 @@ export class DocumentService {
         }
       });
 
+      // Create a document trail entry for document cancellation
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        const cancelingUser = await prisma.user.findUnique({
+          where: { user_id: userId },
+          select: { department_id: true, first_name: true, last_name: true }
+        });
+
+        await documentTrailsService.createDocumentTrail({
+          document_id: documentId,
+          from_department: cancelingUser?.department_id,
+          to_department: cancelingUser?.department_id, // Canceled in same department
+          user_id: userId,
+          status: 'canceled',
+          remarks: `Document canceled by ${cancelingUser?.first_name} ${cancelingUser?.last_name}`
+        });
+      } catch (error) {
+        console.error('Error creating document trail for document cancellation:', error);
+      }
+
       // Emit socket event for real-time updates
       const io = getSocketInstance();
       if (io) {
@@ -2236,6 +2307,7 @@ export class DocumentService {
     try {
       const user = await prisma.user.findUnique({
         where: { user_id: userId },
+        select: { department_id: true, first_name: true, last_name: true }
       });
 
       if (!user) {
@@ -2259,6 +2331,40 @@ export class DocumentService {
           updated_at: new Date(),
         },
       });
+
+      // Create a document trail entry for document received
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        // For receiving, we want to identify the department that sent the document
+        // This would typically be the last department in the workflow that was not the receiving department
+        let fromDepartmentId: string | undefined = undefined;
+        if (document.DocumentAdditionalDetails?.[0]?.work_flow_id) {
+          const workflow = document.DocumentAdditionalDetails[0].work_flow_id as any;
+          if (typeof workflow === 'object' && workflow !== null) {
+            const workflowDepartments = Object.values(workflow) as string[];
+            // Find the department that sent this document (the one before the current receiver)
+            // For simplicity, if workflow has multiple departments, get the one that's not the receiver
+            const deptIndex = workflowDepartments.lastIndexOf(user.department_id);
+            if (deptIndex > 0 && workflowDepartments[deptIndex - 1]) {
+              fromDepartmentId = workflowDepartments[deptIndex - 1];
+            } else if (workflowDepartments.length > 1) {
+              // If the receiving dept is not in the workflow, take the last department
+              fromDepartmentId = workflowDepartments[workflowDepartments.length - 1];
+            }
+          }
+        }
+
+        await documentTrailsService.createDocumentTrail({
+          document_id: documentId,
+          from_department: fromDepartmentId,
+          to_department: user.department_id,
+          user_id: userId,
+          status: 'received',
+          remarks: `Document received by ${user.first_name} ${user.last_name} in ${user.department_id}`
+        });
+      } catch (error) {
+        console.error('Error creating document trail for document received:', error);
+      }
 
       const detail = document.DocumentAdditionalDetails[0];
       if (detail) {

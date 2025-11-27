@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma';
 import { getSocketInstance } from '../socket';
+import { DocumentTrailsService } from './document-trails.service';
 
 export class DocumentCheckoutService {
   /**
@@ -50,6 +51,12 @@ export class DocumentCheckoutService {
     }
 
     try {
+      // First get the department of the user for the document trail
+      const userWithDept = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { department_id: true, first_name: true, last_name: true }
+      });
+
       const [, updatedFile] = await prisma.$transaction([
         prisma.userCheckout.create({
           data: {
@@ -62,6 +69,21 @@ export class DocumentCheckoutService {
           data: { checkout: true },
         }),
       ]);
+
+      // Create a document trail for the checkout
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        await documentTrailsService.createDocumentTrail({
+          document_id: documentFile.document_id,
+          from_department: userWithDept?.department_id,
+          to_department: userWithDept?.department_id, // User's department
+          user_id: userId,
+          status: 'dispatch', // Using 'dispatch' status since checkout doesn't change document workflow status
+          remarks: `File checked out by ${userWithDept?.first_name} ${userWithDept?.last_name}`
+        });
+      } catch (trailError) {
+        console.error('Error creating document trail for checkout:', trailError);
+      }
 
       const io = getSocketInstance();
       io.emit('file-lock-updated', {
@@ -119,6 +141,12 @@ export class DocumentCheckoutService {
     }
 
     try {
+      // First get the department of the user for the document trail
+      const userWithDept = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { department_id: true, first_name: true, last_name: true }
+      });
+
       const [updatedFile] = await prisma.$transaction([
         prisma.documentFile.update({
           where: { file_id: fileId },
@@ -128,6 +156,21 @@ export class DocumentCheckoutService {
           where: { file_id: fileId },
         }),
       ]);
+
+      // Create a document trail for the checkin
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        await documentTrailsService.createDocumentTrail({
+          document_id: documentFile.document_id,
+          from_department: userWithDept?.department_id,
+          to_department: userWithDept?.department_id, // User's department
+          user_id: userId,
+          status: 'dispatch', // Using 'dispatch' status since checkin doesn't change document workflow status
+          remarks: `File checked in by ${userWithDept?.first_name} ${userWithDept?.last_name}`
+        });
+      } catch (trailError) {
+        console.error('Error creating document trail for checkin:', trailError);
+      }
 
       const io = getSocketInstance();
       io.emit('file-lock-updated', {
@@ -180,6 +223,12 @@ export class DocumentCheckoutService {
     const originalCheckoutUserAccountId = checkoutRecord.checked_out_by;
 
     try {
+      // First get the department of the user for the document trail
+      const userWithDept = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { department_id: true, first_name: true, last_name: true }
+      });
+
       const [updatedFile] = await prisma.$transaction([
         prisma.documentFile.update({
           where: { file_id: fileId },
@@ -189,6 +238,21 @@ export class DocumentCheckoutService {
           where: { file_id: fileId },
         }),
       ]);
+
+      // Create a document trail for the checkout override
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        await documentTrailsService.createDocumentTrail({
+          document_id: documentFile.document_id,
+          from_department: userWithDept?.department_id,
+          to_department: userWithDept?.department_id, // User's department
+          user_id: userId,
+          status: 'dispatch', // Using 'dispatch' status since checkout override doesn't change document workflow status
+          remarks: `File checkout overridden by ${userWithDept?.first_name} ${userWithDept?.last_name}`
+        });
+      } catch (trailError) {
+        console.error('Error creating document trail for checkout override:', trailError);
+      }
 
       const io = getSocketInstance();
       io.emit('file-lock-updated', {

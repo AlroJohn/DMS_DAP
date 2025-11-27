@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma';
 import QRCode from 'qrcode';
 import bwipjs from 'bwip-js';
 import { getSocketInstance } from '../socket';
+import { DocumentTrailsService } from './document-trails.service';
 
 interface PaginationParams {
   page: number;
@@ -406,6 +407,27 @@ export class RecycleBinService {
         });
       });
 
+      // Create a document trail entry for document restoration from recycle bin
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        // Get user's department to include in trail
+        const userDetail = await prisma.user.findUnique({
+          where: { user_id: userId },
+          select: { department_id: true }
+        });
+
+        await documentTrailsService.createDocumentTrail({
+          document_id: id,
+          from_department: userDetail?.department_id, // Department of user performing restoration
+          to_department: userDetail?.department_id, // Restoration happens in same department
+          user_id: userId, // Use the userId who performed the restoration
+          status: 'dispatch', // Status is reset to dispatch after restoration
+          remarks: `Document restored from recycle bin: ${existingDocument.title}`
+        });
+      } catch (error) {
+        console.error('Error creating document trail for document restoration from recycle bin:', error);
+      }
+
       // Emit socket event to notify frontends of document restoration
       const io = getSocketInstance();
       io.emit('documentRestored', {
@@ -418,6 +440,165 @@ export class RecycleBinService {
       return true;
     } catch (error: any) {
       console.error('📍 [restoreDocument] Error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cancel a document workflow - marks document as canceled
+   */
+  async cancelDocument(documentId: string, userId: string) {
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(documentId)) {
+      throw new Error('Invalid document ID format');
+    }
+
+    try {
+      // Get user's department
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { department_id: true, first_name: true, last_name: true }
+      });
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Verify document exists and get its additional details
+      const document = await prisma.document.findUnique({
+        where: { document_id: documentId },
+        include: {
+          DocumentAdditionalDetails: true
+        }
+      });
+
+      if (!document) {
+        throw new Error('Document not found');
+      }
+
+      // Update document status to canceled
+      await prisma.document.update({
+        where: { document_id: documentId },
+        data: {
+          status: 'canceled',
+          updated_at: new Date()
+        }
+      });
+
+      // Create a document trail entry for document cancellation
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        await documentTrailsService.createDocumentTrail({
+          document_id: documentId,
+          from_department: user.department_id,
+          to_department: user.department_id, // For cancellation, from and to can be same
+          user_id: userId,
+          status: 'canceled',
+          remarks: `Document canceled by ${user.first_name} ${user.last_name}`
+        });
+      } catch (error) {
+        console.error('Error creating document trail for document cancellation:', error);
+      }
+
+      return {
+        success: true,
+        message: 'Document canceled successfully',
+        documentId: documentId
+      };
+    } catch (error) {
+      console.error('Error canceling document:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Move a document to recycle bin (soft delete) - marks document as deleted
+   */
+  async deleteDocument(documentId: string, userId: string) {
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(documentId)) {
+      throw new Error('Invalid document ID format');
+    }
+
+    try {
+      // Get user's department and account info
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { department_id: true, first_name: true, last_name: true, account_id: true }
+      });
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Verify document exists
+      const document = await prisma.document.findUnique({
+        where: { document_id: documentId }
+      });
+
+      if (!document) {
+        throw new Error('Document not found');
+      }
+
+      // Update document status to deleted
+      await prisma.document.update({
+        where: { document_id: documentId },
+        data: {
+          status: 'deleted',
+          updated_at: new Date()
+        }
+      });
+
+      // Update DocumentAdditionalDetails to set deleted_at and deleted_by
+      const existingDetails = await prisma.documentAdditionalDetails.findFirst({
+        where: { document_id: documentId }
+      });
+
+      if (existingDetails) {
+        await prisma.documentAdditionalDetails.update({
+          where: { detail_id: existingDetails.detail_id },
+          data: {
+            deleted_at: new Date(),
+            deleted_by: user.account_id, // Use account_id instead of user_id
+            updated_at: new Date()
+          }
+        });
+      } else {
+        // If no detail exists, create one
+        await prisma.documentAdditionalDetails.create({
+          data: {
+            document_id: documentId,
+            deleted_at: new Date(),
+            deleted_by: user.account_id, // Use account_id instead of user_id
+            account_id: user.account_id
+          }
+        });
+      }
+
+      // Create a document trail entry for document deletion/moving to recycle bin
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        await documentTrailsService.createDocumentTrail({
+          document_id: documentId,
+          from_department: user.department_id,
+          to_department: user.department_id, // For deletion, from and to can be same
+          user_id: userId,
+          status: 'deleted',
+          remarks: `Document moved to recycle bin by ${user.first_name} ${user.last_name}`
+        });
+      } catch (error) {
+        console.error('Error creating document trail for document deletion:', error);
+      }
+
+      return {
+        success: true,
+        message: 'Document moved to recycle bin successfully',
+        documentId: documentId
+      };
+    } catch (error) {
+      console.error('Error deleting document:', error);
       throw error;
     }
   }

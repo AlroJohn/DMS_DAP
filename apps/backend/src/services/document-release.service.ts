@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma';
 import { getSocketInstance } from '../socket';
+import { DocumentTrailsService } from './document-trails.service';
 import { EmailService, DocumentReleasedEmailData } from './email.service';
 import { NotificationService } from './notification.service';
 import { recordReceiveStatus, recordReleaseStatus } from './workflow-status.service';
@@ -116,6 +117,21 @@ export class DocumentReleaseService {
           updated_at: new Date()
         }
       });
+
+      // Create a document trail entry for the release
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        await documentTrailsService.createDocumentTrail({
+          document_id: documentId,
+          from_department: releasingUser?.department_id,
+          to_department: departmentId,
+          user_id: userId,
+          status: 'intransit',
+          remarks: remarks || `Document released from ${releasingUser?.department_id} to ${departmentId}`
+        });
+      } catch (error) {
+        console.error('Error creating document trail for document release:', error);
+      }
 
       // Update DocumentAdditionalDetails with new workflow and pass_to_department
       if (currentDetail) {
@@ -392,6 +408,21 @@ export class DocumentReleaseService {
           updated_at: new Date()
         }
       });
+
+      // Create a document trail entry for the document receiving
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        await documentTrailsService.createDocumentTrail({
+          document_id: documentId,
+          from_department: undefined, // Received from the previous department in workflow
+          to_department: user.department_id,
+          user_id: userId,
+          status: 'received',
+          remarks: `Document received by department: ${user.department_id}`
+        });
+      } catch (error) {
+        console.error('Error creating document trail for document receiving:', error);
+      }
 
       // Update DocumentAdditionalDetails to set received_by field and clear pass_to_department
       await prisma.documentAdditionalDetails.update({

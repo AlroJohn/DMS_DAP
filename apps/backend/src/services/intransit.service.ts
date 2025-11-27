@@ -2,6 +2,8 @@ import { prisma } from '../lib/prisma';
 import QRCode from 'qrcode';
 import bwipjs from 'bwip-js';
 import { DocumentService } from './document.service';
+import { DocumentTrailsService } from './document-trails.service';
+import { getSocketInstance } from '../socket';
 
 interface PaginationParams {
   page: number;
@@ -531,6 +533,85 @@ export class IntransitService {
     }
   }
 
+  /**
+   * Complete a document workflow - marks document as completed
+   */
+  async completeDocument(documentId: string, userId: string) {
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(documentId)) {
+      throw new Error('Invalid document ID format');
+    }
+
+    try {
+      // Get user's department
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { department_id: true, first_name: true, last_name: true }
+      });
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Verify document exists and get its additional details
+      const document = await prisma.document.findUnique({
+        where: { document_id: documentId },
+        include: {
+          DocumentAdditionalDetails: true
+        }
+      });
+
+      if (!document) {
+        throw new Error('Document not found');
+      }
+
+      // Update document status to completed
+      await prisma.document.update({
+        where: { document_id: documentId },
+        data: {
+          status: 'completed',
+          updated_at: new Date()
+        }
+      });
+
+      // Create a document trail entry for document completion
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        await documentTrailsService.createDocumentTrail({
+          document_id: documentId,
+          from_department: user.department_id,
+          to_department: user.department_id, // For completion, from and to can be same
+          user_id: userId,
+          status: 'completed',
+          remarks: `Document completed by ${user.first_name} ${user.last_name}`
+        });
+      } catch (error) {
+        console.error('Error creating document trail for document completion:', error);
+      }
+
+      // Emit socket event to notify frontends of document completion
+      const io = getSocketInstance();
+      if (io) {
+        io.emit('documentUpdated', {
+          documentId: documentId,
+          status: 'completed',
+          updatedBy: userId,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      return {
+        success: true,
+        message: 'Document completed successfully',
+        documentId: documentId
+      };
+    } catch (error) {
+      console.error('Error completing document:', error);
+      throw error;
+    }
+  }
+
   private parseWorkflowDepartments(workflow: any): string[] {
     if (!workflow) return [];
 
@@ -552,5 +633,82 @@ export class IntransitService {
     }
 
     return [];
+  }
+
+  /**
+   * Update a document and create a trail for major changes
+   */
+  async updateDocumentWithTrail(
+    documentId: string,
+    userId: string,
+    updateData: {
+      title?: string;
+      description?: string;
+      document_type?: string;
+      classification?: string;
+      status?: string;
+      remarks?: string;
+    }
+  ) {
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(documentId)) {
+      throw new Error('Invalid document ID format');
+    }
+
+    try {
+      // Get user's department
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { department_id: true, first_name: true, last_name: true }
+      });
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Get the document before update to capture previous values
+      const documentBefore = await prisma.document.findUnique({
+        where: { document_id: documentId }
+      });
+
+      if (!documentBefore) {
+        throw new Error('Document not found');
+      }
+
+      // Update the document
+      const updatedDocument = await prisma.document.update({
+        where: { document_id: documentId },
+        data: updateData as any
+      });
+
+      // Determine the status for the trail based on what was updated
+      const statusForTrail = updateData.status || updatedDocument.status;
+
+      // Create a document trail entry for the update
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        await documentTrailsService.createDocumentTrail({
+          document_id: documentId,
+          from_department: user.department_id, // From the department of the user making the change
+          to_department: user.department_id, // For an edit, the user's department is where change occurred
+          user_id: userId,
+          status: statusForTrail,
+          remarks: updateData.remarks || `Document updated by ${user.first_name} ${user.last_name}: ${Object.keys(updateData).join(', ')}`
+        });
+      } catch (error) {
+        console.error('Error creating document trail for document update:', error);
+      }
+
+      return {
+        success: true,
+        message: 'Document updated successfully with trail',
+        documentId: documentId,
+        updatedDocument
+      };
+    } catch (error) {
+      console.error('Error updating document with trail:', error);
+      throw error;
+    }
   }
 }

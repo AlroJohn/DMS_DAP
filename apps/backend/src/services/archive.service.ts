@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma';
 import QRCode from 'qrcode';
 import bwipjs from 'bwip-js';
 import { DocumentService } from './document.service';
+import { DocumentTrailsService } from './document-trails.service';
 
 export class ArchiveService {
   private documentService: DocumentService;
@@ -36,6 +37,26 @@ export class ArchiveService {
           status: 'archive' // Using 'archive' status to represent archived (distinct from other statuses)
         }
       });
+
+      // Get the user who is archiving the document to link with the trail
+      const user = await prisma.user.findUnique({
+        where: { user_id: archivedBy }
+      });
+
+      // Create a document trail entry for document archiving
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        await documentTrailsService.createDocumentTrail({
+          document_id: documentId,
+          from_department: user?.department_id || null, // Get department from the user performing the action
+          to_department: user?.department_id || null, // Archiving happens in same department
+          user_id: archivedBy, // Use the userId who performed the archiving
+          status: 'archive',
+          remarks: `Document archived: ${document.title}`
+        });
+      } catch (error) {
+        console.error('Error creating document trail for document archiving:', error);
+      }
 
       // Create a document action log to track the archive action
       await prisma.documentAction.create({
@@ -92,6 +113,21 @@ export class ArchiveService {
           status: 'dispatch' // Reset to initial status after restoration
         }
       });
+
+      // Create a document trail entry for document restoration
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        await documentTrailsService.createDocumentTrail({
+          document_id: documentId,
+          from_department: document.department_id || null, // Use original department if available
+          to_department: document.department_id || null, // Restoration happens in same department
+          user_id: restoredByUserId, // Use the userId who performed the restoration
+          status: 'dispatch', // Status is reset to dispatch after restoration
+          remarks: `Document restored from archive: ${document.title}`
+        });
+      } catch (error) {
+        console.error('Error creating document trail for document restoration:', error);
+      }
 
       // Create a document action log to track the restore action
       await prisma.documentAction.create({

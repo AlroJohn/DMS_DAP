@@ -23,6 +23,7 @@ import {
 import { useViewDocument } from "@/hooks/use-view-documents";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useState, useEffect } from 'react';
 
 interface ViewDocumentsModalProps {
   open: boolean;
@@ -111,11 +112,50 @@ export function ViewDocumentsModal({
   onOpenChange,
   documentId,
 }: ViewDocumentsModalProps) {
+  // All state hooks must be at the top to follow React Hooks rules
+  const [documentTrails, setDocumentTrails] = useState<any[]>([]);
+  const [trailsLoading, setTrailsLoading] = useState(false);
+
   const { document, isLoading, error } = useViewDocument(documentId);
+
+  // Function to load document trails - moved to maintain consistent hook order
+  useEffect(() => {
+    if (open && documentId) {
+      loadDocumentTrails();
+    }
+  }, [open, documentId]);
+
+  const loadDocumentTrails = async () => {
+    if (!documentId) return;
+
+    setTrailsLoading(true);
+    try {
+      const response = await fetch(`/api/documents/${documentId}/trails`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setDocumentTrails(data.data || []);
+      } else {
+        console.error('Failed to load document trails:', response.statusText);
+        setDocumentTrails([]);
+      }
+    } catch (error) {
+      console.error('Error loading document trails:', error);
+      setDocumentTrails([]);
+    } finally {
+      setTrailsLoading(false);
+    }
+  };
 
   const handleExportPDF = () => {
     if (!document) return;
-    
+
     const printContent = `
       <html>
         <head>
@@ -135,7 +175,7 @@ export function ViewDocumentsModal({
             <h2>${document.detail?.document_name || 'Document'}</h2>
             <p>Code: ${document.detail?.document_code || document.document_id}</p>
           </div>
-          
+
           <div class="section">
             <h3>Document Details</h3>
             <p><span class="label">Status:</span> ${document.status}</p>
@@ -143,7 +183,7 @@ export function ViewDocumentsModal({
             <p><span class="label">Created:</span> ${formatDateTime(document.created_at).full}</p>
             <p><span class="label">Origin:</span> ${document.detail?.origin || 'N/A'}</p>
           </div>
-          
+
           ${document.document_logs && document.document_logs.length > 0 ? `
             <div class="section">
               <h3>Document History</h3>
@@ -162,7 +202,7 @@ export function ViewDocumentsModal({
         </body>
       </html>
     `;
-    
+
     const printWindow = window.open('', '', 'width=800,height=600');
     if (printWindow) {
       printWindow.document.write(printContent);
@@ -175,7 +215,7 @@ export function ViewDocumentsModal({
 
   const handleLatestUpdates = async () => {
     if (!documentId) return;
-    
+
     try {
       const response = await fetch(`/api/documents/${documentId}`, {
         method: 'GET',
@@ -264,20 +304,21 @@ export function ViewDocumentsModal({
               <TabsTrigger value="details">Document Details</TabsTrigger>
             </TabsList>
 
-            {/* Document Routing Tab */}
+            {/* Document Routing Tab - using document_trails for historical data */}
             <TabsContent value="routing" className="space-y-4 mt-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">
-                  Document Trail History
+                  Document Routing History
                 </h3>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleLatestUpdates}
+                    onClick={loadDocumentTrails}
+                    disabled={trailsLoading}
                   >
                     <Clock className="h-4 w-4 mr-2" />
-                    Latest Updates
+                    Refresh
                   </Button>
                   <Button variant="outline" size="sm" onClick={handleExportPDF}>
                     <Download className="h-4 w-4 mr-2" />
@@ -286,7 +327,7 @@ export function ViewDocumentsModal({
                 </div>
               </div>
 
-              {isLoading ? (
+              {trailsLoading ? (
                 <div className="space-y-4">
                   {[1, 2, 3].map((i) => (
                     <div key={i} className="border rounded-lg p-4">
@@ -296,20 +337,19 @@ export function ViewDocumentsModal({
                     </div>
                   ))}
                 </div>
-              ) : document?.document_logs &&
-                document.document_logs.length > 0 ? (
+              ) : documentTrails && documentTrails.length > 0 ? (
                 <div className="relative space-y-6 pl-8">
                   {/* Timeline line */}
                   <div className="absolute left-[19px] top-[30px] bottom-[30px] w-[2px] bg-border" />
 
-                  {document.document_logs.map((log, index) => {
+                  {documentTrails.map((trail, index) => {
                     const isFirst = index === 0;
-                    const isLast = index === document.document_logs.length - 1;
-                    const datetime = formatDateTime(log.performed_at);
-                    const actionName = formatText(log.action);
+                    const isLast = index === documentTrails.length - 1;
+                    const datetime = formatDateTime(trail.action_date);
+                    const statusName = formatText(trail.status);
 
                     return (
-                      <div key={log.log_id} className="relative">
+                      <div key={trail.trail_id} className="relative">
                         {/* Timeline node */}
                         <div
                           className={cn(
@@ -336,7 +376,7 @@ export function ViewDocumentsModal({
                           </span>
                         </div>
 
-                        {/* Log card */}
+                        {/* Trail card */}
                         <div className="bg-white border rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow ml-6">
                           <div className="flex justify-between items-start mb-4">
                             <div className="text-sm text-muted-foreground">
@@ -345,19 +385,19 @@ export function ViewDocumentsModal({
                           </div>
 
                           {/* Department flow */}
-                          {log.from_department && log.to_department && (
+                          {trail.fromDept && trail.toDept && (
                             <div className="flex items-center gap-3 mb-4 text-sm">
                               <div className="flex items-center gap-1.5">
                                 <Building2 className="h-4 w-4 text-muted-foreground" />
                                 <span className="font-medium">
-                                  {log.from_department}
+                                  {trail.fromDept.name}
                                 </span>
                               </div>
                               <div className="text-muted-foreground">→</div>
                               <div className="flex items-center gap-1.5">
                                 <Building2 className="h-4 w-4 text-muted-foreground" />
                                 <span className="font-medium">
-                                  {log.to_department}
+                                  {trail.toDept.name}
                                 </span>
                               </div>
                             </div>
@@ -367,39 +407,51 @@ export function ViewDocumentsModal({
                           <div className="grid grid-cols-2 gap-6">
                             <div>
                               <label className="text-sm text-muted-foreground block mb-1.5">
-                                Action {isLast ? "Taken" : "Requested"}
+                                Status
                               </label>
                               <p className="font-medium flex items-center gap-2">
-                                <span>{getActionIcon(log.action)}</span>
-                                {actionName}
+                                <span>{getActionIcon(trail.status)}</span>
+                                {statusName}
                               </p>
                             </div>
                             <div>
                               <label className="text-sm text-muted-foreground block mb-1.5">
-                                {isLast ? "Created By" : "Released By"}
+                                Performed By
                               </label>
                               <p className="font-medium flex items-center gap-2">
                                 <User className="h-4 w-4 text-muted-foreground" />
-                                {log.performed_by_user
-                                  ? `${log.performed_by_user.first_name} ${log.performed_by_user.last_name}`
-                                  : log.performed_by}
+                                {trail.user
+                                  ? `${trail.user.first_name} ${trail.user.last_name}`
+                                  : 'System'}
                               </p>
                             </div>
                           </div>
 
+                          {/* Action details */}
+                          {trail.documentAction && (
+                            <div className="mt-4 pt-4 border-t">
+                              <label className="text-sm text-muted-foreground block mb-1.5">
+                                Action Type
+                              </label>
+                              <p className="font-medium">
+                                {trail.documentAction.action_name}
+                              </p>
+                            </div>
+                          )}
+
                           {/* Remarks */}
-                          {log.remarks && (
+                          {trail.remarks && (
                             <div className="mt-4 pt-4 border-t">
                               <label className="text-sm text-muted-foreground block mb-1.5">
                                 Remarks
                               </label>
-                              <p className="text-sm">{log.remarks}</p>
+                              <p className="text-sm">{trail.remarks}</p>
                             </div>
                           )}
 
                           {/* Status badge */}
                           <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-muted text-muted-foreground">
-                            ✓ {actionName} at {datetime.full}
+                            ✓ {statusName} at {datetime.full}
                           </div>
                         </div>
                       </div>
@@ -409,7 +461,7 @@ export function ViewDocumentsModal({
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
                   <FileText className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                  <p>No document history available</p>
+                  <p>No routing history available</p>
                 </div>
               )}
             </TabsContent>

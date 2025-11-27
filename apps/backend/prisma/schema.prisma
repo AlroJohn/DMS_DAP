@@ -1,4 +1,4 @@
-@generator client {
+generator client {
   provider = "prisma-client-js"
 }
 
@@ -61,6 +61,7 @@ model User {
   user_permissions           UserPermission[]
   user_roles                 UserRole[]
   signed_documents           SignedDocument[]
+  document_trails            DocumentTrail[]
 }
 
 model Department {
@@ -73,6 +74,8 @@ model Department {
   updated_at    DateTime         @default(now()) @updatedAt
   Account       Account[]
   invitations   UserInvitation[]
+  from_trails   DocumentTrail[]  @relation("FromDepartment")
+  to_trails     DocumentTrail[]  @relation("ToDepartment")
 }
 
 model Document {
@@ -96,6 +99,7 @@ model Document {
   DocumentAdditionalDetails DocumentAdditionalDetails[]
   files                     DocumentFile[]              @relation("DocumentFiles")
   signed_documents          SignedDocument[]
+  document_trails           DocumentTrail[]
   // account                   Account?                    @relation(fields: [accountAccount_id], references: [account_id])
 }
 
@@ -146,6 +150,28 @@ model DocumentAction {
   updated_at          DateTime              @default(now()) @updatedAt
   required_permission PermissionDefinition? @relation(fields: [permission_id], references: [permission_id])
   permission_id       String?               @db.Uuid
+  document_trails     DocumentTrail[]
+}
+
+model DocumentTrail {
+  trail_id        String    @id @default(uuid()) @db.Uuid
+  document_id     String    @db.Uuid
+  action_id       String?   @db.Uuid
+  from_department String?   @db.Uuid
+  to_department   String?   @db.Uuid
+  user_id         String?   @db.Uuid  // User who performed the action
+  action_date     DateTime  @default(now())
+  status          String    // Current status after this action (e.g., 'dispatch', 'intransit', 'received', 'completed')
+  remarks         String?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @default(now()) @updatedAt
+
+  // Relations
+  document       Document      @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
+  documentAction DocumentAction? @relation(fields: [action_id], references: [document_action_id], onDelete: SetNull)
+  fromDept       Department?   @relation("FromDepartment", fields: [from_department], references: [department_id])
+  toDept         Department?   @relation("ToDepartment", fields: [to_department], references: [department_id])
+  user           User?         @relation(fields: [user_id], references: [user_id])
 }
 
 model DocumentMetadata {
