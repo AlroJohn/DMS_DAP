@@ -63,7 +63,7 @@ import {
 
 interface DataTableRowActionsProps<TData> {
   row: Row<TData>;
-  viewType?: 'document' | 'owned' | 'shared' | 'outgoing' | 'archive'; // 'document' for general document view, 'owned' for owned documents view, 'shared' for shared documents view, 'outgoing' for outgoing documents, 'archive' for archive view
+  viewType?: 'document' | 'owned' | 'shared' | 'outgoing' | 'archive' | 'recycle-bin'; // 'document' for general document view, 'owned' for owned documents view, 'shared' for shared documents view, 'outgoing' for outgoing documents, 'archive' for archive view, 'recycle-bin' for recycle bin view
 }
 
 export function  DataTableRowActions<TData>({
@@ -291,15 +291,19 @@ export function  DataTableRowActions<TData>({
       setIsLoading(true);
 
       // Use different API endpoints based on view type
-      let endpoint;
+      // For recycle-bin: restore from deleted state using recycle-bin endpoint
+      // For archive: restore from archived state using archive endpoint
+      let endpoint, method;
       if (viewType === 'recycle-bin') {
-        endpoint = `/api/documents/${document.id}/restore`;
+        endpoint = `/api/recycle-bin/${document.id}/restore`; // Use correct recycle-bin endpoint
+        method = 'PUT'; // Recycle bin restore uses PUT method
       } else {
-        endpoint = `/api/archive/${document.id}/restore`;
+        endpoint = `/api/archive/${document.id}/restore`; // Archive restore uses archive endpoint
+        method = 'POST'; // Archive restoration uses POST method
       }
 
       const response = await fetch(endpoint, {
-        method: 'POST', // Changed to POST as most of the other endpoints use POST
+        method: method,
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
