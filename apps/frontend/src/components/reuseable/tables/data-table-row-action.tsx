@@ -196,26 +196,56 @@ export function  DataTableRowActions<TData>({
     try {
       setIsLoading(true);
 
-      const response = await fetch(`/api/documents/${document.id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
+      // Use different API endpoints based on view type
+      // In recycle-bin view, we want to permanently delete
+      if (viewType === 'recycle-bin') {
+        // Permanently delete from recycle bin - use bulk delete endpoint with single ID
+        const response = await fetch('/api/documents/bulk-delete', {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            documentIds: [document.id]
+          })
+        });
 
-      if (!response.ok) {
-        let errorMessage = 'Failed to delete document';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error?.message || errorData.message || errorMessage;
-        } catch (parseError) {
-          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        if (!response.ok) {
+          let errorMessage = 'Failed to permanently delete document';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error?.message || errorData.message || errorMessage;
+          } catch (parseError) {
+            errorMessage = `Server error: ${response.status} ${response.statusText}`;
+          }
+          throw new Error(errorMessage);
         }
-        throw new Error(errorMessage);
+
+        toast.success("Document permanently deleted.");
+      } else {
+        // Regular delete to recycle bin
+        const response = await fetch(`/api/documents/${document.id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+
+        if (!response.ok) {
+          let errorMessage = 'Failed to delete document';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error?.message || errorData.message || errorMessage;
+          } catch (parseError) {
+            errorMessage = `Server error: ${response.status} ${response.statusText}`;
+          }
+          throw new Error(errorMessage);
+        }
+
+        toast.success("Document successfully deleted.");
       }
-
-      toast.success("Document successfully deleted.");
     } catch (error: any) {
       console.error("Error deleting document:", error);
       toast.error(error.message || "Failed to delete document.");
@@ -260,8 +290,16 @@ export function  DataTableRowActions<TData>({
     try {
       setIsLoading(true);
 
-      const response = await fetch(`/api/archive/${document.id}/restore`, {
-        method: 'POST',
+      // Use different API endpoints based on view type
+      let endpoint;
+      if (viewType === 'recycle-bin') {
+        endpoint = `/api/documents/${document.id}/restore`;
+      } else {
+        endpoint = `/api/archive/${document.id}/restore`;
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST', // Changed to POST as most of the other endpoints use POST
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
@@ -653,6 +691,48 @@ export function  DataTableRowActions<TData>({
                   <AlertDialogHeader>
                     <AlertDialogTitle>
                       Are you sure you want to delete this document permanently?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone. This will permanently delete the
+                      document and remove its data from our servers.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} disabled={isLoading}>
+                      Delete Permanently
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
+          )}
+
+          {/* Recycle Bin View Actions - Restore and Delete for archived documents */}
+          {viewType === 'recycle-bin' && (
+            <>
+              {/* Restore - for users with archive permissions */}
+              <DropdownMenuItem onClick={(e) => handleAction(e, handleRestore)}>
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Restore
+              </DropdownMenuItem>
+
+              {/* Delete - for users with delete permissions - permanent delete in recycle bin */}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <DropdownMenuItem
+                    onSelect={(e) => e.preventDefault()}
+                    disabled={isLoading}
+                    className="text-red-600 focus:text-red-600"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Permanently
+                  </DropdownMenuItem>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Are you sure you want to permanently delete this document?
                     </AlertDialogTitle>
                     <AlertDialogDescription>
                       This action cannot be undone. This will permanently delete the
