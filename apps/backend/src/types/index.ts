@@ -229,3 +229,17 @@ export interface PaginatedResponse<T> {
     hasPrev: boolean;
   };
 }
+
+// Checkout result types
+export interface CheckoutResultSuccess<T = any> {
+  success: true;
+  data: T;
+}
+
+export interface CheckoutResultError {
+  success: false;
+  error: string;
+  statusCode: number;
+}
+
+export type CheckoutResult<T = any> = CheckoutResultSuccess<T> | CheckoutResultError;
