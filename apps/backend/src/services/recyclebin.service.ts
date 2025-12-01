@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma';
 import QRCode from 'qrcode';
 import bwipjs from 'bwip-js';
 import { getSocketInstance } from '../socket';
+import { deleteFile } from '../middleware/upload.middleware';
 import { DocumentTrailsService } from './document-trails.service';
 
 interface PaginationParams {
@@ -599,6 +600,341 @@ export class RecycleBinService {
       };
     } catch (error) {
       console.error('Error deleting document:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Empty the entire recycle bin for a user's department - permanently delete all documents in recycle bin
+   */
+  async emptyRecycleBin(userId: string) {
+    try {
+      console.log('📍 [RecycleBinService.emptyRecycleBin] Request for user:', userId);
+
+      // Get the user's department
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { department_id: true, first_name: true, last_name: true }
+      });
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      console.log('📍 [RecycleBinService.emptyRecycleBin] User department:', user.department_id);
+
+      // Get all documents in recycle bin, then filter by user's workflow (similar to other methods)
+      const allDocumentsInRecycleBin = await prisma.document.findMany({
+        where: {
+          status: 'deleted',
+        },
+        include: {
+          DocumentAdditionalDetails: true,
+          files: true, // Include the document files to be deleted
+        },
+      });
+
+      // Filter to only include documents that are in the user's workflow
+      const userDepartmentId = user.department_id;
+      const documentsInRecycleBin = allDocumentsInRecycleBin.filter((doc: any) => {
+        if (!doc.DocumentAdditionalDetails || doc.DocumentAdditionalDetails.length === 0) {
+          return false; // Document has no additional details, so can't verify workflow
+        }
+
+        const detail = doc.DocumentAdditionalDetails[0]; // Assuming one detail per document
+        if (!detail.work_flow_id) return false;
+
+        try {
+          let workflowDepartments: string[] = [];
+
+          if (typeof detail.work_flow_id === 'object' && detail.work_flow_id !== null) {
+            // New format: object with keys like "first", "second", etc.
+            workflowDepartments = Object.values(detail.work_flow_id);
+          } else if (typeof detail.work_flow_id === 'string') {
+            // Could be either a JSON string of an array or a JSON string of an object
+            const parsed = JSON.parse(detail.work_flow_id);
+            if (Array.isArray(parsed)) {
+              workflowDepartments = parsed;
+            } else {
+              // If it's an object, get its values
+              workflowDepartments = Object.values(parsed);
+            }
+          } else if (Array.isArray(detail.work_flow_id)) {
+            // Old format: array
+            workflowDepartments = detail.work_flow_id;
+          } else {
+            // Unexpected format
+            workflowDepartments = [];
+          }
+
+          // Check if user's department is in the workflow
+          return workflowDepartments.includes(userDepartmentId);
+        } catch (e) {
+          console.error('📍 [emptyRecycleBin] Error parsing work_flow_id:', e);
+          return false;
+        }
+      });
+
+      console.log('📍 [RecycleBinService.emptyRecycleBin] Found', documentsInRecycleBin.length, 'documents to permanently delete');
+
+      if (documentsInRecycleBin.length === 0) {
+        return { count: 0 };
+      }
+
+      // First, delete any related records to avoid foreign key constraint violations
+      for (const document of documentsInRecycleBin) {
+        // Delete UserCheckout records (checkout history) associated with these files
+        await prisma.userCheckout.deleteMany({
+          where: {
+            file_id: {
+              in: document.files.map(file => file.file_id),
+            },
+          },
+        });
+
+        // Delete DocumentMetadata records associated with these files
+        await prisma.documentMetadata.deleteMany({
+          where: {
+            file_id: {
+              in: document.files.map(file => file.file_id),
+            },
+          },
+        });
+
+        // Delete document trails for these documents
+        await prisma.documentTrail.deleteMany({
+          where: {
+            document_id: document.document_id,
+          },
+        });
+
+        // Note: No documentAccess, sharedDocument, or documentTag models found in schema
+        // If these models exist, they have different names in the Prisma schema
+
+        // Delete document additional details
+        await prisma.documentAdditionalDetails.deleteMany({
+          where: {
+            document_id: document.document_id,
+          },
+        });
+
+        // Delete document files from filesystem before deleting from database
+        for (const file of document.files) {
+          try {
+            await deleteFile(file.storage_path);
+            console.log(`📍 [emptyRecycleBin] File deleted from filesystem: ${file.storage_path}`);
+          } catch (error) {
+            console.error(`📍 [emptyRecycleBin] Error deleting file from filesystem: ${file.storage_path}`, error);
+            // Continue with deletion even if file deletion fails
+          }
+        }
+      }
+
+      // Now delete all documents from the database
+      const result = await prisma.document.deleteMany({
+        where: {
+          document_id: {
+            in: documentsInRecycleBin.map(doc => doc.document_id),
+          },
+        },
+      });
+
+      console.log('📍 [RecycleBinService.emptyRecycleBin] Permanently deleted', result.count, 'documents from recycle bin');
+
+      // Create a system log for this bulk operation
+      try {
+        // Create trails without creating a circular dependency by using prisma directly
+        for (const document of documentsInRecycleBin) {
+          await prisma.documentTrail.create({
+            data: {
+              document_id: document.document_id,
+              user_id: userId,
+              // action_id: null, // Since we don't have a specific action_id for permanent delete
+              from_department: user.department_id, // Use user's department
+              to_department: user.department_id, // Same department for permanent deletion
+              remarks: `Document permanently deleted from recycle bin by ${user.first_name} ${user.last_name}`,
+              status: 'permanently_deleted', // Use appropriate status
+              created_at: new Date(),
+            }
+          });
+        }
+      } catch (trailError) {
+        console.error('Error creating document trails for empty recycle bin:', trailError);
+        // Don't fail the entire operation if trails fail
+      }
+
+      return { count: result.count };
+    } catch (error) {
+      console.error('Error emptying recycle bin:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Bulk restore documents from recycle bin
+   */
+  async bulkRestoreDocuments(documentIds: string[], userId: string) {
+    try {
+      console.log('📍 [RecycleBinService.bulkRestoreDocuments] Request for user:', userId, 'documents:', documentIds);
+
+      // Validate inputs
+      if (!userId || !Array.isArray(documentIds) || documentIds.length === 0) {
+        console.log('📍 [RecycleBinService.bulkRestoreDocuments] Invalid input parameters');
+        throw new Error('Invalid parameters: userId and documentIds are required');
+      }
+
+      // Get the user's department and account info
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { department_id: true, first_name: true, last_name: true, account_id: true }
+      });
+
+      if (!user) {
+        console.log('📍 [RecycleBinService.bulkRestoreDocuments] User not found:', userId);
+        throw new Error('User not found');
+      }
+
+      console.log('📍 [RecycleBinService.bulkRestoreDocuments] User department:', user.department_id);
+
+      // Validate and filter documentIds to ensure they are all valid strings
+      const validDocumentIds = documentIds.filter(id => typeof id === 'string' && id.trim().length > 0);
+      if (validDocumentIds.length !== documentIds.length) {
+        console.log('📍 [RecycleBinService.bulkRestoreDocuments] Some invalid document IDs were filtered out');
+      }
+
+      if (validDocumentIds.length === 0) {
+        console.log('📍 [RecycleBinService.bulkRestoreDocuments] No valid document IDs provided');
+        return { count: 0, failed: documentIds };
+      }
+
+      // Get documents that exist in the recycle bin (status = 'deleted')
+      const allDocumentsToRestore = await prisma.document.findMany({
+        where: {
+          document_id: {
+            in: validDocumentIds,
+          },
+          status: 'deleted', // Only documents in recycle bin can be restored
+        },
+        include: {
+          DocumentAdditionalDetails: true
+        }
+      });
+
+      // Filter to only include documents that are in the user's workflow (similar to getRecycleBinDocuments)
+      const userDepartmentId = user.department_id;
+      const documentsToRestore = allDocumentsToRestore.filter((doc: any) => {
+        if (!doc.DocumentAdditionalDetails || doc.DocumentAdditionalDetails.length === 0) {
+          return false; // Document has no additional details, so can't verify workflow
+        }
+
+        const detail = doc.DocumentAdditionalDetails[0]; // Assuming one detail per document
+        if (!detail.work_flow_id) return false;
+
+        try {
+          let workflowDepartments: string[] = [];
+
+          if (typeof detail.work_flow_id === 'object' && detail.work_flow_id !== null) {
+            // New format: object with keys like "first", "second", etc.
+            workflowDepartments = Object.values(detail.work_flow_id);
+          } else if (typeof detail.work_flow_id === 'string') {
+            // Could be either a JSON string of an array or a JSON string of an object
+            const parsed = JSON.parse(detail.work_flow_id);
+            if (Array.isArray(parsed)) {
+              workflowDepartments = parsed;
+            } else {
+              // If it's an object, get its values
+              workflowDepartments = Object.values(parsed);
+            }
+          } else if (Array.isArray(detail.work_flow_id)) {
+            // Old format: array
+            workflowDepartments = detail.work_flow_id;
+          } else {
+            // Unexpected format
+            workflowDepartments = [];
+          }
+
+          // Check if user's department is in the workflow
+          return workflowDepartments.includes(userDepartmentId);
+        } catch (e) {
+          console.error('📍 [bulkRestoreDocuments] Error parsing work_flow_id:', e);
+          return false;
+        }
+      });
+
+      console.log('📍 [RecycleBinService.bulkRestoreDocuments] Found', documentsToRestore.length, 'documents to restore');
+
+      // Identify which documents couldn't be restored (not in recycle bin or don't exist)
+      const successfulIds = documentsToRestore.map(doc => doc.document_id);
+      const failedIds = documentIds.filter(id => !successfulIds.includes(id));
+
+      if (documentsToRestore.length === 0) {
+        console.log('📍 [RecycleBinService.bulkRestoreDocuments] No documents to restore');
+        return { count: 0, failed: failedIds };
+      }
+
+      // Update document status back to 'dispatch' (default) and update restored information
+      const result = await prisma.$transaction(async (tx) => {
+        // Update document statuses
+        const updateResult = await tx.document.updateMany({
+          where: {
+            document_id: {
+              in: documentsToRestore.map(doc => doc.document_id),
+            },
+          },
+          data: {
+            status: 'dispatch', // Restore to initial status as per single restore method
+            updated_at: new Date(),
+          },
+        });
+
+        // Update document additional details to set restored_at, restored_by for each document
+        for (const document of documentsToRestore) {
+          await tx.documentAdditionalDetails.updateMany({
+            where: { document_id: document.document_id },
+            data: {
+              restored_by: user.account_id, // Set the user who restored the document
+              restored_at: new Date(), // Set the timestamp when document was restored
+            },
+          });
+        }
+
+        return updateResult;
+      });
+
+      console.log('📍 [RecycleBinService.bulkRestoreDocuments] Restored', result.count, 'documents');
+
+      // Create document trails for the restored documents
+      try {
+        const documentTrailsService = new DocumentTrailsService();
+        for (const document of documentsToRestore) {
+          console.log('📍 [RecycleBinService.bulkRestoreDocuments] Creating trail for document:', document.document_id);
+
+          if (document.document_id && userId && user.department_id) {
+            await documentTrailsService.createDocumentTrail({
+              document_id: document.document_id,
+              from_department: user.department_id, // Department of user performing restoration
+              to_department: user.department_id, // Restoration happens in same department
+              user_id: userId, // Use the userId who performed the restoration
+              status: 'dispatch', // Status is reset to dispatch after restoration
+              remarks: `Document restored from recycle bin: ${document.title}`
+            });
+          } else {
+            console.log('📍 [RecycleBinService.bulkRestoreDocuments] Missing required data for document trail:', {
+              documentId: document.document_id,
+              userId: userId,
+              departmentId: user.department_id
+            });
+          }
+        }
+      } catch (trailError) {
+        console.error('Error creating document trails for bulk restore:', trailError);
+        // Don't fail the entire operation if trails fail
+      }
+
+      return { count: result.count, failed: failedIds };
+    } catch (error: any) {
+      console.error('Error in bulkRestoreDocuments:', error);
+      console.error('Error stack:', error.stack);
       throw error;
     }
   }

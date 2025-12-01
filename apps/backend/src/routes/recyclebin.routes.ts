@@ -21,4 +21,16 @@ router.put('/:id/restore',
   recycleBinController.restoreDocument.bind(recycleBinController)
 );
 
+// DELETE /api/recycle-bin - Empty the entire recycle bin (requires document_recycle_permanent_delete permission)
+router.delete('/',
+  requirePermission('document_recycle_permanent_delete'),
+  recycleBinController.emptyRecycleBin.bind(recycleBinController)
+);
+
+// POST /api/recycle-bin/bulk-restore - Bulk restore documents from recycle bin (requires document_recycle_bulk_restore permission)
+router.post('/bulk-restore',
+  requirePermission('document_recycle_bulk_restore'),
+  recycleBinController.bulkRestoreDocuments.bind(recycleBinController)
+);
+
 export default router;

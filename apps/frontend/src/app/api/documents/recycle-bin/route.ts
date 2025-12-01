@@ -54,3 +54,49 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+/**
+ * DELETE /api/documents/recycle-bin
+ * Proxies empty recycle bin requests to the backend service at /api/recycle-bin
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    const cookies = request.headers.get("cookie");
+
+    const response = await fetch(
+      `${backendUrl}/api/recycle-bin`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          ...(cookies && { Cookie: cookies }),
+        },
+        credentials: "include",
+      }
+    );
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: data.error || { message: data.message || "Failed to empty recycle bin" },
+        },
+        { status: response.status }
+      );
+    }
+
+    return NextResponse.json(data);
+  } catch (error: any) {
+    console.error("Error proxying empty recycle bin request:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: { message: error.message || "Internal server error" },
+      },
+      { status: 500 }
+    );
+  }
+}
