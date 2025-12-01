@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 export interface RecycleBinDocument {
   id: string;
@@ -45,12 +45,22 @@ export function useRecycleBinDocuments(
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isMountedRef = useRef(false);
 
-  const fetchDocuments = async () => {
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const fetchDocuments = useCallback(async () => {
+    if (!isMountedRef.current) return;
+    
+    setIsLoading(true);
+    setError(null);
+
     try {
-      setIsLoading(true);
-      setError(null);
-
       const response = await fetch(
         `/api/documents/recycle-bin?page=${page}&limit=${limit}`,
         {
@@ -69,25 +79,31 @@ export function useRecycleBinDocuments(
 
       const data = await response.json();
 
-      if (data.success) {
-        setDocuments(data.data || []);
-        setPagination(data.meta?.pagination || null);
-      } else {
-        throw new Error(data.error?.message || 'Failed to fetch recycle bin documents');
+      if (isMountedRef.current) {
+        if (data.success) {
+          setDocuments(data.data || []);
+          setPagination(data.meta?.pagination || null);
+        } else {
+          throw new Error(data.error?.message || 'Failed to fetch recycle bin documents');
+        }
       }
     } catch (err: any) {
-      console.error('Error fetching recycle bin documents:', err);
-      setError(err.message || 'An error occurred while fetching recycle bin documents');
-      setDocuments([]);
-      setPagination(null);
+      if (isMountedRef.current) {
+        console.error('Error fetching recycle bin documents:', err);
+        setError(err.message || 'An error occurred while fetching recycle bin documents');
+        setDocuments([]);
+        setPagination(null);
+      }
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, [page, limit]);
 
   useEffect(() => {
     fetchDocuments();
-  }, [page, limit]);
+  }, [fetchDocuments]);
 
   return {
     documents,

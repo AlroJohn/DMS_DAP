@@ -12,19 +12,12 @@ import { useDocumentTypes } from "@/hooks/use-document-types";
 export default function OwnedDocumentsPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [displayedDocuments, setDisplayedDocuments] = useState<Document[]>([]);
   const mountedRef = useRef(false);
 
   const { documents, pagination, isLoading, error, refetch } =
     useDocumentsOwned(page, limit);
   const { socket } = useSocket();
   const { documentTypes } = useDocumentTypes();
-
-  useEffect(() => {
-    if (!isLoading) {
-      setDisplayedDocuments(documents);
-    }
-  }, [documents, isLoading]);
 
   // Mark component as mounted and clean up on unmount
   useEffect(() => {

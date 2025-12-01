@@ -17,8 +17,6 @@ export default function InTransitDocumentsPage() {
   const [activeTab, setActiveTab] = useState<"incoming" | "outgoing">(
     "incoming"
   );
-  const [displayedIncoming, setDisplayedIncoming] = useState<IncomingDocument[]>([]);
-  const [displayedOutgoing, setDisplayedOutgoing] = useState<OutgoingDocument[]>([]);
   const { socket } = useSocket();
   const mountedRef = useRef(false);
 
@@ -45,18 +43,6 @@ export default function InTransitDocumentsPage() {
     error: outgoingError,
     refetch: refetchOutgoing,
   } = useOutgoingDocuments(1, 100);
-
-  useEffect(() => {
-    if (!isLoadingIncoming) {
-      setDisplayedIncoming(incomingDocuments);
-    }
-  }, [incomingDocuments, isLoadingIncoming]);
-
-  useEffect(() => {
-    if (!isLoadingOutgoing) {
-      setDisplayedOutgoing(outgoingDocuments);
-    }
-  }, [outgoingDocuments, isLoadingOutgoing]);
 
   // Listen for real-time document updates
   useEffect(() => {
