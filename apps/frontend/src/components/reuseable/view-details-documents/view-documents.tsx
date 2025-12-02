@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   Download,
   FileText,
@@ -19,11 +20,13 @@ import {
   Clock,
   Shield,
   Tag,
+  MoreHorizontal,
 } from "lucide-react";
 import { useViewDocument } from "@/hooks/use-view-documents";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useState, useEffect } from 'react';
+import { generateDocumentPDF, downloadCSV, downloadExcel, downloadRoutingHistoryCSV, exportRoutingHistoryPDF } from "@/utils/document-export";
 
 interface ViewDocumentsModalProps {
   open: boolean;
@@ -155,62 +158,30 @@ export function ViewDocumentsModal({
 
   const handleExportPDF = () => {
     if (!document) return;
+    generateDocumentPDF(document);
+  };
 
-    const printContent = `
-      <html>
-        <head>
-          <title>Document Report - ${document.detail?.document_name || 'Document'}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .header { text-align: center; margin-bottom: 30px; }
-            .section { margin-bottom: 20px; }
-            .label { font-weight: bold; }
-            .timeline { margin-left: 20px; }
-            .timeline-item { margin-bottom: 15px; padding: 10px; border-left: 3px solid #ccc; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>Document Report</h1>
-            <h2>${document.detail?.document_name || 'Document'}</h2>
-            <p>Code: ${document.detail?.document_code || document.document_id}</p>
-          </div>
+  const handleExportCSV = () => {
+    if (!document) return;
+    downloadCSV(document);
+    toast.success('CSV exported successfully');
+  };
 
-          <div class="section">
-            <h3>Document Details</h3>
-            <p><span class="label">Status:</span> ${document.status}</p>
-            <p><span class="label">Classification:</span> ${document.detail?.classification || 'N/A'}</p>
-            <p><span class="label">Created:</span> ${formatDateTime(document.created_at).full}</p>
-            <p><span class="label">Origin:</span> ${document.detail?.origin || 'N/A'}</p>
-          </div>
+  const handleExportExcel = () => {
+    if (!document) return;
+    downloadExcel(document);
+    toast.success('Excel exported successfully');
+  };
 
-          ${document.document_logs && document.document_logs.length > 0 ? `
-            <div class="section">
-              <h3>Document History</h3>
-              <div class="timeline">
-                ${document.document_logs.map(log => `
-                  <div class="timeline-item">
-                    <p><span class="label">Action:</span> ${formatText(log.action)}</p>
-                    <p><span class="label">Date:</span> ${formatDateTime(log.performed_at).full}</p>
-                    ${log.performed_by_user ? `<p><span class="label">By:</span> ${log.performed_by_user.first_name} ${log.performed_by_user.last_name}</p>` : ''}
-                    ${log.remarks ? `<p><span class="label">Remarks:</span> ${log.remarks}</p>` : ''}
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          ` : ''}
-        </body>
-      </html>
-    `;
+  const handleExportRoutingHistoryPDF = () => {
+    if (!document || !documentTrails) return;
+    exportRoutingHistoryPDF(document, documentTrails);
+  };
 
-    const printWindow = window.open('', '', 'width=800,height=600');
-    if (printWindow) {
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
-      printWindow.close();
-    }
+  const handleExportRoutingHistoryCSV = () => {
+    if (!document || !documentTrails) return;
+    downloadRoutingHistoryCSV(document, documentTrails);
+    toast.success('Routing history CSV exported successfully');
   };
 
   const handleLatestUpdates = async () => {
@@ -320,10 +291,38 @@ export function ViewDocumentsModal({
                     <Clock className="h-4 w-4 mr-2" />
                     Refresh
                   </Button>
-                  <Button variant="outline" size="sm" onClick={handleExportPDF}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Export PDF
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Download className="h-4 w-4 mr-2" />
+                        Export
+                        <MoreHorizontal className="h-4 w-4 ml-2" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={handleExportPDF}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Export Full Report (PDF)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleExportCSV}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Export Full Report (CSV)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleExportExcel}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Export Full Report (Excel)
+                      </DropdownMenuItem>
+                      <div className="border-t my-1"></div>
+                      <DropdownMenuItem onClick={handleExportRoutingHistoryPDF}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Export Routing History (PDF)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleExportRoutingHistoryCSV}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Export Routing History (CSV)
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
 
@@ -469,9 +468,43 @@ export function ViewDocumentsModal({
             {/* Document Details Tab */}
             <TabsContent value="details" className="space-y-6 mt-6">
               <div>
-                <h3 className="text-lg font-semibold mb-4">
-                  Document Metadata
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">
+                    Document Metadata
+                  </h3>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Download className="h-4 w-4 mr-2" />
+                        Export
+                        <MoreHorizontal className="h-4 w-4 ml-2" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={handleExportPDF}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Export Full Report (PDF)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleExportCSV}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Export Full Report (CSV)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleExportExcel}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Export Full Report (Excel)
+                      </DropdownMenuItem>
+                      <div className="border-t my-1"></div>
+                      <DropdownMenuItem onClick={handleExportRoutingHistoryPDF}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Export Routing History (PDF)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleExportRoutingHistoryCSV}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Export Routing History (CSV)
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
 
                 {isLoading ? (
                   <div className="space-y-4">
