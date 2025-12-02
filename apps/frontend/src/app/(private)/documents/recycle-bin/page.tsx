@@ -21,28 +21,27 @@ export default function RecycleBinPage() {
     };
   }, []);
 
+  // Create a safe refetch function that checks if component is mounted
+  const safeRefetch = () => {
+    if (mountedRef.current) {
+      try {
+        refetch();
+      } catch (err) {
+        console.error("Error refetching documents:", err);
+      }
+    }
+  };
+
   // Listen for real-time document updates
   useEffect(() => {
     if (!socket) return;
 
     const handleDocumentDeleted = () => {
-      if (mountedRef.current) {
-        try {
-          refetch();
-        } catch (err) {
-          console.error("Error refetching documents on documentDeleted:", err);
-        }
-      }
+      safeRefetch();
     };
 
     const handleDocumentRestored = () => {
-      if (mountedRef.current) {
-        try {
-          refetch();
-        } catch (err) {
-          console.error("Error refetching documents on documentRestored:", err);
-        }
-      }
+      safeRefetch();
     };
 
     // Listen for document-related events
@@ -54,7 +53,7 @@ export default function RecycleBinPage() {
       socket.off("documentDeleted", handleDocumentDeleted);
       socket.off("documentRestored", handleDocumentRestored);
     };
-  }, [socket, refetch]);
+  }, [socket, safeRefetch]);
 
   // Check if the error is authentication-related
   const isAuthError = error && error.includes('Authentication required');

@@ -1,12 +1,13 @@
 import { prisma } from '../lib/prisma';
 import { getSocketInstance } from '../socket';
 import { DocumentTrailsService } from './document-trails.service';
+import { CheckoutResult } from '../types';
 
 export class DocumentCheckoutService {
   /**
    * Checks out a document file for the given user.
    */
-  async checkoutFile(fileId: string, userId: string) {
+  async checkoutFile(fileId: string, userId: string): Promise<CheckoutResult<any>> {
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
       select: { account_id: true },
@@ -106,7 +107,7 @@ export class DocumentCheckoutService {
   /**
    * Checks in a document file, releasing the lock.
    */
-  async checkinFile(fileId: string, userId: string) {
+  async checkinFile(fileId: string, userId: string): Promise<CheckoutResult<any>> {
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
       select: { account_id: true },
@@ -193,7 +194,7 @@ export class DocumentCheckoutService {
   /**
    * Allows a user with appropriate permissions to override a file checkout.
    */
-  async overrideFileCheckout(fileId: string, userId: string) {
+  async overrideFileCheckout(fileId: string, userId: string): Promise<CheckoutResult<any>> {
     // TODO: Add permission check for overriding locks
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
@@ -287,7 +288,7 @@ export class DocumentCheckoutService {
   /**
    * Gets the current checkout status of a file.
    */
-  async getCheckoutStatus(fileId: string) {
+  async getCheckoutStatus(fileId: string): Promise<CheckoutResult<{ checked_out_by: string; checked_out_at: Date; } | null>> {
     const checkoutRecord = await prisma.userCheckout.findFirst({
       where: { file_id: fileId },
       select: {

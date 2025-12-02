@@ -328,7 +328,7 @@ export class DocumentService {
               in: relevantDocumentIds
             },
             status: {
-              notIn: ['deleted', 'intransit', 'dispatch']
+              notIn: ['deleted', 'intransit', 'dispatch', 'archive']
             }
           },
           skip,
@@ -340,7 +340,7 @@ export class DocumentService {
               in: relevantDocumentIds
             },
             status: {
-              notIn: ['deleted', 'intransit', 'dispatch']
+              notIn: ['deleted', 'intransit', 'dispatch', 'archive']
             }
           }
         })
@@ -573,7 +573,7 @@ export class DocumentService {
               in: relevantDocumentIds
             },
             status: {
-              not: 'deleted' // Exclude deleted documents
+              notIn: ['deleted', 'archive'] // Exclude deleted and archived documents
             }
           },
           include: {
@@ -591,7 +591,7 @@ export class DocumentService {
               in: relevantDocumentIds
             },
             status: {
-              not: 'deleted' // Exclude deleted documents from count
+              notIn: ['deleted', 'archive'] // Exclude deleted and archived documents from count
             }
           }
         })

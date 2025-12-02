@@ -151,15 +151,7 @@ export function useDocuments(page: number = 1, limit: number = 10): UseDocuments
     }
 
     // If user is authenticated, fetch documents
-    if (isAuthenticated) {
-      fetchDocuments();
-    } else {
-      // If no user, set loading to false and clear data
-      setDocuments([]);
-      setPagination(null);
-      setIsLoading(false);
-      setError(null);
-    }
+    fetchDocuments();
   }, [isAuthenticated, isAuthLoading, page, limit, fetchDocuments]);
 
   return {

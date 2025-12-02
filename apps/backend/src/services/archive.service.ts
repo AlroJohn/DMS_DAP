@@ -48,8 +48,8 @@ export class ArchiveService {
       try {
         await documentTrailsService.createDocumentTrail({
           document_id: documentId,
-          from_department: user?.department_id || null, // Get department from the user performing the action
-          to_department: user?.department_id || null, // Archiving happens in same department
+          from_department: user?.department_id || undefined, // Get department from the user performing the action
+          to_department: user?.department_id || undefined, // Archiving happens in same department
           user_id: archivedBy, // Use the userId who performed the archiving
           status: 'archive',
           remarks: `Document archived: ${document.title}`
@@ -115,12 +115,13 @@ export class ArchiveService {
       });
 
       // Create a document trail entry for document restoration
+      // Use the previously fetched 'user' to get department for the document trail
       const documentTrailsService = new DocumentTrailsService();
       try {
         await documentTrailsService.createDocumentTrail({
           document_id: documentId,
-          from_department: document.department_id || null, // Use original department if available
-          to_department: document.department_id || null, // Restoration happens in same department
+          from_department: user?.department_id || undefined, // Use the department of the user performing the restoration
+          to_department: user?.department_id || undefined, // Restoration happens in same department as the user
           user_id: restoredByUserId, // Use the userId who performed the restoration
           status: 'dispatch', // Status is reset to dispatch after restoration
           remarks: `Document restored from archive: ${document.title}`

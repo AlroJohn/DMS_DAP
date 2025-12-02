@@ -67,13 +67,11 @@ export function DataTable<TData, TValue>({
     []
   );
   const [sorting, setSorting] = React.useState<SortingState>([]);
-  const isMountedRef = React.useRef(false);
-
-  const isSelectionChangeMountedRef = React.useRef(true);
+  const isMountedRef = React.useRef(true);
 
   React.useEffect(() => {
     return () => {
-      isSelectionChangeMountedRef.current = false;
+      isMountedRef.current = false;
     };
   }, []);
 
@@ -86,12 +84,28 @@ export function DataTable<TData, TValue>({
       rowSelection,
       columnFilters,
     },
+    onRowSelectionChange: (updater) => {
+      if (isMountedRef.current) {
+        setRowSelection(updater);
+      }
+    },
+    onSortingChange: (updater) => {
+      if (isMountedRef.current) {
+        setSorting(updater);
+      }
+    },
+    onColumnFiltersChange: (updater) => {
+      if (isMountedRef.current) {
+        setColumnFilters(updater);
+      }
+    },
+    onColumnVisibilityChange: (updater) => {
+      if (isMountedRef.current) {
+        setColumnVisibility(updater);
+      }
+    },
     initialState,
     enableRowSelection: selection ? true : false,
-    onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -100,17 +114,9 @@ export function DataTable<TData, TValue>({
     getFacetedUniqueValues: getFacetedUniqueValues(),
   });
 
-  // Mark component as mounted after first render
-  React.useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
   // Handle selection changes only after component is mounted
   React.useEffect(() => {
-    if (!isMountedRef.current || !onSelectionChange) return;
+    if (!onSelectionChange || !isMountedRef.current) return;
 
     const selectedRows = table
       .getSelectedRowModel()
