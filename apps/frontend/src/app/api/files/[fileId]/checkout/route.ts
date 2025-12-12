@@ -7,7 +7,8 @@ export async function POST(
   { params }: { params: { fileId: string } }
 ) {
   const { fileId } = params;
-  const accessToken = cookies().get("accessToken")?.value;
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get("accessToken")?.value;
 
   if (!accessToken) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

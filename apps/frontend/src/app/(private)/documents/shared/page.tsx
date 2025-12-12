@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DataTable } from "@/components/reuseable/tables/data-table";
-import { columns } from "./columns";
+import { getColumns } from "./columns";
 import { useSharedDocuments } from "@/hooks/use-shared-documents";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSocket } from "@/components/providers/providers";
 import { useAuth } from "@/hooks/use-auth";
+import { SignatureCaptureModal } from "@/components/modals/signature-capture-modal";
+import { toast } from "sonner";
 
 export default function SharedDocumentsPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -19,6 +21,36 @@ export default function SharedDocumentsPage() {
   } = useSharedDocuments(1, 100);
   const { socket } = useSocket();
   const mountedRef = useRef(false);
+
+  const [isSignModalOpen, setIsSignModalOpen] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<SharedDocument | null>(null);
+
+  const handleSignClick = (document: SharedDocument) => {
+    setSelectedDocument(document);
+    setIsSignModalOpen(true);
+  };
+
+  const handleSignConfirm = async (signatureData: string) => {
+    if (!selectedDocument) return;
+
+    const response = await fetch(`/api/documents/${selectedDocument.id}/sign-from-placeholder`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ signatureData }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || "Signing failed.");
+    }
+
+    refetch(); // Refetch documents to show updated status
+  };
+
+  const columns = useMemo(() => getColumns({ onSign: handleSignClick }), []);
+
 
   // Mark component as mounted and clean up on unmount
   useEffect(() => {
@@ -106,33 +138,44 @@ export default function SharedDocumentsPage() {
   const isAuthError = error && error.includes('Authentication required');
 
   return (
-    <div className="flex h-full flex-col gap-4 bg-background">
-      <div className="flex flex-col gap-1.5"></div>
-      {error && !isAuthError && (
-        <div className="mb-4">
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>Error loading shared documents: {error}</AlertDescription>
-          </Alert>
-        </div>
+    <>
+      <div className="flex h-full flex-col gap-4 bg-background">
+        <div className="flex flex-col gap-1.5"></div>
+        {error && !isAuthError && (
+          <div className="mb-4">
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>Error loading shared documents: {error}</AlertDescription>
+            </Alert>
+          </div>
+        )}
+        {isAuthError && (
+          <div className="mb-4">
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Authentication Required</AlertTitle>
+              <AlertDescription>You must be logged in to view documents.</AlertDescription>
+            </Alert>
+          </div>
+        )}
+        <DataTable
+          columns={columns}
+          data={sanitizedDocuments}
+          selection={true}
+          viewType="shared"
+          isLoading={isLoading}
+          onSign={handleSignClick}
+        />
+      </div>
+      {selectedDocument && (
+        <SignatureCaptureModal
+          open={isSignModalOpen}
+          onOpenChange={setIsSignModalOpen}
+          onConfirm={handleSignConfirm}
+          documentTitle={selectedDocument.documentTitle || selectedDocument.document}
+        />
       )}
-      {isAuthError && (
-        <div className="mb-4">
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Authentication Required</AlertTitle>
-            <AlertDescription>You must be logged in to view documents.</AlertDescription>
-          </Alert>
-        </div>
-      )}
-      <DataTable
-        columns={columns}
-        data={sanitizedDocuments}
-        selection={true}
-        viewType="shared"
-        isLoading={isLoading}
-      />
-    </div>
+    </>
   );
 }

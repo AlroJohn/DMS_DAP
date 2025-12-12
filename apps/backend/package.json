@@ -21,6 +21,7 @@
     "@prisma/client": "^6.17.1",
     "@types/form-data": "^2.5.2",
     "@types/nodemailer": "^7.0.2",
+    "@types/uuid": "^11.0.0",
     "axios": "^1.13.1",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.63.0",
@@ -42,6 +43,7 @@
     "jszip": "^3.10.1",
     "mammoth": "^1.11.0",
     "multer": "^2.0.2",
+    "node-fetch": "^3.3.2",
     "nodemailer": "^7.0.9",
     "office-document-properties": "^1.1.0",
     "passport": "^0.7.0",
@@ -53,7 +55,8 @@
     "pdfkit": "^0.14.0",
     "qrcode": "^1.5.4",
     "socket.io": "^4.8.1",
-    "tesseract.js": "^6.0.1"
+    "tesseract.js": "^6.0.1",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

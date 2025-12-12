@@ -1,18 +1,13 @@
 "use client";
 
-import { use } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, FileEdit, Calendar, User, Plus, Eye } from "lucide-react";
 
-export default function ContractAmendmentsPage({
-  params: paramsPromise,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const params = use(paramsPromise);
+export default function ContractAmendmentsPage() {
+  const params = useParams<{ id: string }>();
   const router = useRouter();
 
   const contractInfo = {

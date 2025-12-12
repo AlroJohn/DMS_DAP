@@ -48,7 +48,8 @@ export function extractDocumentInfo(message: string) {
   };
 }
 
-// Utility function to get API base URL
-export function getApiUrl() {
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+// Utility function to build full API URL
+export function getApiUrl(path: string) {
+  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  return `${base}${path}`;
 }

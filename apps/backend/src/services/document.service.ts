@@ -703,7 +703,18 @@ export class DocumentService {
             created_at: 'asc'
           },
           take: 1 // Get the first/oldest detail for origin info
-        }
+        },
+        signedDocuments: { // Include the signed documents
+          include: {
+            signee: { // Include the signee details if needed
+              select: {
+                user_id: true,
+                first_name: true,
+                last_name: true,
+              },
+            },
+          },
+        },
       }
     });
 
@@ -1982,6 +1993,202 @@ export class DocumentService {
   }
 
   /**
+   * Creates signed documents based on existing placeholders for a user.
+   */
+  async signDocumentFromPlaceholders(documentId: string, userId: string, signatureData: string): Promise<{ signedCount: number }> {
+    // 1. Find all placeholders for the given document.
+    const placeholders = await prisma.signaturePlaceholder.findMany({
+      where: { document_id: documentId },
+    });
+
+    if (placeholders.length === 0) {
+      throw new Error('No signature placeholders found for this document.');
+    }
+
+    // 2. Get the user.
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+    });
+
+    if (!user) {
+      throw new Error('User not found.');
+    }
+
+    // 3. Prepare data for SignedDocument records.
+    const signedDocumentsData = placeholders.map(p => ({
+      document_id: p.document_id,
+      documentFileFile_id: p.document_file_id,
+      signee_id: userId,
+      x_position: p.x_position,
+      y_position: p.y_position,
+      width: p.width,
+      height: p.height,
+      page_number: p.page_number,
+      signature_data: signatureData,
+    }));
+
+    // 4. Create SignedDocument records and delete placeholders in a transaction.
+    await prisma.$transaction(async (tx) => {
+      await tx.signedDocument.createMany({
+        data: signedDocumentsData,
+      });
+
+      await tx.signaturePlaceholder.deleteMany({
+        where: {
+          placeholder_id: {
+            in: placeholders.map(p => p.placeholder_id),
+          },
+        },
+      });
+    });
+
+    // Optionally, update document status or create a trail
+    const documentTrailsService = new DocumentTrailsService();
+    await documentTrailsService.createDocumentTrail({
+      document_id: documentId,
+      user_id: userId,
+      status: 'signed', // Or another appropriate status
+      remarks: `Document signed by user ${userId}.`,
+    });
+
+    console.log(`📍 [signDocumentFromPlaceholders] Successfully signed ${signedDocumentsData.length} placeholders for document ${documentId}`);
+
+    return { signedCount: signedDocumentsData.length };
+  }
+
+  /**
+   * Manually signs a document by creating a SignedDocument record with specified coordinates.
+   */
+  async createSignedDocument(
+    documentId: string,
+    userId: string,
+    signatureData: string,
+    x_position: number,
+    y_position: number,
+    width: number,
+    height: number,
+    page_number: number
+  ) {
+    // 1. Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(documentId)) {
+      return { success: false, error: 'Invalid document ID format' };
+    }
+    if (!uuidRegex.test(userId)) {
+      return { success: false, error: 'Invalid user ID format' };
+    }
+
+    try {
+      // 2. Verify user exists
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: {
+          user_id: true,
+          department_id: true,
+          first_name: true,
+          last_name: true,
+          account: { select: { email: true } },
+        },
+      });
+
+      if (!user) {
+        return { success: false, error: 'User not found' };
+      }
+
+      // 3. Verify document exists
+      const document = await prisma.document.findUnique({
+        where: { document_id: documentId },
+        include: {
+          DocumentAdditionalDetails: true,
+          files: {
+            orderBy: [{ is_primary: 'desc' }, { uploaded_at: 'desc' }],
+          },
+        },
+      });
+
+      if (!document) {
+        return { success: false, error: 'Document not found' };
+      }
+
+      // 4. Determine which document file the signature is being applied to
+      const targetDocumentFile = document.files.find(file => file.is_primary) || document.files[0];
+
+      if (!targetDocumentFile) {
+        return { success: false, error: 'Document has no files to sign' };
+      }
+
+      // 5. Create SignedDocument record
+      const createdSignedDocument = await prisma.signedDocument.create({
+        data: {
+          document_id: documentId,
+          documentFileFile_id: targetDocumentFile.file_id,
+          signee_id: userId,
+          x_position: x_position,
+          y_position: y_position,
+          width: width,
+          height: height,
+          page_number: page_number,
+          signature_data: signatureData,
+          // signed_at: new Date() // Automatically set by @default(now())
+        },
+      });
+
+      // 6. Update document status to 'signed' and relevant details in DocumentAdditionalDetails
+      // Ensure DocumentAdditionalDetails exists or create it
+      let docAdditionalDetails = document.DocumentAdditionalDetails?.[0];
+
+      if (docAdditionalDetails) {
+        await prisma.documentAdditionalDetails.update({
+          where: { detail_id: docAdditionalDetails.detail_id },
+          data: {
+            // Only update if not already signed via blockchain or other methods
+            blockchain_status: docAdditionalDetails.blockchain_status || 'signed_manual',
+            signed_at: new Date(),
+            signed_by: userId,
+            updated_at: new Date(),
+          },
+        });
+      } else {
+        // If no additional details exist, create a new one
+        await prisma.documentAdditionalDetails.create({
+          data: {
+            document_id: documentId,
+            blockchain_status: 'signed_manual',
+            signed_at: new Date(),
+            signed_by: userId,
+            // You might want to initialize work_flow_id etc. here if necessary
+          },
+        });
+      }
+
+      // 7. Create a document trail entry for this action
+      const documentTrailsService = new DocumentTrailsService();
+      await documentTrailsService.createDocumentTrail({
+        document_id: documentId,
+        user_id: userId,
+        from_department: user.department_id,
+        to_department: user.department_id, // Assuming signed within the same department context
+        status: 'signed',
+        remarks: `Document manually signed by ${user.first_name} ${user.last_name} on page ${page_number}.`,
+      });
+
+      // 8. Emit socket event to notify frontends of document update (optional, but good for real-time UIs)
+      const io = getSocketInstance();
+      io.emit('documentUpdated', {
+        documentId: documentId,
+        status: 'signed',
+        updatedBy: userId,
+        timestamp: new Date().toISOString(),
+      });
+
+      return { success: true, data: createdSignedDocument };
+    } catch (error: any) {
+      console.error('📍 [createSignedDocument] Error:', error);
+      return { success: false, error: error.message || 'Failed to manually sign document' };
+    }
+  }
+
+  /**
    * Delete a document (soft delete by changing status)
    */
   async deleteDocument(id: string, userId: string) {
@@ -1990,6 +2197,7 @@ export class DocumentService {
     if (!uuidRegex.test(id)) {
       throw new Error('Invalid document ID format');
     }
+
 
     try {
       console.log('📍 [deleteDocument] Attempting to delete document:', id, 'by user:', userId);

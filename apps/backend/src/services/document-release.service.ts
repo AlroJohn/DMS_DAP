@@ -16,7 +16,15 @@ export class DocumentReleaseService {
     departmentId: string,
     requestAction: string | string[], // Can be a single action or an array of actions
     remarks: string | undefined,
-    userId: string
+    userId: string,
+    signatures?: {
+      fileId: string;
+      pageNumber: number;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }[]
   ) {
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -39,10 +47,35 @@ export class DocumentReleaseService {
         return { success: false, error: 'Document not found' };
       }
 
+      // Get the releasing user's data, including their stored signature
       const releasingUser = await prisma.user.findUnique({
         where: { user_id: userId },
-        select: { department_id: true, first_name: true, last_name: true }
+        select: { signature: true, department_id: true, first_name: true, last_name: true }
       });
+
+      if (!releasingUser) {
+        return { success: false, error: 'Releasing user not found' };
+      }
+
+      // Create SignedDocument records if signatures are provided
+      if (signatures && signatures.length > 0) {
+        const signatureData = signatures.map((sig) => ({
+          document_id: documentId,
+          documentFileFile_id: sig.fileId,
+          signee_id: userId,
+          page_number: sig.pageNumber,
+          x_position: sig.x,
+          y_position: sig.y,
+          width: sig.width,
+          height: sig.height,
+          signature_data: releasingUser.signature, // Use the user's stored signature
+        }));
+
+        await prisma.signedDocument.createMany({
+          data: signatureData,
+        });
+        console.log('📍 [DocumentReleaseService.releaseDocument] Signatures saved to SignedDocument table.');
+      }
 
       // Get the current workflow
       const currentDetail = document.DocumentAdditionalDetails?.[0];

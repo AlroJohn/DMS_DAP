@@ -98,9 +98,11 @@ model Document {
   restored_by_account       Account?                    @relation("DocumentRestoredBy", fields: [restored_by], references: [account_id])
   DocumentAdditionalDetails DocumentAdditionalDetails[]
   files                     DocumentFile[]              @relation("DocumentFiles")
-  signed_documents          SignedDocument[]
-  document_trails           DocumentTrail[]
+
+  document_trails        DocumentTrail[]
   // account                   Account?                    @relation(fields: [accountAccount_id], references: [account_id])
+  signedDocuments        SignedDocument[]
+  signature_placeholders SignaturePlaceholder[]
 }
 
 model DocumentAdditionalDetails {
@@ -154,24 +156,24 @@ model DocumentAction {
 }
 
 model DocumentTrail {
-  trail_id        String    @id @default(uuid()) @db.Uuid
-  document_id     String    @db.Uuid
-  action_id       String?   @db.Uuid
-  from_department String?   @db.Uuid
-  to_department   String?   @db.Uuid
-  user_id         String?   @db.Uuid  // User who performed the action
-  action_date     DateTime  @default(now())
-  status          String    // Current status after this action (e.g., 'dispatch', 'intransit', 'received', 'completed')
+  trail_id        String   @id @default(uuid()) @db.Uuid
+  document_id     String   @db.Uuid
+  action_id       String?  @db.Uuid
+  from_department String?  @db.Uuid
+  to_department   String?  @db.Uuid
+  user_id         String?  @db.Uuid // User who performed the action
+  action_date     DateTime @default(now())
+  status          String // Current status after this action (e.g., 'dispatch', 'intransit', 'received', 'completed')
   remarks         String?
-  created_at      DateTime  @default(now())
-  updated_at      DateTime  @default(now()) @updatedAt
+  created_at      DateTime @default(now())
+  updated_at      DateTime @default(now()) @updatedAt
 
   // Relations
-  document       Document      @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
+  document       Document        @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
   documentAction DocumentAction? @relation(fields: [action_id], references: [document_action_id], onDelete: SetNull)
-  fromDept       Department?   @relation("FromDepartment", fields: [from_department], references: [department_id])
-  toDept         Department?   @relation("ToDepartment", fields: [to_department], references: [department_id])
-  user           User?         @relation(fields: [user_id], references: [user_id])
+  fromDept       Department?     @relation("FromDepartment", fields: [from_department], references: [department_id])
+  toDept         Department?     @relation("ToDepartment", fields: [to_department], references: [department_id])
+  user           User?           @relation(fields: [user_id], references: [user_id])
 }
 
 model DocumentMetadata {
@@ -196,25 +198,27 @@ model DocumentMetadata {
 }
 
 model DocumentFile {
-  checkout            Boolean           @default(false)
-  checked_out_by      UserCheckout[]
-  file_id             String            @id @default(uuid()) @db.Uuid
-  document_id         String            @db.Uuid
-  original_name       String
-  stored_name         String
-  storage_path        String
-  file_size           BigInt
-  mime_type           String
-  checksum            String?
-  version             String            @default("1.0")
-  is_primary          Boolean           @default(false)
-  uploaded_by         String            @db.Uuid
-  uploaded_at         DateTime          @default(now())
-  updated_at          DateTime          @default(now()) @updatedAt
-  version_group_id    String?           @db.Uuid // UUID to group related versions of the same document
-  Document            Document          @relation("DocumentFiles", fields: [document_id], references: [document_id], onDelete: Cascade)
-  uploaded_by_account Account           @relation("AccountUploadedFiles", fields: [uploaded_by], references: [account_id])
-  DocumentMetadata    DocumentMetadata?
+  checkout               Boolean                @default(false)
+  checked_out_by         UserCheckout[]
+  file_id                String                 @id @default(uuid()) @db.Uuid
+  document_id            String                 @db.Uuid
+  original_name          String
+  stored_name            String
+  storage_path           String
+  file_size              BigInt
+  mime_type              String
+  checksum               String?
+  version                String                 @default("1.0")
+  is_primary             Boolean                @default(false)
+  uploaded_by            String                 @db.Uuid
+  uploaded_at            DateTime               @default(now())
+  updated_at             DateTime               @default(now()) @updatedAt
+  version_group_id       String?                @db.Uuid // UUID to group related versions of the same document
+  Document               Document               @relation("DocumentFiles", fields: [document_id], references: [document_id], onDelete: Cascade)
+  uploaded_by_account    Account                @relation("AccountUploadedFiles", fields: [uploaded_by], references: [account_id])
+  DocumentMetadata       DocumentMetadata?
+  signed_documents       SignedDocument[]
+  signature_placeholders SignaturePlaceholder[]
 
   @@index([document_id])
   @@index([uploaded_by])
@@ -231,24 +235,44 @@ model UserCheckout {
 }
 
 model SignedDocument {
-  signed_document_id String    @id @default(uuid()) @db.Uuid
-  document_id        String    @db.Uuid
-  signee_id          String    @db.Uuid // User ID who signed
-  x_position         Float     // X coordinate position on the page
-  y_position         Float     // Y coordinate position on the page
-  width              Float     // Width of the signature area
-  height             Float     // Height of the signature area
-  page_number        Int       // Page number where signature is placed
-  signature_data     String?   @db.Text // Base64 encoded signature image (optional, can use user's default signature)
-  signed_at          DateTime  @default(now()) // Timestamp when signed
-  created_at         DateTime  @default(now())
-  updated_at         DateTime  @default(now()) @updatedAt
-  document           Document  @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
-  signee             User      @relation(fields: [signee_id], references: [user_id], onDelete: Cascade)
+  signed_document_id  String        @id @default(uuid()) @db.Uuid
+  document_id         String        @db.Uuid
+  signee_id           String        @db.Uuid // User ID who signed
+  x_position          Float // X coordinate position on the page
+  y_position          Float // Y coordinate position on the page
+  width               Float // Width of the signature area
+  height              Float // Height of the signature area
+  page_number         Int // Page number where signature is placed
+  signature_data      String?       @db.Text // Base64 encoded signature image (optional, can use user's default signature)
+  signed_at           DateTime      @default(now()) // Timestamp when signed
+  created_at          DateTime      @default(now())
+  updated_at          DateTime      @default(now()) @updatedAt
+  document            Document      @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
+  signee              User          @relation(fields: [signee_id], references: [user_id], onDelete: Cascade)
+  documentFile        DocumentFile? @relation(fields: [documentFileFile_id], references: [file_id])
+  documentFileFile_id String?       @db.Uuid
 
   @@index([document_id])
   @@index([signee_id])
   @@index([document_id, page_number])
+}
+
+model SignaturePlaceholder {
+  placeholder_id   String   @id @default(uuid()) @db.Uuid
+  document_id      String   @db.Uuid
+  document_file_id String   @db.Uuid
+  x_position       Float
+  y_position       Float
+  width            Float
+  height           Float
+  page_number      Int
+  created_at       DateTime @default(now())
+
+  document     Document     @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
+  documentFile DocumentFile @relation(fields: [document_file_id], references: [file_id], onDelete: Cascade)
+
+  @@index([document_id])
+  @@index([document_file_id])
 }
 
 model Notification {

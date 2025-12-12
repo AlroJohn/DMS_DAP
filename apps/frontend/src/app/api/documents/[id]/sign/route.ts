@@ -1,59 +1,57 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
 /**
  * POST /api/documents/:id/sign
- * Proxies the request to the backend to sign a document with blockchain
+ * Proxies a manual sign request to the backend
  */
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const backendUrl =
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
     const { id } = params;
 
-    // Get cookies from the request to forward to backend
-    const cookies = request.headers.get('cookie');
+    const body = await request.json();
 
-    // Get the request body (signature if provided)
-    const body = await request.json().catch(() => ({}));
+    const backendResponse = await fetch(
+      `${backendUrl}/api/documents/${id}/sign-manual`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(request.headers.get("cookie")
+            ? { Cookie: request.headers.get("cookie")! }
+            : {}),
+        },
+        credentials: "include",
+        body: JSON.stringify(body),
+      }
+    );
 
-    const response = await fetch(`${backendUrl}/api/documents/${id}/sign`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(cookies && { 'Cookie': cookies })
-      },
-      credentials: 'include',
-      body: JSON.stringify(body)
-    });
+    const result = await backendResponse.json().catch(() => ({}));
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({
-        error: { message: 'Failed to sign document' }
-      }));
-
+    if (!backendResponse.ok || result.success === false) {
       return NextResponse.json(
         {
           success: false,
-          error: errorData.error || { message: 'Failed to sign document' }
+          error:
+            result.error ?? {
+              message: result.message ?? "Failed to sign document",
+            },
         },
-        { status: response.status }
+        { status: backendResponse.status }
       );
     }
 
-    const data = await response.json();
-
-    return NextResponse.json({
-      success: data.success || true,
-      data: data.data
-    });
+    return NextResponse.json(result);
   } catch (error: any) {
-    console.error('Error signing document:', error);
+    console.error("Error signing document:", error);
     return NextResponse.json(
       {
         success: false,
-        error: { message: error.message || 'Internal server error' }
+        error: { message: error.message || "Internal server error" },
       },
       { status: 500 }
     );

@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-// import { getServerSession } from 'next-auth/next';  // Temporarily commented out due to missing module
-// import { authOptions } from '@/lib/auth';            // Temporarily commented out due to missing module
 
 // This is the API route to get document trails for a specific document
 export async function GET(request: NextRequest, { params }: { params: { documentId: string } }) {

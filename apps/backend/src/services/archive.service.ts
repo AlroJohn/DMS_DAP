@@ -115,7 +115,7 @@ export class ArchiveService {
       });
 
       // Create a document trail entry for document restoration
-      // Use the previously fetched 'user' to get department for the document trail
+    // Use the previously fetched 'user' to get department for the document trail
       const documentTrailsService = new DocumentTrailsService();
       try {
         await documentTrailsService.createDocumentTrail({

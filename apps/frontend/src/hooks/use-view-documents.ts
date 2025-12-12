@@ -64,6 +64,31 @@ export interface DocumentDetailView {
   document_code?: string;
   classification?: string;
   description?: string;
+  files?: Array<{
+    file_id: string;
+    original_name: string;
+    mime_type: string;
+    is_primary: boolean;
+    downloadUrl: string;
+  }>;
+  signedDocuments?: Array<{
+    signed_document_id: string;
+    document_id: string;
+    documentFileFile_id: string;
+    signee_id: string;
+    x_position: number;
+    y_position: number;
+    width: number;
+    height: number;
+    page_number: number;
+    signature_data: string;
+    signed_at: string;
+    signee: {
+      user_id: string;
+      first_name: string;
+      last_name: string;
+    };
+  }>;
 }
 
 interface UseViewDocumentResult {

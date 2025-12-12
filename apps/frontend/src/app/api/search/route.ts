@@ -213,9 +213,7 @@ export async function GET(request: NextRequest) {
     }
     
     // Otherwise, this is a regular search request
-    // Get the current session/token if needed
-    // const token = await getServerSession(); // Assuming you have auth setup
-    
+
     const { searchParams } = new URL(request.url);
     
     // Extract all search parameters from the query

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, use } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,12 +22,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 
-export default function SignatureConfirmationPage({
-  params: paramsPromise,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const params = use(paramsPromise);
+export default function SignatureConfirmationPage() {
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const [copied, setCopied] = useState(false);
 

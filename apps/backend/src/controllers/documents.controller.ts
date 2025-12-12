@@ -510,6 +510,29 @@ export class DocumentController {
   });
 
   /**
+   * POST /api/documents/:id/sign-from-placeholder - Creates a signature from a placeholder
+   */
+  signFromPlaceholders = asyncHandler(async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
+    const { id } = req.params;
+    const { signatureData } = req.body;
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
+      return sendError(res, 'Invalid document ID format', 400);
+    }
+
+    if (!signatureData) {
+      return sendError(res, 'signatureData is required.', 400);
+    }
+
+    const result = await this.documentService.signDocumentFromPlaceholders(id, authReq.user.id, signatureData);
+
+    return sendSuccess(res, { message: `Successfully signed ${result.signedCount} placeholder(s).` }, 200);
+  });
+
+  /**
    * POST /api/documents/:id/sign - Sign document with blockchain
    */
   signDocument = asyncHandler(async (req: Request, res: Response) => {
@@ -637,4 +660,60 @@ export class DocumentController {
     }
   });
 
+  /**
+   * POST /api/documents/:id/sign-manual - Manually sign a document with coordinates
+   */
+  createSignedDocument = asyncHandler(async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
+    const { id: documentId } = req.params;
+    const { signatureData, x_position, y_position, width, height, page_number } = req.body;
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(documentId)) {
+      return sendError(res, 'Invalid document ID format', 400);
+    }
+
+    // Basic validation for required fields
+    const missingFields = validateRequiredFields(req.body, [
+      'signatureData', 'x_position', 'y_position', 'width', 'height', 'page_number'
+    ]);
+    if (missingFields.length > 0) {
+      return sendError(res, `Missing required fields: ${missingFields.join(', ')}`, 400);
+    }
+
+    // Ensure coordinates and page number are valid numbers
+    if (
+      typeof x_position !== 'number' || isNaN(x_position) ||
+      typeof y_position !== 'number' || isNaN(y_position) ||
+      typeof width !== 'number' || isNaN(width) ||
+      typeof height !== 'number' || isNaN(height) ||
+      typeof page_number !== 'number' || isNaN(page_number) || page_number < 1
+    ) {
+      return sendError(res, 'Invalid signature placement coordinates or page number.', 400);
+    }
+
+    // Ensure there is a file to attach the signature to
+    const documentFiles = await this.documentService.getFilesForDocument(documentId);
+    if (!documentFiles || documentFiles.length === 0) {
+      return sendError(res, 'No document files found to attach signature.', 400);
+    }
+
+    const result = await this.documentService.createSignedDocument(
+      documentId,
+      authReq.user.id,
+      signatureData,
+      x_position,
+      y_position,
+      width,
+      height,
+      page_number
+    );
+
+    if (!result.success) {
+      return sendError(res, result.error || 'Failed to create signed document', 500);
+    }
+
+    return sendSuccess(res, { message: 'Document signed successfully', signedDocument: result.data }, 201);
+  });
 }

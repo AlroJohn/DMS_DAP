@@ -20,7 +20,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { ViewDocumentsModal } from "@/components/reuseable/view-details-documents/view-documents";
-import { BlockchainSigningModal } from "@/components/modals/blockchain-signing-modal";
+import { SignatureCaptureModal } from "@/components/modals/signature-capture-modal";
 
 import {
   DropdownMenu,
@@ -46,6 +46,7 @@ import { EditDocumentModal } from "@/app/(private)/documents/[id]/components/edi
 import { CheckoutFileModal } from "@/components/modals/checkout-file-modal";
 import { Document } from "@/hooks/use-documents-owned";
 import { useAuth } from "@/hooks/use-auth";
+// import { useSignDocument } from "@/hooks/use-sign-document";
 import {
   canViewDocuments,
   canEditDocumentDetails,
@@ -63,15 +64,17 @@ import {
 
 interface DataTableRowActionsProps<TData> {
   row: Row<TData>;
-  viewType?: 'document' | 'owned' | 'shared' | 'outgoing' | 'archive' | 'recycle-bin'; // 'document' for general document view, 'owned' for owned documents view, 'shared' for shared documents view, 'outgoing' for outgoing documents, 'archive' for archive view, 'recycle-bin' for recycle bin view
+  viewType?: 'document' | 'owned' | 'shared' | 'outgoing' | 'archive' | 'recycle-bin';
+  onSign?: (document: TData) => void;
 }
 
-export function  DataTableRowActions<TData>({
+export function DataTableRowActions<TData>({
   row,
-  viewType = 'document', // Default to 'document' view, can also be 'owned', 'shared', 'outgoing', or 'archive'
+  viewType = 'document',
 }: DataTableRowActionsProps<TData>) {
   const router = useRouter();
   const { user: currentUser } = useAuth();
+  // const { signDocument, isLoading: isSigning, error: signError } = useSignDocument();
 
   // State management
   const [isLoading, setIsLoading] = useState(false);
@@ -82,10 +85,12 @@ export function  DataTableRowActions<TData>({
     view: false,
     edit: false,
     release: false,
-    complete: false,
-    sign: false,
     checkoutFile: false,
+    signatureCapture: false,
   });
+
+  const [activeSignatureData, setActiveSignatureData] = useState<string | null>(null);
+  const [viewDocumentModalOpen, setViewDocumentModalOpen] = useState(false);
 
   const document = row.original as Document;
 
@@ -93,6 +98,27 @@ export function  DataTableRowActions<TData>({
   const handleAction = (e: React.MouseEvent, action: () => void) => {
     e.stopPropagation();
     action();
+  };
+
+  const handleSignatureSetup = (payload: {
+    documentId: string;
+    departmentId: string;
+    requestActions: string[];
+    remarks?: string;
+  }) => {
+    const params = new URLSearchParams();
+    params.set("mode", "signature");
+    params.set("releaseDepartmentId", payload.departmentId);
+    params.set("releaseActions", payload.requestActions.join(","));
+    if (payload.remarks) {
+      params.set("releaseRemarks", payload.remarks);
+    }
+    const query = params.toString();
+    router.push(
+      query
+        ? `/documents/${payload.documentId}?${query}`
+        : `/documents/${payload.documentId}`
+    );
   };
 
   const handleCopyCode = () => {
@@ -121,7 +147,15 @@ export function  DataTableRowActions<TData>({
 
   const handleSign = () => {
     setSelectedDocument(document);
-    toggleModal("sign", true);
+    toggleModal("signatureCapture", true);
+  };
+
+  const handleSignConfirmation = (signatureData: string) => {
+    if (!selectedDocument) return;
+
+    setActiveSignatureData(signatureData); // Store the captured signature
+    toggleModal("signatureCapture", false); // Close the capture modal
+    setViewDocumentModalOpen(true); // Open the view modal for placement
   };
 
   const handleEdit = () => {
@@ -758,34 +792,68 @@ export function  DataTableRowActions<TData>({
 
       {/* View Modal */}
       <ViewDocumentsModal
-        open={modalState.view}
-        onOpenChange={(open) => toggleModal("view", open)}
+        open={modalState.view || viewDocumentModalOpen}
+        onOpenChange={(open) => {
+          if (modalState.view) {
+            toggleModal("view", open);
+          } else if (viewDocumentModalOpen) {
+            setViewDocumentModalOpen(open);
+            if (!open) {
+              setActiveSignatureData(null); // Clear active signature if modal is closed
+            }
+          }
+        }}
         documentId={document.id}
+        activeSignatureData={activeSignatureData}
+        onConfirmSignaturePlacement={async (coords) => {
+          if (!selectedDocument) return;
+
+          try {
+            setIsLoading(true); // Set loading state for the request
+
+            const response = await fetch(`/api/documents/${selectedDocument.id}/sign-manual`, {
+              method: 'POST',
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                signatureData: coords.signatureData,
+                x_position: coords.x_position,
+                y_position: coords.y_position,
+                width: coords.width,
+                height: coords.height,
+                page_number: coords.page_number,
+              }),
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.error?.message || 'Failed to sign document manually');
+            }
+
+            toast.success("Document signed successfully!");
+            setViewDocumentModalOpen(false); // Close the modal on success
+            setActiveSignatureData(null); // Clear active signature
+            // Optionally, trigger a refetch of document data if needed
+          } catch (err: any) {
+            toast.error("Failed to sign document", { description: err.message });
+          } finally {
+            setIsLoading(false); // Reset loading state
+          }
+        }}
       />
 
       {/* Release Modal */}
       <ReleaseDocumentModal
         isOpen={modalState.release}
         onClose={() => toggleModal("release", false)}
+        onSignatureSetup={(payload) => {
+          toggleModal("release", false);
+          handleSignatureSetup(payload);
+        }}
         document={selectedDocument}
       />
-
-      {/* Blockchain Signing Modal */}
-      {selectedDocument && (
-        <BlockchainSigningModal
-          open={modalState.sign}
-          onOpenChange={(open) => toggleModal("sign", open)}
-          document={{
-            id: selectedDocument.id,
-            title: selectedDocument.document,
-            hash: (selectedDocument as any).blockchainTxHash,
-            blockchainStatus: (selectedDocument as any).blockchainStatus ?? selectedDocument.status,
-          }}
-          onSigned={() => {
-            // The real-time update will handle the UI update
-          }}
-        />
-      )}
 
       {/* Edit Modal */}
       {selectedDocument && (
@@ -805,6 +873,16 @@ export function  DataTableRowActions<TData>({
           open={modalState.checkoutFile}
           onOpenChange={(open) => toggleModal("checkoutFile", open)}
           documentId={selectedDocument.id}
+        />
+      )}
+
+      {/* Signature Capture Modal */}
+      {selectedDocument && (
+        <SignatureCaptureModal
+          open={modalState.signatureCapture}
+          onOpenChange={(open) => toggleModal("signatureCapture", open)}
+          documentTitle={selectedDocument.title}
+          onConfirm={handleSignConfirmation}
         />
       )}
     </>

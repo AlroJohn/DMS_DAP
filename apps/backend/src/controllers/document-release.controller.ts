@@ -17,7 +17,7 @@ export class DocumentReleaseController {
   releaseDocument = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
     const { id } = req.params;
-    const { departmentId, requestAction, requestActions, remarks } = req.body;
+    const { departmentId, requestAction, requestActions, remarks, signatures } = req.body;
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -42,7 +42,8 @@ export class DocumentReleaseController {
       departmentId,
       actions, // Could be string or string[]
       remarks,
-      authReq.user.id
+      authReq.user.id,
+      signatures
     );
 
     if (!result.success) {

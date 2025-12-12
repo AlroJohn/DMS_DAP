@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, use, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import { useRouter, useSearchParams, useParams } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -23,16 +23,9 @@ import {
   FileText,
 } from "lucide-react";
 
-export default function ViewDocumentPage({
-  params: paramsPromise,
-}: {
-  params: Promise<{ id: string }> | { id: string };
-}) {
-  const resolvedParams =
-    typeof (paramsPromise as any).then === "function"
-      ? use(paramsPromise as Promise<{ id: string }>)
-      : (paramsPromise as { id: string });
-  const documentId = resolvedParams.id;
+export default function ViewDocumentPage() {
+  const routeParams = useParams<{ id: string }>();
+  const documentId = routeParams.id as string;
 
   const router = useRouter();
   const searchParams = useSearchParams();

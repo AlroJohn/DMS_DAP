@@ -170,6 +170,7 @@ export class AuthService {
    * Login user
    */
   async login(credentials: LoginCredentials): Promise<{ user: Omit<User, 'password'>; token: string; refreshToken: string }> {
+    console.log(`[AuthService] Login attempt for email: ${credentials.email}`);
     // Find account by email in database
     const account = await this.prisma.account.findUnique({
       where: { email: credentials.email },
@@ -177,17 +178,24 @@ export class AuthService {
     });
 
     if (!account) {
+      console.log(`[AuthService] Account not found for email: ${credentials.email}`);
       throw new Error('Invalid email or password');
     }
+    console.log(`[AuthService] Account found for email: ${credentials.email}`);
+
 
     // Check if account has a password (not OAuth-only)
     if (!account.password) {
+      console.log(`[AuthService] Account for ${credentials.email} is OAuth-only.`);
       throw new Error('This account uses social login. Please use Google to sign in.');
     }
 
     // Verify password
+    console.log(`[AuthService] Verifying password for: ${credentials.email}`);
     const isPasswordValid = await bcrypt.compare(credentials.password, account.password);
+    console.log(`[AuthService] Password validation result for ${credentials.email}: ${isPasswordValid}`);
     if (!isPasswordValid) {
+      console.log(`[AuthService] Invalid password for email: ${credentials.email}`);
       throw new Error('Invalid email or password');
     }
 

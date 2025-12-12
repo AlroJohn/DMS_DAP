@@ -1,18 +1,13 @@
 "use client";
 
-import { use } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, User, Calendar, Shield, Hash, CheckCircle2, Clock } from "lucide-react";
 
-export default function SignatureHistoryPage({
-  params: paramsPromise,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const params = use(paramsPromise);
+export default function SignatureHistoryPage() {
+  const params = useParams<{ id: string }>();
   const router = useRouter();
 
   const signatures = [

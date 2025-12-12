@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState, useEffect, use } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useState, useEffect } from "react";
+import { useRouter, useSearchParams, useParams } from "next/navigation";
+import { useMutation } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import { useDocumentDetail } from "@/hooks/use-document-detail";
 import { useDocumentFiles } from "@/hooks/use-document-files";
 import { toast } from "sonner";
 import { EditablePdfViewer } from "./components/editable-pdf-viewer";
+import { SignaturePdfViewer, SignatureBox } from "./components/signature-pdf-viewer";
 import {
   AlertCircle,
   Building,
@@ -42,16 +44,9 @@ const isPdfFile = (file?: { type?: string | null; name?: string | null }) => {
   return type.includes("pdf") || name.endsWith(".pdf");
 };
 
-export default function DocumentDetailPage({
-  params: paramsPromise,
-}: {
-  params: Promise<{ id: string }> | { id: string };
-}) {
-  const resolvedParams =
-    typeof (paramsPromise as any).then === "function"
-      ? use(paramsPromise as Promise<{ id: string }>)
-      : (paramsPromise as { id: string });
-  const documentId = resolvedParams.id;
+export default function DocumentDetailPage() {
+  const routeParams = useParams<{ id: string }>();
+  const documentId = routeParams.id as string;
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isSigningModalOpen, setIsSigningModalOpen] = useState(false);
@@ -65,14 +60,18 @@ export default function DocumentDetailPage({
     error: filesError,
     refetch: refetchFiles,
   } = useDocumentFiles(documentId);
-  const editorModeParam = searchParams?.get("mode");
+  const modeParam = searchParams?.get("mode");
   const fileIdFromUrl = searchParams?.get("fileId");
-  const [isEditorOpen, setIsEditorOpen] = useState(editorModeParam === "edit");
+  const [isEditorOpen, setIsEditorOpen] = useState(modeParam === "edit");
+  const [isSignatureModeOpen, setIsSignatureModeOpen] = useState(
+    modeParam === "signature"
+  );
   const [isRedirectingToView, setIsRedirectingToView] = useState(false);
 
   useEffect(() => {
-    setIsEditorOpen(editorModeParam === "edit");
-  }, [editorModeParam]);
+    setIsEditorOpen(modeParam === "edit");
+    setIsSignatureModeOpen(modeParam === "signature");
+  }, [modeParam]);
 
   useEffect(() => {
     router.prefetch(`/documents/${documentId}/view-documents`);
@@ -149,10 +148,10 @@ export default function DocumentDetailPage({
     window.open(downloadUrl, "_blank", "noopener,noreferrer");
   };
 
-  const updateEditorQuery = (shouldOpen: boolean) => {
+  const updateModeQuery = (mode?: "edit" | "signature" | null) => {
     const currentParams = new URLSearchParams(searchParams?.toString() || "");
-    if (shouldOpen) {
-      currentParams.set("mode", "edit");
+    if (mode) {
+      currentParams.set("mode", mode);
     } else {
       currentParams.delete("mode");
     }
@@ -163,6 +162,10 @@ export default function DocumentDetailPage({
         : `/documents/${documentId}`,
       { scroll: false }
     );
+  };
+
+  const updateEditorQuery = (shouldOpen: boolean) => {
+    updateModeQuery(shouldOpen ? "edit" : null);
   };
 
   const handleCloseEditor = () => {
@@ -259,6 +262,92 @@ export default function DocumentDetailPage({
     router.back();
   };
 
+  const handleCloseSignatureMode = () => {
+    setIsSignatureModeOpen(false);
+    const currentParams = new URLSearchParams(searchParams?.toString() || "");
+    currentParams.delete("mode");
+    currentParams.delete("releaseDepartmentId");
+    currentParams.delete("releaseActions");
+    currentParams.delete("releaseRemarks");
+    const nextQuery = currentParams.toString();
+    router.replace(
+      nextQuery
+        ? `/documents/${documentId}?${nextQuery}`
+        : `/documents/${documentId}`,
+      { scroll: false }
+    );
+  };
+
+  const releaseWithSignaturesMutation = useMutation({
+    mutationFn: async (data: {
+      departmentId: string;
+      requestActions: string[];
+      remarks?: string;
+      signatures: {
+        fileId: string;
+        pageNumber: number;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      }[];
+    }) => {
+      const response = await fetch(`/api/documents/${documentId}/release`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || "Failed to release document with signatures."
+        );
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success("Document released with signature requests.");
+      refetch();
+      handleCloseSignatureMode();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const handleConfirmSignatures = ({ fileId, boxes }: { fileId: string; boxes: SignatureBox[] }) => {
+    const params = new URLSearchParams(searchParams?.toString() || "");
+    const departmentId = params.get("releaseDepartmentId");
+    const requestActionsRaw = params.get("releaseActions");
+    const remarks = params.get("releaseRemarks") || undefined;
+
+    if (!departmentId || !requestActionsRaw) {
+      toast.error("Release information is missing. Please start over.");
+      handleCloseSignatureMode();
+      return;
+    }
+
+    const requestActions = requestActionsRaw.split(",");
+
+    const RENDER_SCALE = 1.4;
+    const finalSignatures = boxes.map((box) => ({
+      fileId,
+      pageNumber: box.pageNumber,
+      x: box.x / RENDER_SCALE,
+      y: box.y / RENDER_SCALE,
+      width: box.width / RENDER_SCALE,
+      height: box.height / RENDER_SCALE,
+    }));
+
+    releaseWithSignaturesMutation.mutate({
+      departmentId,
+      requestActions,
+      remarks,
+      signatures: finalSignatures,
+    });
+  };
+
   const statusBadge = () => {
     const status = document?.status || "unknown";
     const normalized = status.toLowerCase().replace(/[\s_-]+/g, "");
@@ -347,6 +436,41 @@ export default function DocumentDetailPage({
     "Unknown department";
   const author = document.detail?.created_by || "Unknown";
 
+  if (isSignatureModeOpen) {
+    return (
+      <div className="flex flex-col gap-2 p-1 md:p-2 lg:p-4 mx-auto w-full pb-2">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {title} – Signature Positions
+            </h1>
+            <p className="text-muted-foreground">
+              Document ID: {document.document_id || documentId}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCloseSignatureMode}
+            >
+              Back to Document
+            </Button>
+          </div>
+        </div>
+
+        <SignaturePdfViewer
+          documentId={documentIdForRoutes}
+          files={files}
+          initialFileId={defaultEditableFileId}
+          isLoadingFiles={filesLoading}
+          onExit={handleCloseSignatureMode}
+          onConfirm={handleConfirmSignatures}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-2 p-1 md:p-2 lg:p-4 mx-auto w-full pb-2">
       {isRedirectingToView && (
@@ -403,6 +527,21 @@ export default function DocumentDetailPage({
           onExit={handleCloseEditor}
           onSaved={handleEditorSaved}
         />
+      )}
+
+      {isSignatureModeOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/90 p-2 md:p-4">
+          <div className="w-full max-w-6xl max-h-[95vh] flex flex-col gap-2">
+            <SignaturePdfViewer
+              documentId={documentIdForRoutes}
+              files={files}
+              initialFileId={defaultEditableFileId}
+              isLoadingFiles={filesLoading}
+              onExit={handleCloseSignatureMode}
+              onConfirm={handleConfirmSignatures}
+            />
+          </div>
+        </div>
       )}
 
       {blockchainRedirectUrl &&
@@ -743,6 +882,27 @@ export default function DocumentDetailPage({
       <ReleaseDocumentModal
         isOpen={isReleaseModalOpen}
         onClose={() => setIsReleaseModalOpen(false)}
+        onSignatureSetup={({ departmentId, requestActions, remarks }) => {
+          const params = new URLSearchParams(
+            searchParams?.toString() || ""
+          );
+          params.set("mode", "signature");
+          params.set("releaseDepartmentId", departmentId);
+          params.set("releaseActions", requestActions.join(","));
+          if (remarks) {
+            params.set("releaseRemarks", remarks);
+          } else {
+            params.delete("releaseRemarks");
+          }
+          const nextQuery = params.toString();
+          router.replace(
+            nextQuery
+              ? `/documents/${documentId}?${nextQuery}`
+              : `/documents/${documentId}`,
+            { scroll: false }
+          );
+          setIsReleaseModalOpen(false);
+        }}
         document={{
           id: documentId,
           qrCode: document.qrCode || "",

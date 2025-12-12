@@ -154,10 +154,32 @@ router.post('/:id/sign',
   documentController.signDocument
 );
 
-// POST /api/documents/:id/share - Share document with specific users
-router.post('/:id/share',
+// POST /api/documents/:id/sign-from-placeholder - Sign document from placeholders
+router.post('/:id/sign-from-placeholder',
   requirePermission('document_write'),
+  documentController.signFromPlaceholders
+);
+
+// POST /api/documents/:id/share - Share document with specific users
+
+router.post('/:id/share',
+
+  requirePermission('document_write'),
+
   documentController.shareDocument
+
+);
+
+
+
+// POST /api/documents/:id/sign-manual - Manually sign a document with coordinates
+
+router.post('/:id/sign-manual',
+
+  requirePermission('document_write'),
+
+  documentController.createSignedDocument
+
 );
 
 

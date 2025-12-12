@@ -27,11 +27,21 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useState, useEffect } from 'react';
 import { generateDocumentPDF, downloadCSV, downloadExcel, downloadRoutingHistoryCSV, exportRoutingHistoryPDF } from "@/utils/document-export";
+import { DocumentViewerWithSignatures } from "@/components/reuseable/document-viewer-with-signatures/document-viewer-with-signatures";
 
 interface ViewDocumentsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   documentId: string | null;
+  activeSignatureData?: string | null;
+  onConfirmSignaturePlacement?: (coords: {
+    signatureData: string;
+    x_position: number;
+    y_position: number;
+    width: number;
+    height: number;
+    page_number: number;
+  }) => Promise<void>;
 }
 
 const formatText = (text: string): string => {
@@ -114,6 +124,8 @@ export function ViewDocumentsModal({
   open,
   onOpenChange,
   documentId,
+  activeSignatureData,
+  onConfirmSignaturePlacement,
 }: ViewDocumentsModalProps) {
   // All state hooks must be at the top to follow React Hooks rules
   const [documentTrails, setDocumentTrails] = useState<any[]>([]);
@@ -270,9 +282,10 @@ export function ViewDocumentsModal({
           {" "}
           {/* Changed to flex-1 with proper padding for scrollable body */}
           <Tabs defaultValue="routing" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="routing">Document Routing</TabsTrigger>
               <TabsTrigger value="details">Document Details</TabsTrigger>
+              <TabsTrigger value="document-view">Document View</TabsTrigger>
             </TabsList>
 
             {/* Document Routing Tab - using document_trails for historical data */}
@@ -728,6 +741,31 @@ export function ViewDocumentsModal({
                   </div>
                 )}
               </div>
+            </TabsContent>
+
+            {/* Document View Tab */}
+            <TabsContent value="document-view" className="space-y-4 mt-6">
+              <h3 className="text-lg font-semibold mb-4">Document Content</h3>
+              {isLoading ? (
+                <Skeleton className="w-full h-[500px]" />
+              ) : document && document.files && document.files.length > 0 && document.signedDocuments ? (
+                <DocumentViewerWithSignatures
+                  documentFiles={document.files.map(file => ({
+                    id: file.file_id,
+                    name: file.original_name,
+                    downloadUrl: file.downloadUrl,
+                    isPrimary: file.is_primary,
+                  }))}
+                  signedDocuments={document.signedDocuments}
+                  activeSignatureData={activeSignatureData}
+                  onConfirmSignaturePlacement={onConfirmSignaturePlacement}
+                />
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <FileText className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                  <p>No document files available for preview.</p>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </div>

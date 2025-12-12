@@ -47,6 +47,7 @@ interface DataTableProps<TData, TValue> {
     columnVisibility?: Record<string, boolean>;
   };
   isLoading?: boolean; // Prop to handle loading state within the table
+  onSign?: (document: TData) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -59,6 +60,7 @@ export function DataTable<TData, TValue>({
   viewType = "document", // Default to document view
   initialState = {},
   isLoading = false, // Default to false to maintain existing behavior
+  onSign,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =

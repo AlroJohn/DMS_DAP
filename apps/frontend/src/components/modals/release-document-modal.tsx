@@ -74,12 +74,19 @@ interface ReleaseDocumentModalProps {
   document: Document | null;
   isOpen: boolean;
   onClose: () => void;
+  onSignatureSetup?: (payload: {
+    documentId: string;
+    departmentId: string;
+    requestActions: string[];
+    remarks?: string;
+  }) => void;
 }
 
 export function ReleaseDocumentModal({
   document,
   isOpen,
   onClose,
+  onSignatureSetup,
 }: ReleaseDocumentModalProps) {
   const { user: currentUser } = useAuth();
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -209,6 +216,22 @@ export function ReleaseDocumentModal({
 
     if (!allValidActions && documentActions.length > 0) {
       toast.error("Please select valid actions only.");
+      return;
+    }
+
+    const hasSignatureAction = data.requestActions.some((actionName) =>
+      actionName.toLowerCase().includes("signature")
+    );
+
+    if (hasSignatureAction && onSignatureSetup && document) {
+      onSignatureSetup({
+        documentId: document.id,
+        departmentId: data.departmentId,
+        requestActions: data.requestActions,
+        remarks: data.remarks,
+      });
+      form.reset();
+      onClose();
       return;
     }
 

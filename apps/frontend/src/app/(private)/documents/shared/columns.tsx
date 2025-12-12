@@ -46,7 +46,7 @@ const getDocumentTitle = (document: SharedDocument): string => {
   return document.document || "";
 };
 
-export const columns: ColumnDef<SharedDocument>[] = [
+export const getColumns = ({ onSign }: { onSign: (document: SharedDocument) => void }): ColumnDef<SharedDocument>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -317,7 +317,7 @@ export const columns: ColumnDef<SharedDocument>[] = [
     id: "actions",
     cell: ({ row }) => (
       <div className="flex justify-center">
-        <DataTableRowActions row={row} viewType="shared" />
+        <DataTableRowActions row={row} viewType="shared" onSign={onSign} />
       </div>
     ),
     enableSorting: false,
