@@ -61,6 +61,12 @@ export default function DocumentSignaturePlacementPage() {
 
   const handleSignatureCapture = (signatureData: string) => {
     setActiveSignatureData(signatureData);
+    // Close the signature capture modal and redirect to the document view page
+    setIsSignatureModalOpen(false);
+    // Set a small timeout to allow the modal to close smoothly before redirecting
+    setTimeout(() => {
+      router.push(`/documents/${documentId}`);
+    }, 100);
   };
 
   const handleConfirmSignaturePlacement = async ({
