@@ -533,6 +533,8 @@ enum DocStatus {
   dispatch
   received
   intransit
+  intransit_signature  // Document in transit for signature
+  signed
   completed
   canceled
   deleted

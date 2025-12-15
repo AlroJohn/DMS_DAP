@@ -284,10 +284,10 @@ export default function DocumentDetailPage() {
       requestActions: string[];
       remarks?: string;
       signatures: {
-        fileId: string;
-        pageNumber: number;
-        x: number;
-        y: number;
+        document_file_id: string;
+        page_number: number;
+        x_position: number;
+        y_position: number;
         width: number;
         height: number;
       }[];
@@ -296,7 +296,12 @@ export default function DocumentDetailPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          departmentId: data.departmentId,
+          requestActions: data.requestActions,
+          remarks: data.remarks,
+          signatures: data.signatures // This matches the expected format in the backend
+        }),
       });
       if (!response.ok) {
         const errorData = await response.json();
@@ -331,20 +336,23 @@ export default function DocumentDetailPage() {
     const requestActions = requestActionsRaw.split(",");
 
     const RENDER_SCALE = 1.4;
-    const finalSignatures = boxes.map((box) => ({
-      fileId,
-      pageNumber: box.pageNumber,
-      x: box.x / RENDER_SCALE,
-      y: box.y / RENDER_SCALE,
+
+    // Prepare signature placeholders data
+    const signaturePlaceholders = boxes.map(box => ({
+      document_file_id: fileId,
+      page_number: box.pageNumber,
+      x_position: box.x / RENDER_SCALE,  // Adjust for scale
+      y_position: box.y / RENDER_SCALE,
       width: box.width / RENDER_SCALE,
-      height: box.height / RENDER_SCALE,
+      height: box.height / RENDER_SCALE
     }));
 
+    // Create signature placeholders in the database
     releaseWithSignaturesMutation.mutate({
       departmentId,
       requestActions,
       remarks,
-      signatures: finalSignatures,
+      signatures: signaturePlaceholders
     });
   };
 
@@ -365,6 +373,11 @@ export default function DocumentDetailPage() {
         label: "In Transit",
         variant: "secondary",
         className: "text-black dark:text-white",
+      },
+      intransitsignature: {  // Combined without underscore for the regex replacement
+        label: "In Transit for Signature",
+        variant: "secondary",
+        className: "text-black dark:text-white"
       },
       dispatch: { label: "Dispatch", variant: "secondary", className: "" },
       canceled: { label: "Cancelled", variant: "destructive", className: "" },

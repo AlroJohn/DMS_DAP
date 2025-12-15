@@ -40,6 +40,8 @@ import documentTrailsRoutes from './routes/document-trails.routes'; // Import do
 import notificationsRoutes from './routes/notifications'; // Import notifications route
 import archiveRoutes from './routes/archive.routes'; // Import archive routes
 import dashboardRoutes from './routes/dashboard.routes'; // Import dashboard routes
+import documentSignatureRoutes from './routes/document-signatures'; // Import document signature routes
+import documentSignaturePlaceholderRoutes from './routes/document-signature-placeholders'; // Import document signature placeholder routes
 
 // Import middleware
 import { requestLogger, errorLogger } from './middleware/logging';
@@ -164,6 +166,8 @@ app.use('/api/documents', documentTrailsRoutes); // Add document trails routes
 app.use('/api/notifications', notificationsRoutes); // Add notifications route
 app.use('/api/archive', archiveRoutes); // Add archive routes
 app.use('/api/dashboard', dashboardRoutes); // Add dashboard routes
+app.use('/api/signatures', documentSignatureRoutes); // Add document signature routes
+app.use('/api/document-signatures', documentSignaturePlaceholderRoutes); // Add document signature placeholder routes
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {

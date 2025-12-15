@@ -220,7 +220,8 @@ export function ReleaseDocumentModal({
     }
 
     const hasSignatureAction = data.requestActions.some((actionName) =>
-      actionName.toLowerCase().includes("signature")
+      actionName.toLowerCase().includes("signature") ||
+      actionName.toLowerCase().includes("for signature")
     );
 
     if (hasSignatureAction && onSignatureSetup && document) {

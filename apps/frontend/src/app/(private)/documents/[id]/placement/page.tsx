@@ -14,7 +14,7 @@ import { toast } from "sonner";
 
 export default function DocumentSignaturePlacementPage() {
   const routeParams = useParams<{ id: string }>();
-  const documentId = routeParams.id as string;
+  const documentId = routeParams?.id ?? "";
   const router = useRouter();
   const [activeSignatureData, setActiveSignatureData] = useState<string | null>(null);
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);

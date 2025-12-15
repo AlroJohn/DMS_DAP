@@ -59,6 +59,7 @@ export class DocumentReleaseService {
 
       // Create SignedDocument records if signatures are provided
       if (signatures && signatures.length > 0) {
+        // If signatures are provided, it means the releasing user is placing their signature before releasing
         const signatureData = signatures.map((sig) => ({
           document_id: documentId,
           documentFileFile_id: sig.fileId,
@@ -75,6 +76,25 @@ export class DocumentReleaseService {
           data: signatureData,
         });
         console.log('📍 [DocumentReleaseService.releaseDocument] Signatures saved to SignedDocument table.');
+      } else {
+        // If no signatures are provided but the action includes "signature",
+        // we should note that the document is being released for signature
+        const hasSignatureAction = Array.isArray(requestAction)
+          ? requestAction.some(action => action.toLowerCase().includes('signature'))
+          : requestAction.toLowerCase().includes('signature');
+
+        if (hasSignatureAction) {
+          console.log('📍 [DocumentReleaseService.releaseDocument] Document released for signature, no signatures placed yet.');
+
+          // Update document status to indicate it's in transit for signature
+          await prisma.document.update({
+            where: { document_id: documentId },
+            data: {
+              status: 'intransit_signature', // New status for documents sent for signature
+              updated_at: new Date()
+            }
+          });
+        }
       }
 
       // Get the current workflow
@@ -319,7 +339,8 @@ export class DocumentReleaseService {
         // Send email to all users in the receiving department
         for (const account of receivingDepartment.Account) {
           const user = account.user;
-          if (user && user.active && account.email) {
+          // Skip sending the email back to the releasing user
+          if (user && user.active && account.email && user.user_id !== userId) {
             const emailData: DocumentReleasedEmailData = {
               recipientEmail: account.email,
               recipientName: `${user.first_name} ${user.last_name}`,
