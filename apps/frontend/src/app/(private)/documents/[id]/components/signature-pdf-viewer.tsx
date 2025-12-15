@@ -255,9 +255,16 @@ export function SignaturePdfViewer({
 
   const handleConfirm = () => {
     if (!selectedFileId) {
+      toast.error("No PDF file selected. Please select a PDF file before confirming signature positions.");
       console.error("No file selected for signature.");
       return;
     }
+
+    if (boxes.length === 0) {
+      toast.error("No signature positions added. Please add at least one signature position before confirming.");
+      return;
+    }
+
     onConfirm({ fileId: selectedFileId, boxes });
   };
 

@@ -144,20 +144,6 @@ export function SignatureCaptureModal({
           </TabsContent>
         </Tabs>
 
-        {signatureData && (
-          <div className="mt-4">
-            <p className="text-sm font-medium text-muted-foreground mb-2">
-              Signature Preview:
-            </p>
-            <div className="p-4 border rounded-md flex items-center justify-center bg-gray-50">
-              <img
-                src={signatureData}
-                alt="Signature Preview"
-                className="max-h-24"
-              />
-            </div>
-          </div>
-        )}
 
         <DialogFooter className="mt-6">
           <Button variant="outline" onClick={() => onOpenChange(false)}>

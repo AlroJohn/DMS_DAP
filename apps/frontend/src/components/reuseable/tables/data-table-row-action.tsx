@@ -153,9 +153,14 @@ export function DataTableRowActions<TData>({
   const handleSignConfirmation = (signatureData: string) => {
     if (!selectedDocument) return;
 
-    setActiveSignatureData(signatureData); // Store the captured signature
+    // Close the capture modal
     toggleModal("signatureCapture", false); // Close the capture modal
-    setViewDocumentModalOpen(true); // Open the view modal for placement
+
+    // Redirect to the signature placement page with the captured signature data
+    // The placement page will handle the signature placement process
+    // Encode the signature data to make it URL-safe
+    const encodedSignature = encodeURIComponent(signatureData);
+    router.push(`/documents/${selectedDocument.id}/placement?signature=${encodedSignature}`);
   };
 
   const handleEdit = () => {

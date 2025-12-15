@@ -14,9 +14,9 @@ import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
-import { NotificationsProvider } from '@/context/notifications'
+import { NotificationsProvider } from "@/context/notifications";
 import { SessionTimeoutProvider } from "@/components/providers/session-timeout-provider";
-import { UserSocketRoom } from '@/components/user-socket-room';
+import { UserSocketRoom } from "@/components/user-socket-room";
 
 // Socket.IO Context
 interface SocketContextType {
@@ -38,8 +38,8 @@ export const Providers = ({ children }: { children: React.ReactNode }) => {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <SessionTimeoutProvider
-            timeout={20 * 60 * 1000}      // 20 minutes
-            warningTime={2 * 60 * 1000}   // 2 minutes warning
+            timeout={20 * 60 * 1000} // 20 minutes
+            warningTime={2 * 60 * 1000} // 2 minutes warning
             enabled={true}
           >
             <SocketProvider>
@@ -47,7 +47,9 @@ export const Providers = ({ children }: { children: React.ReactNode }) => {
             </SocketProvider>
           </SessionTimeoutProvider>
         </AuthProvider>
-        <ReactQueryDevtools initialIsOpen={false} />
+        {process.env.NODE_ENV !== "development" && (
+          <ReactQueryDevtools initialIsOpen={false} />
+        )}
       </QueryClientProvider>
       <Toaster position="bottom-right" />
     </ThemeProvider>
@@ -62,8 +64,8 @@ const SocketProvider = ({ children }: { children: ReactNode }) => {
     if (isAuthenticated) {
       const fetchSocketTokenAndConnect = async () => {
         try {
-          const res = await fetch('/api/auth/socket-token', {
-            credentials: 'include', // Include cookies for authentication
+          const res = await fetch("/api/auth/socket-token", {
+            credentials: "include", // Include cookies for authentication
           });
           const data = await res.json();
 
@@ -111,10 +113,10 @@ const SocketProvider = ({ children }: { children: ReactNode }) => {
               setSocket(null);
             };
           } else {
-            console.error('Failed to get socket token:', data.error);
+            console.error("Failed to get socket token:", data.error);
           }
         } catch (error) {
-          console.error('Error fetching socket token:', error);
+          console.error("Error fetching socket token:", error);
         }
       };
 

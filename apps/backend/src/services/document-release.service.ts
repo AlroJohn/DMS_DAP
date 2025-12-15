@@ -18,10 +18,10 @@ export class DocumentReleaseService {
     remarks: string | undefined,
     userId: string,
     signatures?: {
-      fileId: string;
-      pageNumber: number;
-      x: number;
-      y: number;
+      document_file_id: string;
+      page_number: number;
+      x_position: number;
+      y_position: number;
       width: number;
       height: number;
     }[]
@@ -62,11 +62,11 @@ export class DocumentReleaseService {
         // If signatures are provided, it means the releasing user is placing their signature before releasing
         const signatureData = signatures.map((sig) => ({
           document_id: documentId,
-          documentFileFile_id: sig.fileId,
+          documentFileFile_id: sig.document_file_id,
           signee_id: userId,
-          page_number: sig.pageNumber,
-          x_position: sig.x,
-          y_position: sig.y,
+          page_number: sig.page_number,
+          x_position: sig.x_position,
+          y_position: sig.y_position,
           width: sig.width,
           height: sig.height,
           signature_data: releasingUser.signature, // Use the user's stored signature
@@ -76,6 +76,46 @@ export class DocumentReleaseService {
           data: signatureData,
         });
         console.log('📍 [DocumentReleaseService.releaseDocument] Signatures saved to SignedDocument table.');
+
+        // Process the document with signatures to create a signed version
+        // Get the relevant document file to apply signatures to
+        const documentFileId = signatureData[0].documentFileFile_id; // Use the first document file
+        if (documentFileId) {
+          try {
+            await prisma.$transaction(async (tx) => {
+              // Update document status to indicate signing process
+              await tx.document.update({
+                where: { document_id: documentId },
+                data: {
+                  status: 'processing_signature',
+                  updated_at: new Date()
+                }
+              });
+            });
+
+            // Process signatures asynchronously after the main transaction
+            // This allows the release process to complete quickly
+            setTimeout(async () => {
+              try {
+                const { DocumentSignatureWorkflowService } = await import('./DocumentSignatureWorkflowService');
+                await DocumentSignatureWorkflowService.processDocumentSignatureWorkflow(documentId, documentFileId);
+                console.log('📍 [DocumentReleaseService.releaseDocument] Document signature processing completed.');
+              } catch (processError) {
+                console.error('📍 [DocumentReleaseService.releaseDocument] Error processing document signatures:', processError);
+                // Update document status to indicate processing failed
+                await prisma.document.update({
+                  where: { document_id: documentId },
+                  data: {
+                    status: 'signature_processing_failed',
+                    updated_at: new Date()
+                  }
+                });
+              }
+            }, 0); // Process asynchronously
+          } catch (processError) {
+            console.error('📍 [DocumentReleaseService.releaseDocument] Error starting signature processing:', processError);
+          }
+        }
       } else {
         // If no signatures are provided but the action includes "signature",
         // we should note that the document is being released for signature

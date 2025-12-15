@@ -16,9 +16,24 @@ export default function DocumentSignaturePlacementPage() {
   const routeParams = useParams<{ id: string }>();
   const documentId = routeParams?.id ?? "";
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeSignatureData, setActiveSignatureData] = useState<string | null>(null);
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Check if a signature was passed via URL parameters
+  useEffect(() => {
+    const signatureParam = searchParams?.get('signature');
+    if (signatureParam) {
+      // Decode the signature data if it was passed as a URL parameter
+      const decodedSignature = decodeURIComponent(signatureParam);
+      setActiveSignatureData(decodedSignature);
+
+      // Remove the signature parameter from the URL to keep it clean
+      const newUrl = window.location.pathname;
+      router.replace(newUrl);
+    }
+  }, [searchParams, router]);
 
   const { document, isLoading: docLoading, error: docError } = useDocumentDetail(documentId);
   const {
@@ -61,12 +76,10 @@ export default function DocumentSignaturePlacementPage() {
 
   const handleSignatureCapture = (signatureData: string) => {
     setActiveSignatureData(signatureData);
-    // Close the signature capture modal and redirect to the document view page
+    // Close the signature capture modal but stay on the placement page
     setIsSignatureModalOpen(false);
-    // Set a small timeout to allow the modal to close smoothly before redirecting
-    setTimeout(() => {
-      router.push(`/documents/${documentId}`);
-    }, 100);
+    // Show success message to user
+    toast.success("Signature captured! Now place it on the document.");
   };
 
   const handleConfirmSignaturePlacement = async ({
@@ -143,7 +156,12 @@ export default function DocumentSignaturePlacementPage() {
   };
 
   const handleFinishPlacement = () => {
-    router.push(`/documents/${documentId}`);
+    // Redirect to the document view page as requested
+    // This is where the document with signatures will be visible
+    // Use the primary file or first file if available
+    const primaryFile = files?.find(f => f.isPrimary) || files?.[0];
+    const fileIdParam = primaryFile ? `?fileId=${primaryFile.id}` : '';
+    router.push(`/documents/${documentId}/view-documents${fileIdParam}`);
   };
 
   if (docLoading || filesLoading || loadingSignatures) {
@@ -243,33 +261,35 @@ export default function DocumentSignaturePlacementPage() {
           <CardTitle>Signature Placement Process</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-4 p-3 bg-blue-50 rounded-md">
-            <div className="text-blue-800">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                <span className="font-medium">Step 1</span>
+          {!activeSignatureData && (
+            <div className="flex flex-wrap items-center gap-4 p-3 bg-blue-50 rounded-md">
+              <div className="text-blue-800">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                  <span className="font-medium">Step 1</span>
+                </div>
               </div>
+              <p className="text-sm text-blue-700 flex-1">
+                Select signature method (draw or upload)
+              </p>
+              <Button onClick={handleOpenSignatureModal}>
+                Create Signature
+              </Button>
             </div>
-            <p className="text-sm text-blue-700 flex-1">
-              Select signature method (draw or upload)
-            </p>
-            <Button onClick={handleOpenSignatureModal}>
-              Create Signature
-            </Button>
-          </div>
+          )}
 
-          <div className="flex flex-wrap items-center gap-4 p-3 bg-green-50 rounded-md">
-            <div className="text-green-800">
+          <div className={`flex flex-wrap items-center gap-4 p-3 rounded-md ${activeSignatureData ? 'bg-green-50' : 'bg-gray-50'}`}>
+            <div className={`text-${activeSignatureData ? 'green' : 'gray'}-800`}>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                <span className="font-medium">Step 2</span>
+                <div className={`w-3 h-3 rounded-full bg-${activeSignatureData ? 'green' : 'gray'}-500`}></div>
+                <span className="font-medium">{!activeSignatureData ? 'Step 1' : 'Step 2'}</span>
               </div>
             </div>
-            <p className="text-sm text-green-700 flex-1">
+            <p className={`text-sm text-${activeSignatureData ? 'green' : 'gray'}-700 flex-1`}>
               Place your signature on the document
             </p>
-            <span className="text-sm text-green-700">
-              {activeSignatureData ? "Signature ready" : "No signature selected"}
+            <span className={`text-sm text-${activeSignatureData ? 'green' : 'gray'}-700`}>
+              {activeSignatureData ? "Signature ready" : "No signature available - please create one first"}
             </span>
           </div>
         </CardContent>

@@ -74,9 +74,11 @@ export class PDFSignatureService {
       const page = pdfDoc.getPage(pageIndex);
       const { width, height } = page.getSize();
       
-      // Convert percentage-based coordinates to absolute coordinates
-      const absoluteX = (signature.x / 100) * width;
-      const absoluteY = height - ((signature.y / 100) * height) - signature.height; // Y is measured from bottom in PDF
+      // Coordinates from frontend are already in PDF document space, so no additional scaling needed
+      // The frontend already adjusted coordinates by dividing by RENDER_SCALE
+      const absoluteX = signature.x;
+      // In PDF coordinates, Y is measured from the bottom of the page
+      const absoluteY = height - signature.y - signature.height;
       
       // Determine if signature data is a URL or base64 data
       let signatureImage;
