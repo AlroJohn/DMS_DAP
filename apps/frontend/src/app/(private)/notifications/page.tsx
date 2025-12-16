@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Bell, Settings, CheckCheck, Eye, FileText, CheckCircle, PenTool, AlertTriangle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,34 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { extractDocumentInfo } from "@/lib/utils";
+import { useNotifications } from "@/context/notifications";
+import { useNotificationSettings } from "@/hooks/use-notification-settings";
 
 export default function NotificationsPage() {
-  const [frequency, setFrequency] = useState("immediate");
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Fetch notifications from API
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch('/api/notifications');
-        if (!response.ok) {
-          throw new Error('Failed to fetch notifications');
-        }
-        const data = await response.json();
-        setNotifications(data.data || []);
-      } catch (err) {
-        console.error('Error fetching notifications:', err);
-        setError('Failed to load notifications');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchNotifications();
-  }, []);
+  const { notifications, markAllAsRead, markAsRead, deleteNotification, fetchNotifications } = useNotifications();
+  const { preferences, loading: settingsLoading, saving: settingsSaving, toggleSetting } = useNotificationSettings();
+  const [loading, setLoading] = useState(false); // Using context for notifications now
 
   const notificationTypes = [
     { icon: FileText, title: "Document Updates", description: "New, edited, or deleted documents", color: "bg-blue-50" },
@@ -45,21 +24,6 @@ export default function NotificationsPage() {
     { icon: PenTool, title: "Signature Events", description: "Document signing and verification", color: "bg-purple-50" },
     { icon: AlertTriangle, title: "System Alerts", description: "Security and system notifications", color: "bg-orange-50" }
   ];
-
-  const markAllAsRead = async () => {
-    try {
-      const response = await fetch('/api/notifications/read-all', {
-        method: 'PATCH',
-      });
-      if (response.ok) {
-        setNotifications(prev => 
-          prev.map(n => ({ ...n, is_read: true }))
-        );
-      }
-    } catch (err) {
-      console.error('Error marking all notifications as read:', err);
-    }
-  };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -103,18 +67,20 @@ export default function NotificationsPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
             onClick={markAllAsRead}
-            disabled={notifications.every(n => n.is_read)}
+            disabled={notifications.every(n => n.read)}
           >
             <CheckCheck className="h-4 w-4 mr-2" />
             Mark All Read
           </Button>
-          <Button variant="outline" size="sm">
-            <Settings className="h-4 w-4 mr-2" />
-            Settings
+          <Button variant="outline" size="sm" asChild>
+            <a href="/workflows/notifications-settings">
+              <Settings className="h-4 w-4 mr-2" />
+              Settings
+            </a>
           </Button>
         </div>
       </div>
@@ -128,13 +94,9 @@ export default function NotificationsPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y">
-                {loading ? (
+                {loading || settingsLoading ? (
                   <div className="p-8 text-center">
                     <p>Loading notifications...</p>
-                  </div>
-                ) : error ? (
-                  <div className="p-8 text-center">
-                    <p className="text-red-500">{error}</p>
                   </div>
                 ) : notifications.length === 0 ? (
                   <div className="p-8 text-center">
@@ -149,9 +111,9 @@ export default function NotificationsPage() {
 
                     return (
                       <div
-                        key={notification.notification_id || notification.id}
+                        key={notification.id}
                         className={`p-6 hover:bg-accent/50 transition-colors ${
-                          !notification.is_read ? 'bg-primary/5 border-l-4 border-l-primary' : ''
+                          !notification.read ? 'bg-primary/5 border-l-4 border-l-primary' : ''
                         }`}
                       >
                         <div className="flex items-start gap-4">
@@ -183,7 +145,7 @@ export default function NotificationsPage() {
                                   })()}
                                 </div>
                               </div>
-                              {!notification.is_read && (
+                              {!notification.read && (
                                 <Badge variant="default" className="ml-2">
                                   New
                                 </Badge>
@@ -191,57 +153,23 @@ export default function NotificationsPage() {
                             </div>
                             <div className="flex items-center justify-between mt-3">
                               <span className="text-xs text-muted-foreground">
-                                {new Date(notification.created_at || notification.timestamp).toLocaleString()}
+                                {new Date(notification.timestamp).toLocaleString()}
                               </span>
                               <div className="flex gap-2">
-                                {!notification.is_read && (
-                                  <Button 
-                                    variant="ghost" 
+                                {!notification.read && (
+                                  <Button
+                                    variant="ghost"
                                     size="sm"
-                                    onClick={async () => {
-                                      try {
-                                        const response = await fetch(`/api/notifications/${notification.notification_id}/read`, {
-                                          method: 'PATCH',
-                                        });
-                                        if (response.ok) {
-                                          // Update the notification in the UI
-                                          setNotifications(prev => 
-                                            prev.map(n => 
-                                              n.notification_id === notification.notification_id 
-                                                ? { ...n, is_read: true } 
-                                                : n
-                                            )
-                                          );
-                                        }
-                                      } catch (err) {
-                                        console.error('Error marking notification as read:', err);
-                                      }
-                                    }}
+                                    onClick={() => markAsRead(notification.id)}
                                   >
                                     <Eye className="h-3 w-3 mr-1" />
                                     Mark as read
                                   </Button>
                                 )}
-                                <Button 
-                                  variant="ghost" 
+                                <Button
+                                  variant="ghost"
                                   size="sm"
-                                  onClick={async () => {
-                                    try {
-                                      const response = await fetch(`/api/notifications/${notification.notification_id}`, {
-                                        method: 'DELETE',
-                                      });
-                                      if (response.ok) {
-                                        // Remove the notification from the UI
-                                        setNotifications(prev => 
-                                          prev.filter(n => 
-                                            n.notification_id !== notification.notification_id
-                                          )
-                                        );
-                                      }
-                                    } catch (err) {
-                                      console.error('Error deleting notification:', err);
-                                    }
-                                  }}
+                                  onClick={() => deleteNotification(notification.id)}
                                 >
                                   <X className="h-3 w-3" />
                                 </Button>
@@ -272,15 +200,27 @@ export default function NotificationsPage() {
                 <h4 className="font-medium">Email Notifications</h4>
                 <div className="space-y-3">
                   <div className="flex items-center space-x-2">
-                    <Checkbox id="email-signed" defaultChecked />
+                    <Checkbox
+                      id="email-signed"
+                      checked={preferences.email.document_signed}
+                      onCheckedChange={() => toggleSetting('email', 'document_signed')}
+                    />
                     <Label htmlFor="email-signed" className="text-sm">Document signed</Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Checkbox id="email-received" defaultChecked />
+                    <Checkbox
+                      id="email-received"
+                      checked={preferences.email.document_received}
+                      onCheckedChange={() => toggleSetting('email', 'document_received')}
+                    />
                     <Label htmlFor="email-received" className="text-sm">Document received</Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Checkbox id="email-workflow" />
+                    <Checkbox
+                      id="email-workflow"
+                      checked={preferences.email.workflow_updates}
+                      onCheckedChange={() => toggleSetting('email', 'workflow_updates')}
+                    />
                     <Label htmlFor="email-workflow" className="text-sm">Workflow updates</Label>
                   </div>
                 </div>
@@ -292,15 +232,27 @@ export default function NotificationsPage() {
                 <h4 className="font-medium">Push Notifications</h4>
                 <div className="space-y-3">
                   <div className="flex items-center space-x-2">
-                    <Checkbox id="push-signed" defaultChecked />
+                    <Checkbox
+                      id="push-signed"
+                      checked={preferences.push.document_signed}
+                      onCheckedChange={() => toggleSetting('push', 'document_signed')}
+                    />
                     <Label htmlFor="push-signed" className="text-sm">Document signed</Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Checkbox id="push-received" defaultChecked />
+                    <Checkbox
+                      id="push-received"
+                      checked={preferences.push.document_received}
+                      onCheckedChange={() => toggleSetting('push', 'document_received')}
+                    />
                     <Label htmlFor="push-received" className="text-sm">Document received</Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Checkbox id="push-workflow" defaultChecked />
+                    <Checkbox
+                      id="push-workflow"
+                      checked={preferences.push.workflow_updates}
+                      onCheckedChange={() => toggleSetting('push', 'workflow_updates')}
+                    />
                     <Label htmlFor="push-workflow" className="text-sm">Workflow updates</Label>
                   </div>
                 </div>
@@ -310,7 +262,11 @@ export default function NotificationsPage() {
 
               <div className="space-y-4">
                 <h4 className="font-medium">Notification Frequency</h4>
-                <Select value={frequency} onValueChange={setFrequency}>
+                <Select
+                  value={preferences.frequency}
+                  onValueChange={(value) => toggleSetting('frequency', value as any)}
+                  disabled={settingsSaving}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
