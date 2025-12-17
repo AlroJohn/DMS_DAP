@@ -14,6 +14,7 @@ import {
   getFacetedRowModel,
   getFacetedUniqueValues,
   useReactTable,
+  PaginationState,
 } from "@tanstack/react-table";
 
 import {
@@ -42,7 +43,13 @@ interface DataTableProps<TData, TValue> {
   excludedFilters?: string[];
   onSelectionChange?: (selectedRows: TData[]) => void;
   showUploadButton?: boolean; // Prop to control upload button visibility
-  viewType?: "document" | "owned" | "shared" | "outgoing" | "archive" | "recycle-bin"; // View type to control which actions are shown in toolbar
+  viewType?:
+    | "document"
+    | "owned"
+    | "shared"
+    | "outgoing"
+    | "archive"
+    | "recycle-bin"; // View type to control which actions are shown in toolbar
   initialState?: {
     columnVisibility?: Record<string, boolean>;
   };
@@ -69,6 +76,10 @@ export function DataTable<TData, TValue>({
     []
   );
   const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [pagination, setPagination] = React.useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
   const isMountedRef = React.useRef(true);
 
   React.useEffect(() => {
@@ -85,6 +96,7 @@ export function DataTable<TData, TValue>({
       columnVisibility,
       rowSelection,
       columnFilters,
+      pagination,
     },
     onRowSelectionChange: (updater) => {
       if (isMountedRef.current) {
@@ -101,6 +113,12 @@ export function DataTable<TData, TValue>({
         setColumnFilters(updater);
       }
     },
+    onPaginationChange: (updater) => {
+      if (isMountedRef.current) {
+        setPagination(updater);
+      }
+    },
+    autoResetPageIndex: false,
     onColumnVisibilityChange: (updater) => {
       if (isMountedRef.current) {
         setColumnVisibility(updater);

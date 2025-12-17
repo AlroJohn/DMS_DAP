@@ -17,7 +17,11 @@ import { useDocumentDetail } from "@/hooks/use-document-detail";
 import { useDocumentFiles } from "@/hooks/use-document-files";
 import { toast } from "sonner";
 import { EditablePdfViewer } from "./components/editable-pdf-viewer";
-import { SignaturePdfViewer, SignatureBox } from "./components/signature-pdf-viewer";
+import {
+  SignaturePdfViewer,
+  SignatureBox,
+} from "./components/signature-pdf-viewer";
+import { SigningPdfViewer } from "./components/signing-pdf-viewer";
 import {
   AlertCircle,
   Building,
@@ -66,11 +70,15 @@ export default function DocumentDetailPage() {
   const [isSignatureModeOpen, setIsSignatureModeOpen] = useState(
     modeParam === "signature"
   );
+  const [isSigningModeOpen, setIsSigningModeOpen] = useState(
+    modeParam === "sign"
+  );
   const [isRedirectingToView, setIsRedirectingToView] = useState(false);
 
   useEffect(() => {
     setIsEditorOpen(modeParam === "edit");
     setIsSignatureModeOpen(modeParam === "signature");
+    setIsSigningModeOpen(modeParam === "sign");
   }, [modeParam]);
 
   useEffect(() => {
@@ -278,6 +286,17 @@ export default function DocumentDetailPage() {
     );
   };
 
+  const handleCloseSigningMode = () => {
+    setIsSigningModeOpen(false);
+    updateModeQuery(null);
+  };
+
+  const handleSigned = () => {
+    toast.success("Document signed successfully");
+    refetch();
+    handleCloseSigningMode();
+  };
+
   const releaseWithSignaturesMutation = useMutation({
     mutationFn: async (data: {
       departmentId: string;
@@ -300,7 +319,7 @@ export default function DocumentDetailPage() {
           departmentId: data.departmentId,
           requestActions: data.requestActions,
           remarks: data.remarks,
-          signatures: data.signatures // This matches the expected format in the backend
+          signatures: data.signatures, // This matches the expected format in the backend
         }),
       });
       if (!response.ok) {
@@ -321,7 +340,13 @@ export default function DocumentDetailPage() {
     },
   });
 
-  const handleConfirmSignatures = ({ fileId, boxes }: { fileId: string; boxes: SignatureBox[] }) => {
+  const handleConfirmSignatures = ({
+    fileId,
+    boxes,
+  }: {
+    fileId: string;
+    boxes: SignatureBox[];
+  }) => {
     const params = new URLSearchParams(searchParams?.toString() || "");
     const departmentId = params.get("releaseDepartmentId");
     const requestActionsRaw = params.get("releaseActions");
@@ -338,13 +363,13 @@ export default function DocumentDetailPage() {
     const RENDER_SCALE = 1.4;
 
     // Prepare signature placeholders data
-    const signaturePlaceholders = boxes.map(box => ({
+    const signaturePlaceholders = boxes.map((box) => ({
       document_file_id: fileId,
       page_number: box.pageNumber,
-      x_position: box.x / RENDER_SCALE,  // Adjust for scale
+      x_position: box.x / RENDER_SCALE, // Adjust for scale
       y_position: box.y / RENDER_SCALE,
       width: box.width / RENDER_SCALE,
-      height: box.height / RENDER_SCALE
+      height: box.height / RENDER_SCALE,
     }));
 
     // Create signature placeholders in the database
@@ -352,7 +377,7 @@ export default function DocumentDetailPage() {
       departmentId,
       requestActions,
       remarks,
-      signatures: signaturePlaceholders
+      signatures: signaturePlaceholders,
     });
   };
 
@@ -374,10 +399,11 @@ export default function DocumentDetailPage() {
         variant: "secondary",
         className: "text-black dark:text-white",
       },
-      intransitsignature: {  // Combined without underscore for the regex replacement
+      intransitsignature: {
+        // Combined without underscore for the regex replacement
         label: "In Transit for Signature",
         variant: "secondary",
-        className: "text-black dark:text-white"
+        className: "text-black dark:text-white",
       },
       dispatch: { label: "Dispatch", variant: "secondary", className: "" },
       canceled: { label: "Cancelled", variant: "destructive", className: "" },
@@ -479,6 +505,41 @@ export default function DocumentDetailPage() {
           isLoadingFiles={filesLoading}
           onExit={handleCloseSignatureMode}
           onConfirm={handleConfirmSignatures}
+        />
+      </div>
+    );
+  }
+
+  if (isSigningModeOpen) {
+    return (
+      <div className="flex flex-col gap-2 p-1 md:p-2 lg:p-4 mx-auto w-full pb-2">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {title} – Sign Document
+            </h1>
+            <p className="text-muted-foreground">
+              Document ID: {document.document_id || documentId}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCloseSigningMode}
+            >
+              Back to Document
+            </Button>
+          </div>
+        </div>
+
+        <SigningPdfViewer
+          documentId={documentIdForRoutes}
+          files={files}
+          initialFileId={defaultEditableFileId}
+          isLoadingFiles={filesLoading}
+          onExit={handleCloseSigningMode}
+          onSigned={handleSigned}
         />
       </div>
     );
@@ -896,9 +957,7 @@ export default function DocumentDetailPage() {
         isOpen={isReleaseModalOpen}
         onClose={() => setIsReleaseModalOpen(false)}
         onSignatureSetup={({ departmentId, requestActions, remarks }) => {
-          const params = new URLSearchParams(
-            searchParams?.toString() || ""
-          );
+          const params = new URLSearchParams(searchParams?.toString() || "");
           params.set("mode", "signature");
           params.set("releaseDepartmentId", departmentId);
           params.set("releaseActions", requestActions.join(","));

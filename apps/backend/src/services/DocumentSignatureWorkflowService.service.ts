@@ -1,4 +1,4 @@
-import { PDFSignatureService } from '../services/PDFSignatureService';
+import { PDFSignatureService } from './PDFSignatureService.service';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();

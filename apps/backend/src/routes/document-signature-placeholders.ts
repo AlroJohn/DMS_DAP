@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { DocumentSignatureWorkflowService } from '../services/DocumentSignatureWorkflowService';
+import { DocumentSignatureWorkflowService } from '../services/DocumentSignatureWorkflowService.service';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 router.get('/documents/:documentId/signature-placeholders', async (req: Request, res: Response) => {
   try {
     const { documentId } = req.params;
-    
+
     const placeholders = await prisma.signaturePlaceholder.findMany({
       where: { document_id: documentId },
       include: {
@@ -34,7 +34,7 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
     const document = await prisma.document.findUnique({
       where: { document_id: documentId }
     });
-    
+
     if (!document) {
       return res.status(404).json({ error: 'Document not found' });
     }
@@ -42,7 +42,7 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
     const documentFile = await prisma.documentFile.findUnique({
       where: { file_id: document_file_id }
     });
-    
+
     if (!documentFile) {
       return res.status(404).json({ error: 'Document file not found' });
     }
@@ -76,7 +76,7 @@ router.post('/documents/:documentId/place-signature', async (req: Request, res: 
     const document = await prisma.document.findUnique({
       where: { document_id: documentId }
     });
-    
+
     if (!document) {
       return res.status(404).json({ error: 'Document not found' });
     }
@@ -84,7 +84,7 @@ router.post('/documents/:documentId/place-signature', async (req: Request, res: 
     const documentFile = await prisma.documentFile.findUnique({
       where: { file_id: document_file_id }
     });
-    
+
     if (!documentFile) {
       return res.status(404).json({ error: 'Document file not found' });
     }
@@ -92,7 +92,7 @@ router.post('/documents/:documentId/place-signature', async (req: Request, res: 
     const user = await prisma.user.findUnique({
       where: { user_id: signee_id }
     });
-    
+
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -141,9 +141,9 @@ router.post('/documents/:documentId/process-signed-document', async (req: Reques
       document_file_id
     );
 
-    res.json({ 
-      message: 'Document processed with signatures successfully', 
-      signedPdfPath 
+    res.json({
+      message: 'Document processed with signatures successfully',
+      signedPdfPath
     });
   } catch (error) {
     console.error('Error processing signed document:', error);
@@ -155,7 +155,7 @@ router.post('/documents/:documentId/process-signed-document', async (req: Reques
 router.get('/documents/:documentId/signatures', async (req: Request, res: Response) => {
   try {
     const { documentId } = req.params;
-    
+
     const signatures = await prisma.signedDocument.findMany({
       where: { document_id: documentId },
       include: {

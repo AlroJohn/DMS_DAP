@@ -6,11 +6,11 @@ import { NextRequest, NextResponse } from "next/server";
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-    const { id } = params;
+    const { id } = await params;
 
     const cookies = request.headers.get("cookie");
 
@@ -61,11 +61,11 @@ export async function GET(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-    const { id } = params;
+    const { id } = await params;
 
     const cookies = request.headers.get("cookie");
 

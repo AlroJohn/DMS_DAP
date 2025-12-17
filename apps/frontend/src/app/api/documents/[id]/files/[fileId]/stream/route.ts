@@ -24,14 +24,15 @@ function extractFilename(disposition: string | null): string {
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string; fileId: string } }
+  { params }: { params: Promise<{ id: string; fileId: string }> }
 ) {
   try {
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
     const cookies = request.headers.get("cookie");
     const wantDownload = request.nextUrl.searchParams.get("download") === "1";
+    const { id, fileId } = await params;
 
-    const backendStreamUrl = `${backendUrl}/api/documents/${params.id}/files/${params.fileId}/stream`;
+    const backendStreamUrl = `${backendUrl}/api/documents/${id}/files/${fileId}/stream`;
 
     const response = await fetch(
       backendStreamUrl,
@@ -68,7 +69,7 @@ export async function GET(
     const contentType = response.headers.get("content-type") || "application/octet-stream";
     const originalDisposition = response.headers.get("content-disposition");
     const filename = extractFilename(originalDisposition);
-  const finalDisposition = `${wantDownload ? "attachment" : "inline"}; filename="${filename}"`;
+    const finalDisposition = `${wantDownload ? "attachment" : "inline"}; filename="${filename}"`;
 
     const headers = new Headers();
     headers.set("Content-Type", contentType);

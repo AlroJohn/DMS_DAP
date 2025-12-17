@@ -20,7 +20,6 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { ViewDocumentsModal } from "@/components/reuseable/view-details-documents/view-documents";
-import { SignatureCaptureModal } from "@/components/modals/signature-capture-modal";
 
 import {
   DropdownMenu,
@@ -59,18 +58,24 @@ import {
   canArchiveDocument,
   canDeleteDocument,
   hasAnyPermission,
-  hasPermission
+  hasPermission,
 } from "@/lib/document-permissions";
 
 interface DataTableRowActionsProps<TData> {
   row: Row<TData>;
-  viewType?: 'document' | 'owned' | 'shared' | 'outgoing' | 'archive' | 'recycle-bin';
+  viewType?:
+    | "document"
+    | "owned"
+    | "shared"
+    | "outgoing"
+    | "archive"
+    | "recycle-bin";
   onSign?: (document: TData) => void;
 }
 
 export function DataTableRowActions<TData>({
   row,
-  viewType = 'document',
+  viewType = "document",
 }: DataTableRowActionsProps<TData>) {
   const router = useRouter();
   const { user: currentUser } = useAuth();
@@ -86,10 +91,11 @@ export function DataTableRowActions<TData>({
     edit: false,
     release: false,
     checkoutFile: false,
-    signatureCapture: false,
   });
 
-  const [activeSignatureData, setActiveSignatureData] = useState<string | null>(null);
+  const [activeSignatureData, setActiveSignatureData] = useState<string | null>(
+    null
+  );
   const [viewDocumentModalOpen, setViewDocumentModalOpen] = useState(false);
 
   const document = row.original as Document;
@@ -146,21 +152,8 @@ export function DataTableRowActions<TData>({
   };
 
   const handleSign = () => {
-    setSelectedDocument(document);
-    toggleModal("signatureCapture", true);
-  };
-
-  const handleSignConfirmation = (signatureData: string) => {
-    if (!selectedDocument) return;
-
-    // Close the capture modal
-    toggleModal("signatureCapture", false); // Close the capture modal
-
-    // Redirect to the signature placement page with the captured signature data
-    // The placement page will handle the signature placement process
-    // Encode the signature data to make it URL-safe
-    const encodedSignature = encodeURIComponent(signatureData);
-    router.push(`/documents/${selectedDocument.id}/placement?signature=${encodedSignature}`);
+    // Redirect to the document page in signature mode
+    router.push(`/documents/${document.id}?mode=sign`);
   };
 
   const handleEdit = () => {
@@ -174,7 +167,7 @@ export function DataTableRowActions<TData>({
   };
 
   const handleRelease = () => {
-    console.log('🔄 Release button clicked for document:', document);
+    console.log("🔄 Release button clicked for document:", document);
     setSelectedDocument(document);
     toggleModal("release", true);
   };
@@ -184,16 +177,18 @@ export function DataTableRowActions<TData>({
       setIsLoading(true);
 
       const response = await fetch(`/api/documents/${document.id}/complete`, {
-        method: 'POST',
-        credentials: 'include',
+        method: "POST",
+        credentials: "include",
         headers: {
-          'Content-Type': 'application/json',
-        }
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to complete document');
+        throw new Error(
+          errorData.error?.message || "Failed to complete document"
+        );
       }
 
       toast.success("Document completed successfully.");
@@ -210,16 +205,18 @@ export function DataTableRowActions<TData>({
       setIsLoading(true);
 
       const response = await fetch(`/api/documents/${document.id}/cancel`, {
-        method: 'POST',
-        credentials: 'include',
+        method: "POST",
+        credentials: "include",
         headers: {
-          'Content-Type': 'application/json',
-        }
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to cancel document');
+        throw new Error(
+          errorData.error?.message || "Failed to cancel document"
+        );
       }
 
       toast.success("Document cancelled successfully.");
@@ -237,24 +234,25 @@ export function DataTableRowActions<TData>({
 
       // Use different API endpoints based on view type
       // In recycle-bin view, we want to permanently delete
-      if (viewType === 'recycle-bin') {
+      if (viewType === "recycle-bin") {
         // Permanently delete from recycle bin - use bulk delete endpoint with single ID
-        const response = await fetch('/api/documents/bulk-delete', {
-          method: 'DELETE',
-          credentials: 'include',
+        const response = await fetch("/api/documents/bulk-delete", {
+          method: "DELETE",
+          credentials: "include",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            documentIds: [document.id]
-          })
+            documentIds: [document.id],
+          }),
         });
 
         if (!response.ok) {
-          let errorMessage = 'Failed to permanently delete document';
+          let errorMessage = "Failed to permanently delete document";
           try {
             const errorData = await response.json();
-            errorMessage = errorData.error?.message || errorData.message || errorMessage;
+            errorMessage =
+              errorData.error?.message || errorData.message || errorMessage;
           } catch (parseError) {
             errorMessage = `Server error: ${response.status} ${response.statusText}`;
           }
@@ -265,18 +263,19 @@ export function DataTableRowActions<TData>({
       } else {
         // Regular delete to recycle bin
         const response = await fetch(`/api/documents/${document.id}`, {
-          method: 'DELETE',
-          credentials: 'include',
+          method: "DELETE",
+          credentials: "include",
           headers: {
-            'Content-Type': 'application/json',
-          }
+            "Content-Type": "application/json",
+          },
         });
 
         if (!response.ok) {
-          let errorMessage = 'Failed to delete document';
+          let errorMessage = "Failed to delete document";
           try {
             const errorData = await response.json();
-            errorMessage = errorData.error?.message || errorData.message || errorMessage;
+            errorMessage =
+              errorData.error?.message || errorData.message || errorMessage;
           } catch (parseError) {
             errorMessage = `Server error: ${response.status} ${response.statusText}`;
           }
@@ -298,18 +297,19 @@ export function DataTableRowActions<TData>({
       setIsLoading(true);
 
       const response = await fetch(`/api/archive/${document.id}/archive`, {
-        method: 'POST',
-        credentials: 'include',
+        method: "POST",
+        credentials: "include",
         headers: {
-          'Content-Type': 'application/json',
-        }
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
-        let errorMessage = 'Failed to archive document';
+        let errorMessage = "Failed to archive document";
         try {
           const errorData = await response.json();
-          errorMessage = errorData.error?.message || errorData.message || errorMessage;
+          errorMessage =
+            errorData.error?.message || errorData.message || errorMessage;
         } catch (parseError) {
           errorMessage = `Server error: ${response.status} ${response.statusText}`;
         }
@@ -333,27 +333,28 @@ export function DataTableRowActions<TData>({
       // For recycle-bin: restore from deleted state using recycle-bin endpoint
       // For archive: restore from archived state using archive endpoint
       let endpoint, method;
-      if (viewType === 'recycle-bin') {
+      if (viewType === "recycle-bin") {
         endpoint = `/api/recycle-bin/${document.id}/restore`; // Use correct recycle-bin endpoint
-        method = 'PUT'; // Recycle bin restore uses PUT method
+        method = "PUT"; // Recycle bin restore uses PUT method
       } else {
         endpoint = `/api/archive/${document.id}/restore`; // Archive restore uses archive endpoint
-        method = 'POST'; // Archive restoration uses POST method
+        method = "POST"; // Archive restoration uses POST method
       }
 
       const response = await fetch(endpoint, {
         method: method,
-        credentials: 'include',
+        credentials: "include",
         headers: {
-          'Content-Type': 'application/json',
-        }
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
-        let errorMessage = 'Failed to restore document';
+        let errorMessage = "Failed to restore document";
         try {
           const errorData = await response.json();
-          errorMessage = errorData.error?.message || errorData.message || errorMessage;
+          errorMessage =
+            errorData.error?.message || errorData.message || errorMessage;
         } catch (parseError) {
           errorMessage = `Server error: ${response.status} ${response.statusText}`;
         }
@@ -374,7 +375,8 @@ export function DataTableRowActions<TData>({
   const canViewDoc = canViewDocument(currentUser);
 
   // For owned view, documents should be treated as owned by the user
-  const effectiveDocument = viewType === 'owned' ? { ...document, isOwned: true } : document;
+  const effectiveDocument =
+    viewType === "owned" ? { ...document, isOwned: true } : document;
 
   const canEditDetails = canEditDocumentDetails(currentUser, effectiveDocument);
   const canEditDoc = canEditDocument(currentUser, effectiveDocument);
@@ -386,13 +388,14 @@ export function DataTableRowActions<TData>({
   const canDelete = canDeleteDocument(currentUser, effectiveDocument);
 
   // Status-based checks
-  const isDispatch = document.status?.toLowerCase().includes('dispatch');
-  const isInTransit = document.status?.toLowerCase().includes('intransit') ||
-                     document.status?.toLowerCase().includes('transit') ||
-                     document.status?.toLowerCase().includes('outgoing');
+  const isDispatch = document.status?.toLowerCase().includes("dispatch");
+  const isInTransit =
+    document.status?.toLowerCase().includes("intransit") ||
+    document.status?.toLowerCase().includes("transit") ||
+    document.status?.toLowerCase().includes("outgoing");
 
   // Determine which actions to show based on view type
-  const showCopyCode = viewType === 'document' ? 'copy_code' : 'copy';
+  const showCopyCode = viewType === "document" ? "copy_code" : "copy";
   const showViewDetails = canViewDetails;
   const showViewDocument = canViewDoc;
   const showSignDocument = canSignDoc;
@@ -421,10 +424,12 @@ export function DataTableRowActions<TData>({
 
         <DropdownMenuContent align="end" className="w-[160px]">
           {/* Document View Actions */}
-          {viewType === 'document' && (
+          {viewType === "document" && (
             <>
               {/* Copy - for document view */}
-              <DropdownMenuItem onClick={(e) => handleAction(e, handleCopyCode)}>
+              <DropdownMenuItem
+                onClick={(e) => handleAction(e, handleCopyCode)}
+              >
                 <Copy className="mr-2 h-4 w-4" />
                 Copy
               </DropdownMenuItem>
@@ -439,7 +444,9 @@ export function DataTableRowActions<TData>({
 
               {/* View Document - for users with document read permissions */}
               {showViewDocument && (
-                <DropdownMenuItem onClick={(e) => handleAction(e, handleViewDocument)}>
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleViewDocument)}
+                >
                   <Eye className="mr-2 h-4 w-4" />
                   View Document
                 </DropdownMenuItem>
@@ -463,17 +470,23 @@ export function DataTableRowActions<TData>({
 
               {/* Edit Document - for users with edit permissions */}
               {showEditDocument && (
-                <DropdownMenuItem onClick={(e) => handleAction(e, handleCheckoutFile)}>
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleCheckoutFile)}
+                >
                   <Edit className="mr-2 h-4 w-4" />
                   Edit Document
                 </DropdownMenuItem>
               )}
 
-              {(showSignDocument || showEditDetails || showEditDocument) && <DropdownMenuSeparator />}
+              {(showSignDocument || showEditDetails || showEditDocument) && (
+                <DropdownMenuSeparator />
+              )}
 
               {/* Release - for users with transfer permissions */}
               {showRelease && (
-                <DropdownMenuItem onClick={(e) => handleAction(e, handleRelease)}>
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleRelease)}
+                >
                   <Send className="mr-2 h-4 w-4" />
                   Release
                 </DropdownMenuItem>
@@ -481,7 +494,9 @@ export function DataTableRowActions<TData>({
 
               {/* Complete - for users with document receive permissions and dispatch status */}
               {showComplete && (
-                <DropdownMenuItem onClick={(e) => handleAction(e, handleComplete)}>
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleComplete)}
+                >
                   <CheckCircle className="mr-2 h-4 w-4" />
                   Complete
                 </DropdownMenuItem>
@@ -489,17 +504,23 @@ export function DataTableRowActions<TData>({
 
               {/* Cancel - for users with transfer reject permissions and in-transit status */}
               {showCancel && (
-                <DropdownMenuItem onClick={(e) => handleAction(e, handleCancel)}>
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleCancel)}
+                >
                   <XCircle className="mr-2 h-4 w-4" />
                   Cancel
                 </DropdownMenuItem>
               )}
 
-              {(showRelease || showComplete || showCancel) && <DropdownMenuSeparator />}
+              {(showRelease || showComplete || showCancel) && (
+                <DropdownMenuSeparator />
+              )}
 
               {/* Archive - for users with archive permissions */}
               {showArchive && (
-                <DropdownMenuItem onClick={(e) => handleAction(e, handleArchive)}>
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleArchive)}
+                >
                   <Archive className="mr-2 h-4 w-4" />
                   Archive
                 </DropdownMenuItem>
@@ -524,13 +545,17 @@ export function DataTableRowActions<TData>({
                         Are you sure you want to delete this document?
                       </AlertDialogTitle>
                       <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete the
-                        document and remove its data from our servers.
+                        This action cannot be undone. This will permanently
+                        delete the document and remove its data from our
+                        servers.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleDelete} disabled={isLoading}>
+                      <AlertDialogAction
+                        onClick={handleDelete}
+                        disabled={isLoading}
+                      >
                         Delete
                       </AlertDialogAction>
                     </AlertDialogFooter>
@@ -541,10 +566,12 @@ export function DataTableRowActions<TData>({
           )}
 
           {/* Owned View Actions */}
-          {viewType === 'owned' && (
+          {viewType === "owned" && (
             <>
               {/* Copy Code - for owned documents view */}
-              <DropdownMenuItem onClick={(e) => handleAction(e, handleCopyCode)}>
+              <DropdownMenuItem
+                onClick={(e) => handleAction(e, handleCopyCode)}
+              >
                 <Copy className="mr-2 h-4 w-4" />
                 Copy Code
               </DropdownMenuItem>
@@ -559,7 +586,9 @@ export function DataTableRowActions<TData>({
 
               {/* View Document - for users with document read permissions */}
               {showViewDocument && (
-                <DropdownMenuItem onClick={(e) => handleAction(e, handleViewDocument)}>
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleViewDocument)}
+                >
                   <Eye className="mr-2 h-4 w-4" />
                   View Document
                 </DropdownMenuItem>
@@ -583,17 +612,23 @@ export function DataTableRowActions<TData>({
 
               {/* Edit Document - for users with edit permissions */}
               {showEditDocument && (
-                <DropdownMenuItem onClick={(e) => handleAction(e, handleCheckoutFile)}>
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleCheckoutFile)}
+                >
                   <Edit className="mr-2 h-4 w-4" />
                   Edit Document
                 </DropdownMenuItem>
               )}
 
-              {(showSignDocument || showEditDetails || showEditDocument) && <DropdownMenuSeparator />}
+              {(showSignDocument || showEditDetails || showEditDocument) && (
+                <DropdownMenuSeparator />
+              )}
 
               {/* Archive - for users with archive permissions */}
               {showArchive && (
-                <DropdownMenuItem onClick={(e) => handleAction(e, handleArchive)}>
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleArchive)}
+                >
                   <Archive className="mr-2 h-4 w-4" />
                   Archive
                 </DropdownMenuItem>
@@ -618,13 +653,17 @@ export function DataTableRowActions<TData>({
                         Are you sure you want to delete this document?
                       </AlertDialogTitle>
                       <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete the
-                        document and remove its data from our servers.
+                        This action cannot be undone. This will permanently
+                        delete the document and remove its data from our
+                        servers.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleDelete} disabled={isLoading}>
+                      <AlertDialogAction
+                        onClick={handleDelete}
+                        disabled={isLoading}
+                      >
                         Delete
                       </AlertDialogAction>
                     </AlertDialogFooter>
@@ -635,10 +674,12 @@ export function DataTableRowActions<TData>({
           )}
 
           {/* Shared View Actions - Show only the allowed actions for shared documents */}
-          {viewType === 'shared' && (
+          {viewType === "shared" && (
             <>
               {/* Copy Code - always available in shared view */}
-              <DropdownMenuItem onClick={(e) => handleAction(e, handleCopyCode)}>
+              <DropdownMenuItem
+                onClick={(e) => handleAction(e, handleCopyCode)}
+              >
                 <Copy className="mr-2 h-4 w-4" />
                 Copy Code
               </DropdownMenuItem>
@@ -650,7 +691,9 @@ export function DataTableRowActions<TData>({
               </DropdownMenuItem>
 
               {/* View Documents - always available in shared view */}
-              <DropdownMenuItem onClick={(e) => handleAction(e, handleViewDocument)}>
+              <DropdownMenuItem
+                onClick={(e) => handleAction(e, handleViewDocument)}
+              >
                 <Eye className="mr-2 h-4 w-4" />
                 View Documents
               </DropdownMenuItem>
@@ -668,14 +711,18 @@ export function DataTableRowActions<TData>({
               </DropdownMenuItem>
 
               {/* Edit Documents - always available in shared view */}
-              <DropdownMenuItem onClick={(e) => handleAction(e, handleCheckoutFile)}>
+              <DropdownMenuItem
+                onClick={(e) => handleAction(e, handleCheckoutFile)}
+              >
                 <Edit className="mr-2 h-4 w-4" />
                 Edit Documents
               </DropdownMenuItem>
 
               {/* Complete - for users with document receive permissions */}
               {showComplete && (
-                <DropdownMenuItem onClick={(e) => handleAction(e, handleComplete)}>
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleComplete)}
+                >
                   <CheckCircle className="mr-2 h-4 w-4" />
                   Complete
                 </DropdownMenuItem>
@@ -690,18 +737,22 @@ export function DataTableRowActions<TData>({
           )}
 
           {/* Outgoing View Actions - Cancel and Archive for in-transit documents */}
-          {viewType === 'outgoing' && (
+          {viewType === "outgoing" && (
             <>
               {/* Cancel - for users with transfer reject permissions and in-transit status */}
               {showCancel && (
-                <DropdownMenuItem onClick={(e) => handleAction(e, handleCancel)}>
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleCancel)}
+                >
                   <XCircle className="mr-2 h-4 w-4" />
                   Cancel
                 </DropdownMenuItem>
               )}
               {/* Archive - for users with archive permissions */}
               {showArchive && (
-                <DropdownMenuItem onClick={(e) => handleAction(e, handleArchive)}>
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleArchive)}
+                >
                   <Archive className="mr-2 h-4 w-4" />
                   Archive
                 </DropdownMenuItem>
@@ -710,7 +761,7 @@ export function DataTableRowActions<TData>({
           )}
 
           {/* Archive View Actions - Restore and Delete for archived documents */}
-          {viewType === 'archive' && (
+          {viewType === "archive" && (
             <>
               {/* Restore - for users with archive permissions */}
               <DropdownMenuItem onClick={(e) => handleAction(e, handleRestore)}>
@@ -736,13 +787,16 @@ export function DataTableRowActions<TData>({
                       Are you sure you want to delete this document permanently?
                     </AlertDialogTitle>
                     <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete the
-                      document and remove its data from our servers.
+                      This action cannot be undone. This will permanently delete
+                      the document and remove its data from our servers.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete} disabled={isLoading}>
+                    <AlertDialogAction
+                      onClick={handleDelete}
+                      disabled={isLoading}
+                    >
                       Delete Permanently
                     </AlertDialogAction>
                   </AlertDialogFooter>
@@ -752,7 +806,7 @@ export function DataTableRowActions<TData>({
           )}
 
           {/* Recycle Bin View Actions - Restore and Delete for archived documents */}
-          {viewType === 'recycle-bin' && (
+          {viewType === "recycle-bin" && (
             <>
               {/* Restore - for users with archive permissions */}
               <DropdownMenuItem onClick={(e) => handleAction(e, handleRestore)}>
@@ -778,13 +832,16 @@ export function DataTableRowActions<TData>({
                       Are you sure you want to permanently delete this document?
                     </AlertDialogTitle>
                     <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete the
-                      document and remove its data from our servers.
+                      This action cannot be undone. This will permanently delete
+                      the document and remove its data from our servers.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete} disabled={isLoading}>
+                    <AlertDialogAction
+                      onClick={handleDelete}
+                      disabled={isLoading}
+                    >
                       Delete Permanently
                     </AlertDialogAction>
                   </AlertDialogFooter>
@@ -816,25 +873,30 @@ export function DataTableRowActions<TData>({
           try {
             setIsLoading(true); // Set loading state for the request
 
-            const response = await fetch(`/api/documents/${selectedDocument.id}/sign-manual`, {
-              method: 'POST',
-              credentials: 'include',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                signatureData: coords.signatureData,
-                x_position: coords.x_position,
-                y_position: coords.y_position,
-                width: coords.width,
-                height: coords.height,
-                page_number: coords.page_number,
-              }),
-            });
+            const response = await fetch(
+              `/api/documents/${selectedDocument.id}/sign-manual`,
+              {
+                method: "POST",
+                credentials: "include",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  signatureData: coords.signatureData,
+                  x_position: coords.x_position,
+                  y_position: coords.y_position,
+                  width: coords.width,
+                  height: coords.height,
+                  page_number: coords.page_number,
+                }),
+              }
+            );
 
             if (!response.ok) {
               const errorData = await response.json();
-              throw new Error(errorData.error?.message || 'Failed to sign document manually');
+              throw new Error(
+                errorData.error?.message || "Failed to sign document manually"
+              );
             }
 
             toast.success("Document signed successfully!");
@@ -842,7 +904,9 @@ export function DataTableRowActions<TData>({
             setActiveSignatureData(null); // Clear active signature
             // Optionally, trigger a refetch of document data if needed
           } catch (err: any) {
-            toast.error("Failed to sign document", { description: err.message });
+            toast.error("Failed to sign document", {
+              description: err.message,
+            });
           } finally {
             setIsLoading(false); // Reset loading state
           }
@@ -882,14 +946,6 @@ export function DataTableRowActions<TData>({
       )}
 
       {/* Signature Capture Modal */}
-      {selectedDocument && (
-        <SignatureCaptureModal
-          open={modalState.signatureCapture}
-          onOpenChange={(open) => toggleModal("signatureCapture", open)}
-          documentTitle={selectedDocument.title}
-          onConfirm={handleSignConfirmation}
-        />
-      )}
     </>
   );
 }
