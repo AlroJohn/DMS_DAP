@@ -1,15 +1,19 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 
 // Handle POST requests to archive/:id/archive
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-    
+
     const endpoint = `${backendUrl}/api/archive/${id}/archive`;
-    
+
     const cookies = request.headers.get('cookie');
-    
+
     const response = await fetch(
       endpoint,
       {
@@ -37,7 +41,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     const data = await response.json();
-    
+
     return NextResponse.json({
       success: data.success ?? true,
       data: data.data ?? data,

@@ -5,13 +5,16 @@ interface ShareDocumentBody {
   userIds: string[];
 }
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const documentId = params.id;
-    
+    const { id } = await params;
+
     // Parse and validate the request body
     const body: ShareDocumentBody = await request.json();
-    
+
     if (!Array.isArray(body.userIds) || body.userIds.length === 0) {
       return Response.json(
         { error: { message: 'Invalid request data: userIds must be a non-empty array' } },
@@ -21,7 +24,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     // Forward the request to the backend API
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-    const backendResponse = await fetch(`${backendUrl}/api/shared/${documentId}/share`, {
+    const backendResponse = await fetch(`${backendUrl}/api/shared/${id}/share`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -38,11 +41,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     if (!backendResponse.ok) {
       return Response.json(
-        { 
-          error: { 
+        {
+          error: {
             message: result.error || 'Failed to share document',
-            details: result.error 
-          } 
+            details: result.error
+          }
         },
         { status: backendResponse.status }
       );
@@ -54,7 +57,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     });
   } catch (error) {
     console.error('Error sharing document:', error);
-    
+
     return Response.json(
       { error: { message: 'Internal server error' } },
       { status: 500 }

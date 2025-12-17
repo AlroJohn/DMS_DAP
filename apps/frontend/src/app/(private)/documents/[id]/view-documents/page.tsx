@@ -37,6 +37,7 @@ export default function ViewDocumentPage() {
   } = useDocumentFiles(documentId);
 
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const fileIdFromUrl = searchParams?.get("fileId") || null;
 
   const title = useMemo(() => {
@@ -50,15 +51,25 @@ export default function ViewDocumentPage() {
 
   const previewFile = useMemo(() => {
     if (!files || files.length === 0) return null;
-    // Prefer explicit fileId when provided
+
     if (fileIdFromUrl) {
-      const match = files.find((file) => file.id === fileIdFromUrl);
-      if (match) return match;
+      const matchByUrl = files.find((file) => file.id === fileIdFromUrl);
+      if (matchByUrl) return matchByUrl;
     }
+
     const placeholderPattern = /placeholder/i;
-    const primaryCandidate = files.find((file) => !placeholderPattern.test(file.name));
-    return primaryCandidate || files[0];
-  }, [files, fileIdFromUrl]);
+    const primaryCandidate = files.find(
+      (file) => !placeholderPattern.test(file.name)
+    );
+    const fallback = primaryCandidate || files[0];
+
+    if (!activeFileId) {
+      return fallback;
+    }
+
+    const matchByActive = files.find((file) => file.id === activeFileId);
+    return matchByActive || fallback;
+  }, [files, fileIdFromUrl, activeFileId]);
 
   const previewMime = (previewFile?.type || "").toLowerCase();
   const isPreviewSupported =
@@ -136,10 +147,36 @@ export default function ViewDocumentPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
-          <p className="text-muted-foreground">Document ID: {document.document_id || documentId}</p>
+          <p className="text-muted-foreground">
+            Document ID: {document.document_id || documentId}
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
-          <Button variant="outline" size="sm" onClick={() => router.back()} aria-label="Go back">
+        <div className="flex flex-wrap gap-2 mt-4 md:mt-0 items-center">
+          {files && files.length > 0 && (
+            <div className="flex items-center gap-2 mr-2">
+              <span className="text-xs text-muted-foreground">
+                File version:
+              </span>
+              <select
+                className="h-8 rounded border bg-background px-2 text-xs"
+                value={previewFile?.id ?? ""}
+                onChange={(e) => setActiveFileId(e.target.value || null)}
+              >
+                {files.map((file, index) => (
+                  <option key={file.id} value={file.id}>
+                    {file.name || `File ${index + 1}`}
+                    {file.isPrimary ? " (Primary)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.back()}
+            aria-label="Go back"
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <Button

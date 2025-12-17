@@ -18,11 +18,12 @@ export default function DocumentSignatureViewerPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user } = useAuth();
-  const documentId = Array.isArray(id) ? id[0] : id;
+    const documentId = Array.isArray(id) ? id[0] : id;
   
   const [activeSignatureData, setActiveSignatureData] = useState<string | null>(null);
   const [isPlacingSignature, setIsPlacingSignature] = useState(false);
   const [signatureMode, setSignatureMode] = useState<'view' | 'place'>('view');
+  const [activeFileId, setActiveFileId] = useState<string | null>(null);
   
   const { document, isLoading: docLoading, error: docError } = useDocumentDetail(documentId);
   const { 
@@ -31,6 +32,13 @@ export default function DocumentSignatureViewerPage() {
     error: filesError,
     refetch 
   } = useDocumentFiles(documentId);
+
+  useEffect(() => {
+    if (files && files.length > 0) {
+      const primary = files.find((f) => f.isPrimary) || files[0];
+      setActiveFileId((prev) => prev ?? primary.id);
+    }
+  }, [files]);
 
   // Check if this is coming from release with signature requirements
   const releaseDepartmentId = searchParams?.get('releaseDepartmentId');
@@ -184,6 +192,13 @@ export default function DocumentSignatureViewerPage() {
   // Get any existing signatures for the document
   const signedDocuments = document.signedDocuments || [];
 
+  const documentFiles = (files || []).map((file) => ({
+    id: file.id,
+    name: file.name,
+    downloadUrl: `/api/documents/${documentId}/files/${file.id}/stream?download=1`,
+    isPrimary: activeFileId ? file.id === activeFileId : !!file.isPrimary,
+  }));
+
   return (
     <div className="container mx-auto py-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
@@ -222,7 +237,26 @@ export default function DocumentSignatureViewerPage() {
           <Card className="h-full">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>Document Viewer</span>
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+                  <span>Document Viewer</span>
+                  {documentFiles.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">File version:</span>
+                      <select
+                        className="h-8 rounded border bg-background px-2 text-xs"
+                        value={activeFileId ?? ''}
+                        onChange={(e) => setActiveFileId(e.target.value || null)}
+                      >
+                        {documentFiles.map((file, index) => (
+                          <option key={file.id} value={file.id}>
+                            {file.name || `File ${index + 1}`}
+                            {file.isPrimary ? ' (Primary)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   {signatureMode === 'view' && user?.signature ? (
                     <Button 

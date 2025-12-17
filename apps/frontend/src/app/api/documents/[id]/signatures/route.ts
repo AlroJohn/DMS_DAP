@@ -6,12 +6,12 @@ import { NextRequest, NextResponse } from "next/server";
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const backendUrl =
       process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-    const { id } = params;
+    const { id } = await params;
 
     const backendResponse = await fetch(`${backendUrl}/api/documents/${id}`, {
       method: "GET",

@@ -2,16 +2,17 @@ import { NextRequest } from 'next/server';
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
     // Get cookies from the request to forward to backend
     const cookies = request.headers.get('cookie');
 
     const response = await fetch(
-      `${backendUrl}/api/notifications/${params.id}`,
+      `${backendUrl}/api/notifications/${id}`,
       {
         method: 'DELETE',
         headers: {

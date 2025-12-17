@@ -1,16 +1,18 @@
 import { NextRequest } from 'next/server';
 import { headers } from 'next/headers';
 
-export async function PATCH(
+export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-    const token = headers().get('authorization');
-    
+    const headersList = await headers();
+    const token = headersList.get('authorization');
+
     const response = await fetch(
-      `${backendUrl}/api/notifications/${params.id}/read`,
+      `${backendUrl}/api/notifications/${id}/read`,
       {
         method: 'PATCH',
         headers: {

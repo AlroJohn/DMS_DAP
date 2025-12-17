@@ -6,13 +6,14 @@ import { NextRequest } from "next/server";
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string; fileId: string } }
+  { params }: { params: Promise<{ id: string; fileId: string }> }
 ) {
   try {
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    const { id, fileId } = await params;
     const cookies = request.headers.get("cookie");
 
-    const backendDownloadUrl = `${backendUrl}/api/documents/${params.id}/files/${params.fileId}/download`;
+    const backendDownloadUrl = `${backendUrl}/api/documents/${id}/files/${fileId}/download`;
 
     const response = await fetch(
       backendDownloadUrl,

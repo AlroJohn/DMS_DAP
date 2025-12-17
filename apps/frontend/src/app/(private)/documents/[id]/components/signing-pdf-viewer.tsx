@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { PDFDocument } from "pdf-lib";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,17 @@ interface SigningPdfViewerProps {
   onSigned: () => void;
 }
 
+const dataUrlToUint8Array = (dataUrl: string) => {
+  const parts = dataUrl.split(",");
+  const base64 = parts[1] ?? "";
+  const byteString = atob(base64);
+  const buffer = new Uint8Array(byteString.length);
+  for (let i = 0; i < byteString.length; i += 1) {
+    buffer[i] = byteString.charCodeAt(i);
+  }
+  return buffer;
+};
+
 const isPdfLikeFile = (file?: DocumentFileMetadata | null) => {
   if (!file) return false;
   const type = (file.type || "").toLowerCase();
@@ -86,6 +98,7 @@ export function SigningPdfViewer({
   const [pages, setPages] = useState<PdfPageRender[]>([]);
   const [activePage, setActivePage] = useState(1);
   const [isRendering, setIsRendering] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Signature state
   const [selectedPlaceholder, setSelectedPlaceholder] =
@@ -117,54 +130,6 @@ export function SigningPdfViewer({
     if (!selectedFileId) return [];
     return placeholders.filter((p) => p.document_file_id === selectedFileId);
   }, [placeholders, selectedFileId]);
-
-  // Sign mutation
-  const signMutation = useMutation({
-    mutationFn: async (data: {
-      placeholder: SignaturePlaceholder;
-      signatureData: string;
-    }) => {
-      const response = await fetch(
-        `/api/document-signatures/documents/${documentId}/place-signature`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            signee_id: user?.user_id,
-            document_file_id: data.placeholder.document_file_id,
-            page_number: data.placeholder.page_number,
-            x_position: data.placeholder.x_position,
-            y_position: data.placeholder.y_position,
-            width: data.placeholder.width,
-            height: data.placeholder.height,
-            signature_data: data.signatureData,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to save signature");
-      }
-      return response.json();
-    },
-    onSuccess: (_result, variables) => {
-      toast.success("Signature placed successfully");
-      // Show the signature on the currently selected placeholder for immediate feedback
-      const placeholderId = variables.placeholder.placeholder_id;
-      setPlacedSignatures((prev) => ({
-        ...prev,
-        [placeholderId]: variables.signatureData,
-      }));
-      setSignatureData(null);
-      setSelectedPlaceholder(null);
-      onSigned();
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-  });
 
   useEffect(() => {
     if (!selectedFile) {
@@ -289,12 +254,106 @@ export function SigningPdfViewer({
     setSelectedPlaceholder(placeholder);
   };
 
-  const handleConfirmSignature = () => {
-    if (!selectedPlaceholder || !signatureData) return;
-    signMutation.mutate({
-      placeholder: selectedPlaceholder,
-      signatureData,
-    });
+  const handleConfirmSignature = async () => {
+    if (!selectedPlaceholder || !signatureData || !selectedFile) return;
+
+    setIsSaving(true);
+    try {
+      const pageMeta = pages.find(
+        (p) => p.pageNumber === selectedPlaceholder.page_number
+      );
+      if (!pageMeta) {
+        throw new Error("Unable to find page metadata for signature placement.");
+      }
+
+      const pdfResponse = await fetch(
+        `/api/documents/${documentId}/files/${selectedFile.id}/stream?download=1`,
+        {
+          method: "GET",
+          credentials: "include",
+        }
+      );
+
+      if (!pdfResponse.ok) {
+        throw new Error("Unable to download PDF for signing.");
+      }
+
+      const buffer = await pdfResponse.arrayBuffer();
+      const pdfDoc = await PDFDocument.load(buffer);
+
+      const page = pdfDoc.getPage(selectedPlaceholder.page_number - 1);
+      const { width: pageWidth, height: pageHeight } = page.getSize();
+
+      const scaleX = pageWidth / pageMeta.pdfWidth;
+      const scaleY = pageHeight / pageMeta.pdfHeight;
+
+      const renderWidth = selectedPlaceholder.width * scaleX;
+      const renderHeight = selectedPlaceholder.height * scaleY;
+      const x = selectedPlaceholder.x_position * scaleX;
+      const y = pageHeight - selectedPlaceholder.y_position * scaleY - renderHeight;
+
+      const sigBytes = dataUrlToUint8Array(signatureData);
+      const isPng = signatureData.startsWith("data:image/png");
+      const image = isPng
+        ? await pdfDoc.embedPng(sigBytes)
+        : await pdfDoc.embedJpg(sigBytes);
+
+      page.drawImage(image, {
+        x,
+        y,
+        width: renderWidth,
+        height: renderHeight,
+      });
+
+      const pdfBytes: Uint8Array = await pdfDoc.save();
+      const blob = new Blob([pdfBytes as BlobPart], { type: "application/pdf" });
+
+      const formData = new FormData();
+      const baseName =
+        selectedFile.name?.replace(/\.pdf$/i, "") || "signed-document";
+      formData.append("files", blob, `${baseName}-signed.pdf`);
+
+      const uploadResponse = await fetch(
+        `/api/documents/${documentId}/files`,
+        {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        }
+      );
+
+      const uploadResult = await uploadResponse.json().catch(() => ({
+        success: uploadResponse.ok,
+      }));
+
+      if (!uploadResponse.ok || uploadResult.success === false) {
+        throw new Error(
+          uploadResult.error?.message || "Failed to upload signed PDF."
+        );
+      }
+
+      const placeholderId = selectedPlaceholder.placeholder_id;
+      setPlacedSignatures((prev) => ({
+        ...prev,
+        [placeholderId]: signatureData,
+      }));
+
+      toast.success(
+        "Signed PDF saved as a new version. The previous file remains available."
+      );
+
+      setSignatureData(null);
+      setSelectedPlaceholder(null);
+
+      onSigned();
+    } catch (error: any) {
+      console.error("Failed to save signed PDF", error);
+      toast.error(
+        error?.message || "Unable to save signed PDF. Please try again."
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (isLoadingFiles || isLoadingPlaceholders) {
@@ -434,37 +493,47 @@ export function SigningPdfViewer({
                 />
                 {filePlaceholders
                   .filter((p) => p.page_number === activePage)
-                  .map((placeholder, index) => (
-                    <div
-                      key={placeholder.placeholder_id}
-                      style={{
-                        position: "absolute",
-                        left: placeholder.x_position * RENDER_SCALE,
-                        top: placeholder.y_position * RENDER_SCALE,
-                        width: placeholder.width * RENDER_SCALE,
-                        height: placeholder.height * RENDER_SCALE,
-                        zIndex: 10, // Ensure it's on top
-                      }}
-                      className="group cursor-pointer rounded-md border-2 border-dashed border-yellow-500 bg-yellow-500/20 hover:bg-yellow-500/40 transition-all flex items-center justify-center"
-                      onClick={(e) => {
-                        e.stopPropagation(); // Prevent bubbling
-                        handlePlaceholderClick(placeholder);
-                      }}
-                    >
-                      {placedSignatures[placeholder.placeholder_id] ? (
-                        <img
-                          src={placedSignatures[placeholder.placeholder_id]}
-                          alt="Signature"
-                          className="h-full w-full object-contain rounded-md bg-white"
-                        />
-                      ) : (
-                        <div className="flex flex-col items-center gap-1 text-yellow-700 font-bold bg-white/80 px-2 py-1 rounded shadow-sm animate-pulse">
-                          <PenLine className="h-4 w-4" />
-                          <span className="text-[10px]">Sign Here</span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                  .map((placeholder) => {
+                    const overlaySignature =
+                      (selectedPlaceholder &&
+                        signatureData &&
+                        selectedPlaceholder.placeholder_id ===
+                          placeholder.placeholder_id &&
+                        signatureData) ||
+                      placedSignatures[placeholder.placeholder_id];
+
+                    return (
+                      <div
+                        key={placeholder.placeholder_id}
+                        style={{
+                          position: "absolute",
+                          left: placeholder.x_position * RENDER_SCALE,
+                          top: placeholder.y_position * RENDER_SCALE,
+                          width: placeholder.width * RENDER_SCALE,
+                          height: placeholder.height * RENDER_SCALE,
+                          zIndex: 10, // Ensure it's on top
+                        }}
+                        className="group cursor-pointer rounded-md border-2 border-dashed border-yellow-500 bg-yellow-500/20 hover:bg-yellow-500/40 transition-all flex items-center justify-center"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent bubbling
+                          handlePlaceholderClick(placeholder);
+                        }}
+                      >
+                        {overlaySignature ? (
+                          <img
+                            src={overlaySignature}
+                            alt="Signature"
+                            className="h-full w-full object-contain rounded-md bg-white"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center gap-1 text-yellow-700 font-bold bg-white/80 px-2 py-1 rounded shadow-sm animate-pulse">
+                            <PenLine className="h-4 w-4" />
+                            <span className="text-[10px]">Sign Here</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </div>
@@ -494,10 +563,10 @@ export function SigningPdfViewer({
               size="sm"
               onClick={handleConfirmSignature}
               disabled={
-                !selectedPlaceholder || !signatureData || signMutation.isPending
+                !selectedPlaceholder || !signatureData || isSaving
               }
             >
-              {signMutation.isPending ? (
+              {isSaving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Saving...
