@@ -9,7 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, ArrowLeft, Save, X } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+import { AlertCircle, ArrowLeft, Save, X, ChevronsUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -181,14 +187,6 @@ export default function DocumentSignatureViewerPage() {
     );
   }
 
-  // Prepare document files for the viewer
-  const documentFiles = files.map(file => ({
-    id: file.id,
-    name: file.name,
-    downloadUrl: `/api/documents/${documentId}/files/${file.id}/stream`,
-    isPrimary: file.isPrimary
-  }));
-
   // Get any existing signatures for the document
   const signedDocuments = document.signedDocuments || [];
 
@@ -242,18 +240,41 @@ export default function DocumentSignatureViewerPage() {
                   {documentFiles.length > 0 && (
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">File version:</span>
-                      <select
-                        className="h-8 rounded border bg-background px-2 text-xs"
-                        value={activeFileId ?? ''}
-                        onChange={(e) => setActiveFileId(e.target.value || null)}
-                      >
-                        {documentFiles.map((file, index) => (
-                          <option key={file.id} value={file.id}>
-                            {file.name || `File ${index + 1}`}
-                            {file.isPrimary ? ' (Primary)' : ''}
-                          </option>
-                        ))}
-                      </select>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 rounded border bg-background px-2 text-xs flex justify-between items-center w-48"
+                          >
+                            <span className="truncate max-w-[100px]">
+                              {documentFiles.find(f => f.id === activeFileId)?.name ||
+                               documentFiles[0]?.name ||
+                               'Select file'}
+                              {documentFiles.find(f => f.id === activeFileId)?.isPrimary && ' (Primary)'}
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56 max-h-64 overflow-y-auto">
+                          {documentFiles.map((file, index) => (
+                            <DropdownMenuItem
+                              key={file.id}
+                              onSelect={() => setActiveFileId(file.id)}
+                              className="cursor-pointer"
+                            >
+                              <div className="flex flex-col">
+                                <span className="font-medium truncate max-w-[160px]">
+                                  {file.name || `File ${index + 1}`}
+                                </span>
+                                {file.isPrimary && (
+                                  <span className="text-xs text-muted-foreground">Primary</span>
+                                )}
+                              </div>
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   )}
                 </div>
