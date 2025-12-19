@@ -12,6 +12,12 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import { DocumentPreviewModal } from "@/components/modals/document-preview-modal";
 import { useDocumentDetail } from "@/hooks/use-document-detail";
 import { useDocumentFiles } from "@/hooks/use-document-files";
@@ -21,6 +27,7 @@ import {
   Download,
   Eye,
   FileText,
+  ChevronsUpDown,
 } from "lucide-react";
 
 export default function ViewDocumentPage() {
@@ -157,18 +164,42 @@ export default function ViewDocumentPage() {
               <span className="text-xs text-muted-foreground">
                 File version:
               </span>
-              <select
-                className="h-8 rounded border bg-background px-2 text-xs"
-                value={previewFile?.id ?? ""}
-                onChange={(e) => setActiveFileId(e.target.value || null)}
-              >
-                {files.map((file, index) => (
-                  <option key={file.id} value={file.id}>
-                    {file.name || `File ${index + 1}`}
-                    {file.isPrimary ? " (Primary)" : ""}
-                  </option>
-                ))}
-              </select>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded border bg-background px-2 text-xs flex justify-between items-center w-48"
+                  >
+                    <span className="truncate max-w-[100px]">
+                      {previewFile?.name || `File ${files.findIndex(f => f.id === previewFile?.id) + 1}`}
+                      {previewFile?.isPrimary && " (Primary)"}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 max-h-64 overflow-y-auto">
+                  {files.map((file, index) => (
+                    <DropdownMenuItem
+                      key={file.id}
+                      onSelect={() => setActiveFileId(file.id)}
+                      className="cursor-pointer"
+                    >
+                      <div className="flex flex-col">
+                        <span className="font-medium truncate max-w-[160px]">
+                          {file.name || `File ${index + 1}`}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {file.isPrimary && <Badge variant="secondary" className="h-4 text-xs">Primary</Badge>}
+                          <span className="text-xs text-muted-foreground">
+                            ({file.type || "Unknown type"})
+                          </span>
+                        </div>
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
           <Button

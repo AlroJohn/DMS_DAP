@@ -7,9 +7,15 @@ import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import type { DocumentFileMetadata } from "@/hooks/use-document-files";
 import { cn } from "@/lib/utils";
-import { Loader2, Move, X } from "lucide-react";
+import { ChevronsUpDown, Loader2, Move, X } from "lucide-react";
 import { toast } from "sonner";
 
 const PDFJS_WORKER_CDN =
@@ -341,39 +347,61 @@ export function SignaturePdfViewer({
             <span className="text-xs font-medium uppercase text-muted-foreground">
               File
             </span>
-            <div className="flex flex-wrap gap-1">
-              {pdfFiles.map((file) => (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
                 <Button
-                  key={file.id}
-                  variant={file.id === selectedFileId ? "secondary" : "ghost"}
+                  variant="outline"
                   size="sm"
-                  className="text-xs"
-                  onClick={() => setSelectedFileId(file.id)}
+                  className="h-7 rounded border bg-background px-2 text-xs flex justify-between items-center w-48"
                 >
-                  {file.name}
+                  <span className="truncate max-w-[100px]">
+                    {selectedFile?.name || "Select file"}
+                  </span>
+                  <ChevronsUpDown className="ml-2 h-3 w-3 opacity-50" />
                 </Button>
-              ))}
-            </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 max-h-64 overflow-y-auto">
+                {pdfFiles.map((file) => (
+                  <DropdownMenuItem
+                    key={file.id}
+                    onSelect={() => setSelectedFileId(file.id)}
+                    className="cursor-pointer"
+                  >
+                    {file.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium uppercase text-muted-foreground">
               Page
             </span>
-            <div className="flex flex-wrap gap-1">
-              {pages.map((page) => (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
                 <Button
-                  key={page.pageNumber}
-                  variant={
-                    page.pageNumber === activePage ? "secondary" : "ghost"
-                  }
+                  variant="outline"
                   size="sm"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => setActivePage(page.pageNumber)}
+                  className="h-7 rounded border bg-background px-2 text-xs flex justify-between items-center w-24"
                 >
-                  {page.pageNumber}
+                  <span>
+                    {activePage} of {pages.length}
+                  </span>
+                  <ChevronsUpDown className="ml-2 h-3 w-3 opacity-50" />
                 </Button>
-              ))}
-            </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="max-h-64 overflow-y-auto">
+                {pages.map((page) => (
+                  <DropdownMenuItem
+                    key={page.pageNumber}
+                    onSelect={() => setActivePage(page.pageNumber)}
+                    className="cursor-pointer"
+                  >
+                    Page {page.pageNumber} of {pages.length}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -406,8 +434,8 @@ export function SignaturePdfViewer({
                       size={{ width: box.width, height: box.height }}
                       position={{ x: box.x, y: box.y }}
                       bounds="parent"
-                      minWidth={80}
-                      minHeight={40}
+                      minWidth={50}
+                      minHeight={30}
                       enableResizing={{
                         top: true,
                         right: true,
@@ -492,26 +520,68 @@ export function SignaturePdfViewer({
                 boxes.map((box, index) => (
                   <div
                     key={box.id}
-                    className="flex items-start justify-between gap-2 rounded border p-2"
+                    className="flex flex-col gap-2 rounded border p-2"
                   >
-                    <div className="space-y-1">
+                    <div className="flex items-center justify-between">
                       <p className="font-medium">
                         Signature {index + 1} (Page {box.pageNumber})
                       </p>
-                      <p className="text-muted-foreground">
-                        X: {box.x.toFixed(0)}, Y: {box.y.toFixed(0)} | W:{" "}
-                        {box.width.toFixed(0)}, H: {box.height.toFixed(0)}
-                      </p>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 text-destructive"
+                        onClick={() => handleRemove(box.id)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
                     </div>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="h-6 w-6 text-destructive"
-                      onClick={() => handleRemove(box.id)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-muted-foreground">X</label>
+                        <input
+                          type="number"
+                          className="w-full rounded border bg-background px-2 py-1 text-xs"
+                          value={Math.round(box.x)}
+                          onChange={(e) => handleUpdatePosition(box.id, Number(e.target.value), box.y)}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Y</label>
+                        <input
+                          type="number"
+                          className="w-full rounded border bg-background px-2 py-1 text-xs"
+                          value={Math.round(box.y)}
+                          onChange={(e) => handleUpdatePosition(box.id, box.x, Number(e.target.value))}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Width</label>
+                        <input
+                          type="number"
+                          className="w-full rounded border bg-background px-2 py-1 text-xs"
+                          value={Math.round(box.width)}
+                          min="50"
+                          onChange={(e) => {
+                            const value = Math.max(50, Number(e.target.value));
+                            handleResize(box.id, value, box.height, box.x, box.y);
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Height</label>
+                        <input
+                          type="number"
+                          className="w-full rounded border bg-background px-2 py-1 text-xs"
+                          value={Math.round(box.height)}
+                          min="30"
+                          onChange={(e) => {
+                            const value = Math.max(30, Number(e.target.value));
+                            handleResize(box.id, box.width, value, box.x, box.y);
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 ))
               )}
