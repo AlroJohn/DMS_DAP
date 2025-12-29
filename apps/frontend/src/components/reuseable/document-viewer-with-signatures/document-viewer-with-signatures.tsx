@@ -226,19 +226,26 @@ export function DocumentViewerWithSignatures({
             onRenderSuccess={() => setLoading(false)}
           >
             {signaturesForCurrentPage.map((sig) => (
-              <img
+              <div
                 key={sig.signed_document_id}
-                src={sig.signature_data}
-                alt="Signature"
+                className="absolute"
                 style={{
-                  position: "absolute",
                   left: `${sig.x_position}px`,
                   top: `${sig.y_position}px`,
                   width: `${sig.width}px`,
                   height: `${sig.height}px`,
                   zIndex: 100, // Ensure signature is on top
                 }}
-              />
+              >
+                <img
+                  src={sig.signature_data}
+                  alt="Signature"
+                  className="w-full h-full"
+                  style={{
+                    objectFit: 'fill', // Fill both width and height, may distort
+                  }}
+                />
+              </div>
             ))}
 
             {isPlacingSignature &&

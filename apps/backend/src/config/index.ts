@@ -26,6 +26,10 @@ export const config = {
   jwt: {
     secret: process.env.JWT_SECRET || 'your-secret-key',
     expiresIn: process.env.JWT_EXPIRES_IN || '24h',
+    // Refresh token configuration (short-lived, inactivity-based)
+    refreshSecret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'your-secret-key',
+    // Default to 30 minutes for inactivity-based logout
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30m',
   },
   
   // CORS configuration

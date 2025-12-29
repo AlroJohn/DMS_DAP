@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
 import { EmailService, InvitationEmailData } from './email.service';
+import config from '../config';
 
 export interface CreateInvitationData {
   email: string;
@@ -254,17 +255,17 @@ export class InvitationService {
           email: account.email,
           user_id: account.user?.user_id 
         },
-        process.env.JWT_SECRET || 'your-secret-key',
-        { expiresIn: '24h' }
+        process.env.JWT_SECRET || config.jwt.secret,
+        { expiresIn: config.jwt.expiresIn }
       );
 
       const refreshToken = jwt.sign(
         { 
-          id: account.account_id,
+          userId: account.user?.user_id,
           email: account.email 
         },
-        process.env.REFRESH_SECRET || 'your-refresh-secret-key',
-        { expiresIn: '7d' }
+        process.env.JWT_REFRESH_SECRET || config.jwt.refreshSecret || config.jwt.secret,
+        { expiresIn: config.jwt.refreshExpiresIn }
       );
 
       return {

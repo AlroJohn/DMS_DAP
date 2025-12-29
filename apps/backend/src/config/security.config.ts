@@ -9,7 +9,8 @@ export const securityConfig = {
   jwt: {
     secret: process.env.JWT_SECRET || 'a8b9c7d2e5f3a1b4c6d8e9f2a3b5c7d9e1f4a6b8c9d2e5f7a9b1c3d5e7f9a2b4c6d8e0f2a4b6c8d0e2f4a6b8c0d2e4f6a8b0c2d4f6a8b0',
     expiresIn: process.env.JWT_EXPIRES_IN || '24h',
-    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+    // Keep refresh tokens short-lived; default 30 minutes
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30m',
   },
 
   // CORS configuration
@@ -89,4 +90,3 @@ export const securityConfig = {
 };
 
 export default securityConfig;
-

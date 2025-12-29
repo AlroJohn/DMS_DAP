@@ -94,7 +94,8 @@ export class AuthController {
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax', // Fixed casing
         domain: 'localhost', // Added for localhost development
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        // Match backend refresh token lifetime (default 30 minutes)
+        maxAge: parseExpiresIn(config.jwt.refreshExpiresIn),
       });
 
       return sendSuccess(res, { user });
@@ -127,7 +128,8 @@ export class AuthController {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax', // Fixed casing
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        // Match backend refresh token lifetime (default 30 minutes)
+        maxAge: parseExpiresIn(config.jwt.refreshExpiresIn),
       });
 
       return sendSuccess(res, { message: 'Tokens refreshed successfully' });

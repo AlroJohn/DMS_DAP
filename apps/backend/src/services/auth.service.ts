@@ -245,7 +245,10 @@ export class AuthService {
    */
   async refreshToken(refreshToken: string): Promise<{ user: Omit<User, 'password'>; token: string; refreshToken: string }> {
     try {
-      const decoded = jwt.verify(refreshToken, config.jwt.secret) as AuthTokenPayload;
+      const decoded = jwt.verify(
+        refreshToken,
+        config.jwt.refreshSecret || config.jwt.secret
+      ) as { userId: string; iat?: number; exp?: number };
 
       // Find user in database
       // The decoded.userId contains user_id (from User table), not account_id
@@ -392,8 +395,8 @@ export class AuthService {
 
     const refreshToken = jwt.sign(
       { userId: user.id },
-      config.jwt.secret,
-      { expiresIn: '7d' } as jwt.SignOptions
+      config.jwt.refreshSecret || config.jwt.secret,
+      { expiresIn: config.jwt.refreshExpiresIn } as jwt.SignOptions
     );
 
     return { token, refreshToken };

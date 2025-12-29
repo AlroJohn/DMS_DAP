@@ -38,7 +38,7 @@ export const Providers = ({ children }: { children: React.ReactNode }) => {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <SessionTimeoutProvider
-            timeout={20 * 60 * 1000} // 20 minutes
+            timeout={30 * 60 * 1000} // 30 minutes
             warningTime={2 * 60 * 1000} // 2 minutes warning
             enabled={true}
           >

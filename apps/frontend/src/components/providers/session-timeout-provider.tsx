@@ -9,7 +9,7 @@ import { toast } from "sonner";
 interface SessionTimeoutProviderProps {
   children: React.ReactNode;
   /**
-   * Timeout in milliseconds (default: 20 minutes)
+   * Timeout in milliseconds (default: 30 minutes)
    */
   timeout?: number;
   /**
@@ -24,7 +24,7 @@ interface SessionTimeoutProviderProps {
 
 export function SessionTimeoutProvider({
   children,
-  timeout = 20 * 60 * 1000, // 20 minutes
+  timeout = 30 * 60 * 1000, // 30 minutes
   warningTime = 2 * 60 * 1000, // 2 minutes
   enabled = true,
 }: SessionTimeoutProviderProps) {

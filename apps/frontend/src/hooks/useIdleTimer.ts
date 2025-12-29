@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 interface UseIdleTimerOptions {
   /**
    * Timeout in milliseconds before user is considered idle
-   * @default 1200000 (20 minutes)
+   * @default 1800000 (30 minutes)
    */
   timeout?: number;
   /**
@@ -36,7 +36,7 @@ interface UseIdleTimerOptions {
 }
 
 export function useIdleTimer({
-  timeout = 1200000, // 20 minutes default
+  timeout = 1800000, // 30 minutes default
   warningTime = 120000, // 2 minutes warning
   onIdle,
   onWarning,
