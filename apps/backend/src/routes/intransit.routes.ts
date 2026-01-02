@@ -14,4 +14,7 @@ router.get('/incoming', intransitController.getIncomingDocuments.bind(intransitC
 // Get outgoing in-transit documents from a user's department
 router.get('/outgoing', intransitController.getOutgoingDocuments.bind(intransitController));
 
+// Cancel an in-transit document - POST request to cancel
+router.post('/:id/cancel', intransitController.cancelIntransitDocument.bind(intransitController));
+
 export default router;

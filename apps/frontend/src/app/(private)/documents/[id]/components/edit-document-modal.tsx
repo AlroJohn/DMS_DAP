@@ -164,9 +164,9 @@ export function EditDocumentModal({
                 <CardHeader>
                   <CardTitle>Document Information</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4 space-y-6">
+                    <div className="space-y-2">
                       <Label htmlFor="code">Document Code</Label>
                       <Input
                         id="code"
@@ -179,7 +179,7 @@ export function EditDocumentModal({
                         className="bg-muted"
                       />
                     </div>
-                    <div>
+                    <div className="space-y-2">
                       <Label htmlFor="status">Status</Label>
                       <Input
                         id="status"
@@ -190,7 +190,7 @@ export function EditDocumentModal({
                     </div>
                   </div>
 
-                  <div>
+                  <div className="space-y-2 pb-4">
                     <Label htmlFor="title">Document Title</Label>
                     <Input
                       id="title"
@@ -202,7 +202,7 @@ export function EditDocumentModal({
                     />
                   </div>
 
-                  <div>
+                  <div className="space-y-2 pb-4">
                     <Label htmlFor="description">Description</Label>
                     <Textarea
                       id="description"
@@ -219,7 +219,7 @@ export function EditDocumentModal({
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
+                    <div className="space-y-2">
                       <Label htmlFor="classification">Classification</Label>
                       <Select
                         value={formData.classification}
@@ -227,7 +227,7 @@ export function EditDocumentModal({
                           setFormData({ ...formData, classification: value })
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Select classification" />
                         </SelectTrigger>
                         <SelectContent>
@@ -239,7 +239,7 @@ export function EditDocumentModal({
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
+                    <div className="space-y-2">
                       <Label htmlFor="origin">Origin</Label>
                       <Select
                         value={formData.origin}
@@ -247,7 +247,7 @@ export function EditDocumentModal({
                           setFormData({ ...formData, origin: value })
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Select origin" />
                         </SelectTrigger>
                         <SelectContent>

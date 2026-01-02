@@ -405,7 +405,7 @@ export class DocumentReleaseService {
         return { success: false, error: 'Document details not found' };
       }
 
-      // Get current workflow and received_by_departments
+      // Get current workflow and received_by_department_user
       let currentWorkflow: any = {};
       let receivedByDepartments: string[] = [];
 
@@ -422,13 +422,13 @@ export class DocumentReleaseService {
         }
       }
 
-      if (currentDetail.received_by_departments) {
+      if (currentDetail.received_by_department_user) {
         try {
-          receivedByDepartments = Array.isArray(currentDetail.received_by_departments)
-            ? currentDetail.received_by_departments
-            : JSON.parse(currentDetail.received_by_departments as any);
+          receivedByDepartments = Array.isArray(currentDetail.received_by_department_user)
+            ? currentDetail.received_by_department_user
+            : JSON.parse(currentDetail.received_by_department_user as any);
         } catch (e) {
-          console.error('📍 [DocumentReleaseService.receiveDocument] Error parsing received_by_departments:', e);
+          console.error('📍 [DocumentReleaseService.receiveDocument] Error parsing received_by_department_user:', e);
         }
       }
 
@@ -443,7 +443,7 @@ export class DocumentReleaseService {
         return { success: false, error: 'Document already received by this department' };
       }
 
-      // Add department to received_by_departments array
+      // Add department to received_by_department_user array
       receivedByDepartments.push(user.department_id);
 
       // Update the document status to 'received' when all intended departments have received it
@@ -475,7 +475,7 @@ export class DocumentReleaseService {
       await prisma.documentAdditionalDetails.update({
         where: { detail_id: currentDetail.detail_id },
         data: {
-          received_by_departments: receivedByDepartments as any,
+          received_by_department_user: receivedByDepartments as any,
           updated_at: new Date()
         }
       });

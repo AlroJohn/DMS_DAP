@@ -56,7 +56,7 @@ export class IntransitService {
         select: {
           document_id: true,
           work_flow_id: true,
-          received_by_departments: true
+          received_by_department_user: true
         }
       });
       const documentDetailsMap = new Map<string, any>();
@@ -99,13 +99,13 @@ export class IntransitService {
 
             // Check if not yet received by this department
             let receivedByDepartments: string[] = [];
-            if (detail.received_by_departments) {
+            if (detail.received_by_department_user) {
               try {
-                receivedByDepartments = Array.isArray(detail.received_by_departments)
-                  ? detail.received_by_departments
-                  : JSON.parse(detail.received_by_departments as any);
+                receivedByDepartments = Array.isArray(detail.received_by_department_user)
+                  ? detail.received_by_department_user
+                  : JSON.parse(detail.received_by_department_user as any);
               } catch (e) {
-                console.error('📍 [getIncomingDocuments] Error parsing received_by_departments:', e);
+                console.error('📍 [getIncomingDocuments] Error parsing received_by_department_user:', e);
               }
             }
 
@@ -633,6 +633,111 @@ export class IntransitService {
     }
 
     return [];
+  }
+
+  /**
+   * Cancel an in-transit document - reverts status back to dispatch
+   */
+  async cancelIntransitDocument(documentId: string, userId: string) {
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(documentId)) {
+      throw new Error('Invalid document ID format');
+    }
+
+    try {
+      // Get user's department
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { department_id: true, first_name: true, last_name: true }
+      });
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Verify document exists and is currently in 'intransit' status
+      const document = await prisma.document.findUnique({
+        where: { document_id: documentId }
+      });
+
+      if (!document) {
+        throw new Error('Document not found');
+      }
+
+      if (document.status !== 'intransit') {
+        throw new Error('Document is not currently in in-transit status');
+      }
+
+      // Check if the user's department is the one that released the document
+      // We need to check the document trail to determine if the current user's department released it
+      const lastTrail = await prisma.documentTrail.findFirst({
+        where: {
+          document_id: documentId,
+          status: 'intransit'
+        },
+        orderBy: {
+          created_at: 'desc'
+        }
+      });
+
+      if (!lastTrail || lastTrail.from_department !== user.department_id) {
+        throw new Error('Only the department that released the document can cancel it');
+      }
+
+      // Update document status back to 'dispatch'
+      const updatedDocument = await prisma.document.update({
+        where: { document_id: documentId },
+        data: {
+          status: 'dispatch',
+          updated_at: new Date()
+        }
+      });
+
+      // Create a document trail entry for the cancellation
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        await documentTrailsService.createDocumentTrail({
+          document_id: documentId,
+          from_department: user.department_id,
+          to_department: user.department_id, // For cancellation, same department
+          user_id: userId,
+          status: 'canceled',
+          remarks: `In-transit document canceled by ${user.first_name} ${user.last_name}, status reverted to dispatch`
+        });
+      } catch (error) {
+        console.error('Error creating document trail for in-transit cancellation:', error);
+      }
+
+      // Emit socket event to notify frontends of document status change
+      const io = getSocketInstance();
+      if (io) {
+        io.emit('documentUpdated', {
+          documentId: documentId,
+          status: 'dispatch',
+          updatedBy: userId,
+          timestamp: new Date().toISOString()
+        });
+
+        // Emit specific event for document cancellation
+        io.emit('documentCanceled', {
+          documentId: documentId,
+          documentTitle: document.title,
+          canceledBy: userId,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      return {
+        success: true,
+        message: 'In-transit document canceled successfully, status reverted to dispatch',
+        documentId: documentId,
+        updatedDocument
+      };
+    } catch (error) {
+      console.error('Error canceling in-transit document:', error);
+      throw error;
+    }
   }
 
   /**

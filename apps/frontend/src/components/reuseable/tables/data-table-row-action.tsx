@@ -204,13 +204,29 @@ export function DataTableRowActions<TData>({
     try {
       setIsLoading(true);
 
-      const response = await fetch(`/api/documents/${document.id}/cancel`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      // Check if document is in 'intransit' status to use the appropriate endpoint
+      const isDocumentInTransit = document.status?.toLowerCase() === "intransit";
+
+      let response;
+      if (isDocumentInTransit) {
+        // Use the intransit cancel endpoint for in-transit documents to revert status back to dispatch
+        response = await fetch(`/api/intransit/${document.id}/cancel`, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+      } else {
+        // Use the regular cancel endpoint for other statuses
+        response = await fetch(`/api/documents/${document.id}/cancel`, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -219,7 +235,8 @@ export function DataTableRowActions<TData>({
         );
       }
 
-      toast.success("Document cancelled successfully.");
+      const result = await response.json();
+      toast.success(result.message || "Document cancelled successfully.");
     } catch (error: any) {
       console.error("Error cancelling document:", error);
       toast.error(error.message || "Failed to cancel document.");
@@ -389,10 +406,10 @@ export function DataTableRowActions<TData>({
 
   // Status-based checks
   const isDispatch = document.status?.toLowerCase().includes("dispatch");
-  const isInTransit =
-    document.status?.toLowerCase().includes("intransit") ||
-    document.status?.toLowerCase().includes("transit") ||
-    document.status?.toLowerCase().includes("outgoing");
+  const isInTransit = document.status?.toLowerCase() === "intransit";
+
+  // Check if document is already in transit (released) - in which case release should be disabled
+  const isAlreadyReleased = isInTransit;
 
   // Determine which actions to show based on view type
   const showCopyCode = viewType === "document" ? "copy_code" : "copy";
@@ -401,7 +418,7 @@ export function DataTableRowActions<TData>({
   const showSignDocument = canSignDoc;
   const showEditDetails = canEditDetails;
   const showEditDocument = canEditDoc;
-  const showRelease = canRelease;
+  const showRelease = canRelease && !isAlreadyReleased; // Release is hidden when document is already in-transit
   const showComplete = canComplete && !isDispatch; // Complete shows when not dispatch status
   const showCancel = canCancel && isInTransit; // Cancel only shows for in-transit status
   const showArchive = canArchive;

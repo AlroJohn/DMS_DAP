@@ -82,7 +82,7 @@ export class SharedDocumentService {
       console.log('📍 [getSharedDocuments] Total document details found:', allDocumentDetails.length);
 
       // Filter documents that have been specifically shared to this user
-      // Look for the user ID in received_by_departments field (which we're now using for user IDs)
+      // Look for the user ID in received_by_department_user field (which we're now using for user IDs)
       const sharedDocumentDetails = allDocumentDetails.filter((detail: any) => {
         // Check if document is not deleted
         if (detail.Document?.status === 'deleted') {
@@ -92,21 +92,21 @@ export class SharedDocumentService {
 
         let receivedByUsers: string[] = [];
 
-        // Handle different possible formats of received_by_departments (which now stores user IDs)
-        if (Array.isArray(detail.received_by_departments)) {
-          receivedByUsers = detail.received_by_departments as string[];
+        // Handle different possible formats of received_by_department_user (which now stores user IDs)
+        if (Array.isArray(detail.received_by_department_user)) {
+          receivedByUsers = detail.received_by_department_user as string[];
           console.log('📍 [getSharedDocuments] Document received_by_users (array):', detail.document_id, receivedByUsers);
-        } else if (typeof detail.received_by_departments === 'string' && detail.received_by_departments) {
+        } else if (typeof detail.received_by_department_user === 'string' && detail.received_by_department_user) {
           try {
-            receivedByUsers = JSON.parse(detail.received_by_departments);
+            receivedByUsers = JSON.parse(detail.received_by_department_user);
             console.log('📍 [getSharedDocuments] Document received_by_users (parsed):', detail.document_id, receivedByUsers);
           } catch (e) {
-            console.error('📍 [getSharedDocuments] Error parsing received_by_departments for doc', detail.document_id, e);
+            console.error('📍 [getSharedDocuments] Error parsing received_by_department_user for doc', detail.document_id, e);
             return false;
           }
-        } else if (detail.received_by_departments && typeof detail.received_by_departments === 'object') {
+        } else if (detail.received_by_department_user && typeof detail.received_by_department_user === 'object') {
           // If it's already parsed as an object/array
-          receivedByUsers = detail.received_by_departments as string[];
+          receivedByUsers = detail.received_by_department_user as string[];
           console.log('📍 [getSharedDocuments] Document received_by_users (object):', detail.document_id, receivedByUsers);
         } else {
           console.log('📍 [getSharedDocuments] Document has no received_by_users, skipping:', detail.document_id);
@@ -446,24 +446,24 @@ export class SharedDocumentService {
         }
 
         // Track which users specifically received this document (for user-level sharing)
-        if (currentDetail.received_by_departments) {
-          // Note: This field is named "received_by_departments" in the schema but we'll use it for user IDs
-          if (Array.isArray(currentDetail.received_by_departments)) {
-            currentReceivedByUsers = currentDetail.received_by_departments as string[];
+        if (currentDetail.received_by_department_user) {
+          // Note: This field is named "received_by_department_user" in the schema but we'll use it for user IDs
+          if (Array.isArray(currentDetail.received_by_department_user)) {
+            currentReceivedByUsers = currentDetail.received_by_department_user as string[];
             console.log('📍 [shareDocument] Current received_by_users (array):', currentReceivedByUsers);
-          } else if (typeof currentDetail.received_by_departments === 'string') {
+          } else if (typeof currentDetail.received_by_department_user === 'string') {
             try {
-              currentReceivedByUsers = JSON.parse(currentDetail.received_by_departments as string);
+              currentReceivedByUsers = JSON.parse(currentDetail.received_by_department_user as string);
               console.log('📍 [shareDocument] Current received_by_users (parsed):', currentReceivedByUsers);
             } catch (e) {
-              console.error('📍 [shareDocument] Error parsing received_by_departments:', e);
+              console.error('📍 [shareDocument] Error parsing received_by_department_user:', e);
               currentReceivedByUsers = [];
             }
-          } else if (typeof currentDetail.received_by_departments === 'object' && Array.isArray(currentDetail.received_by_departments)) {
-            currentReceivedByUsers = currentDetail.received_by_departments as string[];
+          } else if (typeof currentDetail.received_by_department_user === 'object' && Array.isArray(currentDetail.received_by_department_user)) {
+            currentReceivedByUsers = currentDetail.received_by_department_user as string[];
             console.log('📍 [shareDocument] Current received_by_users (object array):', currentReceivedByUsers);
           } else {
-            console.error('📍 [shareDocument] Unexpected received_by_departments type:', typeof currentDetail.received_by_departments);
+            console.error('📍 [shareDocument] Unexpected received_by_department_user type:', typeof currentDetail.received_by_department_user);
             currentReceivedByUsers = [];
           }
         }
@@ -476,12 +476,12 @@ export class SharedDocumentService {
       // 3. They have uploaded files to this document, OR
       // 4. They have administrative/superuser permissions
       let userHasAccess = currentWorkflow.includes(currentUser.department_id);
-      
+
       // Check if user is the original creator (first in workflow)
       if (!userHasAccess && currentWorkflow.length > 0 && currentWorkflow[0] === currentUser.department_id) {
         userHasAccess = true;
       }
-      
+
       // Check if user has uploaded files to this document (making them a contributor/owner)
       if (!userHasAccess) {
         const userFiles = await prisma.documentFile.count({
@@ -490,12 +490,12 @@ export class SharedDocumentService {
             uploaded_by: currentUser.user_id
           }
         });
-        
+
         if (userFiles > 0) {
           userHasAccess = true;
         }
       }
-      
+
       // Additional check: Allow sharing if the user has special permissions (admin, superuser, etc.)
       if (!userHasAccess) {
         // Check if user has administrative permissions or special document sharing permissions
@@ -515,20 +515,20 @@ export class SharedDocumentService {
             }
           }
         });
-        
+
         if (userWithPermissions) {
           // Check if user has administrative privileges through roles
-          const hasAdminRole = userWithPermissions.user_roles.some(userRole => 
-            userRole.role?.name?.toLowerCase().includes('admin') || 
+          const hasAdminRole = userWithPermissions.user_roles.some(userRole =>
+            userRole.role?.name?.toLowerCase().includes('admin') ||
             userRole.role?.name === 'SuperAdmin'
           );
-          
+
           // Check if user has explicit document sharing permissions
-          const hasSharePermission = userWithPermissions.user_permissions.some(userPerm => 
-            userPerm.permission?.permission === 'document_write' || 
+          const hasSharePermission = userWithPermissions.user_permissions.some(userPerm =>
+            userPerm.permission?.permission === 'document_write' ||
             userPerm.permission?.permission === 'document_share'
           );
-          
+
           if (hasAdminRole || hasSharePermission) {
             userHasAccess = true;
           }
@@ -583,7 +583,7 @@ export class SharedDocumentService {
         await prisma.documentAdditionalDetails.update({
           where: { detail_id: currentDetail.detail_id },
           data: {
-            received_by_departments: updatedReceivedByUsers  // Using the field for user IDs
+            received_by_department_user: updatedReceivedByUsers  // Using the field for user IDs
           }
         });
       } else {
@@ -592,7 +592,7 @@ export class SharedDocumentService {
         await prisma.documentAdditionalDetails.create({
           data: {
             document_id: documentId,
-            received_by_departments: updatedReceivedByUsers,  // Using the field for user IDs
+            received_by_department_user: updatedReceivedByUsers,  // Using the field for user IDs
             work_flow_id: []  // Initialize with empty workflow if not set
           }
         });
@@ -601,11 +601,11 @@ export class SharedDocumentService {
       // Get the final state of received_by_users for confirmation
       const finalDetails = await prisma.documentAdditionalDetails.findFirst({
         where: { document_id: documentId },
-        select: { received_by_departments: true }
+        select: { received_by_department_user: true }
       });
-      const finalReceivedBy = Array.isArray(finalDetails?.received_by_departments)
-        ? finalDetails.received_by_departments as string[]
-        : JSON.parse(finalDetails?.received_by_departments as string || '[]');
+      const finalReceivedBy = Array.isArray(finalDetails?.received_by_department_user)
+        ? finalDetails.received_by_department_user as string[]
+        : JSON.parse(finalDetails?.received_by_department_user as string || '[]');
 
       console.log(`Document shared with ${targetUsers.length} user(s): Document ID ${documentId}, User ID ${userId}`);
       console.log('📍 [shareDocument] Document shared successfully with users:', userIds);
@@ -647,7 +647,7 @@ export class SharedDocumentService {
 
       // Send email notifications to target users
       const emailService = new EmailService();
-      
+
       // Get the name of the user who is sharing the document
       const sharingUser = await prisma.user.findUnique({
         where: { user_id: userId },

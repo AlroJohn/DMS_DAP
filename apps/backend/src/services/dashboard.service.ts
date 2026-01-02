@@ -103,7 +103,7 @@ export class DashboardService {
         }
       });
 
-      // Count shared documents (documents in received_by_departments containing user ID)
+      // Count shared documents (documents in received_by_department_user containing user ID)
       const allDocumentDetails = await prisma.documentAdditionalDetails.findMany({
         where: {
           Document: {
@@ -113,7 +113,7 @@ export class DashboardService {
           }
         },
         select: {
-          received_by_departments: true,
+          received_by_department_user: true,
           Document: {
             select: {
               files: {
@@ -132,13 +132,13 @@ export class DashboardService {
         const isOwner = detail.Document?.files?.some((file: any) => file.uploaded_by === user.account_id);
         if (isOwner) return false;
 
-        // Check if user ID is in received_by_departments
+        // Check if user ID is in received_by_department_user
         let receivedByUsers: string[] = [];
-        if (Array.isArray(detail.received_by_departments)) {
-          receivedByUsers = detail.received_by_departments as string[];
-        } else if (typeof detail.received_by_departments === 'string' && detail.received_by_departments) {
+        if (Array.isArray(detail.received_by_department_user)) {
+          receivedByUsers = detail.received_by_department_user as string[];
+        } else if (typeof detail.received_by_department_user === 'string' && detail.received_by_department_user) {
           try {
-            const parsed = JSON.parse(detail.received_by_departments);
+            const parsed = JSON.parse(detail.received_by_department_user);
             if (Array.isArray(parsed)) {
               receivedByUsers = parsed;
             } else if (typeof parsed === 'object') {

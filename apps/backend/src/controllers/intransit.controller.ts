@@ -48,4 +48,27 @@ export class IntransitController {
       res.status(500).json({ error: 'Failed to fetch outgoing documents' });
     }
   }
+
+  async cancelIntransitDocument(req: Request, res: Response) {
+    try {
+      const authReq = req as AuthRequest;
+      const userId = authReq.user?.id as string;
+      const { id } = req.params;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'User ID not found in token' });
+      }
+
+      if (!id) {
+        return res.status(400).json({ error: 'Document ID is required' });
+      }
+
+      const result = await this.intransitService.cancelIntransitDocument(id, userId);
+
+      res.json(result);
+    } catch (error) {
+      console.error('Error in cancelIntransitDocument:', error);
+      res.status(500).json({ error: 'Failed to cancel in-transit document' });
+    }
+  }
 }
