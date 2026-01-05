@@ -728,6 +728,59 @@ export class AuthService {
   }
 
   /**
+   * Change authenticated user's password
+   */
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // Get the user's account
+      const account = await this.prisma.account.findFirst({
+        where: {
+          user: {
+            user_id: userId
+          }
+        }
+      });
+
+      if (!account) {
+        return { success: false, message: 'User account not found' };
+      }
+
+      // Check if the account has a password (not OAuth-only)
+      if (!account.password) {
+        return { success: false, message: 'Password change not allowed for OAuth accounts' };
+      }
+
+      // Verify current password
+      const isCurrentPasswordValid = await bcrypt.compare(currentPassword, account.password);
+      if (!isCurrentPasswordValid) {
+        return { success: false, message: 'Current password is incorrect' };
+      }
+
+      // Validate new password
+      if (newPassword.length < 6) {
+        return { success: false, message: 'New password must be at least 6 characters long' };
+      }
+
+      // Hash new password
+      const hashedNewPassword = await bcrypt.hash(newPassword, 12);
+
+      // Update the password
+      await this.prisma.account.update({
+        where: { account_id: account.account_id },
+        data: {
+          password: hashedNewPassword,
+          updated_at: new Date()
+        }
+      });
+
+      return { success: true, message: 'Password changed successfully' };
+    } catch (error) {
+      console.error('Error changing password:', error);
+      throw new Error('Failed to change password');
+    }
+  }
+
+  /**
    * Clean up expired reset tokens (should be called periodically)
    */
   async cleanupExpiredResetTokens(): Promise<number> {
