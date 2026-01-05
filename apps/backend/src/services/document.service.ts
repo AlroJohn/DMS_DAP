@@ -697,7 +697,20 @@ export class DocumentService {
     const document = await prisma.document.findUnique({
       where: { document_id: id },
       include: {
-        files: true,
+        files: {
+          include: {
+            uploaded_by_account: {
+              include: {
+                user: {
+                  select: {
+                    first_name: true,
+                    last_name: true,
+                  }
+                }
+              }
+            }
+          }
+        },
         DocumentAdditionalDetails: {
           orderBy: {
             created_at: 'asc'
@@ -807,6 +820,20 @@ export class DocumentService {
 
     const blockchainDetail = document.DocumentAdditionalDetails?.[0] as any;
 
+    // Process files to include version information
+    const processedFiles = document.files.map((file: any) => ({
+      file_id: file.file_id,
+      original_name: file.original_name,
+      mime_type: file.mime_type,
+      is_primary: file.is_primary,
+      downloadUrl: `/api/documents/${document.document_id}/files/${file.file_id}/download`,
+      version: file.version, // Include version information
+      uploadDate: file.uploaded_at, // Include upload date
+      file_size: Number(file.file_size), // Include file size
+      version_group_id: file.version_group_id, // Include version group ID
+      uploaded_by_account: file.uploaded_by_account || null // Include uploader info if available
+    }));
+
     return {
       document_id: document.document_id,
       tracking_code: document.document_code,
@@ -830,6 +857,8 @@ export class DocumentService {
         signedAt: blockchainDetail.signed_at || null,
         signedBy: blockchainDetail.signed_by || null
       } : null,
+      // Include files with version information
+      files: processedFiles,
       // Also include raw document fields for fallback
       title: document.title,
       document_code: document.document_code,

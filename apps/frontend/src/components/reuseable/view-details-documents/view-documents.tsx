@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -18,6 +19,7 @@ import {
   Calendar,
   User,
   Clock,
+  GitBranch,
   Shield,
   Tag,
   MoreHorizontal,
@@ -284,8 +286,8 @@ export function ViewDocumentsModal({
           <Tabs defaultValue="routing" className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="routing">Document Routing</TabsTrigger>
+              <TabsTrigger value="versions">Version History</TabsTrigger>
               <TabsTrigger value="details">Document Details</TabsTrigger>
-              <TabsTrigger value="document-view">Document View</TabsTrigger>
             </TabsList>
 
             {/* Document Routing Tab - using document_trails for historical data */}
@@ -478,6 +480,182 @@ export function ViewDocumentsModal({
               )}
             </TabsContent>
 
+            {/* Version History Tab */}
+            <TabsContent value="versions" className="space-y-4 mt-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">
+                  Version History
+                </h3>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLatestUpdates}
+                    disabled={isLoading}
+                  >
+                    <Clock className="h-4 w-4 mr-2" />
+                    Refresh
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Download className="h-4 w-4 mr-2" />
+                        Export
+                        <MoreHorizontal className="h-4 w-4 ml-2" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={handleExportPDF}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Export Full Report (PDF)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleExportCSV}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Export Full Report (CSV)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleExportExcel}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Export Full Report (Excel)
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+
+              {isLoading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="border rounded-lg p-4">
+                      <Skeleton className="h-6 w-48 mb-2" />
+                      <Skeleton className="h-4 w-full mb-2" />
+                      <Skeleton className="h-4 w-3/4" />
+                    </div>
+                  ))}
+                </div>
+              ) : document && document.files && document.files.length > 0 ? (
+                <div className="relative space-y-6 pl-8">
+                  {/* Timeline line */}
+                  <div className="absolute left-[19px] top-[30px] bottom-[30px] w-[2px] bg-border" />
+
+                  {document.files
+                    .slice()
+                    .sort((a, b) => {
+                      // Sort by version number (e.g., 1.0, 1.1, 1.2, etc.)
+                      const aParts = a.version?.split('.').map(Number) || [0, 0];
+                      const bParts = b.version?.split('.').map(Number) || [0, 0];
+
+                      // Compare major version first
+                      if (aParts[0] !== bParts[0]) {
+                        return bParts[0] - aParts[0]; // Higher major version first
+                      }
+                      // Compare minor version
+                      return bParts[1] - aParts[1]; // Higher minor version first
+                    })
+                    .map((file, index, sortedFiles) => {
+                      const isCurrent = index === 0; // Most recent version is first after sorting
+                      const datetime = file.uploadDate ? formatDateTime(file.uploadDate) : { full: 'N/A' };
+
+                      return (
+                        <div key={file.file_id} className="relative">
+                          {/* Timeline node */}
+                          <div
+                            className={cn(
+                              "absolute left-[-32px] w-10 h-10 rounded-full flex items-center justify-center border-2 border-border bg-background"
+                            )}
+                          >
+                            <span className="text-muted-foreground text-xl">
+                              {isCurrent ? (
+                                <svg
+                                  width="24"
+                                  height="24"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                >
+                                  <path
+                                    d="M12 2L15 9H22L17 14L19 21L12 17L5 21L7 14L2 9H9L12 2Z"
+                                    fill="currentColor"
+                                  />
+                                </svg>
+                              ) : (
+                                <FileText className="w-5 h-5" />
+                              )}
+                            </span>
+                          </div>
+
+                          {/* Version card */}
+                          <div className={`bg-white border rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow ml-6 ${isCurrent ? 'border-primary bg-primary/5' : ''}`}>
+                            <div className="flex justify-between items-start mb-4">
+                              <div className="text-sm text-muted-foreground">
+                                {datetime.full}
+                              </div>
+                              {isCurrent && (
+                                <Badge variant="default">Current</Badge>
+                              )}
+                            </div>
+
+                            {/* Version info */}
+                            <div className="grid grid-cols-2 gap-6">
+                              <div>
+                                <label className="text-sm text-muted-foreground block mb-1.5">
+                                  Version
+                                </label>
+                                <p className="font-medium">v{file.version || 'N/A'}</p>
+                              </div>
+                              <div>
+                                <label className="text-sm text-muted-foreground block mb-1.5">
+                                  File Name
+                                </label>
+                                <p className="font-medium truncate">{file.original_name}</p>
+                              </div>
+                            </div>
+
+                            {/* Additional file details */}
+                            <div className="mt-4 pt-4 border-t">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-sm text-muted-foreground block mb-1.5">
+                                    File Size
+                                  </label>
+                                  <p className="font-medium">{file.file_size ? Math.round(file.file_size / 1024) + ' KB' : 'N/A'}</p>
+                                </div>
+                                <div>
+                                  <label className="text-sm text-muted-foreground block mb-1.5">
+                                    Uploaded By
+                                  </label>
+                                  <p className="font-medium">
+                                    {file.uploaded_by_account?.user
+                                      ? `${file.uploaded_by_account.user.first_name} ${file.uploaded_by_account.user.last_name}`
+                                      : 'System'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* File type and status */}
+                            <div className="mt-4 flex items-center gap-4">
+                              <Badge variant="outline" className="text-xs">
+                                {file.mime_type || 'Unknown type'}
+                              </Badge>
+                              {file.is_primary && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Primary
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <FileText className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                  <p>No version history available</p>
+                </div>
+              )}
+            </TabsContent>
+
             {/* Document Details Tab */}
             <TabsContent value="details" className="space-y-6 mt-6">
               <div>
@@ -638,15 +816,15 @@ export function ViewDocumentsModal({
                       </div>
                     </div>
 
-                    {/* Released By and Receiving Office */}
-                    <div className="grid grid-cols-2 gap-6 mb-6">
+                    {/* Department Information */}
+                    <div className="grid grid-cols-2 gap-6 mb-6 pb-6 border-b">
                       <div className="flex gap-4">
                         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
                           <User className="h-6 w-6 text-muted-foreground" />
                         </div>
                         <div className="flex-1">
                           <label className="text-sm text-muted-foreground block mb-1">
-                            Released By
+                            Created By
                           </label>
                           <p className="font-semibold">
                             {safeDetail?.created_by_account?.user
@@ -663,10 +841,11 @@ export function ViewDocumentsModal({
                           </p>
                           <div className="flex items-center gap-1.5 mt-1">
                             <span className="text-xs text-muted-foreground">
-                              From:
+                              Department:
                             </span>
                             <span className="text-xs font-medium">
-                              {document?.originating_department?.name || "N/A"}
+                              {safeDetail?.department?.name ||
+                                document?.originating_department?.name || "N/A"}
                             </span>
                           </div>
                         </div>
@@ -678,10 +857,49 @@ export function ViewDocumentsModal({
                         </div>
                         <div className="flex-1">
                           <label className="text-sm text-muted-foreground block mb-1">
-                            Receiving Office
+                            Current Department
                           </label>
                           <p className="font-semibold">
                             {document?.current_department?.name || "N/A"}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span className="text-xs text-muted-foreground">
+                              Origin:
+                            </span>
+                            <span className="text-xs font-medium">
+                              {document?.originating_department?.name || "N/A"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Document Type and Origin */}
+                    <div className="grid grid-cols-2 gap-6 mb-6 pb-6 border-b">
+                      <div className="flex gap-4">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                          <FileText className="h-6 w-6 text-muted-foreground" />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-sm text-muted-foreground block mb-1.5">
+                            Document Type
+                          </label>
+                          <p className="font-semibold">
+                            {safeDetail?.document_type?.name || "N/A"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-4">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                          <Building2 className="h-6 w-6 text-muted-foreground" />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-sm text-muted-foreground block mb-1.5">
+                            Origin
+                          </label>
+                          <p className="font-semibold">
+                            {safeDetail?.origin || "N/A"}
                           </p>
                         </div>
                       </div>
@@ -743,30 +961,6 @@ export function ViewDocumentsModal({
               </div>
             </TabsContent>
 
-            {/* Document View Tab */}
-            <TabsContent value="document-view" className="space-y-4 mt-6">
-              <h3 className="text-lg font-semibold mb-4">Document Content</h3>
-              {isLoading ? (
-                <Skeleton className="w-full h-[500px]" />
-              ) : document && document.files && document.files.length > 0 && document.signedDocuments ? (
-                <DocumentViewerWithSignatures
-                  documentFiles={document.files.map(file => ({
-                    id: file.file_id,
-                    name: file.original_name,
-                    downloadUrl: file.downloadUrl,
-                    isPrimary: file.is_primary,
-                  }))}
-                  signedDocuments={document.signedDocuments}
-                  activeSignatureData={activeSignatureData}
-                  onConfirmSignaturePlacement={onConfirmSignaturePlacement}
-                />
-              ) : (
-                <div className="text-center py-12 text-muted-foreground">
-                  <FileText className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                  <p>No document files available for preview.</p>
-                </div>
-              )}
-            </TabsContent>
           </Tabs>
         </div>
       </DialogContent>
