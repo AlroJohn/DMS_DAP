@@ -310,7 +310,6 @@ export default function DocumentDetailPage() {
   const handleSigned = () => {
     toast.success("Document signed successfully");
     refetch();
-    handleCloseSigningMode();
   };
 
   const releaseWithSignaturesMutation = useMutation({
@@ -356,7 +355,7 @@ export default function DocumentDetailPage() {
     },
   });
 
-  const handleConfirmSignatures = ({
+  const handleConfirmSignatures = async ({
     fileId,
     boxes,
   }: {
@@ -367,14 +366,6 @@ export default function DocumentDetailPage() {
     const departmentId = params.get("releaseDepartmentId");
     const requestActionsRaw = params.get("releaseActions");
     const remarks = params.get("releaseRemarks") || undefined;
-
-    if (!departmentId || !requestActionsRaw) {
-      toast.error("Release information is missing. Please start over.");
-      handleCloseSignatureMode();
-      return;
-    }
-
-    const requestActions = requestActionsRaw.split(",");
 
     const RENDER_SCALE = 1.4;
 
@@ -387,6 +378,47 @@ export default function DocumentDetailPage() {
       width: box.width / RENDER_SCALE,
       height: box.height / RENDER_SCALE,
     }));
+
+    if (!departmentId || !requestActionsRaw) {
+      if (signaturePlaceholders.length === 0) {
+        toast.error("Add at least one signature placeholder.");
+        return;
+      }
+
+      try {
+        await Promise.all(
+          signaturePlaceholders.map(async (placeholder) => {
+            const response = await fetch(
+              `/api/document-signatures/documents/${documentIdForRoutes}/signature-placeholders`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(placeholder),
+              }
+            );
+
+            if (!response.ok) {
+              const errorData = await response
+                .json()
+                .catch(() => ({ error: "Failed to save signature placeholder." }));
+              throw new Error(
+                errorData.error || "Failed to save signature placeholder."
+              );
+            }
+          })
+        );
+
+        toast.success("Signature placeholders saved.");
+        refetch();
+        handleCloseSignatureMode();
+      } catch (error: any) {
+        toast.error(error.message || "Failed to save signature placeholders.");
+      }
+      return;
+    }
+
+    const requestActions = requestActionsRaw.split(",");
 
     // Create signature placeholders in the database
     releaseWithSignaturesMutation.mutate({

@@ -413,26 +413,37 @@ export const columns: ColumnDef<ReceivedDocument>[] = [
       const encryptionStatus = data.encryptionStatus || "transit_only";
 
       return (
-        <div className="flex flex-col gap-1 py-1 min-w-[160px] max-w-[200px]">
+        <div className="flex flex-col gap-1 py-1 min-w-[300px] max-w-[300px]">
           <div className="flex items-center gap-2">
             <DocumentLockIcon
               status={lockStatus}
               lockedBy={data.lockedBy}
               lockedAt={data.lockedAt}
             />
-            <span className="text-xs font-medium text-muted-foreground">Lock</span>
+            <span className="text-xs font-medium text-muted-foreground">
+              Lock
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <OcrStatusIcon status={ocrStatus} progress={data.ocrProgress} />
-            <span className="text-xs font-medium text-muted-foreground">OCR</span>
+            <span className="text-xs font-medium text-muted-foreground">
+              OCR
+            </span>
           </div>
           <div className="flex items-center gap-2">
-            <FileIntegrityIcon status={integrityStatus} checksum={data.checksum} />
-            <span className="text-xs font-medium text-muted-foreground">Integrity</span>
+            <FileIntegrityIcon
+              status={integrityStatus}
+              checksum={data.checksum}
+            />
+            <span className="text-xs font-medium text-muted-foreground">
+              Integrity
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <EncryptionIcon status={encryptionStatus} />
-            <span className="text-xs font-medium text-muted-foreground">Encryption</span>
+            <span className="text-xs font-medium text-muted-foreground">
+              Encryption
+            </span>
           </div>
         </div>
       );

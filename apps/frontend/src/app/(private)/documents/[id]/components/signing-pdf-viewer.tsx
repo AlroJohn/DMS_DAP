@@ -254,18 +254,35 @@ export function SigningPdfViewer({
     setSelectedPlaceholder(placeholder);
   };
 
+  const handleSaveDraft = () => {
+    if (!selectedPlaceholder || !signatureData) return;
+    const placeholderId = selectedPlaceholder.placeholder_id;
+    setPlacedSignatures((prev) => ({
+      ...prev,
+      [placeholderId]: signatureData,
+    }));
+    setSignatureData(null);
+    toast.success("Signature draft saved.");
+  };
+
   const handleConfirmSignature = async () => {
-    if (!selectedPlaceholder || !signatureData || !selectedFile) return;
+    if (!selectedFile) return;
+
+    const pendingSignatures: Record<string, string> = {
+      ...placedSignatures,
+    };
+
+    if (selectedPlaceholder && signatureData) {
+      pendingSignatures[selectedPlaceholder.placeholder_id] = signatureData;
+    }
+
+    if (Object.keys(pendingSignatures).length === 0) {
+      toast.error("Save at least one signature draft before confirming.");
+      return;
+    }
 
     setIsSaving(true);
     try {
-      const pageMeta = pages.find(
-        (p) => p.pageNumber === selectedPlaceholder.page_number
-      );
-      if (!pageMeta) {
-        throw new Error("Unable to find page metadata for signature placement.");
-      }
-
       const pdfResponse = await fetch(
         `/api/documents/${documentId}/files/${selectedFile.id}/stream?download=1`,
         {
@@ -281,42 +298,67 @@ export function SigningPdfViewer({
       const buffer = await pdfResponse.arrayBuffer();
       const pdfDoc = await PDFDocument.load(buffer);
 
-      const page = pdfDoc.getPage(selectedPlaceholder.page_number - 1);
-      const { width: pageWidth, height: pageHeight } = page.getSize();
+      const placeholderById = new Map(
+        filePlaceholders.map((placeholder) => [
+          placeholder.placeholder_id,
+          placeholder,
+        ])
+      );
 
-      const scaleX = pageWidth / pageMeta.pdfWidth;
-      const scaleY = pageHeight / pageMeta.pdfHeight;
+      for (const [placeholderId, dataUrl] of Object.entries(
+        pendingSignatures
+      )) {
+        const placeholder = placeholderById.get(placeholderId);
+        if (!placeholder) {
+          continue;
+        }
 
-      const renderWidth = selectedPlaceholder.width * scaleX;
-      const renderHeight = selectedPlaceholder.height * scaleY;
-      const x = selectedPlaceholder.x_position * scaleX;
-      const y = pageHeight - selectedPlaceholder.y_position * scaleY - renderHeight;
+        const pageMeta = pages.find(
+          (p) => p.pageNumber === placeholder.page_number
+        );
+        if (!pageMeta) {
+          throw new Error(
+            "Unable to find page metadata for signature placement."
+          );
+        }
 
-      const sigBytes = dataUrlToUint8Array(signatureData);
-      const isPng = signatureData.startsWith("data:image/png");
-      const image = isPng
-        ? await pdfDoc.embedPng(sigBytes)
-        : await pdfDoc.embedJpg(sigBytes);
+        const page = pdfDoc.getPage(placeholder.page_number - 1);
+        const { width: pageWidth, height: pageHeight } = page.getSize();
 
-      page.drawImage(image, {
-        x,
-        y,
-        width: renderWidth,
-        height: renderHeight,
-      });
+        const scaleX = pageWidth / pageMeta.pdfWidth;
+        const scaleY = pageHeight / pageMeta.pdfHeight;
+
+        const renderWidth = placeholder.width * scaleX;
+        const renderHeight = placeholder.height * scaleY;
+        const x = placeholder.x_position * scaleX;
+        const y =
+          pageHeight - placeholder.y_position * scaleY - renderHeight;
+
+        const sigBytes = dataUrlToUint8Array(dataUrl);
+        const isPng = dataUrl.startsWith("data:image/png");
+        const image = isPng
+          ? await pdfDoc.embedPng(sigBytes)
+          : await pdfDoc.embedJpg(sigBytes);
+
+        page.drawImage(image, {
+          x,
+          y,
+          width: renderWidth,
+          height: renderHeight,
+        });
+      }
 
       const pdfBytes: Uint8Array = await pdfDoc.save();
       const blob = new Blob([pdfBytes as BlobPart], { type: "application/pdf" });
 
       const formData = new FormData();
-      const baseName =
-        selectedFile.name?.replace(/\.pdf$/i, "") || "signed-document";
-      formData.append("files", blob, `${baseName}-signed.pdf`);
+      const fileName = selectedFile.name || "signed-document.pdf";
+      formData.append("file", blob, fileName);
 
       const uploadResponse = await fetch(
-        `/api/documents/${documentId}/files`,
+        `/api/documents/${documentId}/files/${selectedFile.id}`,
         {
-          method: "POST",
+          method: "PUT",
           credentials: "include",
           body: formData,
         }
@@ -332,16 +374,9 @@ export function SigningPdfViewer({
         );
       }
 
-      const placeholderId = selectedPlaceholder.placeholder_id;
-      setPlacedSignatures((prev) => ({
-        ...prev,
-        [placeholderId]: signatureData,
-      }));
+      toast.success("All signature drafts saved to the existing file.");
 
-      toast.success(
-        "Signed PDF saved as a new version. The previous file remains available."
-      );
-
+      setPlacedSignatures({});
       setSignatureData(null);
       setSelectedPlaceholder(null);
 
@@ -389,6 +424,8 @@ export function SigningPdfViewer({
 
   const activePageData = pages.find((p) => p.pageNumber === activePage);
   const pendingCount = filePlaceholders.length;
+  const hasDrafts = Object.keys(placedSignatures).length > 0;
+  const hasCurrentSignature = Boolean(selectedPlaceholder && signatureData);
 
   return (
     <Card className="h-full w-full min-h-[600px] flex flex-col border-primary/40">
@@ -457,8 +494,10 @@ export function SigningPdfViewer({
                   size="sm"
                   className="justify-start text-xs h-auto py-2 whitespace-normal text-left"
                   onClick={() => {
-                    if (p.page_number !== activePage)
+                    setSelectedPlaceholder(p);
+                    if (p.page_number !== activePage) {
                       setActivePage(p.page_number);
+                    }
                   }}
                 >
                   <div className="flex flex-col gap-1">
@@ -546,7 +585,7 @@ export function SigningPdfViewer({
             </h3>
             <p className="text-xs text-muted-foreground">
               Select a &quot;Sign Here&quot; box on the document, then draw or upload your
-              signature below. When ready, click &quot;Confirm Signature&quot; to place it.
+              signature below. Save each draft before confirming all signatures.
             </p>
           </div>
 
@@ -560,10 +599,18 @@ export function SigningPdfViewer({
               Cancel
             </Button>
             <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSaveDraft}
+              disabled={!selectedPlaceholder || !signatureData || isSaving}
+            >
+              Save Draft
+            </Button>
+            <Button
               size="sm"
               onClick={handleConfirmSignature}
               disabled={
-                !selectedPlaceholder || !signatureData || isSaving
+                isSaving || (!hasDrafts && !hasCurrentSignature)
               }
             >
               {isSaving ? (
@@ -572,7 +619,7 @@ export function SigningPdfViewer({
                   Saving...
                 </>
               ) : (
-                "Confirm Signature"
+                "Confirm Signatures"
               )}
             </Button>
           </div>
