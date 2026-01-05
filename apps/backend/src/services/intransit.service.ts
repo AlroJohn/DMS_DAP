@@ -97,11 +97,11 @@ export class IntransitService {
             const isInWorkflow = workflowDepartments.includes(user.department_id);
             const isNotOriginator = workflowDepartments.length > 0 && workflowDepartments[0] !== user.department_id;  // The first department is the originator
 
-            // Check if not yet received by this department
-            let receivedByDepartments: string[] = [];
+            // Check if not yet received by this user
+            let receivedByUsers: string[] = [];
             if (detail.received_by_department_user) {
               try {
-                receivedByDepartments = Array.isArray(detail.received_by_department_user)
+                receivedByUsers = Array.isArray(detail.received_by_department_user)
                   ? detail.received_by_department_user
                   : JSON.parse(detail.received_by_department_user as any);
               } catch (e) {
@@ -109,7 +109,7 @@ export class IntransitService {
               }
             }
 
-            const notYetReceived = !receivedByDepartments.includes(user.department_id);
+            const notYetReceived = !receivedByUsers.includes(userId);
 
             return isInWorkflow && isNotOriginator && notYetReceived;
           } catch (e) {

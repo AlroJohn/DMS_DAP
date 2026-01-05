@@ -407,7 +407,7 @@ export class DocumentReleaseService {
 
       // Get current workflow and received_by_department_user
       let currentWorkflow: any = {};
-      let receivedByDepartments: string[] = [];
+      let receivedByUsers: string[] = [];
 
       if (currentDetail.work_flow_id) {
         try {
@@ -424,7 +424,7 @@ export class DocumentReleaseService {
 
       if (currentDetail.received_by_department_user) {
         try {
-          receivedByDepartments = Array.isArray(currentDetail.received_by_department_user)
+          receivedByUsers = Array.isArray(currentDetail.received_by_department_user)
             ? currentDetail.received_by_department_user
             : JSON.parse(currentDetail.received_by_department_user as any);
         } catch (e) {
@@ -438,13 +438,13 @@ export class DocumentReleaseService {
         return { success: false, error: 'Department not in document workflow' };
       }
 
-      // Check if already received by this department
-      if (receivedByDepartments.includes(user.department_id)) {
-        return { success: false, error: 'Document already received by this department' };
+      // Check if already received by this user
+      if (receivedByUsers.includes(userId)) {
+        return { success: false, error: 'Document already received by this user' };
       }
 
-      // Add department to received_by_department_user array
-      receivedByDepartments.push(user.department_id);
+      // Add user to received_by_department_user array
+      receivedByUsers.push(userId);
 
       // Update the document status to 'received' when all intended departments have received it
       // For now, we'll just update the status to 'received' when this department receives it
@@ -465,7 +465,7 @@ export class DocumentReleaseService {
           to_department: user.department_id,
           user_id: userId,
           status: 'received',
-          remarks: `Document received by department: ${user.department_id}`
+          remarks: `Document received by user: ${userId} in department: ${user.department_id}`
         });
       } catch (error) {
         console.error('Error creating document trail for document receiving:', error);
@@ -475,7 +475,7 @@ export class DocumentReleaseService {
       await prisma.documentAdditionalDetails.update({
         where: { detail_id: currentDetail.detail_id },
         data: {
-          received_by_department_user: receivedByDepartments as any,
+          received_by_department_user: receivedByUsers as any,
           updated_at: new Date()
         }
       });
@@ -485,7 +485,7 @@ export class DocumentReleaseService {
         userId
       });
 
-      console.log('📍 [DocumentReleaseService.receiveDocument] Document received successfully by department:', user.department_id);
+      console.log('📍 [DocumentReleaseService.receiveDocument] Document received successfully by user:', userId, 'in department:', user.department_id);
 
       // Send notification to users in the receiving department
       const notificationService = new NotificationService();

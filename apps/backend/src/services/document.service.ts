@@ -1128,10 +1128,10 @@ export class DocumentService {
             const isNotOriginator = workflowDepartments.length > 0 && workflowDepartments[0] !== user.department_id;
 
             // Check if received by this department (acknowledged)
-            let receivedByDepartments: string[] = [];
+            let receivedByUsers: string[] = [];
             if (detail.received_by_department_user) {
               try {
-                receivedByDepartments = Array.isArray(detail.received_by_department_user)
+                receivedByUsers = Array.isArray(detail.received_by_department_user)
                   ? detail.received_by_department_user
                   : JSON.parse(detail.received_by_department_user as any);
               } catch (e) {
@@ -1139,7 +1139,7 @@ export class DocumentService {
               }
             }
 
-            const hasBeenReceived = receivedByDepartments.includes(user.department_id);
+            const hasBeenReceived = receivedByUsers.includes(userId);
 
             return isInWorkflow && isNotOriginator && hasBeenReceived;
           } catch (e) {
