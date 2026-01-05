@@ -1610,6 +1610,120 @@ export class DocumentService {
   }
 
   /**
+   * Replace an existing document file (overwrite content, keep same file ID)
+   */
+  async replaceDocumentFile(documentId: string, fileId: string, file: Express.Multer.File, userId: string) {
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(documentId)) {
+      throw new Error('Invalid document ID format');
+    }
+
+    const canAccess = await this.canUserAccessDocument(documentId, userId);
+    if (!canAccess) {
+      throw new Error('You do not have permission to update this document');
+    }
+
+    const existingFile = await this.prismaAny.documentFile.findFirst({
+      where: {
+        file_id: fileId,
+        document_id: documentId
+      }
+    });
+
+    if (!existingFile) {
+      throw new Error('File not found');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+      select: {
+        account: {
+          select: {
+            account_id: true
+          }
+        }
+      }
+    });
+
+    if (!user?.account?.account_id) {
+      throw new Error('User account context missing');
+    }
+
+    const fileMetadata = getFileMetadata(file);
+    const checksum = await this.calculateChecksum(fileMetadata.path);
+    const previousPath = existingFile.storage_path;
+
+    const updated = await this.prismaAny.documentFile.update({
+      where: { file_id: fileId },
+      data: {
+        original_name: fileMetadata.originalName,
+        stored_name: fileMetadata.filename,
+        storage_path: fileMetadata.path,
+        file_size: BigInt(fileMetadata.size),
+        mime_type: fileMetadata.mimetype,
+        checksum,
+        uploaded_at: new Date(),
+        uploaded_by: user.account.account_id
+      }
+    });
+
+    // Update metadata for this file
+    await this.prismaAny.documentMetadata.deleteMany({
+      where: { file_id: fileId }
+    });
+
+    try {
+      const metadata = await this.documentMetadataService.extractMetadata(fileMetadata.path);
+
+      const metadataToSave: any = {
+        file_id: updated.file_id,
+        file_size: metadata.file_size ? BigInt(metadata.file_size) : null,
+        file_type: metadata.file_type,
+        mime_type: metadata.mime_type,
+        author: metadata.author,
+        creator: metadata.creator,
+        producer: metadata.producer,
+        creation_date: metadata.creation_date,
+        modification_date: metadata.modification_date,
+        is_encrypted: metadata.is_encrypted,
+        checksum: metadata.checksum,
+        version: metadata.version,
+      };
+
+      Object.keys(metadataToSave).forEach(key => metadataToSave[key] === undefined && delete metadataToSave[key]);
+
+      const metadataRecord = await this.prismaAny.documentMetadata.create({
+        data: metadataToSave,
+      });
+
+      console.log('Document metadata updated:', JSON.stringify(metadataRecord, (key, value) =>
+        typeof value === 'bigint' ? value.toString() : value, 2
+      ));
+    } catch (error) {
+      console.error('Failed to extract or save document metadata:', error);
+    }
+
+    // Delete previous file from disk after updating
+    try {
+      await deleteFile(previousPath);
+    } catch (error) {
+      console.error('Error deleting previous file from disk:', error);
+    }
+
+    return {
+      id: updated.file_id,
+      name: updated.original_name,
+      size: Number(updated.file_size),
+      type: updated.mime_type,
+      version: updated.version,
+      isPrimary: updated.is_primary,
+      uploadDate: updated.uploaded_at,
+      versionGroupId: updated.version_group_id
+    };
+  }
+
+  /**
    * Get document files with checkout info
    */
   async getFilesForDocument(documentId: string) {

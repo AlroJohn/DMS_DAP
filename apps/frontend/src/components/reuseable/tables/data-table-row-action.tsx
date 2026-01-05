@@ -92,6 +92,9 @@ export function DataTableRowActions<TData>({
     release: false,
     checkoutFile: false,
   });
+  const [checkoutAction, setCheckoutAction] = useState<"edit" | "signature">(
+    "edit"
+  );
 
   const [activeSignatureData, setActiveSignatureData] = useState<string | null>(
     null
@@ -163,6 +166,13 @@ export function DataTableRowActions<TData>({
 
   const handleCheckoutFile = () => {
     setSelectedDocument(document);
+    setCheckoutAction("edit");
+    toggleModal("checkoutFile", true);
+  };
+
+  const handleSignaturePlaceholder = () => {
+    setSelectedDocument(document);
+    setCheckoutAction("signature");
     toggleModal("checkoutFile", true);
   };
 
@@ -205,7 +215,8 @@ export function DataTableRowActions<TData>({
       setIsLoading(true);
 
       // Check if document is in 'intransit' status to use the appropriate endpoint
-      const isDocumentInTransit = document.status?.toLowerCase() === "intransit";
+      const isDocumentInTransit =
+        document.status?.toLowerCase() === "intransit";
 
       let response;
       if (isDocumentInTransit) {
@@ -418,6 +429,7 @@ export function DataTableRowActions<TData>({
   const showSignDocument = canSignDoc;
   const showEditDetails = canEditDetails;
   const showEditDocument = canEditDoc;
+  const showSignaturePlaceholder = canEditDoc;
   const showRelease = canRelease && !isAlreadyReleased; // Release is hidden when document is already in-transit
   const showComplete = canComplete && !isDispatch; // Complete shows when not dispatch status
   const showCancel = canCancel && isInTransit; // Cancel only shows for in-transit status
@@ -439,7 +451,10 @@ export function DataTableRowActions<TData>({
           </Button>
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="end" className="w-[160px]">
+        <DropdownMenuContent
+          align="end"
+          className="min-w-[160px] max-w-[300px]"
+        >
           {/* Document View Actions */}
           {viewType === "document" && (
             <>
@@ -495,9 +510,19 @@ export function DataTableRowActions<TData>({
                 </DropdownMenuItem>
               )}
 
-              {(showSignDocument || showEditDetails || showEditDocument) && (
-                <DropdownMenuSeparator />
+              {showSignaturePlaceholder && (
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleSignaturePlaceholder)}
+                >
+                  <FilePenLine className="mr-2 h-4 w-4" />
+                  E-sign Placeholder
+                </DropdownMenuItem>
               )}
+
+              {(showSignDocument ||
+                showEditDetails ||
+                showEditDocument ||
+                showSignaturePlaceholder) && <DropdownMenuSeparator />}
 
               {/* Release - for users with transfer permissions */}
               {showRelease && (
@@ -637,9 +662,19 @@ export function DataTableRowActions<TData>({
                 </DropdownMenuItem>
               )}
 
-              {(showSignDocument || showEditDetails || showEditDocument) && (
-                <DropdownMenuSeparator />
+              {showSignaturePlaceholder && (
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleSignaturePlaceholder)}
+                >
+                  <FilePenLine className="mr-2 h-4 w-4" />
+                  Signature Placeholder
+                </DropdownMenuItem>
               )}
+
+              {(showSignDocument ||
+                showEditDetails ||
+                showEditDocument ||
+                showSignaturePlaceholder) && <DropdownMenuSeparator />}
 
               {/* Archive - for users with archive permissions */}
               {showArchive && (
@@ -734,6 +769,15 @@ export function DataTableRowActions<TData>({
                 <Edit className="mr-2 h-4 w-4" />
                 Edit Documents
               </DropdownMenuItem>
+
+              {showSignaturePlaceholder && (
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleSignaturePlaceholder)}
+                >
+                  <FilePenLine className="mr-2 h-4 w-4" />
+                  Signature Placeholder
+                </DropdownMenuItem>
+              )}
 
               {/* Complete - for users with document receive permissions */}
               {showComplete && (
@@ -959,6 +1003,7 @@ export function DataTableRowActions<TData>({
           open={modalState.checkoutFile}
           onOpenChange={(open) => toggleModal("checkoutFile", open)}
           documentId={selectedDocument.id}
+          action={checkoutAction}
         />
       )}
 

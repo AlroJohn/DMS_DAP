@@ -42,12 +42,14 @@ interface CheckoutFileModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   documentId: string | null;
+  action?: "edit" | "signature";
 }
 
 export function CheckoutFileModal({
   open,
   onOpenChange,
   documentId,
+  action = "edit",
 }: CheckoutFileModalProps) {
   const router = useRouter();
   const { user } = useAuth();
@@ -89,6 +91,14 @@ export function CheckoutFileModal({
 
     const selectedFile = files.find((f) => f.id === selectedFileId);
     if (!selectedFile) return;
+
+    if (action === "signature") {
+      onOpenChange(false);
+      router.push(
+        `/documents/${documentId}?mode=signature&fileId=${selectedFileId}`
+      );
+      return;
+    }
 
     // Debug logging
     console.log("DEBUG: In handleConfirm");
@@ -161,14 +171,15 @@ export function CheckoutFileModal({
   if (selectedFile) {
     if (selectedFile.checkout) {
       if (selectedFile.checkedOutBy?.accountId === user?.accountId) {
-        buttonText = "Edit PDF";
+        buttonText = action === "signature" ? "Open Signature Mode" : "Edit PDF";
         buttonDisabled = false;
       } else {
         buttonText = "Locked by another user";
         buttonDisabled = true;
       }
     } else {
-      buttonText = "Checkout & Edit";
+      buttonText =
+        action === "signature" ? "Open Signature Mode" : "Checkout & Edit";
       buttonDisabled = false;
     }
   }
@@ -261,10 +272,15 @@ export function CheckoutFileModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Checkout a File</DialogTitle>
+          <DialogTitle>
+            {action === "signature"
+              ? "Select a File for Signature Placement"
+              : "Checkout a File"}
+          </DialogTitle>
           <DialogDescription>
-            Select a file to check out for editing or upload a new version of an
-            existing file. This will lock the file for other users.
+            {action === "signature"
+              ? "Choose a file to place signature placeholders before releasing or signing."
+              : "Select a file to check out for editing or upload a new version of an existing file. This will lock the file for other users."}
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 space-y-6">

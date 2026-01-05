@@ -86,6 +86,13 @@ router.post('/:id/files',
   documentController.uploadFilesToDocument
 );
 
+// PUT /api/documents/:id/files/:fileId - Replace an existing document file
+router.put('/:id/files/:fileId',
+  requirePermission('document_write'),
+  uploadSingle,
+  documentController.replaceDocumentFile
+);
+
 // GET /api/documents/:id/files - List document files
 router.get('/:id/files',
   requirePermission('document_read'),

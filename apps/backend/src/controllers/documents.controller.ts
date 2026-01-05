@@ -146,6 +146,35 @@ export class DocumentController {
   });
 
   /**
+   * PUT /api/documents/:id/files/:fileId - Replace an existing document file
+   */
+  replaceDocumentFile = asyncHandler(async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
+    const { id, fileId } = req.params;
+    const file = (req as any).file as Express.Multer.File | undefined;
+
+    // Validate UUID format for document id
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
+      console.log('📍 [DocumentController.replaceDocumentFile] Invalid document ID format:', id);
+      return sendError(res, 'Invalid document ID format', 400);
+    }
+
+    if (!file) {
+      return sendError(res, 'File upload is required', 400);
+    }
+
+    const updated = await this.documentService.replaceDocumentFile(
+      id,
+      fileId,
+      file,
+      authReq.user.id
+    );
+
+    return sendSuccess(res, updated, 200);
+  });
+
+  /**
    * GET /api/documents/:id/files - List document files
    */
   getDocumentFiles = asyncHandler(async (req: Request, res: Response) => {
