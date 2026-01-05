@@ -30,15 +30,19 @@ export class SearchController {
       };
 
       // Ensure page and limit are properly defined with defaults
-      searchParams.page = searchParams.page || 1;
-      searchParams.limit = searchParams.limit || 20;
+      // Create a new object to avoid mutation of the original params
+      const validatedSearchParams = {
+        ...searchParams,
+        page: searchParams.page || 1,
+        limit: searchParams.limit || 20
+      };
 
       // Validate pagination parameters
-      if (searchParams.page < 1) searchParams.page = 1;
-      if (searchParams.limit < 1 || searchParams.limit > 100) searchParams.limit = 20;
+      if (validatedSearchParams.page < 1) validatedSearchParams.page = 1;
+      if (validatedSearchParams.limit < 1 || validatedSearchParams.limit > 100) validatedSearchParams.limit = 20;
 
-      console.log('Search parameters received:', searchParams); // Debug logging
-      const result = await SearchService.searchDocuments(searchParams);
+      console.log('Search parameters received:', validatedSearchParams); // Debug logging
+      const result = await SearchService.searchDocuments(validatedSearchParams);
 
       res.status(200).json({
         success: true,

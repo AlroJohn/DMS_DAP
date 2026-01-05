@@ -22,6 +22,7 @@ import {
   CheckCircle,
   XCircle,
   RotateCcw,
+  AlertTriangle,
 } from "lucide-react";
 import { Table, Column } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
@@ -482,6 +483,15 @@ export function DataTableToolbar<TData>({
   const [isBulkRestoreOpen, setIsBulkRestoreOpen] = React.useState(false);
   const [isEmptyRecycleBinOpen, setIsEmptyRecycleBinOpen] =
     React.useState(false);
+  const [showWarning, setShowWarning] = React.useState(true);
+
+  // Check localStorage on mount to determine if warning should be shown
+  React.useEffect(() => {
+    const hidden = localStorage.getItem('recycleBinWarningHidden');
+    if (hidden === 'true') {
+      setShowWarning(false);
+    }
+  }, []);
 
   // Get selected rows
   const selectedRows = table.getFilteredSelectedRowModel().rows;
@@ -503,6 +513,13 @@ export function DataTableToolbar<TData>({
       viewType === "recycle-bin" ||
       viewType === "archive",
     department_id: currentUser?.department_id,
+  };
+
+  // Function to toggle warning visibility
+  const toggleWarning = () => {
+    const newShowWarning = !showWarning;
+    setShowWarning(newShowWarning);
+    localStorage.setItem('recycleBinWarningHidden', String(!newShowWarning));
   };
 
   const canEditDetails = canEditDocumentDetails(currentUser, effectiveDocument);
@@ -1217,14 +1234,29 @@ export function DataTableToolbar<TData>({
           )}
           {/* Show Empty Recycle Bin button for recycle-bin view and if user has delete permission */}
           {viewType === "recycle-bin" && canDelete && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setIsEmptyRecycleBinOpen(true)}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Empty Recycle Bin
-            </Button>
+            <>
+              <Button
+                variant={showWarning ? "outline" : "secondary"}
+                size="sm"
+                onClick={toggleWarning}
+                className="h-9 w-9 p-0"
+                aria-label={showWarning ? "Hide warning" : "Show warning"}
+              >
+                {showWarning ? (
+                  <X className="h-4 w-4" />
+                ) : (
+                  <AlertTriangle className="h-4 w-4" />
+                )}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setIsEmptyRecycleBinOpen(true)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Empty Recycle Bin
+              </Button>
+            </>
           )}
           {showUploadButton && canEditDoc && (
             <Button

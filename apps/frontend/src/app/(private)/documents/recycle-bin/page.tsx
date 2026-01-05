@@ -12,6 +12,15 @@ export default function RecycleBinPage() {
   const { documents, isLoading, error, refetch } = useRecycleBinDocuments(1, 100); // Use page 1 with high limit
   const { socket } = useSocket();
   const mountedRef = useRef(false);
+  const [showWarning, setShowWarning] = useState(true);
+
+  // Check localStorage on mount to determine if warning should be shown
+  useEffect(() => {
+    const hidden = localStorage.getItem('recycleBinWarningHidden');
+    if (hidden === 'true') {
+      setShowWarning(false);
+    }
+  }, []);
 
   // Mark component as mounted and clean up on unmount
   useEffect(() => {
@@ -55,22 +64,31 @@ export default function RecycleBinPage() {
     };
   }, [socket, safeRefetch]);
 
+  // Function to toggle warning visibility
+  const toggleWarning = () => {
+    const newShowWarning = !showWarning;
+    setShowWarning(newShowWarning);
+    localStorage.setItem('recycleBinWarningHidden', String(!newShowWarning));
+  };
+
   // Check if the error is authentication-related
   const isAuthError = error && error.includes('Authentication required');
 
   return (
     <div className="w-full flex h-full flex-col bg-background gap-2">
       {/* Warning Alert */}
-      <Alert className="border-orange-200 bg-orange-50">
-        <AlertTriangle className="h-4 w-4 text-orange-600" />
-        <AlertTitle className="text-orange-800">
-          Auto-deletion Notice
-        </AlertTitle>
-        <AlertDescription className="text-orange-700">
-          Documents in the recycle bin will be permanently deleted after 30
-          days.
-        </AlertDescription>
-      </Alert>
+      {showWarning && (
+        <Alert className="border-orange-200 bg-orange-50">
+          <AlertTriangle className="h-4 w-4 text-orange-600" />
+          <AlertTitle className="text-orange-800">
+            Auto-deletion Notice
+          </AlertTitle>
+          <AlertDescription className="text-orange-700">
+            Documents in the recycle bin will be permanently deleted after 30
+            days.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Error Alert */}
       {error && !isAuthError && (
