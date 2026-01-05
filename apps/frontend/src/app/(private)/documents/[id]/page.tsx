@@ -32,6 +32,7 @@ import {
   ExternalLink,
   Eye,
   FileText,
+  GitBranch,
   Hash,
   Loader2,
   Send,
@@ -57,7 +58,8 @@ export default function DocumentDetailPage() {
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
-  const [isRedirectingToList, setIsRedirectingToList] = useState(false);
+  const [selectedLeftVersion, setSelectedLeftVersion] = useState<string | null>(null);
+  const [selectedRightVersion, setSelectedRightVersion] = useState<string | null>(null);
   const { document, isLoading, error, refetch } = useDocumentDetail(documentId);
   const {
     files,
@@ -81,6 +83,19 @@ export default function DocumentDetailPage() {
     setIsSignatureModeOpen(modeParam === "signature");
     setIsSigningModeOpen(modeParam === "sign");
   }, [modeParam]);
+
+  // Initialize version comparison selectors when files are loaded
+  useEffect(() => {
+    if (files && files.length >= 2) {
+      // Set default values for version comparison
+      if (!selectedLeftVersion && files[0]) {
+        setSelectedLeftVersion(files[0].id);
+      }
+      if (!selectedRightVersion && files[1]) {
+        setSelectedRightVersion(files[1].id);
+      }
+    }
+  }, [files, selectedLeftVersion, selectedRightVersion]);
 
   useEffect(() => {
     router.prefetch(`/documents/${documentId}/view-documents`);
@@ -689,16 +704,55 @@ export default function DocumentDetailPage() {
                   <FileText className="h-5 w-5" />
                   Document Preview
                 </CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handlePreviewClick}
-                  disabled={!isPreviewSupported || filesLoading}
-                  className="max-w-[150px] md:max-w-[200px] truncate"
-                >
-                  <Eye className="mr-2 h-4 w-4" />
-                  <span className="truncate">{title}</span>
-                </Button>
+                <div className="flex items-center gap-2">
+                  {previewFile?.version && (
+                    <Badge variant="outline">
+                      Version {previewFile.version}
+                    </Badge>
+                  )}
+                  {files.length > 1 && (
+                    <select
+                      value={previewFile?.id || ''}
+                      onChange={(e) => {
+                        // Update the URL to show the selected file
+                        const newParams = new URLSearchParams(searchParams?.toString() || "");
+                        newParams.set('fileId', e.target.value);
+                        router.push(`/documents/${documentId}?${newParams.toString()}`);
+                      }}
+                      className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      {files
+                        .slice()
+                        .sort((a, b) => {
+                          // Sort by version number (e.g., 1.0, 1.1, 1.2, etc.)
+                          const aParts = a.version?.split('.').map(Number) || [0, 0];
+                          const bParts = b.version?.split('.').map(Number) || [0, 0];
+
+                          // Compare major version first
+                          if (aParts[0] !== bParts[0]) {
+                            return bParts[0] - aParts[0]; // Higher major version first
+                          }
+                          // Compare minor version
+                          return bParts[1] - aParts[1]; // Higher minor version first
+                        })
+                        .map((file) => (
+                          <option key={file.id} value={file.id}>
+                            v{file.version} - {file.name}
+                          </option>
+                        ))}
+                    </select>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handlePreviewClick}
+                    disabled={!isPreviewSupported || filesLoading}
+                    className="max-w-[150px] md:max-w-[200px] truncate"
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    <span className="truncate">{title}</span>
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col">
@@ -707,23 +761,45 @@ export default function DocumentDetailPage() {
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
               ) : previewFile && isPreviewSupported && previewBaseUrl ? (
-                <div
-                  className="flex-1 flex items-center justify-center overflow-hidden rounded-lg border bg-background min-h-[400px] md:min-h-[500px] lg:min-h-[650px] cursor-pointer"
-                  onClick={handlePreviewClick}
-                >
-                  {previewMime.startsWith("image/") ? (
-                    <img
-                      src={previewBaseUrl}
-                      alt={previewFile.name}
-                      className="max-h-full max-w-full object-contain"
-                    />
-                  ) : (
-                    <iframe
-                      src={`${previewBaseUrl}#toolbar=1&status=0`}
-                      title={previewFile.name}
-                      className="w-full h-full min-h-[400px] md:min-h-[500px] lg:min-h-[650px]"
-                    />
-                  )}
+                <div className="flex-1 flex flex-col">
+                  {/* Version info bar */}
+                  <div className="mb-2 flex items-center justify-between p-2 bg-muted rounded-t-md">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">File: {previewFile.name}</span>
+                      {previewFile.version && (
+                        <Badge variant="secondary" className="text-xs">
+                          v{previewFile.version}
+                        </Badge>
+                      )}
+                      {previewFile.isPrimary && (
+                        <Badge variant="default" className="text-xs">
+                          Primary
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Uploaded {formatDate(previewFile.uploadDate)}
+                    </div>
+                  </div>
+
+                  <div
+                    className="flex-1 flex items-center justify-center overflow-hidden rounded-b-lg border bg-background min-h-[400px] md:min-h-[500px] lg:min-h-[650px] cursor-pointer"
+                    onClick={handlePreviewClick}
+                  >
+                    {previewMime.startsWith("image/") ? (
+                      <img
+                        src={previewBaseUrl}
+                        alt={previewFile.name}
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    ) : (
+                      <iframe
+                        src={`${previewBaseUrl}#toolbar=1&status=0`}
+                        title={previewFile.name}
+                        className="w-full h-full min-h-[400px] md:min-h-[500px] lg:min-h-[650px]"
+                      />
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div
@@ -761,6 +837,89 @@ export default function DocumentDetailPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Version comparison section - appears when multiple versions exist */}
+        {files.length > 1 && (
+          <div className="space-y-2 lg:col-span-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <GitBranch className="h-4 w-4" />
+                  Compare Versions
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">Left Version</label>
+                    <select
+                      value={selectedLeftVersion || files[0]?.id || ''}
+                      onChange={(e) => setSelectedLeftVersion(e.target.value)}
+                      className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      {files
+                        .slice()
+                        .sort((a, b) => {
+                          // Sort by version number (e.g., 1.0, 1.1, 1.2, etc.)
+                          const aParts = a.version?.split('.').map(Number) || [0, 0];
+                          const bParts = b.version?.split('.').map(Number) || [0, 0];
+
+                          // Compare major version first
+                          if (aParts[0] !== bParts[0]) {
+                            return bParts[0] - aParts[0]; // Higher major version first
+                          }
+                          // Compare minor version
+                          return bParts[1] - aParts[1]; // Higher minor version first
+                        })
+                        .map((file) => (
+                          <option key={file.id} value={file.id}>
+                            v{file.version} - {file.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">Right Version</label>
+                    <select
+                      value={selectedRightVersion || files[1]?.id || ''}
+                      onChange={(e) => setSelectedRightVersion(e.target.value)}
+                      className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      {files
+                        .slice()
+                        .sort((a, b) => {
+                          // Sort by version number (e.g., 1.0, 1.1, 1.2, etc.)
+                          const aParts = a.version?.split('.').map(Number) || [0, 0];
+                          const bParts = b.version?.split('.').map(Number) || [0, 0];
+
+                          // Compare major version first
+                          if (aParts[0] !== bParts[0]) {
+                            return bParts[0] - aParts[0]; // Higher major version first
+                          }
+                          // Compare minor version
+                          return bParts[1] - aParts[1]; // Higher minor version first
+                        })
+                        .map((file) => (
+                          <option key={file.id} value={file.id}>
+                            v{file.version} - {file.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => router.push(`/documents/${documentId}/compare`)}
+                  >
+                    <GitBranch className="mr-2 h-4 w-4" />
+                    Open Full Comparison
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         <div className="space-y-2">
           <Card>
@@ -886,23 +1045,132 @@ export default function DocumentDetailPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Version History</CardTitle>
+              <CardTitle className="flex items-center justify-between">
+                <span>Version History</span>
+                <Badge variant="outline" className="text-xs">
+                  {new Set(files.filter(f => f.versionGroupId).map(f => f.versionGroupId)).size} versions
+                </Badge>
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between rounded border p-2">
-                  <div>
-                    <p className="text-sm font-medium">Version 1.0</p>
-                    <p className="text-xs text-muted-foreground">
-                      Current version
-                    </p>
-                  </div>
-                  <Badge variant="outline">Current</Badge>
-                </div>
-                <Button variant="outline" size="sm" className="w-full">
-                  <Clock className="mr-2 h-4 w-4" />
-                  View All Versions
-                </Button>
+              <div className="space-y-4">
+                {/* Group files by versionGroupId to show version history */}
+                {(() => {
+                  // Group files by versionGroupId
+                  const groupedFiles: Record<string, any[]> = {};
+                  files.forEach(file => {
+                    const groupId = file.versionGroupId || 'no-group';
+                    if (!groupedFiles[groupId]) {
+                      groupedFiles[groupId] = [];
+                    }
+                    groupedFiles[groupId].push(file);
+                  });
+
+                  // Get all unique version groups
+                  const versionGroups = Object.entries(groupedFiles);
+
+                  // Find the most recent file across all groups to identify the current version
+                  const allFilesSorted = [...files].sort((a, b) =>
+                    new Date(b.uploadDate || 0).getTime() - new Date(a.uploadDate || 0).getTime()
+                  );
+                  const currentFile = allFilesSorted[0];
+
+                  return (
+                    <div className="space-y-4">
+                      {/* Current version info */}
+                      {currentFile && (
+                        <div className="rounded-lg border bg-accent/30 p-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium">Current Version</p>
+                              <p className="text-sm">
+                                v{currentFile.version} • {currentFile.name}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Uploaded {formatDate(currentFile.uploadDate)}
+                              </p>
+                            </div>
+                            <Badge variant="default">Active</Badge>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Version timeline */}
+                      {versionGroups.length > 0 && (
+                        <div className="relative space-y-4 pl-6">
+                          {/* Timeline line */}
+                          <div className="absolute left-3 top-3 bottom-3 w-0.5 bg-border" />
+
+                          {versionGroups
+                            .sort(([groupIdA, groupFilesA], [groupIdB, groupFilesB]) => {
+                              // Sort groups by the upload date of their latest file
+                              const latestFileA = [...groupFilesA].sort((a, b) =>
+                                new Date(b.uploadDate || 0).getTime() - new Date(a.uploadDate || 0).getTime()
+                              )[0];
+                              const latestFileB = [...groupFilesB].sort((a, b) =>
+                                new Date(b.uploadDate || 0).getTime() - new Date(a.uploadDate || 0).getTime()
+                              )[0];
+
+                              return new Date(latestFileB.uploadDate || 0).getTime() -
+                                     new Date(latestFileA.uploadDate || 0).getTime();
+                            })
+                            .map(([groupId, groupFiles]) => {
+                              // Sort files within the group by version
+                              const sortedGroupFiles = [...groupFiles].sort((a, b) => {
+                                const aParts = a.version?.split('.').map(Number) || [0, 0];
+                                const bParts = b.version?.split('.').map(Number) || [0, 0];
+
+                                if (aParts[0] !== bParts[0]) {
+                                  return bParts[0] - aParts[0];
+                                }
+                                return bParts[1] - aParts[1];
+                              });
+
+                              // Get the most recent file in this group
+                              const latestFileInGroup = sortedGroupFiles[0];
+
+                              return (
+                                <div key={groupId} className="relative">
+                                  {/* Timeline dot */}
+                                  <div className="absolute -left-1.5 top-3.5 h-3 w-3 rounded-full border-2 border-primary bg-background" />
+
+                                  <div className={`rounded-lg border p-3 ${latestFileInGroup.id === currentFile?.id ? 'bg-primary/10 border-primary' : 'bg-background'}`}>
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <p className="font-medium">Version {latestFileInGroup.version}</p>
+                                        <p className="text-xs text-muted-foreground truncate max-w-[160px]">
+                                          {latestFileInGroup.name}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                          Uploaded {formatDate(latestFileInGroup.uploadDate)}
+                                        </p>
+                                      </div>
+                                      {latestFileInGroup.id === currentFile?.id && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          Current
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      )}
+
+                      {/* View all versions button */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full mt-2"
+                        onClick={() => router.push(`/documents/${documentId}/versions`)}
+                      >
+                        <Clock className="mr-2 h-4 w-4" />
+                        View All Versions
+                      </Button>
+                    </div>
+                  );
+                })()}
               </div>
             </CardContent>
           </Card>

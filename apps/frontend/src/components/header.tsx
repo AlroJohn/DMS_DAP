@@ -65,7 +65,7 @@ const Header = ({}: HeaderProps) => {
   const breadcrumbs = generateBreadcrumbs();
 
   return (
-    <header className="bg-muted/50 flex h-16 shrink-0 items-center border-b gap-2 transition-[width,height] ease-linear">
+    <header className="bg-[#f8f9fa] dark:bg-[#0f172a] flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear">
       <div className="flex items-center gap-2 px-4 w-full">
         <SidebarTrigger className="-ml-1" />
         <Separator
@@ -77,7 +77,7 @@ const Header = ({}: HeaderProps) => {
             <BreadcrumbList>
               {breadcrumbs.length === 0 ? (
                 <BreadcrumbItem>
-                  <BreadcrumbPage>Home</BreadcrumbPage>
+                  <BreadcrumbPage className="text-[#1a1a1a] dark:text-[#e6eef9]">Home</BreadcrumbPage>
                 </BreadcrumbItem>
               ) : (
                 breadcrumbs.map((crumb, index) => (
@@ -87,9 +87,9 @@ const Header = ({}: HeaderProps) => {
                     )}
                     <BreadcrumbItem className="hidden md:block">
                       {crumb.isLast ? (
-                        <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                        <BreadcrumbPage className="text-[#1a1a1a] dark:text-[#e6eef9]">{crumb.label}</BreadcrumbPage>
                       ) : (
-                        <BreadcrumbLink href={crumb.href}>
+                        <BreadcrumbLink href={crumb.href} className="text-[#1a1a1a] dark:text-[#e6eef9]">
                           {crumb.label}
                         </BreadcrumbLink>
                       )}
@@ -102,7 +102,7 @@ const Header = ({}: HeaderProps) => {
           <div className="flex items-center gap-4">
             {mounted && (
               <div className="hidden md:flex flex-col items-end text-sm">
-                <span className="font-medium">
+                <span className="font-medium text-[#1a1a1a] dark:text-[#e6eef9]">
                   {currentTime.toLocaleDateString("en-US", {
                     weekday: "short",
                     year: "numeric",
@@ -119,18 +119,18 @@ const Header = ({}: HeaderProps) => {
                 </span>
               </div>
             )}
-            
+
             {/* Notification Icon */}
             <Button
               variant="ghost"
               size="icon"
-              className="relative"
+              className="relative rounded-md bg-background shadow-sm hover:bg-accent/50"
               onClick={() => setNotificationOpen(true)}
             >
-              <Bell className="h-5 w-5" />
+              <Bell className="h-5 w-5 text-[#1a1a1a] dark:text-[#e6eef9]" />
               {unreadCount > 0 && (
-                <Badge 
-                  variant="destructive" 
+                <Badge
+                  variant="destructive"
                   className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-[10px] font-semibold"
                 >
                   {unreadCount > 9 ? '9+' : unreadCount}

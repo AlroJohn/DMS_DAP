@@ -70,6 +70,16 @@ export interface DocumentDetailView {
     mime_type: string;
     is_primary: boolean;
     downloadUrl: string;
+    version?: string;
+    uploadDate?: string;
+    file_size?: number;
+    version_group_id?: string;
+    uploaded_by_account?: {
+      user?: {
+        first_name: string;
+        last_name: string;
+      };
+    };
   }>;
   signedDocuments?: Array<{
     signed_document_id: string;
