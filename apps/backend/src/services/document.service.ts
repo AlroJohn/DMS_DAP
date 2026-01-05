@@ -3409,6 +3409,14 @@ export class DocumentService {
       },
     });
 
+    if (deleted.count > 0) {
+      const io = getSocketInstance();
+      io.emit('documentDeleted', {
+        documentIds: idsToDelete,
+        permanent: true,
+      });
+    }
+
     return deleted;
   }
 }

@@ -96,6 +96,15 @@ export function DataTable<T extends { [key: string]: any }>({
   searchPlaceholder = "Search...",
   addButtonText = "Add New",
 }: DataTableProps<T>) {
+  const filteredColumns = React.useMemo(
+    () =>
+      columns.filter((column) => {
+        const header = column.header.toLowerCase();
+        return header !== "security" && header !== "blockchain";
+      }),
+    [columns]
+  );
+
   return (
     <div className="container mx-auto py-10">
       <AlertModal {...alertModalProps} />
@@ -154,7 +163,7 @@ export function DataTable<T extends { [key: string]: any }>({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {columns.map((column, index) => (
+                    {filteredColumns.map((column, index) => (
                       <TableHead key={index}>{column.header}</TableHead>
                     ))}
                     <TableHead>Actions</TableHead>
@@ -164,7 +173,7 @@ export function DataTable<T extends { [key: string]: any }>({
                   {data.length > 0 ? (
                     data.map((item) => (
                       <TableRow key={item[idFieldName]}>
-                        {columns.map((column, index) => (
+                        {filteredColumns.map((column, index) => (
                           <TableCell key={index}>
                             {column.cell
                               ? column.cell(item)
@@ -204,7 +213,7 @@ export function DataTable<T extends { [key: string]: any }>({
                   ) : (
                     <TableRow>
                       <TableCell
-                        colSpan={columns.length + 1}
+                        colSpan={filteredColumns.length + 1}
                         className="text-center py-8 text-gray-500"
                       >
                         No data found

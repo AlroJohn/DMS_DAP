@@ -95,6 +95,7 @@ export function SignaturePdfViewer({
   const [activePage, setActivePage] = useState(1);
   const [isRendering, setIsRendering] = useState(false);
   const [boxes, setBoxes] = useState<SignatureBox[]>([]);
+  const [isPlacingBox, setIsPlacingBox] = useState(false);
 
   const RENDER_SCALE = 1.4;
 
@@ -217,22 +218,38 @@ export function SignaturePdfViewer({
 
   const handleAddBox = () => {
     if (!pages.length) return;
+    setIsPlacingBox((prev) => !prev);
+  };
+
+  const handlePlaceBox = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!isPlacingBox || !pages.length) return;
     const targetPage = pages.find((p) => p.pageNumber === activePage);
     if (!targetPage) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const clickY = event.clientY - rect.top;
 
     const defaultWidth = Math.min(180, targetPage.width * 0.4);
     const defaultHeight = Math.min(60, targetPage.height * 0.08);
 
+    const maxX = Math.max(0, targetPage.width - defaultWidth);
+    const maxY = Math.max(0, targetPage.height - defaultHeight);
+
+    const x = Math.min(Math.max(clickX - defaultWidth / 2, 0), maxX);
+    const y = Math.min(Math.max(clickY - defaultHeight / 2, 0), maxY);
+
     const newBox: SignatureBox = {
       id: createId(),
       pageNumber: targetPage.pageNumber,
-      x: (targetPage.width - defaultWidth) / 2,
-      y: (targetPage.height - defaultHeight) / 2,
+      x,
+      y,
       width: defaultWidth,
       height: defaultHeight,
     };
 
     setBoxes((prev) => [...prev, newBox]);
+    setIsPlacingBox(false);
   };
 
   const handleUpdatePosition = (id: string, x: number, y: number) => {
@@ -414,11 +431,12 @@ export function SignaturePdfViewer({
               </div>
             ) : (
               <div
-                className="relative"
+                className={cn("relative", isPlacingBox && "cursor-crosshair")}
                 style={{
                   width: activePageData.width,
                   height: activePageData.height,
                 }}
+                onClick={handlePlaceBox}
               >
                 <img
                   src={activePageData.imageUrl}
@@ -459,6 +477,8 @@ export function SignaturePdfViewer({
                           position.y
                         );
                       }}
+                      onMouseDown={(event) => event.stopPropagation()}
+                      onClick={(event) => event.stopPropagation()}
                       className={cn(
                         "absolute rounded-md border-2 border-primary/70 bg-primary/10 shadow-sm"
                       )}
@@ -498,6 +518,11 @@ export function SignaturePdfViewer({
                 Add one or more boxes where signers need to sign. You can drag
                 and resize them on the page.
               </p>
+              {isPlacingBox && (
+                <p className="text-xs text-primary">
+                  Click on the page to place the signature box.
+                </p>
+              )}
               <Button
                 type="button"
                 size="sm"
@@ -506,7 +531,7 @@ export function SignaturePdfViewer({
                 onClick={handleAddBox}
                 disabled={isRendering || !pages.length}
               >
-                Add Signature Box
+                {isPlacingBox ? "Cancel Placement" : "Add Signature Box"}
               </Button>
             </div>
 
@@ -592,4 +617,3 @@ export function SignaturePdfViewer({
     </Card>
   );
 }
-

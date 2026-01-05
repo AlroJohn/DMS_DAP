@@ -6,18 +6,8 @@ import { DataTableRowActions } from "@/components/reuseable/tables/data-table-ro
 import { DataTableColumnHeader } from "@/components/reuseable/tables/data-table-column-header";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import {
-  Calendar,
-  Copy,
-  User,
-  Building2,
-  Shield,
-} from "lucide-react";
+import { Calendar, Copy, User, Building2 } from "lucide-react";
 import { ScanCodes } from "@/components/ui/scan-codes";
-import { DocumentLockIcon } from "@/components/ui/document-lock-badge";
-import { OcrStatusIcon } from "@/components/ui/ocr-status-badge";
-import { FileIntegrityIcon } from "@/components/ui/file-integrity-badge";
-import { EncryptionIcon } from "@/components/ui/encryption-badge";
 
 // Define the ArchiveDocument type based on the actual API response
 // This is adapted from RecycleBinDocument structure which should be similar to what we need
@@ -39,19 +29,6 @@ export type ArchiveDocument = {
   deletedAt: string;
   restoredBy?: string;
   restoredAt?: string;
-  // Security fields
-  lockStatus?: "locked" | "available" | "locked_by_you";
-  lockedBy?: { id: string; name: string };
-  lockedAt?: string;
-  ocrStatus?: "processing" | "completed" | "failed" | "not_started" | "searchable";
-  ocrProgress?: number;
-  integrityStatus?: "verified" | "corrupted" | "unknown" | "checking";
-  checksum?: string;
-  encryptionStatus?: "encrypted" | "unencrypted" | "transit_only" | "encrypting";
-  blockchainStatus?: string | null;
-  blockchainProjectUuid?: string | null;
-  blockchainTxHash?: string | null;
-  signedAt?: string | null;
 };
 
 const formatText = (text: string): string => {
@@ -308,126 +285,6 @@ export const createArchiveColumns = ({
         ? (value as string[]).some((v) => String(v).toLowerCase() === status)
         : false;
     },
-  },
-  {
-    id: "blockchain",
-    accessorFn: (row) => row.blockchainStatus,
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Blockchain" />
-    ),
-    cell: ({ row }) => {
-      const data = row.original;
-      const status = data.blockchainStatus;
-
-      if (!status) {
-        return (
-          <span className="text-xs text-muted-foreground" title="Not signed">
-            Not signed
-          </span>
-        );
-      }
-
-      const statusConfig: {
-        [key: string]: { color: string; bgColor: string; label: string };
-      } = {
-        signed: {
-          color: "text-green-600",
-          bgColor: "bg-green-100",
-          label: "Signed",
-        },
-        pending: {
-          color: "text-yellow-600",
-          bgColor: "bg-yellow-100",
-          label: "Pending",
-        },
-        failed: {
-          color: "text-red-600",
-          bgColor: "bg-red-100",
-          label: "Failed",
-        },
-      };
-
-      const config = statusConfig[status] || {
-        color: "text-muted-foreground",
-        bgColor: "bg-gray-100",
-        label: status,
-      };
-
-      return (
-        <div className="flex flex-col gap-1">
-          <Badge
-            className={`${config.bgColor} ${config.color} border-0 text-xs px-1.5 py-0.5`}
-            variant="secondary"
-          >
-            <Shield className="h-2.5 w-2.5 mr-1" />
-            {config.label}
-          </Badge>
-          {data.blockchainTxHash && (
-            <span
-              className="text-[0.6rem] text-muted-foreground font-mono cursor-pointer hover:text-primary"
-              onClick={() => {
-                navigator.clipboard.writeText(data.blockchainTxHash!);
-                toast.success("Transaction hash copied to clipboard!");
-              }}
-              title={data.blockchainTxHash}
-            >
-              {data.blockchainTxHash.substring(0, 12)}...
-            </span>
-          )}
-        </div>
-      );
-    },
-    enableSorting: true,
-    filterFn: (row, id, value) => {
-      if (!value || (Array.isArray(value) && value.length === 0)) return true;
-      const status = String(row.getValue(id) ?? "unsigned").toLowerCase();
-      return Array.isArray(value)
-        ? (value as string[]).some((v) => String(v).toLowerCase() === status)
-        : false;
-    },
-  },
-  {
-    id: "security",
-    accessorFn: (row) => row,
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Security" />
-    ),
-    cell: ({ row }) => {
-      const data = row.original;
-
-      // Lock status
-      const lockStatus = data.lockStatus || "available";
-      const ocrStatus = data.ocrStatus || "not_started";
-      const integrityStatus = data.integrityStatus || "unknown";
-      const encryptionStatus = data.encryptionStatus || "transit_only";
-
-      return (
-        <div className="flex flex-col gap-1 py-1 min-w-[160px] max-w-[200px]">
-          <div className="flex items-center gap-2">
-            <DocumentLockIcon
-              status={lockStatus}
-              lockedBy={data.lockedBy}
-              lockedAt={data.lockedAt}
-            />
-            <span className="text-xs font-medium text-muted-foreground">Lock</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <OcrStatusIcon status={ocrStatus} progress={data.ocrProgress} />
-            <span className="text-xs font-medium text-muted-foreground">OCR</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <FileIntegrityIcon status={integrityStatus} checksum={data.checksum} />
-            <span className="text-xs font-medium text-muted-foreground">Integrity</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <EncryptionIcon status={encryptionStatus} />
-            <span className="text-xs font-medium text-muted-foreground">Encryption</span>
-          </div>
-        </div>
-      );
-    },
-    enableSorting: false,
-    enableHiding: true,
   },
   {
     id: "dates",

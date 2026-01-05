@@ -741,6 +741,14 @@ export class RecycleBinService {
 
       console.log('📍 [RecycleBinService.emptyRecycleBin] Permanently deleted', result.count, 'documents from recycle bin');
 
+      if (result.count > 0) {
+        const io = getSocketInstance();
+        io.emit('documentDeleted', {
+          documentIds: documentsInRecycleBin.map(doc => doc.document_id),
+          permanent: true,
+        });
+      }
+
       // Create a system log for this bulk operation
       try {
         // Create trails without creating a circular dependency by using prisma directly

@@ -69,6 +69,23 @@ export function DataTable<TData, TValue>({
   isLoading = false, // Default to false to maintain existing behavior
   onSign,
 }: DataTableProps<TData, TValue>) {
+  const filteredColumns = React.useMemo(
+    () =>
+      columns.filter((column) => {
+        const columnId = (column as { id?: string }).id?.toLowerCase();
+        if (columnId === "security" || columnId === "blockchain") {
+          return false;
+        }
+        const header = column.header;
+        if (typeof header === "string") {
+          const normalized = header.toLowerCase();
+          return normalized !== "security" && normalized !== "blockchain";
+        }
+        return true;
+      }),
+    [columns]
+  );
+
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>(initialState?.columnVisibility || {});
@@ -90,7 +107,7 @@ export function DataTable<TData, TValue>({
 
   const table = useReactTable({
     data,
-    columns,
+    columns: filteredColumns,
     state: {
       sorting,
       columnVisibility,
@@ -177,7 +194,7 @@ export function DataTable<TData, TValue>({
               // Show loading state when data is being fetched
               <TableRow>
                 <TableCell
-                  colSpan={columns.length}
+                  colSpan={filteredColumns.length}
                   className="h-24 text-center"
                 >
                   <div className="flex items-center justify-center py-8">
@@ -207,7 +224,7 @@ export function DataTable<TData, TValue>({
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length}
+                  colSpan={filteredColumns.length}
                   className="h-24 text-center"
                 >
                   <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">

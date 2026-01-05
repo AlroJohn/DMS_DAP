@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import bwipjs from 'bwip-js';
 import { DocumentService } from './document.service';
 import { DocumentTrailsService } from './document-trails.service';
+import { getSocketInstance } from '../socket';
 
 export class ArchiveService {
   private documentService: DocumentService;
@@ -67,6 +68,16 @@ export class ArchiveService {
           created_at: new Date(),
           updated_at: new Date()
         }
+      });
+
+      const io = getSocketInstance();
+      io.emit('documentArchived', {
+        documentId,
+        archived_at: archivedDoc.deleted_at,
+      });
+      io.emit('documentUpdated', {
+        documentId,
+        status: archivedDoc.status,
       });
 
       return archivedDoc;
@@ -139,6 +150,16 @@ export class ArchiveService {
           created_at: new Date(),
           updated_at: new Date()
         }
+      });
+
+      const io = getSocketInstance();
+      io.emit('documentRestored', {
+        documentId,
+        restored_at: restoredDoc.restored_at,
+      });
+      io.emit('documentUpdated', {
+        documentId,
+        status: restoredDoc.status,
       });
 
       return restoredDoc;

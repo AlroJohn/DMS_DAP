@@ -84,7 +84,7 @@ import {
   canArchiveDocument,
   canDeleteDocument,
   hasAnyPermission,
-  hasPermission
+  hasPermission,
 } from "@/lib/document-permissions";
 
 import {
@@ -261,9 +261,8 @@ export function DataTableViewOptions<TData>({
   table,
 }: DataTableViewOptionsProps<TData>) {
   const resetToDefault = () => {
-    // Reset to default column visibility (hide security and dates columns)
+    // Reset to default column visibility (hide dates column)
     table.setColumnVisibility({
-      security: false,
       dates: false,
     });
   };
@@ -285,9 +284,11 @@ export function DataTableViewOptions<TData>({
         <DropdownMenuSeparator />
         {table
           .getAllColumns()
+          .filter((column) => column.getCanHide())
           .filter(
             (column) =>
-              typeof column.accessorFn !== "undefined" && column.getCanHide()
+              column.id.toLowerCase() !== "security" &&
+              column.id.toLowerCase() !== "blockchain"
           )
           .map((column) => {
             return (
@@ -451,14 +452,20 @@ interface DataTableToolbarProps<TData> {
   table: Table<TData>;
   excludedFilters?: string[]; // New prop
   showUploadButton?: boolean; // Prop to control upload button visibility
-  viewType?: 'document' | 'owned' | 'shared' | 'outgoing' | 'archive' | 'recycle-bin'; // View type to control which actions are shown
+  viewType?:
+    | "document"
+    | "owned"
+    | "shared"
+    | "outgoing"
+    | "archive"
+    | "recycle-bin"; // View type to control which actions are shown
 }
 
 export function DataTableToolbar<TData>({
   table,
   excludedFilters = [],
   showUploadButton = false, // Default to false to maintain existing behavior
-  viewType = 'document', // Default to document view
+  viewType = "document", // Default to document view
 }: DataTableToolbarProps<TData>) {
   const router = useRouter();
   const { user: currentUser } = useAuth();
@@ -473,7 +480,8 @@ export function DataTableToolbar<TData>({
   const [isBulkCompleteOpen, setIsBulkCompleteOpen] = React.useState(false);
   const [isBulkCancelOpen, setIsBulkCancelOpen] = React.useState(false);
   const [isBulkRestoreOpen, setIsBulkRestoreOpen] = React.useState(false);
-  const [isEmptyRecycleBinOpen, setIsEmptyRecycleBinOpen] = React.useState(false);
+  const [isEmptyRecycleBinOpen, setIsEmptyRecycleBinOpen] =
+    React.useState(false);
 
   // Get selected rows
   const selectedRows = table.getFilteredSelectedRowModel().rows;
@@ -488,9 +496,13 @@ export function DataTableToolbar<TData>({
   const effectiveDocument = {
     id: "",
     documentId: "",
-    status: viewType === 'outgoing' ? 'outgoing' : 'active',
-    isOwned: viewType === 'owned' || viewType === 'document' || viewType === 'recycle-bin' || viewType === 'archive',
-    department_id: currentUser?.department_id
+    status: viewType === "outgoing" ? "outgoing" : "active",
+    isOwned:
+      viewType === "owned" ||
+      viewType === "document" ||
+      viewType === "recycle-bin" ||
+      viewType === "archive",
+    department_id: currentUser?.department_id,
   };
 
   const canEditDetails = canEditDocumentDetails(currentUser, effectiveDocument);
@@ -511,7 +523,7 @@ export function DataTableToolbar<TData>({
       const documentIds = selectedRows
         .map((row) => {
           const item = row.original as Record<string, unknown>;
-          return typeof item.id === 'string' ? item.id : undefined;
+          return typeof item.id === "string" ? item.id : undefined;
         })
         .filter((id): id is string => id !== undefined && id.length > 0);
 
@@ -522,36 +534,40 @@ export function DataTableToolbar<TData>({
 
       // Process each document individually using the same endpoint as single delete
       const results = await Promise.allSettled(
-        documentIds.map(id =>
+        documentIds.map((id) =>
           fetch(`/api/documents/${id}`, {
-            method: 'DELETE',
+            method: "DELETE",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
-            credentials: 'include',
+            credentials: "include",
           })
         )
       );
 
       // Count successful operations
-      const successfulCount = results.filter(result =>
-        result.status === 'fulfilled' && result.value.ok
+      const successfulCount = results.filter(
+        (result) => result.status === "fulfilled" && result.value.ok
       ).length;
 
       if (successfulCount > 0) {
-        toast.success(`${successfulCount} document(s) moved to recycle bin successfully.`);
+        toast.success(
+          `${successfulCount} document(s) moved to recycle bin successfully.`
+        );
       }
 
       // Handle any failures
       const failedCount = results.length - successfulCount;
       if (failedCount > 0) {
-        toast.error(`${failedCount} document(s) failed to move to recycle bin.`);
+        toast.error(
+          `${failedCount} document(s) failed to move to recycle bin.`
+        );
       }
 
       table.toggleAllRowsSelected(false); // Clear selection
     } catch (error: any) {
-      console.error('Error moving documents to recycle bin:', error);
-      toast.error('Failed to move documents to recycle bin');
+      console.error("Error moving documents to recycle bin:", error);
+      toast.error("Failed to move documents to recycle bin");
     } finally {
       setIsBulkDeleteOpen(false);
     }
@@ -565,7 +581,7 @@ export function DataTableToolbar<TData>({
       const documentIds = selectedRows
         .map((row) => {
           const item = row.original as Record<string, unknown>;
-          return typeof item.id === 'string' ? item.id : undefined;
+          return typeof item.id === "string" ? item.id : undefined;
         })
         .filter((id): id is string => id !== undefined && id.length > 0);
 
@@ -576,20 +592,20 @@ export function DataTableToolbar<TData>({
 
       // Process each document individually using the same endpoint as single cancel
       const results = await Promise.allSettled(
-        documentIds.map(id =>
+        documentIds.map((id) =>
           fetch(`/api/documents/${id}/cancel`, {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
-            credentials: 'include',
+            credentials: "include",
           })
         )
       );
 
       // Count successful operations
-      const successfulCount = results.filter(result =>
-        result.status === 'fulfilled' && result.value.ok
+      const successfulCount = results.filter(
+        (result) => result.status === "fulfilled" && result.value.ok
       ).length;
 
       if (successfulCount > 0) {
@@ -604,8 +620,8 @@ export function DataTableToolbar<TData>({
 
       table.toggleAllRowsSelected(false); // Clear selection
     } catch (error: any) {
-      console.error('Error cancelling documents:', error);
-      toast.error('Failed to cancel documents');
+      console.error("Error cancelling documents:", error);
+      toast.error("Failed to cancel documents");
     } finally {
       setIsBulkCancelOpen(false);
     }
@@ -619,7 +635,7 @@ export function DataTableToolbar<TData>({
       const documentIds = selectedRows
         .map((row) => {
           const item = row.original as Record<string, unknown>;
-          return typeof item.id === 'string' ? item.id : undefined;
+          return typeof item.id === "string" ? item.id : undefined;
         })
         .filter((id): id is string => id !== undefined && id.length > 0);
 
@@ -630,20 +646,20 @@ export function DataTableToolbar<TData>({
 
       // Process each document individually using the same endpoint as single archive
       const results = await Promise.allSettled(
-        documentIds.map(id =>
+        documentIds.map((id) =>
           fetch(`/api/archive/${id}/archive`, {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
-            credentials: 'include',
+            credentials: "include",
           })
         )
       );
 
       // Count successful operations
-      const successfulCount = results.filter(result =>
-        result.status === 'fulfilled' && result.value.ok
+      const successfulCount = results.filter(
+        (result) => result.status === "fulfilled" && result.value.ok
       ).length;
 
       if (successfulCount > 0) {
@@ -658,8 +674,8 @@ export function DataTableToolbar<TData>({
 
       table.toggleAllRowsSelected(false); // Clear selection
     } catch (error: any) {
-      console.error('Error archiving documents:', error);
-      toast.error('Failed to archive documents');
+      console.error("Error archiving documents:", error);
+      toast.error("Failed to archive documents");
     } finally {
       setIsBulkArchiveOpen(false);
     }
@@ -673,7 +689,7 @@ export function DataTableToolbar<TData>({
       const documentIds = selectedRows
         .map((row) => {
           const item = row.original as Record<string, unknown>;
-          return typeof item.id === 'string' ? item.id : undefined;
+          return typeof item.id === "string" ? item.id : undefined;
         })
         .filter((id): id is string => id !== undefined && id.length > 0);
 
@@ -684,20 +700,20 @@ export function DataTableToolbar<TData>({
 
       // Process each document individually using the same endpoint as single complete
       const results = await Promise.allSettled(
-        documentIds.map(id =>
+        documentIds.map((id) =>
           fetch(`/api/documents/${id}/complete`, {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
-            credentials: 'include',
+            credentials: "include",
           })
         )
       );
 
       // Count successful operations
-      const successfulCount = results.filter(result =>
-        result.status === 'fulfilled' && result.value.ok
+      const successfulCount = results.filter(
+        (result) => result.status === "fulfilled" && result.value.ok
       ).length;
 
       if (successfulCount > 0) {
@@ -712,8 +728,8 @@ export function DataTableToolbar<TData>({
 
       table.toggleAllRowsSelected(false); // Clear selection
     } catch (error: any) {
-      console.error('Error completing documents:', error);
-      toast.error('Failed to complete documents');
+      console.error("Error completing documents:", error);
+      toast.error("Failed to complete documents");
     } finally {
       setIsBulkCompleteOpen(false);
     }
@@ -728,8 +744,12 @@ export function DataTableToolbar<TData>({
         .map((row) => {
           const item = row.original as Record<string, unknown>;
           // For archive and recycle-bin views, we might have document_id instead of id
-          const id = typeof item.id === 'string' ? item.id :
-                    typeof item.document_id === 'string' ? item.document_id : undefined;
+          const id =
+            typeof item.id === "string"
+              ? item.id
+              : typeof item.document_id === "string"
+              ? item.document_id
+              : undefined;
           return id;
         })
         .filter((id): id is string => id !== undefined && id.length > 0);
@@ -740,34 +760,44 @@ export function DataTableToolbar<TData>({
       }
 
       // For recycle-bin view, use the bulk restore endpoint
-      if (viewType === 'recycle-bin') {
-        const response = await fetch('/api/documents/recycle-bin/bulk-restore', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({ documentIds })
-        });
+      if (viewType === "recycle-bin") {
+        const response = await fetch(
+          "/api/documents/recycle-bin/bulk-restore",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            credentials: "include",
+            body: JSON.stringify({ documentIds }),
+          }
+        );
 
         if (!response.ok) {
           // Try to get error details from response
-          let errorData: { error?: { message?: string }; message?: string } = {};
+          let errorData: { error?: { message?: string }; message?: string } =
+            {};
           try {
             errorData = await response.json();
           } catch (parseError) {
             // If JSON parsing fails, try to get text
             try {
               const errorText = await response.text();
-              console.error('Raw error response:', errorText);
-              errorData = { message: errorText || `HTTP Error ${response.status}` };
+              console.error("Raw error response:", errorText);
+              errorData = {
+                message: errorText || `HTTP Error ${response.status}`,
+              };
             } catch (textError) {
               errorData = { message: `HTTP Error ${response.status}` };
             }
           }
 
-          console.error('Bulk restore error response:', errorData);
-          throw new Error(errorData.error?.message || errorData.message || `Failed to restore documents from recycle bin (Status: ${response.status})`);
+          console.error("Bulk restore error response:", errorData);
+          throw new Error(
+            errorData.error?.message ||
+              errorData.message ||
+              `Failed to restore documents from recycle bin (Status: ${response.status})`
+          );
         }
 
         const data = await response.json();
@@ -775,25 +805,27 @@ export function DataTableToolbar<TData>({
       } else {
         // For archive view, use the existing individual restore endpoints
         const results = await Promise.allSettled(
-          documentIds.map(id => {
+          documentIds.map((id) => {
             const endpoint = `/api/archive/${id}/restore`;
             return fetch(endpoint, {
-              method: 'POST',
+              method: "POST",
               headers: {
-                'Content-Type': 'application/json',
+                "Content-Type": "application/json",
               },
-              credentials: 'include',
+              credentials: "include",
             });
           })
         );
 
         // Count successful operations
-        const successfulCount = results.filter(result =>
-          result.status === 'fulfilled' && result.value.ok
+        const successfulCount = results.filter(
+          (result) => result.status === "fulfilled" && result.value.ok
         ).length;
 
         if (successfulCount > 0) {
-          toast.success(`${successfulCount} document(s) restored successfully.`);
+          toast.success(
+            `${successfulCount} document(s) restored successfully.`
+          );
         }
 
         // Handle any failures
@@ -805,8 +837,8 @@ export function DataTableToolbar<TData>({
 
       table.toggleAllRowsSelected(false); // Clear selection
     } catch (error: any) {
-      console.error('Error restoring documents:', error);
-      toast.error(error.message || 'Failed to restore documents');
+      console.error("Error restoring documents:", error);
+      toast.error(error.message || "Failed to restore documents");
     } finally {
       setIsBulkRestoreOpen(false);
     }
@@ -815,26 +847,33 @@ export function DataTableToolbar<TData>({
   const handleEmptyRecycleBin = async () => {
     try {
       // Call the new empty recycle bin endpoint directly
-      const response = await fetch('/api/documents/recycle-bin', {
-        method: 'DELETE',
+      const response = await fetch("/api/documents/recycle-bin", {
+        method: "DELETE",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        credentials: 'include',
+        credentials: "include",
       });
 
       if (!response.ok) {
-        const errorData: { error?: { message?: string }; message?: string } = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to empty recycle bin');
+        const errorData: { error?: { message?: string }; message?: string } =
+          await response.json();
+        throw new Error(
+          errorData.error?.message || "Failed to empty recycle bin"
+        );
       }
 
       const data = await response.json();
-      toast.success(`Recycle bin emptied successfully. ${data.count || 0} document(s) permanently deleted.`);
+      toast.success(
+        `Recycle bin emptied successfully. ${
+          data.count || 0
+        } document(s) permanently deleted.`
+      );
       // Refresh the table after emptying
       window.location.reload(); // Simple refresh for now
     } catch (error: any) {
-      console.error('Error emptying recycle bin:', error);
-      toast.error(error.message || 'Failed to empty recycle bin');
+      console.error("Error emptying recycle bin:", error);
+      toast.error(error.message || "Failed to empty recycle bin");
     } finally {
       setIsEmptyRecycleBinOpen(false);
     }
@@ -898,7 +937,8 @@ export function DataTableToolbar<TData>({
           <DialogHeader>
             <DialogTitle>Confirm Bulk Delete</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete {selectedRows.length} document(s)? This action cannot be undone.
+              Are you sure you want to delete {selectedRows.length} document(s)?
+              This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -908,10 +948,7 @@ export function DataTableToolbar<TData>({
             >
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleBulkDelete}
-            >
+            <Button variant="destructive" onClick={handleBulkDelete}>
               Delete
             </Button>
           </DialogFooter>
@@ -923,7 +960,8 @@ export function DataTableToolbar<TData>({
           <DialogHeader>
             <DialogTitle>Confirm Bulk Archive</DialogTitle>
             <DialogDescription>
-              Are you sure you want to archive {selectedRows.length} document(s)?
+              Are you sure you want to archive {selectedRows.length}{" "}
+              document(s)?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -933,11 +971,7 @@ export function DataTableToolbar<TData>({
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleBulkArchive}
-            >
-              Archive
-            </Button>
+            <Button onClick={handleBulkArchive}>Archive</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -947,7 +981,8 @@ export function DataTableToolbar<TData>({
           <DialogHeader>
             <DialogTitle>Confirm Bulk Complete</DialogTitle>
             <DialogDescription>
-              Are you sure you want to complete {selectedRows.length} document(s)?
+              Are you sure you want to complete {selectedRows.length}{" "}
+              document(s)?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -957,11 +992,7 @@ export function DataTableToolbar<TData>({
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleBulkComplete}
-            >
-              Complete
-            </Button>
+            <Button onClick={handleBulkComplete}>Complete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -981,10 +1012,7 @@ export function DataTableToolbar<TData>({
             >
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleBulkCancel}
-            >
+            <Button variant="destructive" onClick={handleBulkCancel}>
               Cancel
             </Button>
           </DialogFooter>
@@ -996,7 +1024,8 @@ export function DataTableToolbar<TData>({
           <DialogHeader>
             <DialogTitle>Confirm Bulk Restore</DialogTitle>
             <DialogDescription>
-              Are you sure you want to restore {selectedRows.length} document(s) from archive?
+              Are you sure you want to restore {selectedRows.length} document(s)
+              from archive?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1006,21 +1035,21 @@ export function DataTableToolbar<TData>({
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleBulkRestore}
-            >
-              Restore
-            </Button>
+            <Button onClick={handleBulkRestore}>Restore</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
       {/* Empty Recycle Bin Confirmation Dialog */}
-      <Dialog open={isEmptyRecycleBinOpen} onOpenChange={setIsEmptyRecycleBinOpen}>
+      <Dialog
+        open={isEmptyRecycleBinOpen}
+        onOpenChange={setIsEmptyRecycleBinOpen}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Confirm Empty Recycle Bin</DialogTitle>
             <DialogDescription>
-              Are you sure you want to permanently delete all documents in the recycle bin? This action cannot be undone.
+              Are you sure you want to permanently delete all documents in the
+              recycle bin? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1030,10 +1059,7 @@ export function DataTableToolbar<TData>({
             >
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleEmptyRecycleBin}
-            >
+            <Button variant="destructive" onClick={handleEmptyRecycleBin}>
               Empty Recycle Bin
             </Button>
           </DialogFooter>
@@ -1091,7 +1117,7 @@ export function DataTableToolbar<TData>({
           {hasSelection && (
             <div className="flex gap-2">
               {/* Show Complete only in shared view and if user has permission */}
-              {viewType === 'shared' && canComplete && (
+              {viewType === "shared" && canComplete && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -1102,7 +1128,7 @@ export function DataTableToolbar<TData>({
                 </Button>
               )}
               {/* Show Cancel and Archive in outgoing view and if user has permissions */}
-              {viewType === 'outgoing' && (
+              {viewType === "outgoing" && (
                 <>
                   {canCancel && (
                     <Button
@@ -1127,7 +1153,7 @@ export function DataTableToolbar<TData>({
                 </>
               )}
               {/* Show Archive and Delete in document and owned views and if user has permissions */}
-              {(viewType === 'document' || viewType === 'owned') && (
+              {(viewType === "document" || viewType === "owned") && (
                 <>
                   {canArchive && (
                     <Button
@@ -1153,20 +1179,21 @@ export function DataTableToolbar<TData>({
                 </>
               )}
               {/* Show Restore in archive and recycle-bin views and if user has permission */}
-              {(viewType === 'archive' || viewType === 'recycle-bin') && canArchive && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsBulkRestoreOpen(true)}
-                >
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Restore
-                </Button>
-              )}
+              {(viewType === "archive" || viewType === "recycle-bin") &&
+                canArchive && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsBulkRestoreOpen(true)}
+                  >
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Restore
+                  </Button>
+                )}
             </div>
           )}
           {/* Show Transmit button only if not in recycle-bin view and user has release permission */}
-          {viewType !== 'recycle-bin' && canRelease && (
+          {viewType !== "recycle-bin" && canRelease && (
             <Button
               variant="default"
               size="sm"
@@ -1176,7 +1203,11 @@ export function DataTableToolbar<TData>({
                   return;
                 }
                 setSelectedDocuments(selectedRows.map((row) => row.original));
-                toast.info(`Preparing to transmit ${selectedRows.length} document${selectedRows.length !== 1 ? 's' : ''}`);
+                toast.info(
+                  `Preparing to transmit ${selectedRows.length} document${
+                    selectedRows.length !== 1 ? "s" : ""
+                  }`
+                );
                 setBulkTransmitOpen(true);
               }}
             >
@@ -1185,7 +1216,7 @@ export function DataTableToolbar<TData>({
             </Button>
           )}
           {/* Show Empty Recycle Bin button for recycle-bin view and if user has delete permission */}
-          {viewType === 'recycle-bin' && canDelete && (
+          {viewType === "recycle-bin" && canDelete && (
             <Button
               variant="destructive"
               size="sm"

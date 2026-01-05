@@ -57,10 +57,6 @@ export default function ArchivePage() {
       restoredBy: d.restoredBy || d.restored_by || undefined,
       restoredAt: d.restoredAt || d.restored_at || undefined,
       // Add security related fields if they exist
-      blockchainStatus: d.blockchainStatus || d.blockchain_status || null,
-      blockchainProjectUuid: d.blockchainProjectUuid || undefined,
-      blockchainTxHash: d.blockchainTxHash || undefined,
-      signedAt: d.signedAt || d.signed_at || undefined,
       lockStatus: d.lockStatus || d.lock_status || undefined,
       lockedBy: d.lockedBy || d.locked_by || undefined,
       lockedAt: d.lockedAt || d.locked_at || undefined,
@@ -155,7 +151,6 @@ export default function ArchivePage() {
         viewType="archive"
         initialState={{
           columnVisibility: {
-            security: false,
             dates: false,
           },
         }}

@@ -265,6 +265,19 @@ export function SigningPdfViewer({
     toast.success("Signature draft saved.");
   };
 
+  const handleClearDraft = () => {
+    if (!selectedPlaceholder) return;
+    const placeholderId = selectedPlaceholder.placeholder_id;
+    setPlacedSignatures((prev) => {
+      if (!prev[placeholderId]) return prev;
+      const next = { ...prev };
+      delete next[placeholderId];
+      return next;
+    });
+    setSignatureData(null);
+    toast.success("Signature draft cleared.");
+  };
+
   const handleConfirmSignature = async () => {
     if (!selectedFile) return;
 
@@ -426,6 +439,9 @@ export function SigningPdfViewer({
   const pendingCount = filePlaceholders.length;
   const hasDrafts = Object.keys(placedSignatures).length > 0;
   const hasCurrentSignature = Boolean(selectedPlaceholder && signatureData);
+  const hasSelectedDraft = selectedPlaceholder
+    ? Boolean(placedSignatures[selectedPlaceholder.placeholder_id])
+    : false;
 
   return (
     <Card className="h-full w-full min-h-[600px] flex flex-col border-primary/40">
@@ -605,6 +621,14 @@ export function SigningPdfViewer({
               disabled={!selectedPlaceholder || !signatureData || isSaving}
             >
               Save Draft
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClearDraft}
+              disabled={!selectedPlaceholder || !hasSelectedDraft || isSaving}
+            >
+              Clear Draft
             </Button>
             <Button
               size="sm"

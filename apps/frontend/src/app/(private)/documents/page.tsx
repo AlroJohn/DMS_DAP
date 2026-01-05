@@ -83,6 +83,8 @@ export default function DocumentsPage() {
     socket.on('documentAdded', handleDocumentAdded);
     socket.on('documentUpdated', handleDocumentUpdated);
     socket.on('documentDeleted', handleDocumentDeleted);
+    socket.on('documentArchived', handleDocumentUpdated);
+    socket.on('documentRestored', handleDocumentUpdated);
     socket.on('documentShared', handleDocumentAdded); // Refetch when documents are shared
     socket.on('documentAddedToUser', handleDocumentAdded); // Refetch when a document is specifically shared to this user
     socket.on('documentUploadCompleted', handleDocumentAdded); // Also refetch on upload completion
@@ -92,6 +94,10 @@ export default function DocumentsPage() {
       socket.off("documentAdded", handleDocumentAdded);
       socket.off("documentUpdated", handleDocumentUpdated);
       socket.off("documentDeleted", handleDocumentDeleted);
+      socket.off("documentArchived", handleDocumentUpdated);
+      socket.off("documentRestored", handleDocumentUpdated);
+      socket.off("documentShared", handleDocumentAdded);
+      socket.off("documentAddedToUser", handleDocumentAdded);
       socket.off("documentUploadCompleted", handleDocumentAdded);
     };
   }, [socket, refetch]);
@@ -128,7 +134,6 @@ export default function DocumentsPage() {
         viewType="document"
         initialState={{
           columnVisibility: {
-            security: false,
             dates: false,
           },
         }}

@@ -102,7 +102,6 @@ export default function RecycleBinPage() {
         viewType="recycle-bin"
         initialState={{
           columnVisibility: {
-            security: false,
             dates: false,
           },
         }}

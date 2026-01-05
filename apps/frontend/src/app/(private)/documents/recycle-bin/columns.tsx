@@ -6,15 +6,7 @@ import { DataTableRowActions } from "@/components/reuseable/tables/data-table-ro
 import { DataTableColumnHeader } from "@/components/reuseable/tables/data-table-column-header";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import {
-  Calendar,
-  Copy,
-  User,
-  Building2,
-  Shield,
-  RotateCcw,
-  Trash2,
-} from "lucide-react";
+import { Calendar, Copy, User, Building2, RotateCcw, Trash2 } from "lucide-react";
 import { ScanCodes } from "@/components/ui/scan-codes";
 import { DateTime } from "@/components/wrapper/DateTime";
 
@@ -37,19 +29,6 @@ export type RecycleBinDocument = {
   deletedAt: string;
   restoredBy?: string;
   restoredAt?: string;
-  // Security fields
-  lockStatus?: "locked" | "available" | "locked_by_you";
-  lockedBy?: { id: string; name: string };
-  lockedAt?: string;
-  ocrStatus?: "processing" | "completed" | "failed" | "not_started" | "searchable";
-  ocrProgress?: number;
-  integrityStatus?: "verified" | "corrupted" | "unknown" | "checking";
-  checksum?: string;
-  encryptionStatus?: "encrypted" | "unencrypted" | "transit_only" | "encrypting";
-  blockchainStatus?: string | null;
-  blockchainProjectUuid?: string | null;
-  blockchainTxHash?: string | null;
-  signedAt?: string | null;
 };
 
 const formatText = (text: string): string => {
@@ -317,7 +296,7 @@ export const columns: ColumnDef<RecycleBinDocument, unknown>[] = [
     ),
     cell: ({ row }) => {
       const data = row.original;
-      
+
       return (
         <div className="flex flex-col gap-1 text-xs">
           <div className="flex items-center gap-1.5">

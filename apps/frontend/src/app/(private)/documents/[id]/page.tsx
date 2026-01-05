@@ -57,6 +57,7 @@ export default function DocumentDetailPage() {
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
+  const [isRedirectingToList, setIsRedirectingToList] = useState(false);
   const { document, isLoading, error, refetch } = useDocumentDetail(documentId);
   const {
     files,
@@ -292,8 +293,11 @@ export default function DocumentDetailPage() {
   };
 
   const handleSigned = () => {
+    if (isRedirectingToList) return;
     toast.success("Document signed successfully");
     refetch();
+    setIsRedirectingToList(true);
+    router.push("/documents");
   };
 
   const releaseWithSignaturesMutation = useMutation({
@@ -545,6 +549,14 @@ export default function DocumentDetailPage() {
   if (isSigningModeOpen) {
     return (
       <div className="flex flex-col gap-2 p-1 md:p-2 lg:p-4 mx-auto w-full pb-2">
+        {isRedirectingToList && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+            <div className="flex items-center gap-2 rounded-md border bg-white/90 px-4 py-3 text-sm text-muted-foreground shadow-lg">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Returning to documents…</span>
+            </div>
+          </div>
+        )}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
