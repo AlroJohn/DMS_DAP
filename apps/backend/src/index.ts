@@ -97,6 +97,8 @@ app.use(compression());
 app.use(cors({
   origin: securityConfig.cors.allowedOrigins,
   credentials: securityConfig.cors.credentials,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'Cookie'],
 }));
 
 // Rate limiting
@@ -140,8 +142,10 @@ app.get('/health', (req, res) => {
 });
 
 // API routes - clean layered architecture
+// Mount auth routes (including profile update)
 app.use('/api/auth', authRoutes);
-app.use('/api/auth', oauthRoutes);
+// Mount OAuth routes under a different path to avoid conflicts
+app.use('/api/oauth', oauthRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/files', documentCheckoutRoutes);
 app.use('/api/documents', documentReleaseRoutes);
