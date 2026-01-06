@@ -2628,7 +2628,7 @@ export class DocumentService {
       const updatedDocument = await prisma.document.update({
         where: { document_id: documentId },
         data: {
-          status: 'canceled',
+          status: 'dispatch',
           updated_at: new Date()
         }
       });
