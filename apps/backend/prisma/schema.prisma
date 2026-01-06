@@ -20,7 +20,6 @@ model Account {
   created_at                 DateTime             @default(now())
   updated_at                 DateTime             @default(now()) @updatedAt
   department                 Department?          @relation(fields: [department_id], references: [department_id])
-  // documents_checked_out      Document[]           @relation("DocumentCheckedOutBy")
   documents_restored         Document[]           @relation("DocumentRestoredBy")
   document_files             DocumentFile[]       @relation("AccountUploadedFiles")
   password_reset_tokens      PasswordResetToken[]
@@ -31,12 +30,12 @@ model Account {
   saved_searches             SavedSearch[]
   session_logs               SessionLog[]
   user                       User?
+  userCheckouts              UserCheckout[]
   UserFeedback               UserFeedback[]
   sent_invitations           UserInvitation[]
   user_permissions_granted   UserPermission[]     @relation("UserPermissionGrantedBy")
   user_role_assignments      UserRole[]           @relation("UserRoleAssignedBy")
   sessions                   UserSession[]
-  userCheckouts              UserCheckout[]
 }
 
 model User {
@@ -50,18 +49,18 @@ model User {
   title                      String?
   type                       String?
   avatar                     String?
-  signature                  String?                    @db.Text // Base64 encoded signature
+  signature                  String?
   active                     Boolean                    @default(true)
   created_at                 DateTime                   @default(now())
   updated_at                 DateTime                   @default(now()) @updatedAt
+  document_trails            DocumentTrail[]
   notifications              Notification[]
   notification_subscriptions NotificationSubscription[]
   permission_audit_target    PermissionAuditLog[]       @relation("PermissionAuditTargetUser")
+  signed_documents           SignedDocument[]
   account                    Account                    @relation(fields: [account_id], references: [account_id], onDelete: Cascade)
   user_permissions           UserPermission[]
   user_roles                 UserRole[]
-  signed_documents           SignedDocument[]
-  document_trails            DocumentTrail[]
 }
 
 model Department {
@@ -73,9 +72,9 @@ model Department {
   created_by    String           @db.Uuid
   updated_at    DateTime         @default(now()) @updatedAt
   Account       Account[]
-  invitations   UserInvitation[]
   from_trails   DocumentTrail[]  @relation("FromDepartment")
   to_trails     DocumentTrail[]  @relation("ToDepartment")
+  invitations   UserInvitation[]
 }
 
 model Document {
@@ -92,32 +91,27 @@ model Document {
   deleted_at                DateTime?
   restored_at               DateTime?
   restored_by               String?                     @db.Uuid
-  // checked_out_at            DateTime?
-  // checked_out_by            String?                     @db.Uuid
-  // checked_out_by_account    Account?                    @relation("DocumentCheckedOutBy", fields: [checked_out_by], references: [account_id])
   restored_by_account       Account?                    @relation("DocumentRestoredBy", fields: [restored_by], references: [account_id])
   DocumentAdditionalDetails DocumentAdditionalDetails[]
   files                     DocumentFile[]              @relation("DocumentFiles")
-
-  document_trails        DocumentTrail[]
-  // account                   Account?                    @relation(fields: [accountAccount_id], references: [account_id])
-  signedDocuments        SignedDocument[]
-  signature_placeholders SignaturePlaceholder[]
+  document_trails           DocumentTrail[]
+  signature_placeholders    SignaturePlaceholder[]
+  signedDocuments           SignedDocument[]
 }
 
 model DocumentAdditionalDetails {
   detail_id                   String    @id @default(uuid()) @db.Uuid
   document_id                 String    @db.Uuid
-  received_by                 String?   @db.Uuid // User ID who received/acknowledged the document
-  work_flow_id                Json? // Array of department IDs tracking document routing path: [first:, dest_dept_1_id, second:dest_dept_2_id, ...]. First element is the originating department.
-  received_by_department_user Json? // Array of user IDs that have received/acknowledged this document: [first:"user_id_1", second:"user_id_2"...]. first element is the originating department user.
-  work_flow_status            Json? // Object tracking the status of each document in the workflow: {created:("at:"datetime", status:"dispatch"), released_1:("at:"datetime", status:"intransit"), released_2:("at:"datetime", status:"intransit")..., received:("at:"datetime", status:"received"), completed:("at:"datetime", status:"completed")}
-  blockchain_project_uuid     String? // DOCONCHAIN project UUID after signing
-  blockchain_tx_hash          String? // Blockchain transaction hash
-  blockchain_status           String? // Signing status: 'pending', 'signed', 'failed', null
-  blockchain_redirect_url     String? // URL to launch DocOnChain signing session
-  signed_at                   DateTime? // Timestamp when document was signed
-  signed_by                   String?   @db.Uuid // User ID who signed the document
+  received_by                 String?   @db.Uuid
+  work_flow_id                Json?
+  received_by_department_user Json?
+  work_flow_status            Json?
+  blockchain_project_uuid     String?
+  blockchain_tx_hash          String?
+  blockchain_status           String?
+  blockchain_redirect_url     String?
+  signed_at                   DateTime?
+  signed_by                   String?   @db.Uuid
   remarks                     String?
   deleted_by                  String?   @db.Uuid
   restored_by                 String?   @db.Uuid
@@ -150,30 +144,28 @@ model DocumentAction {
   action_date         DateTime              @default(now())
   created_at          DateTime              @default(now())
   updated_at          DateTime              @default(now()) @updatedAt
-  required_permission PermissionDefinition? @relation(fields: [permission_id], references: [permission_id])
   permission_id       String?               @db.Uuid
+  required_permission PermissionDefinition? @relation(fields: [permission_id], references: [permission_id])
   document_trails     DocumentTrail[]
 }
 
 model DocumentTrail {
-  trail_id        String   @id @default(uuid()) @db.Uuid
-  document_id     String   @db.Uuid
-  action_id       String?  @db.Uuid
-  from_department String?  @db.Uuid
-  to_department   String?  @db.Uuid
-  user_id         String?  @db.Uuid // User who performed the action
-  action_date     DateTime @default(now())
-  status          String // Current status after this action (e.g., 'dispatch', 'intransit', 'received', 'completed')
+  trail_id        String          @id @default(uuid()) @db.Uuid
+  document_id     String          @db.Uuid
+  action_id       String?         @db.Uuid
+  from_department String?         @db.Uuid
+  to_department   String?         @db.Uuid
+  user_id         String?         @db.Uuid
+  action_date     DateTime        @default(now())
+  status          String
   remarks         String?
-  created_at      DateTime @default(now())
-  updated_at      DateTime @default(now()) @updatedAt
-
-  // Relations
-  document       Document        @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
-  documentAction DocumentAction? @relation(fields: [action_id], references: [document_action_id], onDelete: SetNull)
-  fromDept       Department?     @relation("FromDepartment", fields: [from_department], references: [department_id])
-  toDept         Department?     @relation("ToDepartment", fields: [to_department], references: [department_id])
-  user           User?           @relation(fields: [user_id], references: [user_id])
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @default(now()) @updatedAt
+  documentAction  DocumentAction? @relation(fields: [action_id], references: [document_action_id])
+  document        Document        @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
+  fromDept        Department?     @relation("FromDepartment", fields: [from_department], references: [department_id])
+  toDept          Department?     @relation("ToDepartment", fields: [to_department], references: [department_id])
+  user            User?           @relation(fields: [user_id], references: [user_id])
 }
 
 model DocumentMetadata {
@@ -199,7 +191,6 @@ model DocumentMetadata {
 
 model DocumentFile {
   checkout               Boolean                @default(false)
-  checked_out_by         UserCheckout[]
   file_id                String                 @id @default(uuid()) @db.Uuid
   document_id            String                 @db.Uuid
   original_name          String
@@ -213,12 +204,13 @@ model DocumentFile {
   uploaded_by            String                 @db.Uuid
   uploaded_at            DateTime               @default(now())
   updated_at             DateTime               @default(now()) @updatedAt
-  version_group_id       String?                @db.Uuid // UUID to group related versions of the same document
+  version_group_id       String?                @db.Uuid
   Document               Document               @relation("DocumentFiles", fields: [document_id], references: [document_id], onDelete: Cascade)
   uploaded_by_account    Account                @relation("AccountUploadedFiles", fields: [uploaded_by], references: [account_id])
   DocumentMetadata       DocumentMetadata?
-  signed_documents       SignedDocument[]
   signature_placeholders SignaturePlaceholder[]
+  signed_documents       SignedDocument[]
+  checked_out_by         UserCheckout[]
 
   @@index([document_id])
   @@index([uploaded_by])
@@ -237,20 +229,20 @@ model UserCheckout {
 model SignedDocument {
   signed_document_id  String        @id @default(uuid()) @db.Uuid
   document_id         String        @db.Uuid
-  signee_id           String        @db.Uuid // User ID who signed
-  x_position          Float // X coordinate position on the page
-  y_position          Float // Y coordinate position on the page
-  width               Float // Width of the signature area
-  height              Float // Height of the signature area
-  page_number         Int // Page number where signature is placed
-  signature_data      String?       @db.Text // Base64 encoded signature image (optional, can use user's default signature)
-  signed_at           DateTime      @default(now()) // Timestamp when signed
+  signee_id           String        @db.Uuid
+  x_position          Float
+  y_position          Float
+  width               Float
+  height              Float
+  page_number         Int
+  signature_data      String?
+  signed_at           DateTime      @default(now())
   created_at          DateTime      @default(now())
   updated_at          DateTime      @default(now()) @updatedAt
+  documentFileFile_id String?       @db.Uuid
+  documentFile        DocumentFile? @relation(fields: [documentFileFile_id], references: [file_id])
   document            Document      @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
   signee              User          @relation(fields: [signee_id], references: [user_id], onDelete: Cascade)
-  documentFile        DocumentFile? @relation(fields: [documentFileFile_id], references: [file_id])
-  documentFileFile_id String?       @db.Uuid
 
   @@index([document_id])
   @@index([signee_id])
@@ -258,18 +250,17 @@ model SignedDocument {
 }
 
 model SignaturePlaceholder {
-  placeholder_id   String   @id @default(uuid()) @db.Uuid
-  document_id      String   @db.Uuid
-  document_file_id String   @db.Uuid
+  placeholder_id   String       @id @default(uuid()) @db.Uuid
+  document_id      String       @db.Uuid
+  document_file_id String       @db.Uuid
   x_position       Float
   y_position       Float
   width            Float
   height           Float
   page_number      Int
-  created_at       DateTime @default(now())
-
-  document     Document     @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
-  documentFile DocumentFile @relation(fields: [document_file_id], references: [file_id], onDelete: Cascade)
+  created_at       DateTime     @default(now())
+  documentFile     DocumentFile @relation(fields: [document_file_id], references: [file_id], onDelete: Cascade)
+  document         Document     @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
 
   @@index([document_id])
   @@index([document_file_id])
@@ -353,10 +344,10 @@ model PermissionDefinition {
   is_active             Boolean              @default(true)
   created_at            DateTime             @default(now())
   updated_at            DateTime             @default(now()) @updatedAt
+  documentActions       DocumentAction[]
   permission_audit_logs PermissionAuditLog[]
   role_permissions      RolePermission[]
   user_permissions      UserPermission[]
-  documentActions       DocumentAction[]
 }
 
 model RolePermission {
@@ -533,10 +524,11 @@ enum DocStatus {
   dispatch
   received
   intransit
+  intransit_signature
+  signed
   completed
   deleted
   archive
-  // checked_out
 }
 
 enum IntransitStatus {

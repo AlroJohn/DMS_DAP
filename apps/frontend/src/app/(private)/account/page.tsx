@@ -73,7 +73,47 @@ export default function AccountPage() {
         }),
       })
 
-      const result = await response.json()
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type')
+      let result;
+
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          result = await response.json()
+        } catch (e) {
+          console.error('JSON parsing error:', e)
+          console.error('Response status:', response.status)
+          console.error('Response headers:', [...response.headers.entries()])
+
+          // If JSON parsing fails, create a default result object
+          result = {
+            success: response.ok,
+            error: { message: 'Invalid JSON response from server' }
+          }
+        }
+      } else {
+        // If not JSON, create a default result object
+        try {
+          const text = await response.text()
+          console.error('Non-JSON response received:', text)
+          console.error('Response status:', response.status)
+          console.error('Response headers:', [...response.headers.entries()])
+
+          result = {
+            success: response.ok,
+            error: { message: text || 'Response not in JSON format' }
+          }
+        } catch (e) {
+          console.error('Text parsing error:', e)
+          console.error('Response status:', response.status)
+
+          // If text parsing also fails, create a basic result
+          result = {
+            success: response.ok,
+            error: { message: 'Unable to read response from server' }
+          }
+        }
+      }
 
       if (!response.ok || !result.success) {
         throw new Error(result.error?.message || 'Failed to update profile')
@@ -211,7 +251,47 @@ export default function AccountPage() {
         }),
       })
 
-      const result = await response.json()
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type')
+      let result;
+
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          result = await response.json()
+        } catch (e) {
+          console.error('JSON parsing error:', e)
+          console.error('Response status:', response.status)
+          console.error('Response headers:', [...response.headers.entries()])
+
+          // If JSON parsing fails, create a default result object
+          result = {
+            success: response.ok,
+            error: { message: 'Invalid JSON response from server' }
+          }
+        }
+      } else {
+        // If not JSON, create a default result object
+        try {
+          const text = await response.text()
+          console.error('Non-JSON response received:', text)
+          console.error('Response status:', response.status)
+          console.error('Response headers:', [...response.headers.entries()])
+
+          result = {
+            success: response.ok,
+            error: { message: text || 'Response not in JSON format' }
+          }
+        } catch (e) {
+          console.error('Text parsing error:', e)
+          console.error('Response status:', response.status)
+
+          // If text parsing also fails, create a basic result
+          result = {
+            success: response.ok,
+            error: { message: 'Unable to read response from server' }
+          }
+        }
+      }
 
       if (!response.ok || !result.success) {
         throw new Error(result.error?.message || 'Failed to save signature')
@@ -249,7 +329,47 @@ export default function AccountPage() {
         }),
       })
 
-      const result = await response.json()
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type')
+      let result;
+
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          result = await response.json()
+        } catch (e) {
+          console.error('JSON parsing error:', e)
+          console.error('Response status:', response.status)
+          console.error('Response headers:', [...response.headers.entries()])
+
+          // If JSON parsing fails, create a default result object
+          result = {
+            success: response.ok,
+            error: { message: 'Invalid JSON response from server' }
+          }
+        }
+      } else {
+        // If not JSON, create a default result object
+        try {
+          const text = await response.text()
+          console.error('Non-JSON response received:', text)
+          console.error('Response status:', response.status)
+          console.error('Response headers:', [...response.headers.entries()])
+
+          result = {
+            success: response.ok,
+            error: { message: text || 'Response not in JSON format' }
+          }
+        } catch (e) {
+          console.error('Text parsing error:', e)
+          console.error('Response status:', response.status)
+
+          // If text parsing also fails, create a basic result
+          result = {
+            success: response.ok,
+            error: { message: 'Unable to read response from server' }
+          }
+        }
+      }
 
       if (!response.ok || !result.success) {
         throw new Error(result.error?.message || 'Failed to clear signature')
