@@ -220,6 +220,41 @@ export class DocumentService {
     }
   }
 
+  private async generateDocumentCode(departmentId: string): Promise<string> {
+    const department = await prisma.department.findUnique({
+      where: { department_id: departmentId },
+      select: { code: true }
+    });
+
+    const rawCode = department?.code?.trim();
+    if (!rawCode) {
+      throw new Error('Department code not found');
+    }
+
+    const prefix = rawCode.toUpperCase();
+    const year = new Date().getFullYear();
+    const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const maxAttempts = 5;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const suffix = Array.from({ length: 4 }, () =>
+        charset[crypto.randomInt(0, charset.length)]
+      ).join('');
+      const candidate = `${prefix}-${year}-${suffix}`;
+
+      const existing = await prisma.document.findUnique({
+        where: { document_code: candidate },
+        select: { document_id: true }
+      });
+
+      if (!existing) {
+        return candidate;
+      }
+    }
+
+    throw new Error('Unable to generate unique document code');
+  }
+
   /**
    * Get documents owned by a user (documents originated by their department - first in workflow)
    */
@@ -326,9 +361,6 @@ export class DocumentService {
           where: {
             document_id: {
               in: relevantDocumentIds
-            },
-            status: {
-              notIn: ['deleted', 'intransit', 'dispatch', 'archive']
             }
           },
           skip,
@@ -338,9 +370,6 @@ export class DocumentService {
           where: {
             document_id: {
               in: relevantDocumentIds
-            },
-            status: {
-              notIn: ['deleted', 'intransit', 'dispatch', 'archive']
             }
           }
         })
@@ -1320,8 +1349,8 @@ export class DocumentService {
       throw new Error('User account context missing');
     }
 
-    // Generate unique document code
-    const documentCode = `DOC-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+    // Generate unique document code (department-based)
+    const documentCode = await this.generateDocumentCode(user.department_id);
 
     // Create the document
     const document = await prisma.document.create({
@@ -1924,11 +1953,13 @@ export class DocumentService {
     }
 
     // Create the document
+    const documentCode = await this.generateDocumentCode(user.department_id);
+
     const document = await prisma.document.create({
       data: {
         title: documentData.document_name,
         description: documentData.description || null,
-        document_code: `DOC-${Date.now()}`, // Generate unique code
+        document_code: documentCode,
         document_type: documentData.type_id || 'General',
         classification: documentData.classification,
         origin: documentData.origin,

@@ -125,11 +125,113 @@ export function SigningPdfViewer({
       enabled: !!documentId,
     });
 
+  const { data: signatures = [], refetch: refetchSignatures } = useQuery({
+    queryKey: ["document-signatures", documentId],
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/document-signatures/documents/${documentId}/signatures`
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch signatures");
+      }
+      return response.json() as Promise<
+        Array<{
+          document_file_id?: string;
+          documentFileFile_id?: string;
+          documentFile?: { file_id?: string };
+          page_number: number;
+          x_position: number;
+          y_position: number;
+          width: number;
+          height: number;
+          signature_data?: string | null;
+        }>
+      >;
+    },
+    enabled: !!documentId,
+  });
+
   // Filter placeholders for the selected file
   const filePlaceholders = useMemo(() => {
     if (!selectedFileId) return [];
     return placeholders.filter((p) => p.document_file_id === selectedFileId);
   }, [placeholders, selectedFileId]);
+
+  const normalizedSignatures = useMemo(() => {
+    return signatures.map((signature) => ({
+      fileId:
+        signature.document_file_id ||
+        signature.documentFileFile_id ||
+        signature.documentFile?.file_id ||
+        "",
+      pageNumber: signature.page_number,
+      x: signature.x_position,
+      y: signature.y_position,
+      width: signature.width,
+      height: signature.height,
+      signatureData: signature.signature_data || null,
+    }));
+  }, [signatures]);
+
+  const signedPlaceholderIds = useMemo(() => {
+    const ids = new Set<string>();
+    const EPSILON = 0.5;
+
+    for (const placeholder of placeholders) {
+      const signatureMatch = normalizedSignatures.find((signature) => {
+        if (!signature.fileId) return false;
+        if (signature.fileId !== placeholder.document_file_id) return false;
+        if (signature.pageNumber !== placeholder.page_number) return false;
+        return (
+          Math.abs(signature.x - placeholder.x_position) <= EPSILON &&
+          Math.abs(signature.y - placeholder.y_position) <= EPSILON &&
+          Math.abs(signature.width - placeholder.width) <= EPSILON &&
+          Math.abs(signature.height - placeholder.height) <= EPSILON
+        );
+      });
+
+      if (signatureMatch) {
+        ids.add(placeholder.placeholder_id);
+      }
+    }
+
+    return ids;
+  }, [normalizedSignatures, placeholders]);
+
+  const signatureDataByPlaceholderId = useMemo(() => {
+    const map = new Map<string, string>();
+    const EPSILON = 0.5;
+
+    for (const placeholder of placeholders) {
+      const signatureMatch = normalizedSignatures.find((signature) => {
+        if (!signature.fileId) return false;
+        if (signature.fileId !== placeholder.document_file_id) return false;
+        if (signature.pageNumber !== placeholder.page_number) return false;
+        return (
+          Math.abs(signature.x - placeholder.x_position) <= EPSILON &&
+          Math.abs(signature.y - placeholder.y_position) <= EPSILON &&
+          Math.abs(signature.width - placeholder.width) <= EPSILON &&
+          Math.abs(signature.height - placeholder.height) <= EPSILON
+        );
+      });
+
+      if (signatureMatch?.signatureData) {
+        map.set(placeholder.placeholder_id, signatureMatch.signatureData);
+      }
+    }
+
+    return map;
+  }, [normalizedSignatures, placeholders]);
+
+  useEffect(() => {
+    if (
+      selectedPlaceholder &&
+      signedPlaceholderIds.has(selectedPlaceholder.placeholder_id)
+    ) {
+      setSelectedPlaceholder(null);
+      setSignatureData(null);
+    }
+  }, [selectedPlaceholder, signedPlaceholderIds]);
 
   useEffect(() => {
     if (!selectedFile) {
@@ -251,6 +353,10 @@ export function SigningPdfViewer({
   }, [filePlaceholders, pages.length]); // Run when placeholders or pages load
 
   const handlePlaceholderClick = (placeholder: SignaturePlaceholder) => {
+    if (signedPlaceholderIds.has(placeholder.placeholder_id)) {
+      toast.info("This placeholder already has a signature.");
+      return;
+    }
     setSelectedPlaceholder(placeholder);
   };
 
@@ -387,12 +493,43 @@ export function SigningPdfViewer({
         );
       }
 
+      if (!user?.user_id) {
+        throw new Error("User information missing for signature tracking.");
+      }
+
+      await Promise.all(
+        Object.entries(pendingSignatures).map(([placeholderId, dataUrl]) => {
+          const placeholder = placeholderById.get(placeholderId);
+          if (!placeholder) return Promise.resolve();
+
+          return fetch(
+            `/api/document-signatures/documents/${documentId}/place-signature`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({
+                signee_id: user.user_id,
+                document_file_id: placeholder.document_file_id,
+                page_number: placeholder.page_number,
+                x_position: placeholder.x_position,
+                y_position: placeholder.y_position,
+                width: placeholder.width,
+                height: placeholder.height,
+                signature_data: dataUrl,
+              }),
+            }
+          );
+        })
+      );
+
       toast.success("All signature drafts saved to the existing file.");
 
       setPlacedSignatures({});
       setSignatureData(null);
       setSelectedPlaceholder(null);
 
+      refetchSignatures();
       onSigned();
     } catch (error: any) {
       console.error("Failed to save signed PDF", error);
@@ -504,15 +641,21 @@ export function SigningPdfViewer({
               </div>
             ) : (
               filePlaceholders.map((p, i) => (
+                (() => {
+                  const isSigned = signedPlaceholderIds.has(p.placeholder_id);
+                  return (
                 <Button
                   key={p.placeholder_id}
                   variant="outline"
                   size="sm"
                   className="justify-start text-xs h-auto py-2 whitespace-normal text-left"
+                  disabled={isSigned}
                   onClick={() => {
-                    setSelectedPlaceholder(p);
-                    if (p.page_number !== activePage) {
-                      setActivePage(p.page_number);
+                    if (!isSigned) {
+                      setSelectedPlaceholder(p);
+                      if (p.page_number !== activePage) {
+                        setActivePage(p.page_number);
+                      }
                     }
                   }}
                 >
@@ -521,8 +664,15 @@ export function SigningPdfViewer({
                     <span className="text-[10px] text-muted-foreground">
                       Page {p.page_number}
                     </span>
+                    {isSigned && (
+                      <span className="text-[10px] text-emerald-600">
+                        Signed
+                      </span>
+                    )}
                   </div>
                 </Button>
+                  );
+                })()
               ))
             )}
           </div>
@@ -549,13 +699,20 @@ export function SigningPdfViewer({
                 {filePlaceholders
                   .filter((p) => p.page_number === activePage)
                   .map((placeholder) => {
+                    const signedData = signatureDataByPlaceholderId.get(
+                      placeholder.placeholder_id
+                    );
                     const overlaySignature =
+                      signedData ||
                       (selectedPlaceholder &&
                         signatureData &&
                         selectedPlaceholder.placeholder_id ===
                           placeholder.placeholder_id &&
                         signatureData) ||
                       placedSignatures[placeholder.placeholder_id];
+                    const isSigned = signedPlaceholderIds.has(
+                      placeholder.placeholder_id
+                    );
 
                     return (
                       <div
@@ -568,7 +725,12 @@ export function SigningPdfViewer({
                           height: placeholder.height * RENDER_SCALE,
                           zIndex: 10, // Ensure it's on top
                         }}
-                        className="group cursor-pointer rounded-md border-2 border-dashed border-yellow-500 bg-yellow-500/20 hover:bg-yellow-500/40 transition-all flex items-center justify-center"
+                        className={cn(
+                          "group rounded-md border-2 border-dashed transition-all flex items-center justify-center",
+                          isSigned
+                            ? "border-emerald-500 bg-emerald-500/15 cursor-not-allowed"
+                            : "border-yellow-500 bg-yellow-500/20 hover:bg-yellow-500/40 cursor-pointer"
+                        )}
                         onClick={(e) => {
                           e.stopPropagation(); // Prevent bubbling
                           handlePlaceholderClick(placeholder);
@@ -583,7 +745,9 @@ export function SigningPdfViewer({
                         ) : (
                           <div className="flex flex-col items-center gap-1 text-yellow-700 font-bold bg-white/80 px-2 py-1 rounded shadow-sm animate-pulse">
                             <PenLine className="h-4 w-4" />
-                            <span className="text-[10px]">Sign Here</span>
+                            <span className="text-[10px]">
+                              {isSigned ? "Signed" : "Sign Here"}
+                            </span>
                           </div>
                         )}
                       </div>

@@ -73,6 +73,7 @@ import { CreateDocumentModal } from "@/components/modals/create-document-modal";
 import { UploadDocumentModal } from "@/app/(private)/documents/[id]/components/upload-document-modal";
 import { DocumentFiltersModal } from "@/components/modals/document-filters-modal";
 import { useAuth } from "@/hooks/use-auth";
+import { useRecycleBin } from "@/context/recycle-bin-context";
 import {
   canViewDocuments,
   canEditDocumentDetails,
@@ -485,13 +486,15 @@ export function DataTableToolbar<TData>({
     React.useState(false);
   const [showWarning, setShowWarning] = React.useState(true);
 
-  // Check localStorage on mount to determine if warning should be shown
+  // Check localStorage on mount to determine if warning should be shown (for non-recycle-bin views)
   React.useEffect(() => {
-    const hidden = localStorage.getItem('recycleBinWarningHidden');
-    if (hidden === 'true') {
-      setShowWarning(false);
+    if (viewType !== "recycle-bin") {
+      const hidden = localStorage.getItem('recycleBinWarningHidden');
+      if (hidden === 'true') {
+        setShowWarning(false);
+      }
     }
-  }, []);
+  }, [viewType]);
 
   // Get selected rows
   const selectedRows = table.getFilteredSelectedRowModel().rows;
@@ -515,12 +518,37 @@ export function DataTableToolbar<TData>({
     department_id: currentUser?.department_id,
   };
 
-  // Function to toggle warning visibility
+  // Function to toggle warning visibility - only for recycle-bin view
   const toggleWarning = () => {
-    const newShowWarning = !showWarning;
-    setShowWarning(newShowWarning);
-    localStorage.setItem('recycleBinWarningHidden', String(!newShowWarning));
+    if (viewType === "recycle-bin") {
+      // For recycle-bin view, we'll update localStorage directly
+      // The actual context update will happen in the recycle bin page
+      const hidden = localStorage.getItem('recycleBinWarningHidden');
+      const newShowWarning = hidden !== 'true';
+      const toggleValue = !newShowWarning;
+      localStorage.setItem('recycleBinWarningHidden', String(!toggleValue));
+
+      // Dispatch a storage event to trigger updates in other tabs
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'recycleBinWarningHidden',
+        oldValue: hidden,
+        newValue: String(!toggleValue),
+      }));
+
+      // Dispatch a custom event to trigger updates in the same tab
+      window.dispatchEvent(new CustomEvent('recycleBinWarningChange'));
+    } else {
+      // For non-recycle-bin views, just update local state
+      const newShowWarning = !showWarning;
+      setShowWarning(newShowWarning);
+      localStorage.setItem('recycleBinWarningHidden', String(!newShowWarning));
+    }
   };
+
+  // Determine warning visibility based on localStorage
+  const currentShowWarning = viewType === "recycle-bin"
+    ? localStorage.getItem('recycleBinWarningHidden') !== 'true'
+    : showWarning;
 
   const canEditDetails = canEditDocumentDetails(currentUser, effectiveDocument);
   const canEditDoc = canEditDocument(currentUser, effectiveDocument);
@@ -1236,13 +1264,13 @@ export function DataTableToolbar<TData>({
           {viewType === "recycle-bin" && canDelete && (
             <>
               <Button
-                variant={showWarning ? "outline" : "secondary"}
+                variant={currentShowWarning ? "outline" : "secondary"}
                 size="sm"
                 onClick={toggleWarning}
                 className="h-9 w-9 p-0"
-                aria-label={showWarning ? "Hide warning" : "Show warning"}
+                aria-label={currentShowWarning ? "Hide warning" : "Show warning"}
               >
-                {showWarning ? (
+                {currentShowWarning ? (
                   <X className="h-4 w-4" />
                 ) : (
                   <AlertTriangle className="h-4 w-4" />

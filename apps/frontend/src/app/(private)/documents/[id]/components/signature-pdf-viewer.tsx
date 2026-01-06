@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Rnd } from "react-rnd";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf";
+import { useQuery } from "@tanstack/react-query";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ export interface SignatureBox {
   y: number;
   width: number;
   height: number;
+  isExisting?: boolean;
 }
 
 interface SignaturePdfViewerProps {
@@ -98,6 +100,56 @@ export function SignaturePdfViewer({
   const [isPlacingBox, setIsPlacingBox] = useState(false);
 
   const RENDER_SCALE = 1.4;
+
+  const { data: placeholders = [] } = useQuery({
+    queryKey: ["signature-placeholders", documentId],
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/document-signatures/documents/${documentId}/signature-placeholders`
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch signature placeholders");
+      }
+      return response.json() as Promise<
+        Array<{
+          placeholder_id: string;
+          document_file_id: string;
+          page_number: number;
+          x_position: number;
+          y_position: number;
+          width: number;
+          height: number;
+        }>
+      >;
+    },
+    enabled: Boolean(documentId),
+  });
+
+  const existingBoxes = useMemo(() => {
+    if (!selectedFileId) return [];
+    return placeholders
+      .filter((placeholder) => placeholder.document_file_id === selectedFileId)
+      .map((placeholder) => ({
+        id: placeholder.placeholder_id,
+        pageNumber: placeholder.page_number,
+        x: placeholder.x_position * RENDER_SCALE,
+        y: placeholder.y_position * RENDER_SCALE,
+        width: placeholder.width * RENDER_SCALE,
+        height: placeholder.height * RENDER_SCALE,
+        isExisting: true,
+      }));
+  }, [placeholders, selectedFileId]);
+
+  useEffect(() => {
+    if (!selectedFileId) return;
+    setBoxes((prev) => {
+      const existingIds = new Set(existingBoxes.map((box) => box.id));
+      const pending = prev.filter(
+        (box) => !box.isExisting && !existingIds.has(box.id)
+      );
+      return [...existingBoxes, ...pending];
+    });
+  }, [existingBoxes, selectedFileId]);
 
   useEffect(() => {
     if (!selectedFile) {
@@ -246,6 +298,7 @@ export function SignaturePdfViewer({
       y,
       width: defaultWidth,
       height: defaultHeight,
+      isExisting: false,
     };
 
     setBoxes((prev) => [...prev, newBox]);
@@ -283,12 +336,13 @@ export function SignaturePdfViewer({
       return;
     }
 
-    if (boxes.length === 0) {
-      toast.error("No signature positions added. Please add at least one signature position before confirming.");
+    const newBoxes = boxes.filter((box) => !box.isExisting);
+    if (newBoxes.length === 0) {
+      toast.error("No new signature positions added. Please add at least one signature position before confirming.");
       return;
     }
 
-    onConfirm({ fileId: selectedFileId, boxes });
+    onConfirm({ fileId: selectedFileId, boxes: newBoxes });
   };
 
   if (isLoadingFiles) {
@@ -454,16 +508,21 @@ export function SignaturePdfViewer({
                       bounds="parent"
                       minWidth={50}
                       minHeight={30}
-                      enableResizing={{
-                        top: true,
-                        right: true,
-                        bottom: true,
-                        left: true,
-                        topRight: true,
-                        topLeft: true,
-                        bottomRight: true,
-                        bottomLeft: true,
-                      }}
+                      disableDragging={box.isExisting}
+                      enableResizing={
+                        box.isExisting
+                          ? false
+                          : {
+                              top: true,
+                              right: true,
+                              bottom: true,
+                              left: true,
+                              topRight: true,
+                              topLeft: true,
+                              bottomRight: true,
+                              bottomLeft: true,
+                            }
+                      }
                       dragHandleClassName="signature-box-drag-handle"
                       onDragStop={(_, data) =>
                         handleUpdatePosition(box.id, data.x, data.y)
@@ -480,27 +539,34 @@ export function SignaturePdfViewer({
                       onMouseDown={(event) => event.stopPropagation()}
                       onClick={(event) => event.stopPropagation()}
                       className={cn(
-                        "absolute rounded-md border-2 border-primary/70 bg-primary/10 shadow-sm"
+                        "absolute rounded-md border-2 shadow-sm",
+                        box.isExisting
+                          ? "border-emerald-500/70 bg-emerald-500/10"
+                          : "border-primary/70 bg-primary/10"
                       )}
                     >
                       <div className="relative h-full w-full">
-                        <div className="signature-box-drag-handle absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
-                          <Move className="h-3 w-3" />
-                          Drag to position
-                        </div>
+                        {!box.isExisting && (
+                          <div className="signature-box-drag-handle absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
+                            <Move className="h-3 w-3" />
+                            Drag to position
+                          </div>
+                        )}
                         <div className="flex h-full w-full items-center justify-center text-[11px] font-medium text-primary">
-                          Signature
+                          {box.isExisting ? "Existing Signature" : "Signature"}
                         </div>
-                        <button
-                          type="button"
-                          className="absolute -right-2 -top-2 rounded-full bg-white p-1 text-destructive shadow"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleRemove(box.id);
-                          }}
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
+                        {!box.isExisting && (
+                          <button
+                            type="button"
+                            className="absolute -right-2 -top-2 rounded-full bg-white p-1 text-destructive shadow"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleRemove(box.id);
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
                       </div>
                     </Rnd>
                   ))}
@@ -616,4 +682,3 @@ export function SignaturePdfViewer({
       </CardContent>
     </Card>
   );
-}

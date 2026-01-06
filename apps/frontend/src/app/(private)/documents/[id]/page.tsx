@@ -58,6 +58,7 @@ export default function DocumentDetailPage() {
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
+  const [isRedirectingToList, setIsRedirectingToList] = useState(false);
   const [selectedLeftVersion, setSelectedLeftVersion] = useState<string | null>(null);
   const [selectedRightVersion, setSelectedRightVersion] = useState<string | null>(null);
   const { document, isLoading, error, refetch } = useDocumentDetail(documentId);

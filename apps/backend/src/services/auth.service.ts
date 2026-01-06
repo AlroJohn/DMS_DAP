@@ -233,6 +233,21 @@ export class AuthService {
     // Generate tokens with role information
     const { token, refreshToken } = this.generateTokens(user, roleCodes);
 
+    // Create a user session
+    const refreshTokenExpires = new Date();
+    refreshTokenExpires.setDate(refreshTokenExpires.getDate() + 6); // 6 days validity
+
+    await this.prisma.userSession.create({
+      data: {
+        account_id: account.account_id,
+        session_token: token, // Or a unique session ID
+        refresh_token: refreshToken,
+        expires_at: new Date(Date.now() + 30 * 60 * 1000), // 30 minutes for access token
+        refresh_expires_at: refreshTokenExpires, // 6 days for refresh token
+        last_activity: new Date(),
+      },
+    });
+
     return {
       user: this.sanitizeUser(user),
       token,
@@ -241,61 +256,97 @@ export class AuthService {
   }
 
   /**
+   * Logout user and invalidate session
+   */
+  async logout(refreshToken: string): Promise<void> {
+    if (!refreshToken) {
+      return;
+    }
+
+    // Find the session by the refresh token
+    const session = await this.prisma.userSession.findFirst({
+      where: { refresh_token: refreshToken },
+    });
+
+    if (session) {
+      // Delete the session to invalidate it
+      await this.prisma.userSession.delete({
+        where: { session_id: session.session_id },
+      });
+    }
+  }
+
+  /**
    * Refresh access token
    */
   async refreshToken(refreshToken: string): Promise<{ user: Omit<User, 'password'>; token: string; refreshToken: string }> {
-    try {
-      const decoded = jwt.verify(
-        refreshToken,
-        config.jwt.refreshSecret || config.jwt.secret
-      ) as { userId: string; iat?: number; exp?: number };
+    // Find the session in the database
+    const session = await this.prisma.userSession.findFirst({
+      where: {
+        refresh_token: refreshToken,
+        refresh_expires_at: {
+          gt: new Date(),
+        },
+      },
+      include: {
+        account: {
+          include: {
+            user: true,
+          },
+        },
+      },
+    });
 
-      // Find user in database
-      // The decoded.userId contains user_id (from User table), not account_id
-      const user = await this.prisma.user.findUnique({
-        where: { user_id: decoded.userId },
-        include: { account: true }
-      });
-
-      if (!user || !user.account) {
-        throw new Error('User not found');
-      }
-
-      const account = user.account;
-
-      // Get user permissions and roles from the role-based system
-      const permissions = await this.permissionService.getUserPermissions(user.user_id);
-      const roles = await this.permissionService.getUserRoles(user.user_id);
-      const roleCodes = await this.permissionService.getUserRoleCodes(user.user_id);
-
-      // Convert to User type for token generation
-      const userObj: User = {
-        id: user.user_id,
-        accountId: account.account_id,
-        email: account.email,
-        name: `${user.first_name} ${user.last_name}`,
-        password: account.password || '',
-        permissions: permissions,
-        roles: roles,
-        department_id: user.department_id,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        middle_name: user.middle_name,
-        user_name: user.user_name,
-        title: user.title,
-        type: user.type,
-        avatar: user.avatar,
-        active: user.active,
-        created_at: user.created_at,
-        updated_at: user.updated_at
-      };
-
-      const { token: newToken, refreshToken: newRefreshToken } = this.generateTokens(userObj, roleCodes);
-
-      return { user: this.sanitizeUser(userObj), token: newToken, refreshToken: newRefreshToken };
-    } catch (error) {
-      throw new Error('Invalid refresh token');
+    if (!session || !session.account || !session.account.user) {
+      throw new Error('Invalid or expired refresh token');
     }
+
+    const account = session.account;
+    const user = session.account.user;
+
+    // Get user permissions and roles
+    const permissions = await this.permissionService.getUserPermissions(user.user_id);
+    const roles = await this.permissionService.getUserRoles(user.user_id);
+    const roleCodes = await this.permissionService.getUserRoleCodes(user.user_id);
+
+    const userObj: User = {
+      id: user.user_id,
+      accountId: account.account_id,
+      email: account.email,
+      name: `${user.first_name} ${user.last_name}`,
+      password: account.password || '',
+      permissions: permissions,
+      roles: roles,
+      department_id: user.department_id,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      middle_name: user.middle_name,
+      user_name: user.user_name,
+      title: user.title,
+      type: user.type,
+      avatar: user.avatar,
+      active: user.active,
+      created_at: user.created_at,
+      updated_at: user.updated_at,
+    };
+
+    // Generate new tokens (implementing token rotation)
+    const { token: newToken, refreshToken: newRefreshToken } = this.generateTokens(userObj, roleCodes);
+
+    // Update the session with the new refresh token and expiry
+    const newRefreshTokenExpires = new Date();
+    newRefreshTokenExpires.setDate(newRefreshTokenExpires.getDate() + 6); // 6 days validity
+
+    await this.prisma.userSession.update({
+      where: { session_id: session.session_id },
+      data: {
+        refresh_token: newRefreshToken,
+        refresh_expires_at: newRefreshTokenExpires,
+        last_activity: new Date(),
+      },
+    });
+
+    return { user: this.sanitizeUser(userObj), token: newToken, refreshToken: newRefreshToken };
   }
 
   /**

@@ -74,7 +74,7 @@ export async function GET(
     const headers = new Headers();
     headers.set("Content-Type", contentType);
     headers.set("Content-Disposition", finalDisposition);
-    headers.set("Cache-Control", "private, max-age=3600");
+    headers.set("Cache-Control", "no-store");
     headers.set("X-Frame-Options", "SAMEORIGIN");
 
     const frameAncestors = new Set<string>(["'self'"]);

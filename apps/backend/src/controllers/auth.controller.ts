@@ -85,16 +85,13 @@ export class AuthController {
       res.cookie('accessToken', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax', // Fixed casing
-        domain: 'localhost', // Added for localhost development
+        sameSite: 'lax',
         maxAge: parseExpiresIn(config.jwt.expiresIn), // Use helper function
       });
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax', // Fixed casing
-        domain: 'localhost', // Added for localhost development
-        // Match backend refresh token lifetime (default 30 minutes)
+        sameSite: 'lax',
         maxAge: parseExpiresIn(config.jwt.refreshExpiresIn),
       });
 
@@ -121,14 +118,13 @@ export class AuthController {
       res.cookie('accessToken', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax', // Fixed casing
+        sameSite: 'lax',
         maxAge: parseExpiresIn(config.jwt.expiresIn), // Use helper function
       });
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax', // Fixed casing
-        // Match backend refresh token lifetime (default 30 minutes)
+        sameSite: 'lax',
         maxAge: parseExpiresIn(config.jwt.refreshExpiresIn),
       });
 
@@ -142,17 +138,24 @@ export class AuthController {
    * POST /api/auth/logout - Logout user (client-side token removal)
    */
   logout = asyncHandler(async (req: Request, res: Response) => {
+    const { refreshToken } = req.cookies;
+
+    // Invalidate the session on the backend
+    if (refreshToken) {
+      await this.authService.logout(refreshToken);
+    }
+
     // Clear HttpOnly cookies
     res.cookie('accessToken', '', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax', // Fixed casing
+      sameSite: 'lax',
       expires: new Date(0),
     });
     res.cookie('refreshToken', '', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax', // Fixed casing
+      sameSite: 'lax',
       expires: new Date(0),
     });
 
