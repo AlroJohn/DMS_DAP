@@ -400,6 +400,27 @@ export class DocumentReleaseService {
         return { success: false, error: 'Document not found' };
       }
 
+      if (document.status !== 'intransit') {
+        return { success: false, error: 'Document is not in transit' };
+      }
+
+      const latestTransitTrail = await prisma.documentTrail.findFirst({
+        where: {
+          document_id: documentId,
+          status: 'intransit'
+        },
+        orderBy: {
+          created_at: 'desc'
+        },
+        select: {
+          to_department: true
+        }
+      });
+
+      if (latestTransitTrail?.to_department && latestTransitTrail.to_department !== user.department_id) {
+        return { success: false, error: 'Document is not assigned to your department' };
+      }
+
       const currentDetail = document.DocumentAdditionalDetails?.[0];
       if (!currentDetail) {
         return { success: false, error: 'Document details not found' };

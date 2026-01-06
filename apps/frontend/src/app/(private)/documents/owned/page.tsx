@@ -80,6 +80,11 @@ export default function OwnedDocumentsPage() {
   // Check if the error is authentication-related
   const isAuthError = error && error.includes('Authentication required');
 
+  // Filter out documents with 'deleted' or 'archive' status
+  const filteredDocuments = useMemo(() => {
+    return documents.filter(doc => doc.status !== 'deleted' && doc.status !== 'archive');
+  }, [documents]);
+
   return (
     <div className="flex h-full flex-col bg-background">
       {error && !isAuthError && (
@@ -110,7 +115,7 @@ export default function OwnedDocumentsPage() {
       )}
       <DataTable
         columns={ownedColumns}
-        data={documents}
+        data={filteredDocuments}
         selection={true}
         viewType="owned"
         isLoading={isLoading}

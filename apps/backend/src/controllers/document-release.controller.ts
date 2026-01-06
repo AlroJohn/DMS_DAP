@@ -109,6 +109,27 @@ export class DocumentReleaseController {
 
     if (!document) return false;
 
+    if (document.status !== 'intransit') {
+      return false;
+    }
+
+    const latestTransitTrail = await this.documentReleaseService['prisma'].documentTrail.findFirst({
+      where: {
+        document_id: documentId,
+        status: 'intransit'
+      },
+      orderBy: {
+        created_at: 'desc'
+      },
+      select: {
+        to_department: true
+      }
+    });
+
+    if (latestTransitTrail?.to_department && latestTransitTrail.to_department !== user.department_id) {
+      return false;
+    }
+
     // Check if user's department is in the workflow or is the next department to receive the document
     const detail = document.DocumentAdditionalDetails?.[0];
     if (detail && detail.work_flow_id) {

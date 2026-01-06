@@ -85,6 +85,7 @@ import {
   canCancelDocument,
   canArchiveDocument,
   canDeleteDocument,
+  canReceiveDocument,
   hasAnyPermission,
   hasPermission,
 } from "@/lib/document-permissions";
@@ -251,6 +252,7 @@ export function DataTableFacetedFilter<TData, TValue>({
 // ============================================================================
 import { toast } from "sonner";
 import { BulkTransmitModal } from "@/components/modals/bulk-transmit-modal";
+import { TransmitByCodeModal } from "@/components/modals/transmit-by-code-modal";
 
 // DataTableViewOptions Component
 // ============================================================================
@@ -474,6 +476,7 @@ export function DataTableToolbar<TData>({
   const isFiltered = table.getState().columnFilters.length > 0;
   const [isCreateModalOpen, setCreateModalOpen] = React.useState(false);
   const [isBulkTransmitOpen, setBulkTransmitOpen] = React.useState(false);
+  const [isTransmitByCodeOpen, setIsTransmitByCodeOpen] = React.useState(false);
   const [isUploadModalOpen, setUploadModalOpen] = React.useState(false);
   const [isFiltersModalOpen, setFiltersModalOpen] = React.useState(false);
   const [selectedDocuments, setSelectedDocuments] = React.useState<any[]>([]);
@@ -554,10 +557,12 @@ export function DataTableToolbar<TData>({
   const canEditDoc = canEditDocument(currentUser, effectiveDocument);
   const canSignDoc = canSignDocument(currentUser, effectiveDocument);
   const canRelease = canReleaseDocument(currentUser, effectiveDocument);
+  const canReceive = canReceiveDocument(currentUser);
   const canComplete = canCompleteDocument(currentUser, effectiveDocument);
   const canCancel = canCancelDocument(currentUser, effectiveDocument);
   const canArchive = canArchiveDocument(currentUser, effectiveDocument);
   const canDelete = canDeleteDocument(currentUser, effectiveDocument);
+  const canTransmit = canRelease || canReceive;
 
   // Action handlers
   const handleBulkDelete = async () => {
@@ -976,6 +981,10 @@ export function DataTableToolbar<TData>({
         onClose={() => setBulkTransmitOpen(false)}
         documents={selectedDocuments}
       />
+      <TransmitByCodeModal
+        isOpen={isTransmitByCodeOpen}
+        onClose={() => setIsTransmitByCodeOpen(false)}
+      />
       {/* Bulk Delete Confirmation Dialog */}
       <Dialog open={isBulkDeleteOpen} onOpenChange={setIsBulkDeleteOpen}>
         <DialogContent className="sm:max-w-md">
@@ -1238,13 +1247,18 @@ export function DataTableToolbar<TData>({
             </div>
           )}
           {/* Show Transmit button only if not in recycle-bin view and user has release permission */}
-          {viewType !== "recycle-bin" && canRelease && (
+          {viewType !== "recycle-bin" && canTransmit && (
             <Button
               variant="default"
               size="sm"
               onClick={() => {
                 if (selectedRows.length === 0) {
-                  toast.error("Please select documents to transmit");
+                  setIsTransmitByCodeOpen(true);
+                  return;
+                }
+                if (!canRelease) {
+                  toast.error("You don't have permission to release documents.");
+                  setIsTransmitByCodeOpen(true);
                   return;
                 }
                 setSelectedDocuments(selectedRows.map((row) => row.original));

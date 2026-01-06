@@ -4,8 +4,25 @@ import { ChartLineDots } from "@/components/reuseable/chart-line-dots";
 import { ChartPieLabel } from "@/components/reuseable/chart-pie-label";
 import { RecentDocuments } from "@/components/reuseable/recent-documents";
 import { DocumentStatsCards } from "@/components/reuseable/document-stats-cards";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Clock, FileText, Users, AlertTriangle, Shield, Zap, CheckCircle, TrendingUp, Star } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Activity,
+  Clock,
+  FileText,
+  Users,
+  AlertTriangle,
+  Shield,
+  Zap,
+  CheckCircle,
+  TrendingUp,
+  Star,
+} from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,7 +50,9 @@ export default function Page() {
             <AlertTriangle className="h-12 w-12 mx-auto" />
           </div>
           <p className="text-red-500">Error loading dashboard data: {error}</p>
-          <p className="text-muted-foreground text-sm mt-2">Please try refreshing the page</p>
+          <p className="text-muted-foreground text-sm mt-2">
+            Please try refreshing the page
+          </p>
         </div>
       </div>
     );
@@ -61,7 +80,7 @@ export default function Page() {
       </div>
 
       {/* Quick Stats & Metrics - Row 1 */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {/* Recent Activity */}
         <Card>
           <CardHeader className="pb-3">
@@ -72,7 +91,9 @@ export default function Page() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{data.recentActivity}</div>
-            <p className="text-xs text-muted-foreground mt-1">activities this week</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              activities this week
+            </p>
           </CardContent>
         </Card>
 
@@ -86,7 +107,9 @@ export default function Page() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{data.pendingApprovals}</div>
-            <p className="text-xs text-muted-foreground mt-1">awaiting your action</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              awaiting your action
+            </p>
           </CardContent>
         </Card>
 
@@ -100,161 +123,9 @@ export default function Page() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{data.activeWorkflows}</div>
-            <p className="text-xs text-muted-foreground mt-1">workflows running</p>
-          </CardContent>
-        </Card>
-
-        {/* Collaborators */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Users className="h-4 w-4 text-orange-600" />
-              Collaborators
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{data.collaborators}</div>
-            <p className="text-xs text-muted-foreground mt-1">team members</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Storage & Compliance - Row 2 */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {/* Storage Analytics */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-blue-600" />
-              Storage Usage
-            </CardTitle>
-            <CardDescription>Out of total allocated storage</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <div className="flex justify-between text-sm mb-2">
-                <span>{data.storageUsage.used} GB used</span>
-                <span className="text-muted-foreground">{data.storageUsage.total} GB</span>
-              </div>
-              <Progress value={data.storageUsage.percentage} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-2">{data.storageUsage.percentage}% used</p>
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-sm">
-              <div>
-                <p className="text-xs text-muted-foreground">Documents</p>
-                <p className="font-semibold">85 GB</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Images</p>
-                <p className="font-semibold">32 GB</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Videos</p>
-                <p className="font-semibold">11 GB</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Compliance & Security */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-green-600" />
-              Compliance Status
-            </CardTitle>
-            <CardDescription>System compliance score</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <div className="flex justify-between text-sm mb-2">
-                <span>Compliance Score</span>
-                <span className="font-semibold">{data.complianceStatus}%</span>
-              </div>
-              <Progress value={data.complianceStatus} className="h-2" />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Audit Trail</span>
-                <Badge variant="outline" className="bg-green-50">Compliant</Badge>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Data Security</span>
-                <Badge variant="outline" className="bg-green-50">Passed</Badge>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Blockchain</span>
-                <Badge variant="outline" className="bg-green-50">Active</Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* System Activity & Top Documents - Row 2 */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {/* Recent System Activity */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5 text-blue-600" />
-              System Activity
-            </CardTitle>
-            <CardDescription>Latest user actions</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="space-y-3">
-              {data.systemActivity.map((activity, index) => (
-                <div key={index} className="flex items-center gap-3">
-                  <div className={`w-2 h-2 rounded-full ${
-                    activity.action.includes('signed') ? 'bg-green-500' :
-                    activity.action.includes('activated') ? 'bg-blue-500' :
-                    activity.action.includes('uploaded') ? 'bg-purple-500' : 'bg-orange-500'
-                  }`}></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{activity.action}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {activity.timestamp.toLocaleString(undefined, {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Top Documents */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Star className="h-5 w-5 text-yellow-600" />
-              Top Documents
-            </CardTitle>
-            <CardDescription>Most accessed this week</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {data.topDocuments.map((doc, index) => (
-                <div key={doc.id} className="flex items-center justify-between p-2 rounded hover:bg-accent transition-colors">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <FileText className={`h-4 w-4 flex-shrink-0 ${
-                      index === 0 ? 'text-blue-600' :
-                      index === 1 ? 'text-green-600' : 'text-purple-600'
-                    }`} />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{doc.title}</p>
-                      <p className="text-xs text-muted-foreground">{doc.views} views</p>
-                    </div>
-                  </div>
-                  <TrendingUp className="h-4 w-4 text-green-600 flex-shrink-0" />
-                </div>
-              ))}
-            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              workflows running
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -264,14 +135,18 @@ export default function Page() {
         {/* Department Performance */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm font-medium">Department Performance</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Department Performance
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {data.departmentPerformance.map((dept, index) => (
               <div key={index}>
                 <div className="flex justify-between text-sm mb-2">
                   <span>{dept.name}</span>
-                  <span className="text-muted-foreground">{dept.documentsProcessed} docs</span>
+                  <span className="text-muted-foreground">
+                    {dept.documentsProcessed} docs
+                  </span>
                 </div>
                 <Progress value={dept.efficiency} className="h-2" />
               </div>
@@ -282,7 +157,9 @@ export default function Page() {
         {/* Workflow Completion Rate */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm font-medium">Workflow Stats</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Workflow Stats
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
@@ -307,8 +184,12 @@ export default function Page() {
               <p className="text-xs text-muted-foreground">Success Rate</p>
               <p className="text-lg font-bold">
                 {data.workflowStats.totalWorkflows > 0
-                  ? Math.round((data.workflowStats.completedWorkflows / data.workflowStats.totalWorkflows) * 100) + '%'
-                  : '0%'}
+                  ? Math.round(
+                      (data.workflowStats.completedWorkflows /
+                        data.workflowStats.totalWorkflows) *
+                        100
+                    ) + "%"
+                  : "0%"}
               </p>
             </div>
           </CardContent>
@@ -317,7 +198,9 @@ export default function Page() {
         {/* Document Types Distribution */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm font-medium">Document Types</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Document Types
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">

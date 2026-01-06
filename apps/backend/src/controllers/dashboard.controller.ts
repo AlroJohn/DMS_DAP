@@ -1,12 +1,6 @@
 import { Request, Response } from 'express';
 import { DashboardService } from '../services/dashboard.service';
-
-interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    account_id: string;
-  };
-}
+import { AuthRequest } from '../middleware/auth-middleware';
 
 export class DashboardController {
   private dashboardService: DashboardService;
@@ -15,51 +9,15 @@ export class DashboardController {
     this.dashboardService = new DashboardService();
   }
 
-  async getDocumentStats(req: Request, res: Response) {
+  getStats = async (req: AuthRequest, res: Response) => {
     try {
-      const authReq = req as AuthRequest;
-      const userId = authReq.user?.id;
-
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          error: 'Unauthorized - User not authenticated'
-        });
+      if (!req.user) {
+        return res.status(401).json({ success: false, error: 'Unauthorized' });
       }
-
-      const stats = await this.dashboardService.getDocumentStats(userId);
+      const stats = await this.dashboardService.getDashboardStats(req.user.user_id);
       res.json({ success: true, data: stats });
     } catch (error: any) {
-      console.error('Error in getDocumentStats controller:', error);
-      res.status(500).json({
-        success: false,
-        error: error.message || 'Internal server error'
-      });
+      res.status(500).json({ success: false, error: error.message });
     }
-  }
-
-  async getDashboardStats(req: Request, res: Response) {
-    try {
-      const authReq = req as AuthRequest;
-      const userId = authReq.user?.id;
-
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          error: 'Unauthorized - User not authenticated'
-        });
-      }
-
-      const stats = await this.dashboardService.getDashboardStats(userId);
-      res.json({ success: true, data: stats });
-    } catch (error: any) {
-      console.error('Error in getDashboardStats controller:', error);
-      res.status(500).json({
-        success: false,
-        error: error.message || 'Internal server error'
-      });
-    }
-  }
+  };
 }
-
-export const dashboardController = new DashboardController();

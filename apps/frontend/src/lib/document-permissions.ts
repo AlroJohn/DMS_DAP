@@ -236,6 +236,17 @@ export function canReleaseDocument(user: User | null, document: Document): boole
 }
 
 /**
+ * Determine if a user can receive documents
+ */
+export function canReceiveDocument(user: User | null): boolean {
+  if (!user) return false;
+
+  if (hasViewOnlyRole(user)) return false;
+
+  return hasAnyPermission(user, ['document_transfer_receive', 'document_write']);
+}
+
+/**
  * Determine if a user can complete documents
  */
 export function canCompleteDocument(user: User | null, document: Document): boolean {

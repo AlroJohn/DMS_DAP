@@ -10,13 +10,13 @@ router.use(authMiddleware);
 
 // POST /api/documents/:id/release - Release a document to another department
 router.post('/:id/release',
-  requirePermission('document_write'),
+  requirePermission('document_transfer_initiate'),
   documentReleaseController.releaseDocument
 );
 
 // POST /api/documents/:id/receive - Receive a document
 router.post('/:id/receive',
-  requirePermission('document_write'),
+  requirePermission('document_transfer_receive'),
   documentReleaseController.receiveDocument
 );
 
