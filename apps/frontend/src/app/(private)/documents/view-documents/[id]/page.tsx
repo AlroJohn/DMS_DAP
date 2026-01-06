@@ -331,6 +331,22 @@ export default function DocumentSignatureViewerPage() {
     };
   });
 
+  // Create URLs with cache-busting for viewing
+  const viewDocumentFiles = (sortedFiles || []).map((file) => {
+    const cacheKey = file.uploadDate
+      ? new Date(file.uploadDate).getTime().toString()
+      : file.version || file.id;
+
+    return {
+      id: file.id,
+      name: file.name,
+      downloadUrl: `/api/documents/${documentId}/files/${file.id}/stream?v=${encodeURIComponent(
+        cacheKey
+      )}`,
+      isPrimary: activeFileId ? file.id === activeFileId : !!file.isPrimary,
+    };
+  });
+
   return (
     <div className="container mx-auto py-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
@@ -435,7 +451,7 @@ export default function DocumentSignatureViewerPage() {
             </CardHeader>
             <CardContent>
               <DocumentViewerWithSignatures
-                documentFiles={documentFiles}
+                documentFiles={viewDocumentFiles}
                 signedDocuments={mappedSignedDocuments}
                 activeSignatureData={signatureMode === 'place' ? user?.signature || null : null}
                 onConfirmSignaturePlacement={signatureMode === 'place' ? handleConfirmSignaturePlacement : undefined}

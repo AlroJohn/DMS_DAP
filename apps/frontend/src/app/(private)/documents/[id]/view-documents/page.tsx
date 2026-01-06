@@ -82,10 +82,13 @@ export default function ViewDocumentPage() {
     : false;
 
   const documentIdForRoutes = document?.document_id || documentId;
+  const cacheBuster = Date.now();
   const previewBaseUrl = previewFile
-    ? `/api/documents/${documentIdForRoutes}/files/${previewFile.id}/stream`
+    ? `/api/documents/${documentIdForRoutes}/files/${previewFile.id}/stream?v=${cacheBuster}`
     : null;
-  const downloadUrl = previewBaseUrl ? `${previewBaseUrl}?download=1` : null;
+  const downloadUrl = previewFile
+    ? `/api/documents/${documentIdForRoutes}/files/${previewFile.id}/stream?download=1&v=${cacheBuster}`
+    : null;
 
   const handleDownloadClick = () => {
     if (!downloadUrl) return;
