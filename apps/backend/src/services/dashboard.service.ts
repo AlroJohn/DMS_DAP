@@ -22,7 +22,7 @@ export class DashboardService {
 
     // Use existing services to get counts
     const ownedDocuments = await this.documentService.getOwnedDocuments(userId, 1, 1);
-    const inTransitDocuments = await prisma.document.count({ where: { status: 'in-transit' } });
+    const inTransitDocuments = await prisma.document.count({ where: { status: 'intransit' } });
     const receivedDocuments = await this.documentService.getReceivedDocuments(userId, 1, 1);
     const completedDocuments = await this.documentService.getCompletedDocuments(userId, 1, 1);
 

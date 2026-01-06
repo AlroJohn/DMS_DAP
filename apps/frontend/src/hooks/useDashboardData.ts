@@ -91,7 +91,7 @@ export const useDashboardData = () => {
           throw new Error('Authentication required. Please log in.');
         }
 
-        const response = await fetch('/api/dashboard/dashboard-stats', {
+        const response = await fetch('/api/dashboard/stats', {
           credentials: 'include', // Include cookies for authentication
           headers: {
             'Content-Type': 'application/json',
