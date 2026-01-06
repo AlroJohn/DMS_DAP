@@ -507,6 +507,44 @@ export class AuthController {
   });
 
   /**
+   * POST /api/auth/change-password - Change authenticated user's password
+   */
+  changePassword = asyncHandler(async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
+
+    if (!authReq.user) {
+      return sendError(res, 'User not authenticated', 401);
+    }
+
+    const { current_password, new_password } = req.body;
+
+    if (!current_password || !new_password) {
+      return sendError(res, 'Current password and new password are required', 400);
+    }
+
+    // Password strength validation
+    if (new_password.length < 6) {
+      return sendError(res, 'New password must be at least 6 characters long', 400);
+    }
+
+    try {
+      const result = await this.authService.changePassword(
+        authReq.user.id,
+        current_password,
+        new_password
+      );
+
+      if (result.success) {
+        return sendSuccess(res, { message: result.message });
+      } else {
+        return sendError(res, result.message, 400);
+      }
+    } catch (error: any) {
+      return sendError(res, error.message, 500);
+    }
+  });
+
+  /**
    * GET /api/auth/socket-token - Get token for Socket.IO authentication
    * Returns the current user's access token from cookies for WebSocket auth
    */

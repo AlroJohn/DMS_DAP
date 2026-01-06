@@ -38,6 +38,9 @@ router.post('/reset-password', authController.resetPassword);
 // POST /api/auth/verify-reset-token - Verify reset token validity (no auth required)
 router.post('/verify-reset-token', authController.verifyResetToken);
 
+// POST /api/auth/change-password - Change authenticated user's password (requires authentication)
+router.post('/change-password', authMiddleware, authController.changePassword);
+
 // Role management endpoints (all require authentication)
 // GET /api/auth/roles - Get all available roles (requires role_read permission)
 router.get('/roles', authMiddleware, authController.getAllRoles);

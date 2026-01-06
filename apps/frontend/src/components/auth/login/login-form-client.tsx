@@ -62,6 +62,14 @@ export function LoginFormClient({
   }, [searchParams, router]);
 
   const handleGoogleLogin = () => {
+    // Show success toast first
+    toast.success("Redirecting to Google...", {
+      description: "Please complete authentication in the popup window",
+    });
+
+    // Set loading to true to show loading animation during redirect
+    setIsLoading(true);
+
     // Redirect to backend Google OAuth endpoint
     window.location.href = `${
       process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
@@ -86,18 +94,19 @@ export function LoginFormClient({
       // The cookies will be set by the Next.js API route forwarding the backend's Set-Cookie header
 
       if (response.ok) {
-        // Trigger the login function from useAuth to re-fetch user data and update state
-        login();
-
-        // Show success toast
+        // Show success toast first
         toast.success("Login successful!", {
           description: "Redirecting to dashboard...",
         });
 
+        // Wait a brief moment to ensure toast is visible
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Trigger the login function from useAuth to re-fetch user data and update state
+        login();
+
         // Redirect to dashboard
-        setTimeout(() => {
-          router.push("/dashboard");
-        }, 1000);
+        router.push("/dashboard");
       } else {
         let data;
         try {
@@ -110,6 +119,7 @@ export function LoginFormClient({
           toast.error("Login failed", {
             description: errorMessage,
           });
+          setIsLoading(false); // Set loading to false on error
           return;
         }
 
@@ -119,6 +129,7 @@ export function LoginFormClient({
             data.error?.message ||
             "Invalid email or password. Please try again.",
         });
+        setIsLoading(false); // Set loading to false on error
       }
     } catch (error) {
       console.error("Login error:", error);
@@ -126,8 +137,7 @@ export function LoginFormClient({
       toast.error("Login failed", {
         description: "An error occurred. Please try again.",
       });
-    } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Set loading to false on error
     }
   };
 
