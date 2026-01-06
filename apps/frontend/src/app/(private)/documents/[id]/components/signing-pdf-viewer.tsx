@@ -12,7 +12,7 @@ import type { DocumentFileMetadata } from "@/hooks/use-document-files";
 import { cn } from "@/lib/utils";
 import { Loader2, PenLine } from "lucide-react";
 import { toast } from "sonner";
-import { SignaturePad } from "@/components/signature-pad";
+import { SignatureModal } from "@/components/modals/signature-modal";
 import { useAuth } from "@/hooks/use-auth";
 
 const PDFJS_WORKER_CDN =
@@ -176,8 +176,20 @@ export function SigningPdfViewer({
   const [placedSignatures, setPlacedSignatures] = useState<
     Record<string, string>
   >({});
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [shouldNavigateAfterSuccess, setShouldNavigateAfterSuccess] =
+    useState(false);
 
   const RENDER_SCALE = 1.4;
+
+  // Handle navigation after success modal is closed
+  useEffect(() => {
+    if (!isSuccessModalOpen && shouldNavigateAfterSuccess) {
+      setShouldNavigateAfterSuccess(false);
+      onSigned();
+    }
+  }, [isSuccessModalOpen, shouldNavigateAfterSuccess, onSigned]);
 
   // Fetch placeholders
   const { data: placeholders = [], isLoading: isLoadingPlaceholders } =
@@ -427,6 +439,7 @@ export function SigningPdfViewer({
       return;
     }
     setSelectedPlaceholder(placeholder);
+    setIsSignatureModalOpen(true);
   };
 
   const handleSaveDraft = () => {
@@ -437,6 +450,7 @@ export function SigningPdfViewer({
       [placeholderId]: signatureData,
     }));
     setSignatureData(null);
+    setIsSignatureModalOpen(false);
     toast.success("Signature draft saved.");
   };
 
@@ -450,6 +464,7 @@ export function SigningPdfViewer({
       return next;
     });
     setSignatureData(null);
+    setIsSignatureModalOpen(false);
     toast.success("Signature draft cleared.");
   };
 
@@ -511,7 +526,9 @@ export function SigningPdfViewer({
       }> = await signaturesResponse.json();
 
       const pdfResponse = await fetch(
-        `/api/documents/${documentId}/files/${selectedFile.id}/stream?download=1&v=${Date.now()}`,
+        `/api/documents/${documentId}/files/${
+          selectedFile.id
+        }/stream?download=1&v=${Date.now()}`,
         {
           method: "GET",
           credentials: "include",
@@ -629,7 +646,9 @@ export function SigningPdfViewer({
       }
 
       const pdfBytes: Uint8Array = await pdfDoc.save();
-      const blob = new Blob([pdfBytes as BlobPart], { type: "application/pdf" });
+      const blob = new Blob([pdfBytes as BlobPart], {
+        type: "application/pdf",
+      });
 
       const formData = new FormData();
       const fileName = selectedFile.name || "signed-document.pdf";
@@ -659,38 +678,40 @@ export function SigningPdfViewer({
       }
 
       const signatureResults = await Promise.all(
-        Object.entries(pendingSignatures).map(async ([placeholderId, dataUrl]) => {
-          const placeholder = placeholderById.get(placeholderId);
-          if (!placeholder) return null;
+        Object.entries(pendingSignatures).map(
+          async ([placeholderId, dataUrl]) => {
+            const placeholder = placeholderById.get(placeholderId);
+            if (!placeholder) return null;
 
-          const response = await fetch(
-            `/api/document-signatures/documents/${documentId}/place-signature`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              credentials: "include",
-              body: JSON.stringify({
-                signee_id: signeeId,
-                document_file_id: placeholder.document_file_id,
-                page_number: placeholder.page_number,
-                x_position: placeholder.x_position,
-                y_position: placeholder.y_position,
-                width: placeholder.width,
-                height: placeholder.height,
-                signature_data: dataUrl,
-              }),
-            }
-          );
-
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(
-              errorData.error || "Failed to save signature record."
+            const response = await fetch(
+              `/api/document-signatures/documents/${documentId}/place-signature`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                  signee_id: signeeId,
+                  document_file_id: placeholder.document_file_id,
+                  page_number: placeholder.page_number,
+                  x_position: placeholder.x_position,
+                  y_position: placeholder.y_position,
+                  width: placeholder.width,
+                  height: placeholder.height,
+                  signature_data: dataUrl,
+                }),
+              }
             );
-          }
 
-          return response.json().catch(() => null);
-        })
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}));
+              throw new Error(
+                errorData.error || "Failed to save signature record."
+              );
+            }
+
+            return response.json().catch(() => null);
+          }
+        )
       );
 
       toast.success("All signature drafts saved to the existing file.");
@@ -698,9 +719,10 @@ export function SigningPdfViewer({
       setPlacedSignatures({});
       setSignatureData(null);
       setSelectedPlaceholder(null);
+      setIsSignatureModalOpen(false);
 
       refetchSignatures();
-      onSigned();
+      setIsSuccessModalOpen(true); // Show success modal instead of calling onSigned immediately
     } catch (error: any) {
       console.error("Failed to save signed PDF", error);
       toast.error(
@@ -796,12 +818,26 @@ export function SigningPdfViewer({
               </Button>
             ))}
           </div>
+          <Button
+            size="sm"
+            onClick={handleConfirmSignature}
+            disabled={isSaving || (!hasDrafts && !hasCurrentSignature)}
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Confirming...
+              </>
+            ) : (
+              "Confirm Signatures"
+            )}
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="flex-1 overflow-hidden p-4 flex flex-col gap-4">
         <div className="flex flex-col md:flex-row gap-3 flex-1 overflow-hidden">
           {/* Sidebar for pending signatures */}
-          <div className="w-full md:w-48 flex flex-col gap-2 overflow-y-auto border-r pr-2">
+          <div className="w-full md:w-48 flex flex-col gap-2 overflow-y-auto ">
             <h3 className="text-sm font-medium text-muted-foreground mb-2">
               Signatures
             </h3>
@@ -810,52 +846,54 @@ export function SigningPdfViewer({
                 No pending signatures
               </div>
             ) : (
-              filePlaceholders.map((p, i) => (
+              filePlaceholders.map((p, i) =>
                 (() => {
                   const isSigned = signedPlaceholderIds.has(p.placeholder_id);
                   return (
-                <Button
-                  key={p.placeholder_id}
-                  variant="outline"
-                  size="sm"
-                  className="justify-start text-xs h-auto py-2 whitespace-normal text-left"
-                  disabled={isSigned}
-                  onClick={() => {
-                    if (!isSigned) {
-                      setSelectedPlaceholder(p);
-                      if (p.page_number !== activePage) {
-                        setActivePage(p.page_number);
-                      }
-                    }
-                  }}
-                >
-                  <div className="flex flex-col gap-1">
-                    <span className="font-semibold">Signature #{i + 1}</span>
-                    <span className="text-[10px] text-muted-foreground">
-                      Page {p.page_number}
-                    </span>
-                    {isSigned && (
-                      <span className="text-[10px] text-emerald-600">
-                        Signed
-                      </span>
-                    )}
-                  </div>
-                </Button>
+                    <Button
+                      key={p.placeholder_id}
+                      variant="outline"
+                      size="sm"
+                      className="justify-start text-xs h-auto py-2 whitespace-normal text-left"
+                      disabled={isSigned}
+                      onClick={() => {
+                        if (!isSigned) {
+                          setSelectedPlaceholder(p);
+                          if (p.page_number !== activePage) {
+                            setActivePage(p.page_number);
+                          }
+                        }
+                      }}
+                    >
+                      <div className="flex flex-col gap-1">
+                        <span className="font-semibold">
+                          Signature #{i + 1}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          Page {p.page_number}
+                        </span>
+                        {isSigned && (
+                          <span className="text-[10px] text-emerald-600">
+                            Signed
+                          </span>
+                        )}
+                      </div>
+                    </Button>
                   );
                 })()
-              ))
+              )
             )}
           </div>
 
-          <div className="flex-1 flex items-center justify-center overflow-auto rounded-md border bg-muted/20 min-h-[300px]">
+          <div className="flex-1 flex items-center justify-center overflow-auto min-h-[300px]">
             {isRendering || !activePageData ? (
-              <div className="flex flex-col items-center gap-2 p-6 text-sm text-muted-foreground">
+              <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin" />
                 <span>Loading PDF page...</span>
               </div>
             ) : (
               <div
-                className="relative shadow-lg"
+                className="relative "
                 style={{
                   width: activePageData.width,
                   height: activePageData.height,
@@ -864,7 +902,7 @@ export function SigningPdfViewer({
                 <img
                   src={activePageData.imageUrl}
                   alt={`Page ${activePageData.pageNumber}`}
-                  className="h-full w-full object-contain rounded-md border bg-white"
+                  className="h-full w-full object-contain rounded-md border border-border/50 bg-white"
                 />
                 {filePlaceholders
                   .filter((p) => p.page_number === activePage)
@@ -928,60 +966,89 @@ export function SigningPdfViewer({
           </div>
         </div>
 
-        <div className="mt-2 border-t pt-4 flex flex-col gap-3">
+        {/* <div className="mt-2 border-t pt-4 flex flex-col gap-3">
           <div className="flex flex-col gap-1">
             <h3 className="text-sm font-medium text-muted-foreground">
-              Signature Pad
+              Signature Actions
             </h3>
             <p className="text-xs text-muted-foreground">
-              Select a &quot;Sign Here&quot; box on the document, then draw or upload your
-              signature below. Save each draft before confirming all signatures.
+              Select a &quot;Sign Here&quot; box on the document to add your
+              signature. Confirm all signatures when finished.
             </p>
           </div>
 
-          <SignaturePad
-            value={signatureData || undefined}
-            onChange={setSignatureData}
-          />
-
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={onExit}>
-              Cancel
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSaveDraft}
-              disabled={!selectedPlaceholder || !signatureData || isSaving}
-            >
-              Save Draft
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClearDraft}
-              disabled={!selectedPlaceholder || !hasSelectedDraft || isSaving}
-            >
-              Clear Draft
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleConfirmSignature}
-              disabled={
-                isSaving || (!hasDrafts && !hasCurrentSignature)
-              }
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Confirm Signatures"
-              )}
-            </Button>
-          </div>
         </div>
+
+        <SignatureModal
+          isOpen={isSignatureModalOpen}
+          onClose={() => setIsSignatureModalOpen(false)}
+          onSave={(signature) => {
+            // When saving, immediately save as draft
+            if (selectedPlaceholder) {
+              const placeholderId = selectedPlaceholder.placeholder_id;
+              setPlacedSignatures((prev) => ({
+                ...prev,
+                [placeholderId]: signature,
+              }));
+              toast.success("Signature saved to placeholder.");
+            }
+            setIsSignatureModalOpen(false);
+          }}
+          onCancel={() => {
+            // When cancelling, clear any temporary signature data
+            setSignatureData(null);
+          }}
+          initialSignature={signatureData || undefined}
+          title="Create Your Signature"
+        />
+
+        {/* Success Modal */}
+        {isSuccessModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => {
+                setIsSuccessModalOpen(false);
+                setShouldNavigateAfterSuccess(true); // Set flag to navigate after modal closes
+              }}
+            />
+            <div className="relative z-50 bg-background rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
+                  <svg
+                    className="w-8 h-8 text-emerald-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M5 13l4 4L19 7"
+                    ></path>
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold">Signatures Confirmed!</h3>
+                <p className="text-muted-foreground">
+                  Your signatures have been successfully saved to the document.
+                </p>
+                <div className="flex gap-2 w-full mt-4">
+                  <Button
+                    className="flex-1"
+                    onClick={() => {
+                      setIsSuccessModalOpen(false);
+                      setShouldNavigateAfterSuccess(true); // Set flag to navigate after modal closes
+                    }}
+                  >
+                    OK
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

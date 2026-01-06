@@ -782,7 +782,10 @@ export function EditablePdfViewer({
           const checkinResult = await checkinResponse.json().catch(() => ({
             error: { message: "Failed to checkin file" },
           }));
-          console.warn("Failed to checkin file after save:", checkinResult.error?.message || "Unknown error");
+          console.warn(
+            "Failed to checkin file after save:",
+            checkinResult.error?.message || "Unknown error"
+          );
           // Don't throw an error here as the save was successful, just warn the user
           toast.warning("Document saved but failed to release file lock");
         } else {
@@ -1324,7 +1327,7 @@ export function EditablePdfViewer({
                         <img
                           src={page.imageUrl}
                           alt={`Page ${page.pageNumber}`}
-                          className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain"
+                          className="pointer-events-none absolute border border-primary/50 rounded-md inset-0 h-full w-full select-none object-contain"
                         />
                         <div
                           className="absolute inset-0"

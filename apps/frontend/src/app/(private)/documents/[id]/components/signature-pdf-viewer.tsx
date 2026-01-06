@@ -140,6 +140,20 @@ export function SignaturePdfViewer({
       }));
   }, [placeholders, selectedFileId]);
 
+  // Memoize boxes with their indices for efficient rendering
+  const boxesWithIndices = useMemo(() => {
+    const existingBoxesList = boxes.filter(b => b.isExisting);
+    const newBoxesList = boxes.filter(b => !b.isExisting);
+
+    return boxes.map((box) => {
+      const index = box.isExisting
+        ? existingBoxesList.findIndex(b => b.id === box.id) + 1
+        : newBoxesList.findIndex(b => b.id === box.id) + 1;
+
+      return { box, index };
+    });
+  }, [boxes]);
+
   useEffect(() => {
     if (!selectedFileId) {
       setBoxes([]);
@@ -483,14 +497,14 @@ export function SignaturePdfViewer({
         </div>
 
         <div className="flex flex-col md:flex-row gap-3 flex-1 overflow-hidden">
-          <div className="flex-1 overflow-auto rounded-md border bg-muted/20 min-h-[300px]">
+          <div className="flex-1 overflow-auto rounded-md bg-muted/20 min-h-[300px]">
             {isRendering || !activePageData ? (
               <div className="flex flex-col items-center gap-2 p-6 text-sm text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin" />
                 <span>Loading PDF page...</span>
               </div>
             ) : (
-              <div className="flex items-center justify-center min-h-full min-w-full">
+              <div className="flex items-center object-fill justify-center min-h-full min-w-full">
                 <div
                   className={cn("relative", isPlacingBox && "cursor-crosshair")}
                   style={{
@@ -505,9 +519,9 @@ export function SignaturePdfViewer({
                     className="h-full w-full object-contain rounded-md border bg-white"
                   />
 
-                  {boxes
-                    .filter((box) => box.pageNumber === activePage)
-                    .map((box) => (
+                  {boxesWithIndices
+                    .filter(({ box }) => box.pageNumber === activePage)
+                    .map(({ box, index }) => (
                       <Rnd
                         key={box.id}
                         size={{ width: box.width, height: box.height }}
@@ -562,7 +576,9 @@ export function SignaturePdfViewer({
                             </div>
                           )}
                           <div className="flex h-full w-full items-center justify-center text-[11px] font-medium text-primary">
-                            {box.isExisting ? "Existing Signature" : "Signature"}
+                            {box.isExisting
+                              ? `Existing Signature #${index}`
+                              : "Signature"}
                           </div>
                           {!box.isExisting && (
                             <button
@@ -618,14 +634,16 @@ export function SignaturePdfViewer({
                   place one on the current page.
                 </p>
               ) : (
-                boxes.map((box, index) => (
+                boxesWithIndices.map(({ box, index }) => (
                   <div
                     key={box.id}
                     className="flex flex-col gap-2 rounded border p-2"
                   >
                     <div className="flex items-center justify-between">
                       <p className="font-medium">
-                        Signature {index + 1} (Page {box.pageNumber})
+                        {box.isExisting
+                          ? `Existing Signature #${index} (Page ${box.pageNumber})`
+                          : `Signature ${index} (Page ${box.pageNumber})`}
                       </p>
                       <Button
                         type="button"

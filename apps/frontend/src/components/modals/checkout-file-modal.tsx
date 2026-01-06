@@ -93,8 +93,8 @@ export function CheckoutFileModal({
           if (!response.ok) {
             throw new Error("Failed to fetch files");
           }
-          const result = await response.json();
-          const fetchedFiles = result.data || [];
+          const result = (await response.json()) as { data?: DocumentFile[] };
+          const fetchedFiles = result.data ?? [];
           setFiles(fetchedFiles);
 
           // Group files by versionGroupId to create a folder-like structure
@@ -406,14 +406,15 @@ export function CheckoutFileModal({
       if (open && documentId) {
         const response = await fetch(`/api/documents/${documentId}/files`);
         if (response.ok) {
-          const data = await response.json();
-          setFiles(data.data || []);
+          const data = (await response.json()) as { data?: DocumentFile[] };
+          const refreshedFiles = data.data ?? [];
+          setFiles(refreshedFiles);
 
           // Update file items to reflect the new upload
           const filesByGroup = new Map<string, DocumentFile[]>();
           const ungroupedFiles: DocumentFile[] = [];
 
-          data.data.forEach(file => {
+          refreshedFiles.forEach(file => {
             const groupId = file.versionGroupId || file.id;
             if (file.versionGroupId) {
               if (!filesByGroup.has(groupId)) {
