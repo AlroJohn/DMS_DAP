@@ -79,7 +79,7 @@ export const createArchiveColumns = ({
     cell: ({ row }) => {
       const data = row.original;
       return (
-        <div className="flex justify-center items-center">
+        <div className="flex items-center">
           <ScanCodes qrCode={data.qrCode} barcode={data.barcode} />
         </div>
       );

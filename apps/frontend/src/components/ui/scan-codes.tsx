@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Barcode, QrCode } from 'lucide-react'
 import { ImageModal } from './image-modal'
 
 interface ScanCodesProps {
@@ -50,26 +51,26 @@ export function ScanCodes({ qrCode, barcode }: ScanCodesProps) {
         <>
             <div className='flex items-center gap-2'>
                 {qrCode && qrCode.trim() !== '' && (
-                    <img
-                        src={qrCode}
-                        alt='QR Code'
-                        className='size-6 cursor-pointer hover:opacity-80 transition-opacity'
-                        style={{
-                            imageRendering: 'crisp-edges'
-                        }}
+                    <button
+                        type='button'
+                        className='flex size-7 items-center justify-center rounded border border-border bg-background text-foreground hover:bg-muted transition-colors'
                         onClick={() => openModal(qrCode, 'QR Code', 'QR Code')}
-                    />
+                        aria-label='View QR Code'
+                        title='View QR Code'
+                    >
+                        <QrCode className='size-4' />
+                    </button>
                 )}
                 {barcode && barcode.trim() !== '' && (
-                    <img
-                        src={barcode}
-                        alt='Barcode'
-                        className='h-6 w-12 object-contain cursor-pointer hover:opacity-80 transition-opacity'
-                        style={{
-                            imageRendering: 'crisp-edges'
-                        }}
+                    <button
+                        type='button'
+                        className='flex size-7 items-center justify-center rounded border border-border bg-background text-foreground hover:bg-muted transition-colors'
                         onClick={() => openModal(barcode, 'Barcode', 'Barcode')}
-                    />
+                        aria-label='View Barcode'
+                        title='View Barcode'
+                    >
+                        <Barcode className='size-4' />
+                    </button>
                 )}
             </div>
             <ImageModal

@@ -71,6 +71,44 @@ const isPdfLikeFile = (file?: DocumentFileMetadata | null) => {
   return name.endsWith(".pdf");
 };
 
+const parseVersion = (value?: string | null) => {
+  if (!value) return null;
+  const parts = value.split(".").map((part) => Number(part));
+  if (parts.some((part) => Number.isNaN(part))) return null;
+  return parts;
+};
+
+const compareDocumentFilesByVersionDesc = (
+  left: DocumentFileMetadata,
+  right: DocumentFileMetadata
+) => {
+  const leftParts = parseVersion(left.version);
+  const rightParts = parseVersion(right.version);
+
+  if (leftParts && rightParts) {
+    const length = Math.max(leftParts.length, rightParts.length);
+    for (let index = 0; index < length; index += 1) {
+      const leftValue = leftParts[index] ?? 0;
+      const rightValue = rightParts[index] ?? 0;
+      if (leftValue !== rightValue) {
+        return rightValue - leftValue;
+      }
+    }
+  } else if (leftParts) {
+    return -1;
+  } else if (rightParts) {
+    return 1;
+  }
+
+  const leftDate = left.uploadDate ? new Date(left.uploadDate).getTime() : 0;
+  const rightDate = right.uploadDate ? new Date(right.uploadDate).getTime() : 0;
+  if (leftDate !== rightDate) {
+    return rightDate - leftDate;
+  }
+
+  return left.name.localeCompare(right.name);
+};
+
 export function SigningPdfViewer({
   documentId,
   files,
@@ -80,20 +118,51 @@ export function SigningPdfViewer({
   onSigned,
 }: SigningPdfViewerProps) {
   const { user } = useAuth();
+  const signeeId = user?.user_id || user?.id;
   const pdfFiles = useMemo(
     () => files.filter((file) => isPdfLikeFile(file)),
     [files]
   );
+  const sortedPdfFiles = useMemo(
+    () => [...pdfFiles].sort(compareDocumentFilesByVersionDesc),
+    [pdfFiles]
+  );
 
   const [selectedFileId, setSelectedFileId] = useState<string | null>(
-    initialFileId ?? pdfFiles[0]?.id ?? null
+    initialFileId ?? sortedPdfFiles[0]?.id ?? null
   );
 
   const selectedFile = useMemo(() => {
-    if (!pdfFiles || pdfFiles.length === 0) return null;
-    const targetId = selectedFileId ?? pdfFiles[0]?.id ?? null;
-    return targetId ? pdfFiles.find((file) => file.id === targetId) : null;
-  }, [pdfFiles, selectedFileId]);
+    if (!sortedPdfFiles || sortedPdfFiles.length === 0) return null;
+    const targetId = selectedFileId ?? sortedPdfFiles[0]?.id ?? null;
+    return targetId
+      ? sortedPdfFiles.find((file) => file.id === targetId)
+      : null;
+  }, [sortedPdfFiles, selectedFileId]);
+
+  useEffect(() => {
+    if (!sortedPdfFiles.length) {
+      if (selectedFileId !== null) {
+        setSelectedFileId(null);
+      }
+      return;
+    }
+
+    const hasSelected = selectedFileId
+      ? sortedPdfFiles.some((file) => file.id === selectedFileId)
+      : false;
+
+    if (hasSelected) return;
+
+    const hasInitial = initialFileId
+      ? sortedPdfFiles.some((file) => file.id === initialFileId)
+      : false;
+    const nextId = hasInitial ? initialFileId : sortedPdfFiles[0]?.id ?? null;
+
+    if (nextId && nextId !== selectedFileId) {
+      setSelectedFileId(nextId);
+    }
+  }, [initialFileId, selectedFileId, sortedPdfFiles]);
 
   const [pages, setPages] = useState<PdfPageRender[]>([]);
   const [activePage, setActivePage] = useState(1);
@@ -402,8 +471,47 @@ export function SigningPdfViewer({
 
     setIsSaving(true);
     try {
+      const signatureEntries = new Map<
+        string,
+        {
+          pageNumber: number;
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+          dataUrl: string;
+        }
+      >();
+
+      const signaturesResponse = await fetch(
+        `/api/document-signatures/documents/${documentId}/signatures`,
+        {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            "Cache-Control": "no-cache",
+          },
+        }
+      );
+
+      if (!signaturesResponse.ok) {
+        throw new Error("Failed to fetch existing signatures.");
+      }
+
+      const signatureRecords: Array<{
+        document_file_id?: string;
+        documentFileFile_id?: string;
+        documentFile?: { file_id?: string };
+        page_number: number;
+        x_position: number;
+        y_position: number;
+        width: number;
+        height: number;
+        signature_data?: string | null;
+      }> = await signaturesResponse.json();
+
       const pdfResponse = await fetch(
-        `/api/documents/${documentId}/files/${selectedFile.id}/stream?download=1`,
+        `/api/documents/${documentId}/files/${selectedFile.id}/stream?download=1&v=${Date.now()}`,
         {
           method: "GET",
           credentials: "include",
@@ -424,6 +532,37 @@ export function SigningPdfViewer({
         ])
       );
 
+      const existingSignaturesForFile = signatureRecords
+        .map((signature) => ({
+          fileId:
+            signature.document_file_id ||
+            signature.documentFileFile_id ||
+            signature.documentFile?.file_id ||
+            "",
+          pageNumber: signature.page_number,
+          x: signature.x_position,
+          y: signature.y_position,
+          width: signature.width,
+          height: signature.height,
+          signatureData: signature.signature_data || null,
+        }))
+        .filter(
+          (signature) =>
+            signature.fileId === selectedFile.id && signature.signatureData
+        );
+
+      for (const signature of existingSignaturesForFile) {
+        const key = `${signature.pageNumber}-${signature.x}-${signature.y}-${signature.width}-${signature.height}`;
+        signatureEntries.set(key, {
+          pageNumber: signature.pageNumber,
+          x: signature.x,
+          y: signature.y,
+          width: signature.width,
+          height: signature.height,
+          dataUrl: signature.signatureData || "",
+        });
+      }
+
       for (const [placeholderId, dataUrl] of Object.entries(
         pendingSignatures
       )) {
@@ -432,8 +571,20 @@ export function SigningPdfViewer({
           continue;
         }
 
+        const key = `${placeholder.page_number}-${placeholder.x_position}-${placeholder.y_position}-${placeholder.width}-${placeholder.height}`;
+        signatureEntries.set(key, {
+          pageNumber: placeholder.page_number,
+          x: placeholder.x_position,
+          y: placeholder.y_position,
+          width: placeholder.width,
+          height: placeholder.height,
+          dataUrl,
+        });
+      }
+
+      for (const signature of signatureEntries.values()) {
         const pageMeta = pages.find(
-          (p) => p.pageNumber === placeholder.page_number
+          (p) => p.pageNumber === signature.pageNumber
         );
         if (!pageMeta) {
           throw new Error(
@@ -441,20 +592,30 @@ export function SigningPdfViewer({
           );
         }
 
-        const page = pdfDoc.getPage(placeholder.page_number - 1);
+        const page = pdfDoc.getPage(signature.pageNumber - 1);
         const { width: pageWidth, height: pageHeight } = page.getSize();
 
         const scaleX = pageWidth / pageMeta.pdfWidth;
         const scaleY = pageHeight / pageMeta.pdfHeight;
 
-        const renderWidth = placeholder.width * scaleX;
-        const renderHeight = placeholder.height * scaleY;
-        const x = placeholder.x_position * scaleX;
-        const y =
-          pageHeight - placeholder.y_position * scaleY - renderHeight;
+        const renderWidth = signature.width * scaleX;
+        const renderHeight = signature.height * scaleY;
+        const x = signature.x * scaleX;
+        const y = pageHeight - signature.y * scaleY - renderHeight;
 
-        const sigBytes = dataUrlToUint8Array(dataUrl);
-        const isPng = dataUrl.startsWith("data:image/png");
+        let sigBytes: Uint8Array;
+        if (signature.dataUrl.startsWith("data:image/")) {
+          sigBytes = dataUrlToUint8Array(signature.dataUrl);
+        } else {
+          const imageResponse = await fetch(signature.dataUrl);
+          if (!imageResponse.ok) {
+            throw new Error("Unable to load signature image data.");
+          }
+          const arrayBuffer = await imageResponse.arrayBuffer();
+          sigBytes = new Uint8Array(arrayBuffer);
+        }
+
+        const isPng = signature.dataUrl.startsWith("data:image/png");
         const image = isPng
           ? await pdfDoc.embedPng(sigBytes)
           : await pdfDoc.embedJpg(sigBytes);
@@ -493,23 +654,23 @@ export function SigningPdfViewer({
         );
       }
 
-      if (!user?.user_id) {
+      if (!signeeId) {
         throw new Error("User information missing for signature tracking.");
       }
 
-      await Promise.all(
-        Object.entries(pendingSignatures).map(([placeholderId, dataUrl]) => {
+      const signatureResults = await Promise.all(
+        Object.entries(pendingSignatures).map(async ([placeholderId, dataUrl]) => {
           const placeholder = placeholderById.get(placeholderId);
-          if (!placeholder) return Promise.resolve();
+          if (!placeholder) return null;
 
-          return fetch(
+          const response = await fetch(
             `/api/document-signatures/documents/${documentId}/place-signature`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               credentials: "include",
               body: JSON.stringify({
-                signee_id: user.user_id,
+                signee_id: signeeId,
                 document_file_id: placeholder.document_file_id,
                 page_number: placeholder.page_number,
                 x_position: placeholder.x_position,
@@ -520,6 +681,15 @@ export function SigningPdfViewer({
               }),
             }
           );
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(
+              errorData.error || "Failed to save signature record."
+            );
+          }
+
+          return response.json().catch(() => null);
         })
       );
 
@@ -554,7 +724,7 @@ export function SigningPdfViewer({
     );
   }
 
-  if (!pdfFiles.length) {
+  if (!sortedPdfFiles.length) {
     return (
       <Card className="h-full w-full min-h-[300px] flex flex-col">
         <CardHeader>
@@ -587,13 +757,13 @@ export function SigningPdfViewer({
           <CardTitle className="text-base">
             {selectedFile?.name || "Sign Document"}
           </CardTitle>
-          {pdfFiles.length > 1 && (
+          {sortedPdfFiles.length > 1 && (
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium uppercase text-muted-foreground">
                 File
               </span>
               <div className="flex flex-wrap gap-1">
-                {pdfFiles.map((file) => (
+                {sortedPdfFiles.map((file) => (
                   <Button
                     key={file.id}
                     variant={file.id === selectedFileId ? "secondary" : "ghost"}

@@ -43,7 +43,7 @@ export function TeamSwitcher({
             size="lg"
             className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
           >
-            <div className="bg-sidebar-primary text-sidebar-primary-foreground flex rounded-full size-8 items-center justify-center">
+            <div className="text-sidebar-primary-foreground flex rounded-full size-8 items-center justify-center">
               <img src="/image/qby.png" alt="" />
             </div>
             <div className="grid flex-1 text-left text-base leading-tight">

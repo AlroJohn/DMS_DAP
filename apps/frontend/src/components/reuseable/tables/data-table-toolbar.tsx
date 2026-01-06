@@ -492,8 +492,8 @@ export function DataTableToolbar<TData>({
   // Check localStorage on mount to determine if warning should be shown (for non-recycle-bin views)
   React.useEffect(() => {
     if (viewType !== "recycle-bin") {
-      const hidden = localStorage.getItem('recycleBinWarningHidden');
-      if (hidden === 'true') {
+      const hidden = localStorage.getItem("recycleBinWarningHidden");
+      if (hidden === "true") {
         setShowWarning(false);
       }
     }
@@ -526,32 +526,35 @@ export function DataTableToolbar<TData>({
     if (viewType === "recycle-bin") {
       // For recycle-bin view, we'll update localStorage directly
       // The actual context update will happen in the recycle bin page
-      const hidden = localStorage.getItem('recycleBinWarningHidden');
-      const newShowWarning = hidden !== 'true';
+      const hidden = localStorage.getItem("recycleBinWarningHidden");
+      const newShowWarning = hidden !== "true";
       const toggleValue = !newShowWarning;
-      localStorage.setItem('recycleBinWarningHidden', String(!toggleValue));
+      localStorage.setItem("recycleBinWarningHidden", String(!toggleValue));
 
       // Dispatch a storage event to trigger updates in other tabs
-      window.dispatchEvent(new StorageEvent('storage', {
-        key: 'recycleBinWarningHidden',
-        oldValue: hidden,
-        newValue: String(!toggleValue),
-      }));
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: "recycleBinWarningHidden",
+          oldValue: hidden,
+          newValue: String(!toggleValue),
+        })
+      );
 
       // Dispatch a custom event to trigger updates in the same tab
-      window.dispatchEvent(new CustomEvent('recycleBinWarningChange'));
+      window.dispatchEvent(new CustomEvent("recycleBinWarningChange"));
     } else {
       // For non-recycle-bin views, just update local state
       const newShowWarning = !showWarning;
       setShowWarning(newShowWarning);
-      localStorage.setItem('recycleBinWarningHidden', String(!newShowWarning));
+      localStorage.setItem("recycleBinWarningHidden", String(!newShowWarning));
     }
   };
 
   // Determine warning visibility based on localStorage
-  const currentShowWarning = viewType === "recycle-bin"
-    ? localStorage.getItem('recycleBinWarningHidden') !== 'true'
-    : showWarning;
+  const currentShowWarning =
+    viewType === "recycle-bin"
+      ? localStorage.getItem("recycleBinWarningHidden") !== "true"
+      : showWarning;
 
   const canEditDetails = canEditDocumentDetails(currentUser, effectiveDocument);
   const canEditDoc = canEditDocument(currentUser, effectiveDocument);
@@ -1257,7 +1260,9 @@ export function DataTableToolbar<TData>({
                   return;
                 }
                 if (!canRelease) {
-                  toast.error("You don't have permission to release documents.");
+                  toast.error(
+                    "You don't have permission to release documents."
+                  );
                   setIsTransmitByCodeOpen(true);
                   return;
                 }
@@ -1282,7 +1287,9 @@ export function DataTableToolbar<TData>({
                 size="sm"
                 onClick={toggleWarning}
                 className="h-9 w-9 p-0"
-                aria-label={currentShowWarning ? "Hide warning" : "Show warning"}
+                aria-label={
+                  currentShowWarning ? "Hide warning" : "Show warning"
+                }
               >
                 {currentShowWarning ? (
                   <X className="h-4 w-4" />

@@ -19,20 +19,32 @@ export class DashboardService {
     }
 
     const departmentId = user.department_id;
+    if (!departmentId) {
+        throw new Error('User does not have a department.');
+    }
+
+    const departmentFilter = {
+        DocumentAdditionalDetails: {
+            some: {
+                work_flow_id: {
+                    string_contains: `"${departmentId}"`,
+                },
+            },
+        },
+    };
 
     // Use existing services to get counts
     const ownedDocuments = await this.documentService.getOwnedDocuments(userId, 1, 1);
-    const inTransitDocuments = await prisma.document.count({ where: { status: 'intransit' } });
     const receivedDocuments = await this.documentService.getReceivedDocuments(userId, 1, 1);
     const completedDocuments = await this.documentService.getCompletedDocuments(userId, 1, 1);
 
     const documentStats = {
       owned: ownedDocuments.pagination.total,
-      inTransit: inTransitDocuments,
+      inTransit: await prisma.document.count({ where: { status: 'intransit', ...departmentFilter } }),
       shared: receivedDocuments.pagination.total, // Assuming received are shared
-      archive: await prisma.document.count({ where: { status: 'archive' } }),
-      recycleBin: await prisma.document.count({ where: { status: 'deleted' } }),
-      total: await prisma.document.count({ where: { status: { notIn: ['deleted', 'archive'] } } }),
+      archive: await prisma.document.count({ where: { status: 'archive', ...departmentFilter } }),
+      recycleBin: await prisma.document.count({ where: { status: 'deleted', ...departmentFilter } }),
+      total: await prisma.document.count({ where: { status: { notIn: ['deleted', 'archive'] }, ...departmentFilter } }),
       completed: completedDocuments.pagination.total,
     };
 

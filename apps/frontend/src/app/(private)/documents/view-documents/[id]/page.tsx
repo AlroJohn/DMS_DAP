@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { useDocumentDetail } from '@/hooks/use-document-detail';
 import { useDocumentFiles } from '@/hooks/use-document-files';
@@ -24,12 +24,14 @@ export default function DocumentSignatureViewerPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user } = useAuth();
-    const documentId = Array.isArray(id) ? id[0] : id;
+  const documentId = Array.isArray(id) ? id[0] : id;
+  const fileIdFromUrl = searchParams?.get('fileId');
   
   const [activeSignatureData, setActiveSignatureData] = useState<string | null>(null);
   const [isPlacingSignature, setIsPlacingSignature] = useState(false);
   const [signatureMode, setSignatureMode] = useState<'view' | 'place'>('view');
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
+  const [signatureRecords, setSignatureRecords] = useState<any[]>([]);
   
   const { document, isLoading: docLoading, error: docError } = useDocumentDetail(documentId);
   const { 
@@ -39,12 +41,62 @@ export default function DocumentSignatureViewerPage() {
     refetch 
   } = useDocumentFiles(documentId);
 
+  const parseVersion = useCallback((value?: string | null) => {
+    if (!value) return null;
+    const parts = value.split('.').map((part) => Number(part));
+    if (parts.some((part) => Number.isNaN(part))) return null;
+    return parts;
+  }, []);
+
+  const compareDocumentFilesByVersionDesc = useCallback(
+    (left: { version?: string | null; uploadDate?: string | Date | null; name: string },
+     right: { version?: string | null; uploadDate?: string | Date | null; name: string }) => {
+      const leftParts = parseVersion(left.version);
+      const rightParts = parseVersion(right.version);
+
+      if (leftParts && rightParts) {
+        const length = Math.max(leftParts.length, rightParts.length);
+        for (let index = 0; index < length; index += 1) {
+          const leftValue = leftParts[index] ?? 0;
+          const rightValue = rightParts[index] ?? 0;
+          if (leftValue !== rightValue) {
+            return rightValue - leftValue;
+          }
+        }
+      } else if (leftParts) {
+        return -1;
+      } else if (rightParts) {
+        return 1;
+      }
+
+      const leftDate = left.uploadDate ? new Date(left.uploadDate).getTime() : 0;
+      const rightDate = right.uploadDate ? new Date(right.uploadDate).getTime() : 0;
+      if (leftDate !== rightDate) {
+        return rightDate - leftDate;
+      }
+
+      return left.name.localeCompare(right.name);
+    },
+    [parseVersion]
+  );
+
+  const sortedFiles = useMemo(() => {
+    if (!files?.length) return [];
+    return [...files].sort(compareDocumentFilesByVersionDesc);
+  }, [compareDocumentFilesByVersionDesc, files]);
+
   useEffect(() => {
-    if (files && files.length > 0) {
-      const primary = files.find((f) => f.isPrimary) || files[0];
-      setActiveFileId((prev) => prev ?? primary.id);
+    if (!sortedFiles || sortedFiles.length === 0) {
+      setActiveFileId(null);
+      return;
     }
-  }, [files]);
+
+    const hasFileFromUrl = fileIdFromUrl
+      ? sortedFiles.some((file) => file.id === fileIdFromUrl)
+      : false;
+    const nextFileId = hasFileFromUrl ? fileIdFromUrl : sortedFiles[0].id;
+    setActiveFileId(nextFileId);
+  }, [fileIdFromUrl, sortedFiles]);
 
   // Check if this is coming from release with signature requirements
   const releaseDepartmentId = searchParams?.get('releaseDepartmentId');
@@ -58,6 +110,57 @@ export default function DocumentSignatureViewerPage() {
     }
   }, [user]);
 
+  const fetchSignatures = useCallback(async () => {
+    if (!documentId) return;
+    try {
+      const response = await fetch(
+        `/api/document-signatures/documents/${documentId}/signatures`,
+        {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch signatures');
+      }
+
+      const result = await response.json();
+      setSignatureRecords(Array.isArray(result) ? result : []);
+    } catch (error) {
+      console.error('Error fetching signatures:', error);
+      setSignatureRecords([]);
+    }
+  }, [documentId]);
+
+  useEffect(() => {
+    fetchSignatures();
+  }, [fetchSignatures]);
+
+  useEffect(() => {
+    const refreshData = () => {
+      refetch();
+      fetchSignatures();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshData();
+      }
+    };
+
+    window.addEventListener('focus', refreshData);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', refreshData);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchSignatures, refetch]);
+
   const handleConfirmSignaturePlacement = async (coords: {
     signatureData: string;
     x_position: number;
@@ -69,7 +172,10 @@ export default function DocumentSignatureViewerPage() {
     try {
       // Use the API to place the signature at the specified coordinates
       // We need to get the document file ID to use for the signature placement
-      const primaryFile = files.find(file => file.isPrimary) || files[0];
+      const primaryFile =
+        (activeFileId ? files.find((file) => file.id === activeFileId) : null) ||
+        files.find((file) => file.isPrimary) ||
+        files[0];
 
       if (!primaryFile) {
         toast.error('No document file available for signature');
@@ -102,6 +208,7 @@ export default function DocumentSignatureViewerPage() {
       toast.success('Signature placed successfully!');
       setSignatureMode('view'); // Return to view mode after placing signature
       refetch(); // Refresh document data
+      fetchSignatures();
     } catch (error: any) {
       console.error('Error placing signature:', error);
       toast.error(error.message || 'Failed to place signature');
@@ -188,14 +295,41 @@ export default function DocumentSignatureViewerPage() {
   }
 
   // Get any existing signatures for the document
-  const signedDocuments = document.signedDocuments || [];
+  const signedDocuments = signatureRecords.length
+    ? signatureRecords
+    : (document.signedDocuments || []);
 
-  const documentFiles = (files || []).map((file) => ({
+  const mappedSignedDocuments = signedDocuments.map((sig: any, index: number) => ({
+    signed_document_id:
+      sig.signed_document_id ||
+      `${sig.document_file_id || sig.documentFileFile_id || sig.documentFile?.file_id || 'sig'}-${sig.page_number}-${sig.x_position}-${sig.y_position}-${index}`,
+    documentFileFile_id:
+      sig.document_file_id ||
+      sig.documentFileFile_id ||
+      sig.documentFile?.file_id ||
+      '',
+    signature_data: sig.signature_data || user?.signature || '',
+    x_position: sig.x_position,
+    y_position: sig.y_position,
+    width: sig.width,
+    height: sig.height,
+    page_number: sig.page_number,
+  }));
+
+  const documentFiles = (sortedFiles || []).map((file) => {
+    const cacheKey = file.uploadDate
+      ? new Date(file.uploadDate).getTime().toString()
+      : file.version || file.id;
+
+    return {
     id: file.id,
     name: file.name,
-    downloadUrl: `/api/documents/${documentId}/files/${file.id}/stream?download=1`,
+    downloadUrl: `/api/documents/${documentId}/files/${file.id}/stream?download=1&v=${encodeURIComponent(
+      cacheKey
+    )}`,
     isPrimary: activeFileId ? file.id === activeFileId : !!file.isPrimary,
-  }));
+    };
+  });
 
   return (
     <div className="container mx-auto py-6">
@@ -302,16 +436,7 @@ export default function DocumentSignatureViewerPage() {
             <CardContent>
               <DocumentViewerWithSignatures
                 documentFiles={documentFiles}
-                signedDocuments={signedDocuments.map(sig => ({
-                  signed_document_id: sig.signed_document_id,
-                  documentFileFile_id: sig.documentFileFile_id || '',
-                  signature_data: sig.signature_data || user?.signature || '',
-                  x_position: sig.x_position,
-                  y_position: sig.y_position,
-                  width: sig.width,
-                  height: sig.height,
-                  page_number: sig.page_number
-                }))}
+                signedDocuments={mappedSignedDocuments}
                 activeSignatureData={signatureMode === 'place' ? user?.signature || null : null}
                 onConfirmSignaturePlacement={signatureMode === 'place' ? handleConfirmSignaturePlacement : undefined}
                 onCancelSignaturePlacement={() => setSignatureMode('view')}

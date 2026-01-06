@@ -515,7 +515,7 @@ export function DataTableRowActions<TData>({
                   onClick={(e) => handleAction(e, handleSignaturePlaceholder)}
                 >
                   <FilePenLine className="mr-2 h-4 w-4" />
-                  E-sign Placeholder
+                  Signature Placeholder
                 </DropdownMenuItem>
               )}
 

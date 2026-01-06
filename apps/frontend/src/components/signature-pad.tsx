@@ -86,7 +86,7 @@ export function SignaturePad({
     }
   }, [value])
 
-  const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return { x: 0, y: 0 }
 
@@ -94,8 +94,8 @@ export function SignaturePad({
     const scaleX = canvas.width / rect.width
     const scaleY = canvas.height / rect.height
 
-    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX
-    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY
+    const clientX = e.clientX
+    const clientY = e.clientY
 
     return {
       x: (clientX - rect.left) * scaleX,
@@ -103,10 +103,7 @@ export function SignaturePad({
     }
   }
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if ("touches" in e) {
-      e.preventDefault()
-    }
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.PointerEvent<HTMLCanvasElement>) => {
     setIsDrawing(true)
     const canvas = canvasRef.current
     if (!canvas) return
@@ -119,10 +116,7 @@ export function SignaturePad({
     ctx.moveTo(x, y)
   }
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if ("touches" in e) {
-      e.preventDefault()
-    }
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.PointerEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return
 
     const canvas = canvasRef.current
@@ -136,10 +130,7 @@ export function SignaturePad({
     ctx.stroke()
   }
 
-  const stopDrawing = (e?: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (e && "touches" in e) {
-      e.preventDefault()
-    }
+  const stopDrawing = (e?: React.MouseEvent<HTMLCanvasElement> | React.PointerEvent<HTMLCanvasElement>) => {
     if (isDrawing) {
       setIsDrawing(false)
       const canvas = canvasRef.current
@@ -224,9 +215,10 @@ export function SignaturePad({
           onMouseMove={draw}
           onMouseUp={stopDrawing}
           onMouseLeave={stopDrawing}
-          onTouchStart={startDrawing}
-          onTouchMove={draw}
-          onTouchEnd={stopDrawing}
+          onPointerDown={startDrawing}
+          onPointerMove={draw}
+          onPointerUp={stopDrawing}
+          onPointerLeave={stopDrawing}
         />
         {!hasSignature && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

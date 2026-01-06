@@ -383,6 +383,16 @@ export class DocumentService {
 
       console.log('📍 [getOwnedDocuments] Documents fetched:', documents.length, 'Total:', total);
 
+      // Extract document type IDs and fetch type names
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const documentTypeIds = [...new Set(documents.map(doc => doc.document_type).filter(id => id && uuidRegex.test(id)))];
+      console.log('📍 [getOwnedDocuments] Filtered documentTypeIds:', documentTypeIds);
+      const documentTypes = await prisma.documentType.findMany({
+        where: { type_id: { in: documentTypeIds } },
+        select: { type_id: true, name: true }
+      });
+      const documentTypeMap = new Map(documentTypes.map(dt => [dt.type_id, dt.name]));
+
       // Transform documents to frontend format with QR codes and barcodes
       const transformedDocuments = await Promise.all(
         documents.map(async (doc) => {
@@ -421,7 +431,7 @@ export class DocumentService {
             contactPerson: `${user.first_name} ${user.last_name}`,
             contactOrganization: department?.name || 'N/A',
             currentLocation: department?.name || 'N/A',
-            type: (doc as any).document_type || 'General',
+            type: documentTypeMap.get(doc.document_type) || (doc as any).document_type || 'General',
             classification: doc.classification,
             status: doc.status,
             activity: 'created',

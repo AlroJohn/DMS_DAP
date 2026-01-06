@@ -428,7 +428,7 @@ export class IntransitService {
               in: outgoingDocumentIds
             },
             status: {
-              not: { in: ['completed', 'canceled', 'deleted'] }
+              not: { in: ['completed', 'deleted'] }
             }
           },
           include: {
@@ -446,7 +446,7 @@ export class IntransitService {
               in: outgoingDocumentIds
             },
             status: {
-              not: { in: ['completed', 'canceled', 'deleted'] }
+              not: { in: ['completed', 'deleted'] }
             }
           }
         })

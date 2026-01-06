@@ -84,7 +84,11 @@ export const createOwnedDocumentColumns = (
       ),
       cell: ({ row }) => {
         const data = row.original;
-        return <ScanCodes qrCode={data.qrCode} barcode={data.barcode} />;
+        return (
+          <div className="flex items-center">
+            <ScanCodes qrCode={data.qrCode} barcode={data.barcode} />
+          </div>
+        );
       },
       enableSorting: false,
     },

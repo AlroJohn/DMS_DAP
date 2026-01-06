@@ -115,12 +115,12 @@ router.post('/documents/:documentId/place-signature', async (req: Request, res: 
     });
 
     // Update document status to reflect signing
-    await prisma.document.update({
-      where: { document_id: documentId },
-      data: {
-        status: 'completed' // or another appropriate status
-      }
-    });
+    // await prisma.document.update({
+    //   where: { document_id: documentId },
+    //   data: {
+    //     status: 'completed' // or another appropriate status
+    //   }
+    // });
 
     res.status(201).json(signedDocument);
   } catch (error) {

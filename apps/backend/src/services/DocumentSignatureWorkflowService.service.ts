@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
  * Service to handle document signature workflows
  */
 export class DocumentSignatureWorkflowService {
-  
+
   /**
    * Process all signatures for a document and create a signed version
    */
@@ -39,7 +39,7 @@ export class DocumentSignatureWorkflowService {
 
       // Get all signatures for this document
       const signedDocuments = await prisma.signedDocument.findMany({
-        where: { 
+        where: {
           document_id: documentId,
           documentFileFile_id: documentFileId
         },
@@ -63,7 +63,6 @@ export class DocumentSignatureWorkflowService {
       await prisma.document.update({
         where: { document_id: documentId },
         data: {
-          status: 'completed', // or 'signed', depending on your workflow
           updated_at: new Date()
         }
       });

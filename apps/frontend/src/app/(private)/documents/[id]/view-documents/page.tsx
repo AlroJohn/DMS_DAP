@@ -2,12 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams, useParams } from "next/navigation";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -16,7 +11,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DocumentPreviewModal } from "@/components/modals/document-preview-modal";
 import { useDocumentDetail } from "@/hooks/use-document-detail";
@@ -106,7 +101,10 @@ export default function ViewDocumentPage() {
     if (!bytes || Number.isNaN(bytes)) return "-";
     if (bytes === 0) return "0 B";
     const units = ["B", "KB", "MB", "GB", "TB"];
-    const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    const index = Math.min(
+      Math.floor(Math.log(bytes) / Math.log(1024)),
+      units.length - 1
+    );
     const value = bytes / Math.pow(1024, index);
     return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
   };
@@ -143,7 +141,9 @@ export default function ViewDocumentPage() {
       <div className="p-1 md:p-2 lg:p-4 max-w-[95%] mx-auto w-full pt-2 pb-4">
         <Alert>
           <AlertTitle>Document not found</AlertTitle>
-          <AlertDescription>The requested document could not be located.</AlertDescription>
+          <AlertDescription>
+            The requested document could not be located.
+          </AlertDescription>
         </Alert>
       </div>
     );
@@ -153,10 +153,10 @@ export default function ViewDocumentPage() {
     <div className="flex flex-col gap-2 p-1 md:p-2 lg:p-4 mx-auto w-full pb-2">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-lg font-bold tracking-tight">{title}</h1>
+          {/* <p className="text-muted-foreground">
             Document ID: {document.document_id || documentId}
-          </p>
+          </p> */}
         </div>
         <div className="flex flex-wrap gap-2 mt-4 md:mt-0 items-center">
           {files && files.length > 0 && (
@@ -172,13 +172,19 @@ export default function ViewDocumentPage() {
                     className="h-8 rounded border bg-background px-2 text-xs flex justify-between items-center w-48"
                   >
                     <span className="truncate max-w-[100px]">
-                      {previewFile?.name || `File ${files.findIndex(f => f.id === previewFile?.id) + 1}`}
+                      {previewFile?.name ||
+                        `File ${
+                          files.findIndex((f) => f.id === previewFile?.id) + 1
+                        }`}
                       {previewFile?.isPrimary && " (Primary)"}
                     </span>
                     <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 max-h-64 overflow-y-auto">
+                <DropdownMenuContent
+                  align="end"
+                  className="w-56 max-h-64 overflow-y-auto"
+                >
                   {files.map((file, index) => (
                     <DropdownMenuItem
                       key={file.id}
@@ -190,7 +196,11 @@ export default function ViewDocumentPage() {
                           {file.name || `File ${index + 1}`}
                         </span>
                         <div className="flex items-center gap-1">
-                          {file.isPrimary && <Badge variant="secondary" className="h-4 text-xs">Primary</Badge>}
+                          {file.isPrimary && (
+                            <Badge variant="secondary" className="h-4 text-xs">
+                              Primary
+                            </Badge>
+                          )}
                           <span className="text-xs text-muted-foreground">
                             ({file.type || "Unknown type"})
                           </span>
@@ -280,7 +290,9 @@ export default function ViewDocumentPage() {
                 </>
               ) : (
                 <>
-                  <p className="text-muted-foreground">No files uploaded for this document yet.</p>
+                  <p className="text-muted-foreground">
+                    No files uploaded for this document yet.
+                  </p>
                   <p className="text-sm text-muted-foreground mt-2">
                     Upload a file to enable previews and DocOnChain signing.
                   </p>
@@ -307,12 +319,19 @@ export default function ViewDocumentPage() {
                       <div className="space-y-1">
                         <p className="text-sm font-medium">{file.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {file.type || "Unknown type"} • {formatFileSize(file.size)}
+                          {file.type || "Unknown type"} •{" "}
+                          {formatFileSize(file.size)}
                         </p>
                         <div className="flex flex-wrap gap-2">
-                          {file.isPrimary && <Badge variant="default">Primary</Badge>}
-                          {isPlaceholder && <Badge variant="secondary">Placeholder</Badge>}
-                          {file.version && <Badge variant="outline">v{file.version}</Badge>}
+                          {file.isPrimary && (
+                            <Badge variant="default">Primary</Badge>
+                          )}
+                          {isPlaceholder && (
+                            <Badge variant="secondary">Placeholder</Badge>
+                          )}
+                          {file.version && (
+                            <Badge variant="outline">v{file.version}</Badge>
+                          )}
                         </div>
                       </div>
                     </div>

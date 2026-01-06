@@ -19,7 +19,7 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   limits: {
     fileSize: 2 * 1024 * 1024 // 2MB limit
@@ -38,7 +38,7 @@ const upload = multer({
 router.get('/documents/:documentId/signatures', async (req: Request, res: Response) => {
   try {
     const { documentId } = req.params;
-    
+
     const document = await prisma.document.findUnique({
       where: { document_id: documentId },
       include: {
@@ -150,7 +150,7 @@ router.post('/documents/:documentId/sign', upload.single('signature_image'), asy
   try {
     const { documentId } = req.params;
     const { signee_id, x_position, y_position, width, height, page_number, document_file_id } = req.body;
-    
+
     // Get user to ensure they exist
     const user = await prisma.user.findUnique({
       where: { user_id: signee_id }
@@ -180,7 +180,7 @@ router.post('/documents/:documentId/sign', upload.single('signature_image'), asy
 
     // Handle signature data (either from file upload or base64 string)
     let signatureData: string | undefined;
-    
+
     if (req.file) {
       // If file was uploaded, store its path
       signatureData = `/uploads/signatures/${req.file.filename}`;
@@ -208,12 +208,12 @@ router.post('/documents/:documentId/sign', upload.single('signature_image'), asy
     });
 
     // Update document status to reflect that it has been signed
-    await prisma.document.update({
-      where: { document_id: documentId },
-      data: {
-        status: 'completed' // or another appropriate status
-      }
-    });
+    // await prisma.document.update({
+    //   where: { document_id: documentId },
+    //   data: {
+    //     status: 'completed' // or another appropriate status
+    //   }
+    // });
 
     res.status(201).json(signedDocument);
   } catch (error) {

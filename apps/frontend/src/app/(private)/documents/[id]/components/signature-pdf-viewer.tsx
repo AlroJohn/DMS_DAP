@@ -12,7 +12,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { DocumentFileMetadata } from "@/hooks/use-document-files";
 import { cn } from "@/lib/utils";
@@ -141,15 +141,13 @@ export function SignaturePdfViewer({
   }, [placeholders, selectedFileId]);
 
   useEffect(() => {
-    if (!selectedFileId) return;
-    setBoxes((prev) => {
-      const existingIds = new Set(existingBoxes.map((box) => box.id));
-      const pending = prev.filter(
-        (box) => !box.isExisting && !existingIds.has(box.id)
-      );
-      return [...existingBoxes, ...pending];
-    });
-  }, [existingBoxes, selectedFileId]);
+    if (!selectedFileId) {
+      setBoxes([]);
+      return;
+    }
+    setBoxes(existingBoxes);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFileId, placeholders]);
 
   useEffect(() => {
     if (!selectedFile) {
@@ -319,9 +317,7 @@ export function SignaturePdfViewer({
     y: number
   ) => {
     setBoxes((prev) =>
-      prev.map((box) =>
-        box.id === id ? { ...box, width, height, x, y } : box
-      )
+      prev.map((box) => (box.id === id ? { ...box, width, height, x, y } : box))
     );
   };
 
@@ -331,14 +327,18 @@ export function SignaturePdfViewer({
 
   const handleConfirm = () => {
     if (!selectedFileId) {
-      toast.error("No PDF file selected. Please select a PDF file before confirming signature positions.");
+      toast.error(
+        "No PDF file selected. Please select a PDF file before confirming signature positions."
+      );
       console.error("No file selected for signature.");
       return;
     }
 
     const newBoxes = boxes.filter((box) => !box.isExisting);
     if (newBoxes.length === 0) {
-      toast.error("No new signature positions added. Please add at least one signature position before confirming.");
+      toast.error(
+        "No new signature positions added. Please add at least one signature position before confirming."
+      );
       return;
     }
 
@@ -431,7 +431,10 @@ export function SignaturePdfViewer({
                   <ChevronsUpDown className="ml-2 h-3 w-3 opacity-50" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 max-h-64 overflow-y-auto">
+              <DropdownMenuContent
+                align="end"
+                className="w-56 max-h-64 overflow-y-auto"
+              >
                 {pdfFiles.map((file) => (
                   <DropdownMenuItem
                     key={file.id}
@@ -461,7 +464,10 @@ export function SignaturePdfViewer({
                   <ChevronsUpDown className="ml-2 h-3 w-3 opacity-50" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="max-h-64 overflow-y-auto">
+              <DropdownMenuContent
+                align="end"
+                className="max-h-64 overflow-y-auto"
+              >
                 {pages.map((page) => (
                   <DropdownMenuItem
                     key={page.pageNumber}
@@ -477,99 +483,103 @@ export function SignaturePdfViewer({
         </div>
 
         <div className="flex flex-col md:flex-row gap-3 flex-1 overflow-hidden">
-          <div className="flex-1 flex items-center justify-center overflow-auto rounded-md border bg-muted/20 min-h-[300px]">
+          <div className="flex-1 overflow-auto rounded-md border bg-muted/20 min-h-[300px]">
             {isRendering || !activePageData ? (
               <div className="flex flex-col items-center gap-2 p-6 text-sm text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin" />
                 <span>Loading PDF page...</span>
               </div>
             ) : (
-              <div
-                className={cn("relative", isPlacingBox && "cursor-crosshair")}
-                style={{
-                  width: activePageData.width,
-                  height: activePageData.height,
-                }}
-                onClick={handlePlaceBox}
-              >
-                <img
-                  src={activePageData.imageUrl}
-                  alt={`Page ${activePageData.pageNumber}`}
-                  className="h-full w-full object-contain rounded-md border bg-white"
-                />
+              <div className="flex items-center justify-center min-h-full min-w-full">
+                <div
+                  className={cn("relative", isPlacingBox && "cursor-crosshair")}
+                  style={{
+                    width: activePageData.width,
+                    height: activePageData.height,
+                  }}
+                  onClick={handlePlaceBox}
+                >
+                  <img
+                    src={activePageData.imageUrl}
+                    alt={`Page ${activePageData.pageNumber}`}
+                    className="h-full w-full object-contain rounded-md border bg-white"
+                  />
 
-                {boxes
-                  .filter((box) => box.pageNumber === activePage)
-                  .map((box) => (
-                    <Rnd
-                      key={box.id}
-                      size={{ width: box.width, height: box.height }}
-                      position={{ x: box.x, y: box.y }}
-                      bounds="parent"
-                      minWidth={50}
-                      minHeight={30}
-                      disableDragging={box.isExisting}
-                      enableResizing={
-                        box.isExisting
-                          ? false
-                          : {
-                              top: true,
-                              right: true,
-                              bottom: true,
-                              left: true,
-                              topRight: true,
-                              topLeft: true,
-                              bottomRight: true,
-                              bottomLeft: true,
-                            }
-                      }
-                      dragHandleClassName="signature-box-drag-handle"
-                      onDragStop={(_, data) =>
-                        handleUpdatePosition(box.id, data.x, data.y)
-                      }
-                      onResizeStop={(_, _dir, ref, _delta, position) => {
-                        handleResize(
-                          box.id,
-                          ref.offsetWidth,
-                          ref.offsetHeight,
-                          position.x,
-                          position.y
-                        );
-                      }}
-                      onMouseDown={(event) => event.stopPropagation()}
-                      onClick={(event) => event.stopPropagation()}
-                      className={cn(
-                        "absolute rounded-md border-2 shadow-sm",
-                        box.isExisting
-                          ? "border-emerald-500/70 bg-emerald-500/10"
-                          : "border-primary/70 bg-primary/10"
-                      )}
-                    >
-                      <div className="relative h-full w-full">
-                        {!box.isExisting && (
-                          <div className="signature-box-drag-handle absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
-                            <Move className="h-3 w-3" />
-                            Drag to position
+                  {boxes
+                    .filter((box) => box.pageNumber === activePage)
+                    .map((box) => (
+                      <Rnd
+                        key={box.id}
+                        size={{ width: box.width, height: box.height }}
+                        position={{ x: box.x, y: box.y }}
+                        bounds="parent"
+                        minWidth={50}
+                        minHeight={30}
+                        disableDragging={box.isExisting}
+                        enableResizing={
+                          box.isExisting
+                            ? false
+                            : {
+                                top: true,
+                                right: true,
+                                bottom: true,
+                                left: true,
+                                topRight: true,
+                                topLeft: true,
+                                bottomRight: true,
+                                bottomLeft: true,
+                              }
+                        }
+                        dragHandleClassName="signature-box-drag-handle"
+                        onDragStop={(_, data) =>
+                          handleUpdatePosition(box.id, data.x, data.y)
+                        }
+                        onResizeStop={(_, _dir, ref, _delta, position) => {
+                          handleResize(
+                            box.id,
+                            ref.offsetWidth,
+                            ref.offsetHeight,
+                            position.x,
+                            position.y
+                          );
+                        }}
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClick={(event: { stopPropagation: () => any }) =>
+                          event.stopPropagation()
+                        }
+                        className={cn(
+                          "absolute rounded-md border-2 shadow-sm",
+                          box.isExisting
+                            ? "border-emerald-500/70 bg-emerald-500/10"
+                            : "border-primary/70 bg-primary/10"
+                        )}
+                      >
+                        <div className="relative h-full w-full">
+                          {!box.isExisting && (
+                            <div className="signature-box-drag-handle absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
+                              <Move className="h-3 w-3" />
+                              Drag to position
+                            </div>
+                          )}
+                          <div className="flex h-full w-full items-center justify-center text-[11px] font-medium text-primary">
+                            {box.isExisting ? "Existing Signature" : "Signature"}
                           </div>
-                        )}
-                        <div className="flex h-full w-full items-center justify-center text-[11px] font-medium text-primary">
-                          {box.isExisting ? "Existing Signature" : "Signature"}
+                          {!box.isExisting && (
+                            <button
+                              type="button"
+                              className="absolute -right-2 -top-2 rounded-full bg-white p-1 text-destructive shadow"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleRemove(box.id);
+                              }}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
                         </div>
-                        {!box.isExisting && (
-                          <button
-                            type="button"
-                            className="absolute -right-2 -top-2 rounded-full bg-white p-1 text-destructive shadow"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleRemove(box.id);
-                            }}
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        )}
-                      </div>
-                    </Rnd>
-                  ))}
+                      </Rnd>
+                    ))}
+                </div>
               </div>
             )}
           </div>
@@ -629,25 +639,43 @@ export function SignaturePdfViewer({
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-xs text-muted-foreground">X</label>
+                        <label className="text-xs text-muted-foreground">
+                          X
+                        </label>
                         <input
                           type="number"
                           className="w-full rounded border bg-background px-2 py-1 text-xs"
                           value={Math.round(box.x)}
-                          onChange={(e) => handleUpdatePosition(box.id, Number(e.target.value), box.y)}
+                          onChange={(e) =>
+                            handleUpdatePosition(
+                              box.id,
+                              Number(e.target.value),
+                              box.y
+                            )
+                          }
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-muted-foreground">Y</label>
+                        <label className="text-xs text-muted-foreground">
+                          Y
+                        </label>
                         <input
                           type="number"
                           className="w-full rounded border bg-background px-2 py-1 text-xs"
                           value={Math.round(box.y)}
-                          onChange={(e) => handleUpdatePosition(box.id, box.x, Number(e.target.value))}
+                          onChange={(e) =>
+                            handleUpdatePosition(
+                              box.id,
+                              box.x,
+                              Number(e.target.value)
+                            )
+                          }
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-muted-foreground">Width</label>
+                        <label className="text-xs text-muted-foreground">
+                          Width
+                        </label>
                         <input
                           type="number"
                           className="w-full rounded border bg-background px-2 py-1 text-xs"
@@ -655,12 +683,20 @@ export function SignaturePdfViewer({
                           min="50"
                           onChange={(e) => {
                             const value = Math.max(50, Number(e.target.value));
-                            handleResize(box.id, value, box.height, box.x, box.y);
+                            handleResize(
+                              box.id,
+                              value,
+                              box.height,
+                              box.x,
+                              box.y
+                            );
                           }}
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-muted-foreground">Height</label>
+                        <label className="text-xs text-muted-foreground">
+                          Height
+                        </label>
                         <input
                           type="number"
                           className="w-full rounded border bg-background px-2 py-1 text-xs"
@@ -668,7 +704,13 @@ export function SignaturePdfViewer({
                           min="30"
                           onChange={(e) => {
                             const value = Math.max(30, Number(e.target.value));
-                            handleResize(box.id, box.width, value, box.x, box.y);
+                            handleResize(
+                              box.id,
+                              box.width,
+                              value,
+                              box.x,
+                              box.y
+                            );
                           }}
                         />
                       </div>
@@ -682,3 +724,4 @@ export function SignaturePdfViewer({
       </CardContent>
     </Card>
   );
+}
