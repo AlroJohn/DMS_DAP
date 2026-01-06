@@ -2,6 +2,7 @@
 
 import type React from "react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useRouter } from "next/navigation";
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import { Rnd } from "react-rnd";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -241,6 +242,103 @@ const resolveFontVariant = ({
   };
 };
 
+// Function to detect font from the original PDF
+const detectFontFromPdf = async (
+  documentId: string,
+  fileId: string,
+  pageNumber: number
+) => {
+  try {
+    const url = `/api/documents/${documentId}/files/${fileId}/stream?download=1`;
+    const pdf = await getDocument({ url }).promise;
+    const page = await pdf.getPage(pageNumber);
+
+    // Get text content to analyze fonts
+    const textContent = await page.getTextContent();
+
+    // Get font information from text items
+    const fonts: Record<
+      string,
+      { name: string; bold?: boolean; italic?: boolean; count: number }
+    > = {};
+
+    // Process text items to extract font information
+    for (const item of textContent.items) {
+      // Check if the item has font information
+      if ("fontName" in item && item.fontName) {
+        const fontName = item.fontName as string;
+        if (!fonts[fontName]) {
+          fonts[fontName] = {
+            name: fontName,
+            count: 1,
+          };
+
+          // Try to determine if font is bold or italic based on name
+          const lowerName = fontName.toLowerCase();
+          if (lowerName.includes("bold")) fonts[fontName].bold = true;
+          if (lowerName.includes("italic") || lowerName.includes("oblique"))
+            fonts[fontName].italic = true;
+        } else {
+          fonts[fontName].count++;
+        }
+      }
+    }
+
+    // Find the most used font
+    let mostUsedFontRef = "";
+    let maxCount = 0;
+
+    for (const [fontRef, fontInfo] of Object.entries(fonts)) {
+      if (fontInfo.count > maxCount) {
+        maxCount = fontInfo.count;
+        mostUsedFontRef = fontRef;
+      }
+    }
+
+    if (mostUsedFontRef && fonts[mostUsedFontRef]) {
+      const fontInfo = fonts[mostUsedFontRef];
+      const fontName = fontInfo.name.toLowerCase();
+
+      // Try to map to our supported font families
+      let fontFamily: FontFamilyId = "helvetica";
+
+      if (
+        fontName.includes("times") ||
+        fontName.includes("new") ||
+        fontName.includes("roman")
+      ) {
+        fontFamily = "times";
+      } else if (fontName.includes("courier") || fontName.includes("mono")) {
+        fontFamily = "courier";
+      } else if (fontName.includes("symbol") || fontName.includes("zapf")) {
+        fontFamily = "symbol";
+      } else {
+        fontFamily = "helvetica"; // Default to helvetica
+      }
+
+      return {
+        fontFamily,
+        isBold: fontInfo.bold || false,
+        isItalic: fontInfo.italic || false,
+      };
+    }
+
+    // Default return if no fonts found
+    return {
+      fontFamily: "helvetica" as FontFamilyId,
+      isBold: false,
+      isItalic: false,
+    };
+  } catch (error) {
+    console.error("Error detecting font from PDF:", error);
+    return {
+      fontFamily: "helvetica" as FontFamilyId,
+      isBold: false,
+      isItalic: false,
+    };
+  }
+};
+
 const formatListText = (text: string, listStyle?: ListStyleType) => {
   if (!text) return "";
   if (listStyle === "bullet") {
@@ -266,6 +364,8 @@ export function EditablePdfViewer({
   onExit,
   onSaved,
 }: EditablePdfViewerProps) {
+  const router = useRouter();
+
   const getFontStyleForAnnotation = (annotation?: Partial<TextAnnotation>) => {
     return resolveFontVariant({
       fontFamily: annotation?.fontFamily,
@@ -438,6 +538,9 @@ export function EditablePdfViewer({
   const [pendingAssetType, setPendingAssetType] = useState<"image" | null>(
     null
   );
+  const [placementMode, setPlacementMode] = useState<"text" | "image" | null>(
+    null
+  );
   const assetInputRef = useRef<HTMLInputElement>(null);
 
   const getSafeFontSize = (value?: number | null) => {
@@ -476,43 +579,14 @@ export function EditablePdfViewer({
 
   const handleAddText = () => {
     if (!selectedFile || pages.length === 0) return;
-    const initialText = "Enter text";
-    const initialFontSize = 14;
-    const initialFont = resolveFontVariant({
-      fontFamily: "helvetica",
-      isBold: false,
-      isItalic: false,
-    });
-    const { width: initialWidth, height: initialHeight } =
-      measureTextDimensions(
-        formatListText(initialText, "none"),
-        initialFontSize,
-        initialFont
-      );
-    const newAnnotation: TextAnnotation = {
-      id: createAnnotationId(),
-      type: "text",
-      pageNumber: activePage,
-      x: 40,
-      y: 40,
-      width: initialWidth,
-      height: initialHeight,
-      text: initialText,
-      fontSize: initialFontSize,
-      fontName: initialFont.pdfFont,
-      fontFamily: "helvetica",
-      isBold: false,
-      isItalic: false,
-      listStyle: "none",
-      backgroundColor: "#ffffff",
-      textColor: "#000000",
-    };
-    setAnnotations((prev) => [...prev, newAnnotation]);
-    setSelectedAnnotationId(newAnnotation.id);
-    setEditingTextId(newAnnotation.id);
+    setPlacementMode("text");
+    toast.info("Click on the PDF to place text");
   };
   const handleRequestAsset = (type: "image") => {
+    if (!selectedFile || pages.length === 0) return;
     setPendingAssetType(type);
+    setPlacementMode("image");
+    toast.info("Click on the PDF to place image");
     assetInputRef.current?.click();
   };
 
@@ -521,19 +595,15 @@ export function EditablePdfViewer({
     if (!file) return;
     try {
       const dataUrl = await readFileAsDataUrl(file);
-      const newAnnotation: ImageAnnotation = {
-        id: createAnnotationId(),
-        type: pendingAssetType ?? "image",
-        pageNumber: activePage,
-        x: 48,
-        y: 48,
-        width: 200,
-        height: 90,
-        dataUrl,
-        mimeType: file.type || "image/png",
-      };
-      setAnnotations((prev) => [...prev, newAnnotation]);
-      setSelectedAnnotationId(newAnnotation.id);
+      // Store the image data for later placement
+      sessionStorage.setItem(
+        "pendingImageData",
+        JSON.stringify({
+          dataUrl,
+          mimeType: file.type || "image/png",
+          fileName: file.name,
+        })
+      );
     } catch (error) {
       console.error("Failed to read image", error);
       toast.error("Unable to load the selected image.");
@@ -562,6 +632,50 @@ export function EditablePdfViewer({
     }
     if (editingTextId === id) {
       setEditingTextId(null);
+    }
+  };
+
+  const handleAutoDetectFont = async () => {
+    if (!selectedAnnotationId || !selectedFile) return;
+
+    const annotation = annotations.find(
+      (item) => item.id === selectedAnnotationId
+    );
+    if (!annotation || annotation.type !== "text") return;
+
+    // Show loading state
+    toast.info("Detecting font from original PDF...");
+
+    try {
+      const detectedFont = await detectFontFromPdf(
+        documentId,
+        selectedFile.id,
+        annotation.pageNumber
+      );
+
+      // Update the annotation with detected font properties
+      const style = resolveFontVariant({
+        fontFamily: detectedFont.fontFamily,
+        isBold: detectedFont.isBold,
+        isItalic: detectedFont.isItalic,
+      });
+
+      const formatted = formatListText(annotation.text, annotation.listStyle);
+      const dims = measureTextDimensions(formatted, annotation.fontSize, style);
+
+      updateAnnotation(annotation.id, {
+        fontName: style.pdfFont,
+        fontFamily: detectedFont.fontFamily,
+        isBold: detectedFont.isBold,
+        isItalic: detectedFont.isItalic,
+        width: dims.width,
+        height: dims.height,
+      });
+
+      toast.success("Font detected and applied successfully!");
+    } catch (error) {
+      console.error("Error detecting font:", error);
+      toast.error("Failed to detect font from PDF. Using default font.");
     }
   };
 
@@ -604,10 +718,96 @@ export function EditablePdfViewer({
     );
   };
 
+  const handleCanvasClick = (
+    event: React.MouseEvent<HTMLDivElement>,
+    pageNumber: number
+  ) => {
+    if (!placementMode) return;
+
+    // Calculate the position relative to the canvas
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    if (placementMode === "text") {
+      // Create a new text annotation at the clicked position
+      const initialText = "Enter text";
+      const initialFontSize = 14;
+      const initialFont = resolveFontVariant({
+        fontFamily: "helvetica",
+        isBold: false,
+        isItalic: false,
+      });
+      const { width: initialWidth, height: initialHeight } =
+        measureTextDimensions(
+          formatListText(initialText, "none"),
+          initialFontSize,
+          initialFont
+        );
+
+      const newAnnotation: TextAnnotation = {
+        id: createAnnotationId(),
+        type: "text",
+        pageNumber,
+        x,
+        y,
+        width: initialWidth,
+        height: initialHeight,
+        text: initialText,
+        fontSize: initialFontSize,
+        fontName: initialFont.pdfFont,
+        fontFamily: "helvetica",
+        isBold: false,
+        isItalic: false,
+        listStyle: "none",
+        backgroundColor: "#ffffff",
+        textColor: "#000000",
+      };
+
+      setAnnotations((prev) => [...prev, newAnnotation]);
+      setSelectedAnnotationId(newAnnotation.id);
+      setEditingTextId(newAnnotation.id);
+      setPlacementMode(null); // Exit placement mode
+    } else if (placementMode === "image") {
+      // Create a new image annotation at the clicked position
+      const imageData = sessionStorage.getItem("pendingImageData");
+      if (!imageData) {
+        toast.error("No image selected for placement");
+        setPlacementMode(null);
+        return;
+      }
+
+      const { dataUrl, mimeType } = JSON.parse(imageData);
+
+      const newAnnotation: ImageAnnotation = {
+        id: createAnnotationId(),
+        type: "image",
+        pageNumber,
+        x,
+        y,
+        width: 200,
+        height: 90,
+        dataUrl,
+        mimeType,
+      };
+
+      setAnnotations((prev) => [...prev, newAnnotation]);
+      setSelectedAnnotationId(newAnnotation.id);
+      setPlacementMode(null); // Exit placement mode
+
+      // Clear the stored image data
+      sessionStorage.removeItem("pendingImageData");
+    }
+  };
+
   const clearAnnotations = () => {
     setAnnotations([]);
     setSelectedAnnotationId(null);
     setEditingTextId(null);
+  };
+
+  const handleExit = () => {
+    router.push("/documents");
   };
 
   const handleSave = async () => {
@@ -868,11 +1068,10 @@ export function EditablePdfViewer({
                 <label className="text-xs font-medium text-muted-foreground">
                   Font
                 </label>
-                <select
-                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                <Select
                   value={annotation.fontFamily || "helvetica"}
-                  onChange={(event) => {
-                    const nextFamily = event.target.value as FontFamilyId;
+                  onValueChange={(value: FontFamilyId) => {
+                    const nextFamily = value;
                     const style = resolveFontVariant({
                       fontFamily: nextFamily,
                       isBold: annotation.isBold,
@@ -895,12 +1094,17 @@ export function EditablePdfViewer({
                     });
                   }}
                 >
-                  {FONT_FAMILIES.map((family) => (
-                    <option key={family.id} value={family.id}>
-                      {family.label}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="w-full mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FONT_FAMILIES.map((family) => (
+                      <SelectItem key={family.id} value={family.id}>
+                        {family.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="w-28">
                 <label className="text-xs font-medium text-muted-foreground">
@@ -947,6 +1151,33 @@ export function EditablePdfViewer({
                   className="mt-1 w-full rounded border px-2 py-1 text-sm"
                 />
               </div>
+            </div>
+            <div className="mt-2 pt-2 border-t">
+              <label className="text-xs font-medium text-muted-foreground">
+                Auto-detect Font
+              </label>
+              <Select
+                onValueChange={async (value) => {
+                  if (value === "detect") {
+                    await handleAutoDetectFont();
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full mt-1">
+                  <SelectValue placeholder="Select action" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="detect">
+                    <div className="flex items-center">
+                      <Type className="mr-2 h-4 w-4" />
+                      Auto-detect from PDF
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Detect font properties from the original PDF document
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -1014,14 +1245,13 @@ export function EditablePdfViewer({
                 <span className="italic">I</span>
               </Button>
               <div className="flex-1">
-                <label className="text-xs font-medium text-muted-foreground">
+                {/* <label className="text-xs font-medium text-muted-foreground">
                   List style
-                </label>
-                <select
-                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                </label> */}
+                <Select
                   value={annotation.listStyle ?? "none"}
-                  onChange={(event) => {
-                    const nextList = event.target.value as ListStyleType;
+                  onValueChange={(value: ListStyleType) => {
+                    const nextList = value;
                     const formatted = formatListText(annotation.text, nextList);
                     const style = getFontStyleForAnnotation(annotation);
                     const dims = measureTextDimensions(
@@ -1036,10 +1266,15 @@ export function EditablePdfViewer({
                     });
                   }}
                 >
-                  <option value="none">None</option>
-                  <option value="bullet">Bullets</option>
-                  <option value="number">Numbered</option>
-                </select>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="bullet">Bullets</SelectItem>
+                    <SelectItem value="number">Numbered</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -1064,11 +1299,9 @@ export function EditablePdfViewer({
                     : "custom";
 
                   return (
-                    <select
-                      className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                    <Select
                       value={selectValue}
-                      onChange={(event) => {
-                        const value = event.target.value;
+                      onValueChange={(value) => {
                         if (value === "custom") {
                           return;
                         }
@@ -1077,15 +1310,20 @@ export function EditablePdfViewer({
                         });
                       }}
                     >
-                      <option value="#000000">Black</option>
-                      <option value="#1f2937">Dark gray</option>
-                      <option value="#374151">Slate</option>
-                      <option value="#0f172a">Navy</option>
-                      <option value="#dc2626">Red</option>
-                      <option value="#16a34a">Green</option>
-                      <option value="#2563eb">Blue</option>
-                      <option value="custom">Custom</option>
-                    </select>
+                      <SelectTrigger className="w-full mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="#000000">Black</SelectItem>
+                        <SelectItem value="#1f2937">Dark gray</SelectItem>
+                        <SelectItem value="#374151">Slate</SelectItem>
+                        <SelectItem value="#0f172a">Navy</SelectItem>
+                        <SelectItem value="#dc2626">Red</SelectItem>
+                        <SelectItem value="#16a34a">Green</SelectItem>
+                        <SelectItem value="#2563eb">Blue</SelectItem>
+                        <SelectItem value="custom">Custom</SelectItem>
+                      </SelectContent>
+                    </Select>
                   );
                 })()}
               </div>
@@ -1110,27 +1348,30 @@ export function EditablePdfViewer({
                 <label className="text-xs font-medium text-muted-foreground">
                   Background
                 </label>
-                <select
-                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                <Select
                   value={
                     annotation.backgroundColor === undefined
                       ? "#ffffff"
                       : annotation.backgroundColor ?? "transparent"
                   }
-                  onChange={(event) => {
-                    const value = event.target.value;
+                  onValueChange={(value) => {
                     updateAnnotation(annotation.id, {
                       backgroundColor: value === "transparent" ? null : value,
                     });
                   }}
                 >
-                  <option value="transparent">No fill</option>
-                  <option value="#ffffff">White</option>
-                  <option value="#f1f5f9">Light gray</option>
-                  <option value="#e3f2fd">Light blue</option>
-                  <option value="#fff3cd">Light yellow</option>
-                  <option value="#f8d7da">Light red</option>
-                </select>
+                  <SelectTrigger className="w-full mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="transparent">No fill</SelectItem>
+                    <SelectItem value="#ffffff">White</SelectItem>
+                    <SelectItem value="#f1f5f9">Light gray</SelectItem>
+                    <SelectItem value="#e3f2fd">Light blue</SelectItem>
+                    <SelectItem value="#fff3cd">Light yellow</SelectItem>
+                    <SelectItem value="#f8d7da">Light red</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="w-28">
                 <label className="text-xs font-medium text-muted-foreground">
@@ -1220,7 +1461,7 @@ export function EditablePdfViewer({
       </CardHeader>
       <CardContent className="space-y-4">
         {!selectedFile && (
-          <AlertNoPdf hasFiles={pdfFiles.length > 0} onExit={onExit} />
+          <AlertNoPdf hasFiles={pdfFiles.length > 0} onExit={handleExit} />
         )}
 
         {selectedFile && (
@@ -1288,7 +1529,7 @@ export function EditablePdfViewer({
                   <Undo2 className="mr-1 h-4 w-4" />
                   Clear
                 </Button>
-                <Button variant="ghost" size="sm" onClick={onExit}>
+                <Button variant="ghost" size="sm" onClick={handleExit}>
                   <X className="mr-1 h-4 w-4" />
                   Cancel
                 </Button>
@@ -1332,7 +1573,13 @@ export function EditablePdfViewer({
                         <div
                           className="absolute inset-0"
                           style={{ width: page.width, height: page.height }}
-                          onMouseDown={handleCanvasBackgroundClick}
+                          onClick={(event) => {
+                            if (placementMode) {
+                              handleCanvasClick(event, page.pageNumber);
+                            } else {
+                              handleCanvasBackgroundClick();
+                            }
+                          }}
                         >
                           {annotations
                             .filter(
