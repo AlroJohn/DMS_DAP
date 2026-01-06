@@ -1,13 +1,327 @@
 "use client";
 
 import React from 'react';
+import { useManagementOverview } from '@/hooks/use-management-overview';
 import ManagementCards from './ManagementCards';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Loader2 } from 'lucide-react';
+import { DateTime } from '@/components/wrapper/DateTime';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts';
 
 const ManagementOverviewPage = () => {
+  const {
+    departmentCount,
+    documentTypeCount,
+    documentActionCount,
+    userCount,
+    departments,
+    documentTypes,
+    documentActions,
+    users,
+    isLoading
+  } = useManagementOverview();
+
+  if (isLoading && (departments.length === 0 || documentTypes.length === 0 || documentActions.length === 0 || users.length === 0)) {
+    return (
+      <div className="container mx-auto py-10 flex justify-center items-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
   return (
-    <div className="container mx-auto py-10">
-      <h2 className="text-3xl font-bold tracking-tight mb-6">Management Overview</h2>
+    <div className="container mx-auto py-6">
+      <div className="mb-8">
+        <h2 className="text-3xl font-bold tracking-tight">Management Overview</h2>
+        <p className="text-muted-foreground mt-2">Monitor and manage your organization's resources</p>
+      </div>
+
       <ManagementCards />
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium flex items-center">
+              <span>Recent Departments</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {isLoading ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </div>
+              ) : departments.length > 0 ? (
+                departments.slice(0, 3).map((dept) => (
+                  <div key={dept.department_id} className="flex justify-between items-center py-1">
+                    <span className="text-sm font-medium truncate max-w-[120px]">{dept.name}</span>
+                    <Badge variant={dept.active ? "default" : "secondary"} className="text-xs">
+                      {dept.active ? "Active" : "Inactive"}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-2">No departments found</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium flex items-center">
+              <span>Recent Document Types</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {isLoading ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </div>
+              ) : documentTypes.length > 0 ? (
+                documentTypes.slice(0, 3).map((type) => (
+                  <div key={type.type_id} className="flex justify-between items-center py-1">
+                    <span className="text-sm font-medium truncate max-w-[120px]">{type.name}</span>
+                    <Badge variant={type.active ? "default" : "secondary"} className="text-xs">
+                      {type.active ? "Active" : "Inactive"}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-2">No document types found</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium flex items-center">
+              <span>Recent Document Actions</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {isLoading ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </div>
+              ) : documentActions.length > 0 ? (
+                documentActions.slice(0, 3).map((action) => (
+                  <div key={action.document_action_id} className="flex justify-between items-center py-1">
+                    <span className="text-sm font-medium truncate max-w-[120px]">{action.action_name}</span>
+                    <Badge variant={action.status ? "default" : "secondary"} className="text-xs">
+                      {action.status ? "Active" : "Inactive"}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-2">No document actions found</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium flex items-center">
+              <span>Recent Users</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {isLoading ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </div>
+              ) : users.length > 0 ? (
+                users.slice(0, 3).map((user) => (
+                  <div key={user.user_id} className="flex justify-between items-center py-1">
+                    <span className="text-sm font-medium truncate max-w-[120px]">
+                      {user.first_name} {user.last_name}
+                    </span>
+                    <Badge variant={user.active ? "default" : "secondary"} className="text-xs">
+                      {user.active ? "Active" : "Inactive"}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-2">No users found</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2 mb-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Department Distribution</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </div>
+            ) : (
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={departments.map(dept => ({
+                      name: dept.name,
+                      users: users.filter(u => u.department.department_id === dept.department_id).length
+                    }))}
+                    margin={{
+                      top: 5,
+                      right: 30,
+                      left: 20,
+                      bottom: 50,
+                    }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" angle={-45} textAnchor="end" height={60} />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="users" name="Number of Users" fill="#3b82f6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Document Type Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </div>
+            ) : (
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'Active Types', value: documentTypes.filter(dt => dt.active).length },
+                        { name: 'Inactive Types', value: documentTypes.filter(dt => !dt.active).length }
+                      ]}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      paddingAngle={5}
+                      dataKey="value"
+                      nameKey="name"
+                    >
+                      <Cell key="active" fill="#10b981" />
+                      <Cell key="inactive" fill="#ef4444" />
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>User Status Overview</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </div>
+            ) : (
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={[
+                      { name: 'Active Users', count: users.filter(u => u.active).length },
+                      { name: 'Inactive Users', count: users.filter(u => !u.active).length },
+                      { name: 'Active Accounts', count: users.filter(u => u.account.is_active).length },
+                      { name: 'Inactive Accounts', count: users.filter(u => !u.account.is_active).length }
+                    ]}
+                    margin={{
+                      top: 5,
+                      right: 30,
+                      left: 20,
+                      bottom: 5,
+                    }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="count" name="Count" fill="#10b981" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Document Action Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </div>
+            ) : (
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'Active Actions', value: documentActions.filter(da => da.status).length },
+                        { name: 'Inactive Actions', value: documentActions.filter(da => !da.status).length }
+                      ]}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      paddingAngle={5}
+                      dataKey="value"
+                      nameKey="name"
+                    >
+                      <Cell key="active" fill="#10b981" />
+                      <Cell key="inactive" fill="#ef4444" />
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
