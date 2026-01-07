@@ -61,6 +61,7 @@ model User {
   account                    Account                    @relation(fields: [account_id], references: [account_id], onDelete: Cascade)
   user_permissions           UserPermission[]
   user_roles                 UserRole[]
+  scheduled_reports          ScheduledReport[]
 }
 
 model Department {
@@ -912,6 +913,28 @@ enum SessionAction {
   session_expired
   force_logout
   concurrent_session
+}
+
+model ScheduledReport {
+  scheduled_report_id String   @id @default(uuid()) @db.Uuid
+  user_id             String   @db.Uuid
+  report_type         String   // e.g., 'compliance', 'usage', 'version'
+  schedule_config     Json     // stores frequency, day, time, etc.
+  next_run            DateTime
+  last_run            DateTime?
+  report_file_path    String?  // Path to the generated report file
+  report_file_name    String?  // Name of the generated report file
+  report_generated_at DateTime? // Timestamp when the report was generated
+  is_active           Boolean  @default(true)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @default(now()) @updatedAt
+  user                User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  // Reverse relation is defined in the User model as scheduled_reports
+
+  @@index([user_id])
+  @@index([next_run])
+  @@index([is_active])
+  @@index([report_generated_at])
 }
 
 enum InvitationStatus {

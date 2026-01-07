@@ -9,7 +9,13 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    let backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    
+    // Remove trailing /api if it exists to avoid double /api/api/
+    if (backendUrl.endsWith('/api')) {
+      backendUrl = backendUrl.slice(0, -4);
+    }
+    
     const { id } = await params;
 
     const cookies = request.headers.get("cookie");
@@ -64,7 +70,13 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    let backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    
+    // Remove trailing /api if it exists to avoid double /api/api/
+    if (backendUrl.endsWith('/api')) {
+      backendUrl = backendUrl.slice(0, -4);
+    }
+    
     const { id } = await params;
 
     const cookies = request.headers.get("cookie");
