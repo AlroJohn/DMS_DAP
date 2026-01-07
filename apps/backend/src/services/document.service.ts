@@ -1497,15 +1497,12 @@ export class DocumentService {
     });
 
     // Create audit trail for document creation
-    await auditService.createAuditLog(
-      userId,
-      document.document_id,
-      'DOCUMENT_CREATED',
-      {
-        newValues: document,
-        description: `Document created by ${user.first_name} ${user.last_name}.`,
-      }
-    );
+    await auditService.logDocumentCreated(userId, document.document_id, {
+      description: `Document created by ${user.first_name} ${user.last_name}.`,
+      fromDepartmentId: user.department_id,
+      toDepartmentId: user.department_id,
+      status: document.status,
+    });
 
     return document;
   }
@@ -2406,7 +2403,7 @@ export class DocumentService {
 
       const user = await prisma.user.findUnique({
         where: { user_id: userId },
-        select: { account_id: true },
+        select: { account_id: true, department_id: true },
       });
 
       if (!user) {
@@ -2429,6 +2426,11 @@ export class DocumentService {
             deleted_at: new Date(),
           },
         });
+      });
+
+      await auditService.logDocumentDeleted(userId, id, {
+        description: 'Document moved to recycle bin',
+        status: 'deleted',
       });
 
       // Emit socket event to notify frontends of document deletion
@@ -3498,6 +3500,15 @@ export class DocumentService {
     });
 
     if (deleted.count > 0) {
+      await Promise.all(
+        idsToDelete.map((documentId) =>
+          auditService.logDocumentDeleted(userId, documentId, {
+            description: 'Document permanently deleted',
+            status: 'deleted',
+          })
+        )
+      );
+
       const io = getSocketInstance();
       io.emit('documentDeleted', {
         documentIds: idsToDelete,
