@@ -201,10 +201,10 @@ const data = {
           title: "Compliance Reports",
           url: "/reports/compliance",
         },
-        {
-          title: "Data Migration",
-          url: "/reports/data-migration",
-        },
+        // {
+        //   title: "Data Migration",
+        //   url: "/reports/data-migration",
+        // },
         {
           title: "Signing History",
           url: "/reports/signing-history",
@@ -233,10 +233,10 @@ const data = {
         //   title: "Report Builder",
         //   url: "/reports/builder",
         // },
-        {
-          title: "Scheduled Reports",
-          url: "/reports/scheduled",
-        },
+        // {
+        //   title: "Scheduled Reports",
+        //   url: "/reports/scheduled",
+        // },
       ],
     },
     {

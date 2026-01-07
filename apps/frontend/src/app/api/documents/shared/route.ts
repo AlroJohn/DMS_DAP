@@ -8,7 +8,13 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit') || '10';
 
     // Forward the request to the backend API
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    let backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    
+    // Remove trailing /api if it exists to avoid double /api/api/
+    if (backendUrl.endsWith('/api')) {
+      backendUrl = backendUrl.slice(0, -4);
+    }
+    
     const backendResponse = await fetch(`${backendUrl}/api/shared?page=${page}&limit=${limit}`, {
       method: 'GET',
       headers: {

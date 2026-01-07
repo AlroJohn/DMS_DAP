@@ -6,7 +6,12 @@ import { NextRequest, NextResponse } from "next/server";
  */
 export async function GET(request: NextRequest) {
   try {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    let backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    
+    // Remove trailing /api if it exists to avoid double /api/api/
+    if (backendUrl.endsWith('/api')) {
+      backendUrl = backendUrl.slice(0, -4);
+    }
 
     const { searchParams } = new URL(request.url);
     const page = searchParams.get("page") ?? "1";
@@ -71,7 +76,13 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    let backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    
+    // Remove trailing /api if it exists to avoid double /api/api/
+    if (backendUrl.endsWith('/api')) {
+      backendUrl = backendUrl.slice(0, -4);
+    }
+    
     const cookies = request.headers.get("cookie");
 
     const payload = await request.json().catch(() => null);

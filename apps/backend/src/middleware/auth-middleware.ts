@@ -36,7 +36,16 @@ const resolveDepartmentId = async (decoded: AuthTokenPayload) => {
  * Authentication middleware - validates JWT tokens
  */
 export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
-  const token = req.cookies.accessToken; // Get token from HttpOnly cookie
+  // Get token from either cookies or Authorization header
+  let token = req.cookies.accessToken; // Get token from HttpOnly cookie
+
+  // If no token in cookies, check Authorization header
+  if (!token) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    }
+  }
 
   if (!token) {
     return res.status(401).json({

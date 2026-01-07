@@ -16,6 +16,7 @@ import cookieParser from 'cookie-parser'; // Import cookie-parser
 // Import services
 import { AuthService } from './services/auth.service';
 import { UserService } from './services/user.service';
+import { ScheduledReportsProcessor } from './services/scheduled-reports.processor';
 
 // Import routes
 import authRoutes from './routes/auth.routes';
@@ -228,6 +229,10 @@ app.use(errorLogger);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
+// Start scheduled reports processor
+const scheduledReportsProcessor = new ScheduledReportsProcessor();
+scheduledReportsProcessor.start();
+
 // Start server
 server.listen(config.port, () => {
   console.log(`🚀 Server is running on port ${config.port}`);
@@ -240,6 +245,7 @@ server.listen(config.port, () => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down gracefully');
+  scheduledReportsProcessor.stop();
   server.close(() => {
     console.log('Process terminated');
     process.exit(0);
@@ -248,6 +254,7 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
   console.log('SIGINT received, shutting down gracefully');
+  scheduledReportsProcessor.stop();
   server.close(() => {
     console.log('Process terminated');
     process.exit(0);
