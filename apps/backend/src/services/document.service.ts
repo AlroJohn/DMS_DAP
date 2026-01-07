@@ -1496,14 +1496,6 @@ export class DocumentService {
       }
     });
 
-    // Create audit trail for document creation
-    await auditService.logDocumentCreated(userId, document.document_id, {
-      description: `Document created by ${user.first_name} ${user.last_name}.`,
-      fromDepartmentId: user.department_id,
-      toDepartmentId: user.department_id,
-      status: document.status,
-    });
-
     return document;
   }
 
