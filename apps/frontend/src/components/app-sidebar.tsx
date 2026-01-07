@@ -190,6 +190,10 @@ const data = {
           url: "/reports/audit-trail",
         },
         {
+          title: "Document Trail",
+          url: "/reports/document-trailing",
+        },
+        {
           title: "Usage Reports",
           url: "/reports/usage",
         },

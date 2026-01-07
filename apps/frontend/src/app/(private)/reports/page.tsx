@@ -20,6 +20,14 @@ export default function ReportsPage() {
       count: "1,234 entries"
     },
     {
+      title: "Document Trailing",
+      description: "Track documents created and shared between departments",
+      icon: FileText,
+      color: "bg-green-100 text-green-600",
+      route: "/reports/document-trailing",
+      count: "248 documents"
+    },
+    {
       title: "Usage Reports",
       description: "System utilization and performance metrics",
       icon: BarChart3,

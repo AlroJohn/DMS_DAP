@@ -93,73 +93,45 @@ export function DataTable<TData, TValue>({
     []
   );
   const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [pagination, setPagination] = React.useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 10,
-  });
-  const isMountedRef = React.useRef(true);
-
-  React.useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  const table = useReactTable({
-    data,
-    columns: filteredColumns,
-    state: {
-      sorting,
-      columnVisibility,
-      rowSelection,
-      columnFilters,
-      pagination,
-    },
-    onRowSelectionChange: (updater) => {
-      if (isMountedRef.current) {
-        setRowSelection(updater);
-      }
-    },
-    onSortingChange: (updater) => {
-      if (isMountedRef.current) {
-        setSorting(updater);
-      }
-    },
-    onColumnFiltersChange: (updater) => {
-      if (isMountedRef.current) {
-        setColumnFilters(updater);
-      }
-    },
-    onPaginationChange: (updater) => {
-      if (isMountedRef.current) {
-        setPagination(updater);
-      }
-    },
-    autoResetPageIndex: false,
-    onColumnVisibilityChange: (updater) => {
-      if (isMountedRef.current) {
-        setColumnVisibility(updater);
-      }
-    },
-    initialState,
-    enableRowSelection: selection ? true : false,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
-  });
-
-  // Handle selection changes only after component is mounted
-  React.useEffect(() => {
-    if (!onSelectionChange || !isMountedRef.current) return;
-
-    const selectedRows = table
-      .getSelectedRowModel()
-      .rows.map((row) => row.original as TData);
-    onSelectionChange(selectedRows);
-  }, [onSelectionChange, table, rowSelection]);
+    const [pagination, setPagination] = React.useState<PaginationState>({
+      pageIndex: 0,
+      pageSize: 10,
+    });
+  
+    const table = useReactTable({
+      data,
+      columns: filteredColumns,
+      state: {
+        sorting,
+        columnVisibility,
+        rowSelection,
+        columnFilters,
+        pagination,
+      },
+      onRowSelectionChange: setRowSelection,
+      onSortingChange: setSorting,
+      onColumnFiltersChange: setColumnFilters,
+      onPaginationChange: setPagination,
+      autoResetPageIndex: false,
+      onColumnVisibilityChange: setColumnVisibility,
+      enableRowSelection: selection ? true : false,
+      getCoreRowModel: getCoreRowModel(),
+      getFilteredRowModel: getFilteredRowModel(),
+      getPaginationRowModel: getPaginationRowModel(),
+      getSortedRowModel: getSortedRowModel(),
+      getFacetedRowModel: getFacetedRowModel(),
+      getFacetedUniqueValues: getFacetedUniqueValues(),
+    });
+  
+    // Handle selection changes
+    React.useEffect(() => {
+      if (!onSelectionChange) return;
+  
+      const selectedRows = table
+        .getSelectedRowModel()
+        .rows.map((row) => row.original as TData);
+      onSelectionChange(selectedRows);
+    }, [onSelectionChange, table, rowSelection]);
 
   return (
     <div className="flex flex-col gap-4">

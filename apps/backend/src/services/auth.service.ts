@@ -436,6 +436,7 @@ export class AuthService {
     const payload: AuthTokenPayload = {
       userId: user.id,
       email: user.email,
+      departmentId: user.department_id,
       permissions: user.permissions,
       roles: roleCodes || []
     };

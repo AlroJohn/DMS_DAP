@@ -1,17 +1,36 @@
 import { Request, Response, NextFunction } from 'express';
-import { Permission, Role } from '../types';
+import { Permission, AuthTokenPayload } from '../types';
 import { AuthService } from '../services/auth.service';
 import { PermissionService } from '../services/permission.service';
+import { prisma } from '../lib/prisma';
 
 // Custom interface for authenticated requests
 export interface AuthRequest extends Request {
   user: {
     id: string;
     email: string;
+    department_id?: string;
     permissions: Permission[];
     roles: string[]; // Role codes for quick access
   };
 }
+
+const resolveDepartmentId = async (decoded: AuthTokenPayload) => {
+  if (decoded.departmentId) {
+    return decoded.departmentId;
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { user_id: decoded.userId },
+      select: { department_id: true },
+    });
+    return user?.department_id;
+  } catch (error) {
+    console.error('Failed to resolve user department:', error);
+    return undefined;
+  }
+};
 
 /**
  * Authentication middleware - validates JWT tokens
@@ -29,12 +48,14 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
   try {
     const authService = new AuthService();
     const decoded = await authService.verifyToken(token);
+    const departmentId = await resolveDepartmentId(decoded);
 
     // Cast to our custom AuthRequest type
     const authReq = req as AuthRequest;
     authReq.user = {
       id: decoded.userId,
       email: decoded.email,
+      department_id: departmentId,
       permissions: decoded.permissions,
       roles: decoded.roles
     };
@@ -96,12 +117,14 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
     try {
       const authService = new AuthService();
       const decoded = await authService.verifyToken(token);
+      const departmentId = await resolveDepartmentId(decoded);
 
       // Cast to our custom AuthRequest type
       const authReq = req as AuthRequest;
       authReq.user = {
         id: decoded.userId,
         email: decoded.email,
+        department_id: departmentId,
         permissions: decoded.permissions,
         roles: decoded.roles
       };

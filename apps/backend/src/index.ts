@@ -37,6 +37,7 @@ import recycleBinRoutes from './routes/recyclebin.routes';
 import sharedDocumentRoutes from './routes/shared-document.routes';
 import documentMetadataRoutes from './routes/document-metadata.routes'; // Import the new route
 import documentTrailsRoutes from './routes/document-trails.routes'; // Import document trails routes
+import documentTrailingRoutes from './routes/document-trailing.routes'; // Import document trailing routes
 import notificationsRoutes from './routes/notifications'; // Import notifications route
 import archiveRoutes from './routes/archive.routes'; // Import archive routes
 import dashboardRoutes from './routes/dashboard.routes'; // Import dashboard routes
@@ -168,6 +169,7 @@ app.use('/api/recycle-bin', recycleBinRoutes);
 app.use('/api/shared', sharedDocumentRoutes);
 app.use('/api/document-metadata', documentMetadataRoutes); // Add the new route
 app.use('/api/documents', documentTrailsRoutes); // Add document trails routes
+app.use('/api/documents', documentTrailingRoutes); // Add document trailing routes
 app.use('/api/notifications', notificationsRoutes); // Add notifications route
 app.use('/api/archive', archiveRoutes); // Add archive routes
 app.use('/api/dashboard', dashboardRoutes); // Add dashboard routes

@@ -167,6 +167,7 @@ export interface User {
 export interface AuthTokenPayload {
   userId: string;
   email: string;
+  departmentId?: string;
   permissions: Permission[];
   roles: string[]; // Role codes for quick access
   iat?: number;
