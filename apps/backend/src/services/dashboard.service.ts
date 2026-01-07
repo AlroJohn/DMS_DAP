@@ -50,13 +50,16 @@ export class DashboardService {
 
     const documentTrends = await this.getDocumentTrends(departmentId);
     const recentDocuments = await this.getRecentDocuments(userId);
+    const recentActivity = await this.getRecentActivityCount(departmentId);
+    const pendingApprovals = await this.getPendingApprovalsCount(departmentId);
+    const activeWorkflows = await this.getActiveWorkflowsCount(departmentId);
 
     // Mock data for other stats until they are implemented
     const stats = {
         documentStats: documentStats,
-        recentActivity: 5, 
-        pendingApprovals: 5,
-        activeWorkflows: 5,
+        recentActivity,
+        pendingApprovals,
+        activeWorkflows,
         collaborators: 10,
         storageUsage: { used: 50, total: 100, percentage: 50 },
         complianceStatus: 98,
@@ -119,6 +122,91 @@ export class DashboardService {
         },
         timeAgo: this.formatTimeAgo(doc.activityTime),
     }));
+  }
+
+  private async getRecentActivityCount(departmentId: string) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 7);
+
+    const departmentFilter = {
+      DocumentAdditionalDetails: {
+        some: {
+          work_flow_id: {
+            string_contains: `"${departmentId}"`,
+          },
+        },
+      },
+    };
+
+    const [createdCount, receivedCount] = await Promise.all([
+      prisma.document.count({
+        where: {
+          ...departmentFilter,
+          status: 'dispatch',
+          created_at: { gte: startDate },
+        },
+      }),
+      prisma.document.count({
+        where: {
+          ...departmentFilter,
+          status: 'received',
+          updated_at: { gte: startDate },
+        },
+      }),
+    ]);
+
+    return createdCount + receivedCount;
+  }
+
+  private async getPendingApprovalsCount(departmentId: string) {
+    const departmentFilter = {
+      DocumentAdditionalDetails: {
+        some: {
+          work_flow_id: {
+            string_contains: `"${departmentId}"`,
+          },
+        },
+      },
+    };
+
+    const inTransitDocuments = await prisma.document.findMany({
+      where: {
+        ...departmentFilter,
+        status: 'intransit',
+      },
+      select: {
+        document_id: true,
+        document_trails: {
+          take: 1,
+          orderBy: { created_at: 'desc' },
+          select: { to_department: true },
+        },
+      },
+    });
+
+    return inTransitDocuments.filter((doc) => {
+      const latestTrail = doc.document_trails[0];
+      return latestTrail?.to_department === departmentId;
+    }).length;
+  }
+
+  private async getActiveWorkflowsCount(departmentId: string) {
+    const departmentFilter = {
+      DocumentAdditionalDetails: {
+        some: {
+          work_flow_id: {
+            string_contains: `"${departmentId}"`,
+          },
+        },
+      },
+    };
+
+    return prisma.document.count({
+      where: {
+        ...departmentFilter,
+        status: { in: ['intransit', 'intransit_signature'] },
+      },
+    });
   }
 
     private formatTimeAgo(dateString: string): string {

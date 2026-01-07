@@ -13,6 +13,7 @@ import { DocumentMetadataService } from './document-metadata.service';
 import { DocumentTrailsService } from './document-trails.service';
 import { NotificationService } from './notification.service';
 import { recordCompletionStatus, recordCreationStatus, recordReceiveStatus } from './workflow-status.service';
+import { auditService } from './audit.service';
 // Import the getSocketInstance function instead of importing io directly from index
 
 // Create a type alias to avoid confusion with DOM Document
@@ -1494,6 +1495,17 @@ export class DocumentService {
         last_name: user.last_name
       }
     });
+
+    // Create audit trail for document creation
+    await auditService.createAuditLog(
+      userId,
+      document.document_id,
+      'DOCUMENT_CREATED',
+      {
+        newValues: document,
+        description: `Document created by ${user.first_name} ${user.last_name}.`,
+      }
+    );
 
     return document;
   }

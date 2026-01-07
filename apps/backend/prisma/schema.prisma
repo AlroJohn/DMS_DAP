@@ -61,6 +61,7 @@ model User {
   account                    Account                    @relation(fields: [account_id], references: [account_id], onDelete: Cascade)
   user_permissions           UserPermission[]
   user_roles                 UserRole[]
+  documentAuditTrails        DocumentAuditTrail[]
 }
 
 model Department {
@@ -95,6 +96,7 @@ model Document {
   DocumentAdditionalDetails DocumentAdditionalDetails[]
   files                     DocumentFile[]              @relation("DocumentFiles")
   document_trails           DocumentTrail[]
+  document_audit_trails     DocumentAuditTrail[]
   signature_placeholders    SignaturePlaceholder[]
   signedDocuments           SignedDocument[]
 }
@@ -150,22 +152,23 @@ model DocumentAction {
 }
 
 model DocumentTrail {
-  trail_id        String          @id @default(uuid()) @db.Uuid
-  document_id     String          @db.Uuid
-  action_id       String?         @db.Uuid
-  from_department String?         @db.Uuid
-  to_department   String?         @db.Uuid
-  user_id         String?         @db.Uuid
-  action_date     DateTime        @default(now())
-  status          String
-  remarks         String?
-  created_at      DateTime        @default(now())
-  updated_at      DateTime        @default(now()) @updatedAt
-  documentAction  DocumentAction? @relation(fields: [action_id], references: [document_action_id])
-  document        Document        @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
-  fromDept        Department?     @relation("FromDepartment", fields: [from_department], references: [department_id])
-  toDept          Department?     @relation("ToDepartment", fields: [to_department], references: [department_id])
-  user            User?           @relation(fields: [user_id], references: [user_id])
+  trail_id              String               @id @default(uuid()) @db.Uuid
+  document_id           String               @db.Uuid
+  action_id             String?              @db.Uuid
+  from_department       String?              @db.Uuid
+  to_department         String?              @db.Uuid
+  user_id               String?              @db.Uuid
+  action_date           DateTime             @default(now())
+  status                String
+  remarks               String?
+  created_at            DateTime             @default(now())
+  updated_at            DateTime             @default(now()) @updatedAt
+  documentAction        DocumentAction?      @relation(fields: [action_id], references: [document_action_id])
+  document              Document             @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
+  fromDept              Department?          @relation("FromDepartment", fields: [from_department], references: [department_id])
+  toDept                Department?          @relation("ToDepartment", fields: [to_department], references: [department_id])
+  user                  User?                @relation(fields: [user_id], references: [user_id])
+  document_audit_trails DocumentAuditTrail[] // Link to comprehensive audit trail
 }
 
 model DocumentMetadata {
@@ -210,6 +213,7 @@ model DocumentFile {
   DocumentMetadata       DocumentMetadata?
   signature_placeholders SignaturePlaceholder[]
   signed_documents       SignedDocument[]
+  document_audit_trails  DocumentAuditTrail[]
   checked_out_by         UserCheckout[]
 
   @@index([document_id])
@@ -227,22 +231,23 @@ model UserCheckout {
 }
 
 model SignedDocument {
-  signed_document_id  String        @id @default(uuid()) @db.Uuid
-  document_id         String        @db.Uuid
-  signee_id           String        @db.Uuid
-  x_position          Float
-  y_position          Float
-  width               Float
-  height              Float
-  page_number         Int
-  signature_data      String?
-  signed_at           DateTime      @default(now())
-  created_at          DateTime      @default(now())
-  updated_at          DateTime      @default(now()) @updatedAt
-  documentFileFile_id String?       @db.Uuid
-  documentFile        DocumentFile? @relation(fields: [documentFileFile_id], references: [file_id])
-  document            Document      @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
-  signee              User          @relation(fields: [signee_id], references: [user_id], onDelete: Cascade)
+  signed_document_id    String               @id @default(uuid()) @db.Uuid
+  document_id           String               @db.Uuid
+  signee_id             String               @db.Uuid
+  x_position            Float
+  y_position            Float
+  width                 Float
+  height                Float
+  page_number           Int
+  signature_data        String?
+  signed_at             DateTime             @default(now())
+  created_at            DateTime             @default(now())
+  updated_at            DateTime             @default(now()) @updatedAt
+  documentFileFile_id   String?              @db.Uuid
+  documentFile          DocumentFile?        @relation(fields: [documentFileFile_id], references: [file_id])
+  document              Document             @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
+  document_audit_trails DocumentAuditTrail[]
+  signee                User                 @relation(fields: [signee_id], references: [user_id], onDelete: Cascade)
 
   @@index([document_id])
   @@index([signee_id])
@@ -264,6 +269,124 @@ model SignaturePlaceholder {
 
   @@index([document_id])
   @@index([document_file_id])
+}
+
+model DocumentAuditTrail {
+  audit_trail_id     String          @id @default(uuid()) @db.Uuid
+  document_id        String?         @db.Uuid
+  document_file_id   String?         @db.Uuid
+  signed_document_id String?         @db.Uuid
+  user_id            String?         @db.Uuid
+  action_type        AuditActionType
+  action_description String?
+  old_values         Json?
+  new_values         Json?
+  ip_address         String?
+  user_agent         String?
+  location           String?
+  metadata           Json?
+  created_at         DateTime        @default(now())
+  updated_at         DateTime        @default(now()) @updatedAt
+
+  // Relations
+  document              Document?       @relation(fields: [document_id], references: [document_id])
+  documentFile          DocumentFile?   @relation(fields: [document_file_id], references: [file_id])
+  signedDocument        SignedDocument? @relation(fields: [signed_document_id], references: [signed_document_id])
+  user                  User?           @relation(fields: [user_id], references: [user_id])
+  documentTrail         DocumentTrail?  @relation(fields: [documentTrailTrail_id], references: [trail_id])
+  documentTrailTrail_id String?         @db.Uuid
+
+  @@index([document_id])
+  @@index([document_file_id])
+  @@index([signed_document_id])
+  @@index([user_id])
+  @@index([action_type])
+  @@index([created_at])
+}
+
+enum AuditActionType {
+  DOCUMENT_CREATED
+  DOCUMENT_UPDATED
+  DOCUMENT_DELETED
+  DOCUMENT_RESTORED
+  DOCUMENT_ARCHIVED
+  DOCUMENT_RELEASED
+  DOCUMENT_RECEIVED
+  DOCUMENT_DOWNLOADED
+  DOCUMENT_UPLOADED
+  DOCUMENT_SHARED
+  DOCUMENT_SIGNED
+  DOCUMENT_SIGNATURE_ADDED
+  DOCUMENT_SIGNATURE_REMOVED
+  DOCUMENT_CHECKED_OUT
+  DOCUMENT_CHECKED_IN
+  DOCUMENT_TRANSFERRED
+  DOCUMENT_TYPE_CHANGED
+  DOCUMENT_CLASSIFICATION_CHANGED
+  DOCUMENT_STATUS_CHANGED
+  DOCUMENT_METADATA_UPDATED
+  DOCUMENT_FILE_VERSION_CREATED
+  DOCUMENT_FILE_VERSION_DELETED
+  DOCUMENT_ACCESS_VIEWED
+  DOCUMENT_PERMISSION_CHANGED
+  DOCUMENT_DEPARTMENT_CHANGED
+  DOCUMENT_TITLE_CHANGED
+  DOCUMENT_DESCRIPTION_CHANGED
+  DOCUMENT_SECURITY_LEVEL_CHANGED
+  DOCUMENT_RETENTION_PERIOD_CHANGED
+  DOCUMENT_EXPIRED
+  DOCUMENT_AUTO_DELETED
+  DOCUMENT_MOVED_TO_RECYCLE_BIN
+  DOCUMENT_RESTORED_FROM_RECYCLE_BIN
+  DOCUMENT_PERMANENTLY_DELETED
+  DOCUMENT_BULK_OPERATION
+  DOCUMENT_ROUTING_STARTED
+  DOCUMENT_ROUTING_COMPLETED
+  DOCUMENT_CUSTODY_TRANSFERRED
+  DOCUMENT_CUSTODY_RECEIVED
+  DOCUMENT_VERIFICATION_STARTED
+  DOCUMENT_VERIFICATION_COMPLETED
+  DOCUMENT_VERIFICATION_FAILED
+  DOCUMENT_BLOCKCHAIN_INTEGRATION
+  DOCUMENT_WATERMARK_ADDED
+  DOCUMENT_WATERMARK_REMOVED
+  DOCUMENT_ENCRYPTION_APPLIED
+  DOCUMENT_ENCRYPTION_REMOVED
+  DOCUMENT_WATERMARK_UPDATED
+  DOCUMENT_SIGNATURE_PLACEHOLDER_ADDED
+  DOCUMENT_SIGNATURE_PLACEHOLDER_REMOVED
+  DOCUMENT_SIGNATURE_PLACEHOLDER_UPDATED
+  DOCUMENT_QR_CODE_GENERATED
+  DOCUMENT_BARCODE_GENERATED
+  DOCUMENT_CUSTOM_FIELD_UPDATED
+  DOCUMENT_WORKFLOW_STATUS_UPDATED
+  DOCUMENT_COMPLETION_STATUS_UPDATED
+  DOCUMENT_RECEIVE_STATUS_UPDATED
+  DOCUMENT_RELEASE_STATUS_UPDATED
+  DOCUMENT_SIGNATURE_STATUS_UPDATED
+  DOCUMENT_NOTIFICATION_SENT
+  DOCUMENT_EMAIL_SENT
+  DOCUMENT_PRINTED
+  DOCUMENT_EXPORTED
+  DOCUMENT_IMPORTED
+  DOCUMENT_MERGED
+  DOCUMENT_SPLIT
+  DOCUMENT_CONVERTED
+  DOCUMENT_COMPRESSED
+  DOCUMENT_EXTRACTED
+  DOCUMENT_BACKUP_CREATED
+  DOCUMENT_BACKUP_RESTORED
+  DOCUMENT_BACKUP_DELETED
+  DOCUMENT_AUDIT_EXPORTED
+  DOCUMENT_REPORT_GENERATED
+  DOCUMENT_SEARCH_PERFORMED
+  DOCUMENT_FILTER_APPLIED
+  DOCUMENT_SORT_ORDER_CHANGED
+  DOCUMENT_PAGINATION_CHANGED
+  DOCUMENT_BATCH_OPERATION_STARTED
+  DOCUMENT_BATCH_OPERATION_COMPLETED
+  DOCUMENT_BATCH_OPERATION_FAILED
+  DOCUMENT_CUSTOM_ACTION
 }
 
 model Notification {
