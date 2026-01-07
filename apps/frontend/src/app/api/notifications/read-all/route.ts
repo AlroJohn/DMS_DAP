@@ -1,13 +1,20 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 export async function PATCH(request: NextRequest) {
   try {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    let backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    
+    // Remove trailing /api if it exists to avoid double /api/api/
+    if (backendUrl.endsWith('/api')) {
+      backendUrl = backendUrl.slice(0, -4);
+    }
 
     // Get cookies from the request to forward to backend
     const cookies = request.headers.get('cookie');
 
-    const response = await fetch(`${backendUrl}/api/notifications/read-all`, {
+    const backendApiUrl = `${backendUrl}/api/notifications/read-all`;
+
+    const response = await fetch(backendApiUrl, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -17,22 +24,33 @@ export async function PATCH(request: NextRequest) {
     });
 
     if (!response.ok) {
-      return new Response(
-        JSON.stringify({ error: 'Failed to mark all notifications as read' }),
-        { status: response.status, headers: { 'Content-Type': 'application/json' } }
+      const errorData = await response.json().catch(() => ({
+        error: { message: 'Failed to mark all notifications as read' }
+      }));
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: errorData.error || { message: 'Failed to mark all notifications as read' }
+        },
+        { status: response.status }
       );
     }
 
     const data = await response.json();
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
+
+    return NextResponse.json({
+      success: data.success || true,
+      data: data.data || {}
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error marking all notifications as read:', error);
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    return NextResponse.json(
+      {
+        success: false,
+        error: { message: error.message || 'Internal server error' }
+      },
+      { status: 500 }
     );
   }
 }

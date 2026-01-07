@@ -6,7 +6,12 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 export async function GET(request: NextRequest) {
   try {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    let backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+    // Remove trailing /api if it exists to avoid double /api/api/
+    if (backendUrl.endsWith('/api')) {
+      backendUrl = backendUrl.slice(0, -4);
+    }
 
     // Get cookies from the request to forward to backend
     const cookies = request.headers.get('cookie');
@@ -36,10 +41,15 @@ export async function GET(request: NextRequest) {
 
     const data = await response.json();
 
+    // Handle both possible response formats:
+    // 1. { success: true, data: { token: "..." } }
+    // 2. { success: true, token: "..." }
+    const token = data.data?.token || data.token;
+
     return NextResponse.json({
       success: data.success || true,
-      token: data.data?.token || data.token,
-      data: data.data
+      token: token,
+      data: data.data || { token }
     });
   } catch (error: any) {
     console.error('Error fetching socket token:', error);

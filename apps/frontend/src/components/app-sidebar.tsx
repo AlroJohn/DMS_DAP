@@ -221,14 +221,14 @@ const data = {
           title: "Version History",
           url: "/reports/versions",
         },
-        {
-          title: "Chain of Custody",
-          url: "/reports/chain-of-custody",
-        },
-        {
-          title: "Report Builder",
-          url: "/reports/builder",
-        },
+        // {
+        //   title: "Chain of Custody",
+        //   url: "/reports/chain-of-custody",
+        // },
+        // {
+        //   title: "Report Builder",
+        //   url: "/reports/builder",
+        // },
         {
           title: "Scheduled Reports",
           url: "/reports/scheduled",
