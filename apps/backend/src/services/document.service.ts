@@ -2234,12 +2234,9 @@ export class DocumentService {
     });
 
     // Optionally, update document status or create a trail
-    const documentTrailsService = new DocumentTrailsService();
-    await documentTrailsService.createDocumentTrail({
-      document_id: documentId,
-      user_id: userId,
-      status: 'signed', // Or another appropriate status
-      remarks: `Document signed by user ${userId}.`,
+    await auditService.logDocumentSigned(userId, documentId, {
+      description: `Document signed by user ${userId}.`,
+      status: 'signed',
     });
 
     console.log(`📍 [signDocumentFromPlaceholders] Successfully signed ${signedDocumentsData.length} placeholders for document ${documentId}`);
@@ -2420,10 +2417,19 @@ export class DocumentService {
         });
       });
 
-      await auditService.logDocumentDeleted(userId, id, {
-        description: 'Document moved to recycle bin',
-        status: 'deleted',
-      });
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        await documentTrailsService.createDocumentTrail({
+          document_id: id,
+          from_department: user.department_id,
+          to_department: user.department_id,
+          user_id: userId,
+          status: 'deleted',
+          remarks: 'Document moved to recycle bin'
+        });
+      } catch (error) {
+        console.error('Error creating document trail for document deletion:', error);
+      }
 
       // Emit socket event to notify frontends of document deletion
       const io = getSocketInstance();
@@ -3430,6 +3436,15 @@ export class DocumentService {
    * Bulk delete documents (hard delete)
    */
   async bulkDeleteDocuments(documentIds: string[], userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+      select: { department_id: true },
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
     const documentsToDelete = await prisma.document.findMany({
       where: {
         document_id: {
@@ -3492,11 +3507,16 @@ export class DocumentService {
     });
 
     if (deleted.count > 0) {
+      const documentTrailsService = new DocumentTrailsService();
       await Promise.all(
         idsToDelete.map((documentId) =>
-          auditService.logDocumentDeleted(userId, documentId, {
-            description: 'Document permanently deleted',
+          documentTrailsService.createDocumentTrail({
+            document_id: documentId,
+            from_department: user.department_id,
+            to_department: user.department_id,
+            user_id: userId,
             status: 'deleted',
+            remarks: 'Document permanently deleted'
           })
         )
       );

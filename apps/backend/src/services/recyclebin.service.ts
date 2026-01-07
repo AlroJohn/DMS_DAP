@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import bwipjs from 'bwip-js';
 import { getSocketInstance } from '../socket';
 import { deleteFile } from '../middleware/upload.middleware';
+import { auditService } from './audit.service';
 import { DocumentTrailsService } from './document-trails.service';
 
 interface PaginationParams {
@@ -409,7 +410,6 @@ export class RecycleBinService {
       });
 
       // Create a document trail entry for document restoration from recycle bin
-      const documentTrailsService = new DocumentTrailsService();
       try {
         // Get user's department to include in trail
         const userDetail = await prisma.user.findUnique({
@@ -417,13 +417,10 @@ export class RecycleBinService {
           select: { department_id: true }
         });
 
-        await documentTrailsService.createDocumentTrail({
-          document_id: id,
-          from_department: userDetail?.department_id, // Department of user performing restoration
-          to_department: userDetail?.department_id, // Restoration happens in same department
-          user_id: userId, // Use the userId who performed the restoration
-          status: 'dispatch', // Status is reset to dispatch after restoration
-          remarks: `Document restored from recycle bin: ${existingDocument.title}`
+        await auditService.logDocumentRestored(userId, id, {
+          description: `Document restored from recycle bin: ${existingDocument.title}`,
+          fromDepartmentId: userDetail?.department_id,
+          toDepartmentId: userDetail?.department_id
         });
       } catch (error) {
         console.error('Error creating document trail for document restoration from recycle bin:', error);
@@ -913,21 +910,17 @@ export class RecycleBinService {
 
       // Create document trails for the restored documents
       try {
-        const documentTrailsService = new DocumentTrailsService();
         for (const document of documentsToRestore) {
-          console.log('📍 [RecycleBinService.bulkRestoreDocuments] Creating trail for document:', document.document_id);
+          console.log('?? [RecycleBinService.bulkRestoreDocuments] Creating trail for document:', document.document_id);
 
           if (document.document_id && userId && user.department_id) {
-            await documentTrailsService.createDocumentTrail({
-              document_id: document.document_id,
-              from_department: user.department_id, // Department of user performing restoration
-              to_department: user.department_id, // Restoration happens in same department
-              user_id: userId, // Use the userId who performed the restoration
-              status: 'dispatch', // Status is reset to dispatch after restoration
-              remarks: `Document restored from recycle bin: ${document.title}`
+            await auditService.logDocumentRestored(userId, document.document_id, {
+              description: `Document restored from recycle bin: ${document.title}`,
+              fromDepartmentId: user.department_id,
+              toDepartmentId: user.department_id
             });
           } else {
-            console.log('📍 [RecycleBinService.bulkRestoreDocuments] Missing required data for document trail:', {
+            console.log('?? [RecycleBinService.bulkRestoreDocuments] Missing required data for document trail:', {
               documentId: document.document_id,
               userId: userId,
               departmentId: user.department_id
@@ -947,3 +940,4 @@ export class RecycleBinService {
     }
   }
 }
+

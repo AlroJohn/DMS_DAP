@@ -84,6 +84,20 @@ class AuditService {
     });
   }
 
+  async logDocumentRestored(userId: string, documentId: string, details: TrailLogDetails = {}) {
+    return this.createDocumentTrail(userId, documentId, details.status ?? 'restored', {
+      description: details.description ?? 'Document restored',
+      ...details,
+    });
+  }
+
+  async logDocumentSigned(userId: string, documentId: string, details: TrailLogDetails = {}) {
+    return this.createDocumentTrail(userId, documentId, details.status ?? 'signed', {
+      description: details.description ?? 'Document signed',
+      ...details,
+    });
+  }
+
   async getDocumentTrailsForDepartment(
     departmentId: string,
     userId?: string,

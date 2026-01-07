@@ -49,6 +49,26 @@ export default function DocumentTrailingPage() {
   const router = useRouter();
   const { user, isLoading: isAuthLoading } = useAuth();
 
+  const collapseTrailsToDocuments = (trails: DocumentTrail[]) => {
+    const byDocument = new Map<string, DocumentTrail>();
+
+    for (const trail of trails) {
+      const existing = byDocument.get(trail.documentId);
+      if (!existing) {
+        byDocument.set(trail.documentId, trail);
+        continue;
+      }
+
+      const existingDate = new Date(existing.actionDate).getTime();
+      const currentDate = new Date(trail.actionDate).getTime();
+      if (currentDate > existingDate) {
+        byDocument.set(trail.documentId, trail);
+      }
+    }
+
+    return Array.from(byDocument.values());
+  };
+
   // Fetch data from API
   useEffect(() => {
     const fetchDocuments = async () => {
@@ -90,8 +110,9 @@ export default function DocumentTrailingPage() {
         }
 
         const trails = Array.isArray(result.data) ? result.data : [];
-        setDocuments(trails);
-        setFilteredDocuments(trails);
+        const uniqueDocuments = collapseTrailsToDocuments(trails);
+        setDocuments(uniqueDocuments);
+        setFilteredDocuments(uniqueDocuments);
       } catch (error) {
         console.error("Error fetching documents:", error);
         toast.error("Failed to load document data");

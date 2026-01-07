@@ -239,13 +239,6 @@ export class DocumentReleaseService {
                 remarks
             });
 
-      await auditService.logDocumentReleased(userId, documentId, {
-        description: `Document released to department ${departmentId}`,
-        fromDepartmentId: releasingUser?.department_id,
-        toDepartmentId: departmentId,
-        status: 'intransit'
-      });
-
             // Emit socket event to notify frontends of document release/update
             const updatedDocument = await prisma.document.findUnique({
                 where: { document_id: documentId }
@@ -514,11 +507,6 @@ export class DocumentReleaseService {
                 userId
             });
 
-      await auditService.logDocumentReceived(userId, documentId, {
-        description: `Document received by department ${user.department_id}`,
-        toDepartmentId: user.department_id,
-        status: 'received'
-      });
 
             console.log('📍 [DocumentReleaseService.receiveDocument] Document received successfully by user:', userId, 'in department:', user.department_id);
 
@@ -567,3 +555,4 @@ export class DocumentReleaseService {
         }
     }
 }
+
