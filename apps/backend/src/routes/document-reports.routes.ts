@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  getUsageReport,
   getVersionHistoryReport,
   getDocumentVersionHistory,
   compareDocumentVersions
@@ -7,6 +8,9 @@ import {
 import { authMiddleware } from '../middleware/auth-middleware';
 
 const router = Router();
+
+// Get usage report
+router.get('/usage', authMiddleware, getUsageReport);
 
 // Get version history report for all documents
 router.get('/versions', authMiddleware, getVersionHistoryReport);

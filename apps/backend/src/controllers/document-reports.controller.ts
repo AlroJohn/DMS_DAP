@@ -3,6 +3,24 @@ import { DocumentReportsService } from '../services/document-reports.service';
 
 const documentReportsService = new DocumentReportsService();
 
+export const getUsageReport = async (req: Request, res: Response) => {
+  try {
+    const { dateRange } = req.query;
+    const report = await documentReportsService.getUsageReport(dateRange as string || '30days');
+    res.json({
+      success: true,
+      data: report
+    });
+  } catch (error) {
+    console.error('Error getting usage report:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve usage report',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
 export const getVersionHistoryReport = async (req: Request, res: Response) => {
   try {
     const report = await documentReportsService.getVersionHistoryReport();
