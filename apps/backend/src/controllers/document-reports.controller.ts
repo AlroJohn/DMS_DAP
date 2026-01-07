@@ -484,3 +484,24 @@ export const setReportForImmediateRun = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const getSigningHistory = async (req: Request, res: Response) => {
+  try {
+    const { dateRange, filter } = req.query;
+    const report = await documentReportsService.getSigningHistory(
+      dateRange as string,
+      filter as string
+    );
+    res.json({
+      success: true,
+      data: report
+    });
+  } catch (error) {
+    console.error('Error getting signing history:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve signing history',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};

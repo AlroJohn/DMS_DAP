@@ -11,7 +11,8 @@ import {
   getScheduledReports,
   triggerScheduledReports,
   setReportForImmediateRun,
-  regenerateScheduledReport
+  regenerateScheduledReport,
+  getSigningHistory
 } from '../controllers/document-reports.controller';
 import { authMiddleware } from '../middleware/auth-middleware';
 
@@ -52,5 +53,8 @@ router.post('/scheduled/:reportId/regenerate', authMiddleware, regenerateSchedul
 
 // Download scheduled report
 router.get('/scheduled/:reportId/download', authMiddleware, downloadScheduledReport);
+
+// Get signing history
+router.get('/signing', authMiddleware, getSigningHistory);
 
 export default router;
