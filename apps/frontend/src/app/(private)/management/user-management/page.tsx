@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlusCircle, Search, Edit, Trash2, Eye, UserCheck, UserX, Users, UserPlus, Mail, Building2, Loader2 } from "lucide-react";
 import { AlertModal } from "@/components/reuseable/alert-modal";
+import { TablePagination } from "@/components/reuseable/table-pagination";
 import CreateUserModal from "./create";
 import ViewUserModal from "./[id]/viewID";
 import EditUserModal from "./[id]/editID";
@@ -60,12 +61,39 @@ const UserManagementPage = () => {
     fetchUsers,
   } = useUserManagement();
 
+  // Pagination state for each tab
+  const [verifiedPage, setVerifiedPage] = React.useState(1);
+  const [verifiedItemsPerPage, setVerifiedItemsPerPage] = React.useState(10);
+  const [invitedPage, setInvitedPage] = React.useState(1);
+  const [invitedItemsPerPage, setInvitedItemsPerPage] = React.useState(10);
+
   // Separate users into verified and invited based on email verification
   const { verifiedUsers, invitedUsers } = useMemo(() => {
     const verified = filteredUsers.filter(user => user.account.email_verified);
     const invited = filteredUsers.filter(user => !user.account.email_verified);
+    
+    // Reset pagination when filters change
+    setVerifiedPage(1);
+    setInvitedPage(1);
+    
     return { verifiedUsers: verified, invitedUsers: invited };
   }, [filteredUsers]);
+
+  // Pagination for verified users
+  const verifiedTotalPages = Math.ceil(verifiedUsers.length / verifiedItemsPerPage);
+  const paginatedVerifiedUsers = useMemo(() => {
+    const startIndex = (verifiedPage - 1) * verifiedItemsPerPage;
+    const endIndex = startIndex + verifiedItemsPerPage;
+    return verifiedUsers.slice(startIndex, endIndex);
+  }, [verifiedUsers, verifiedPage, verifiedItemsPerPage]);
+
+  // Pagination for invited users
+  const invitedTotalPages = Math.ceil(invitedUsers.length / invitedItemsPerPage);
+  const paginatedInvitedUsers = useMemo(() => {
+    const startIndex = (invitedPage - 1) * invitedItemsPerPage;
+    const endIndex = startIndex + invitedItemsPerPage;
+    return invitedUsers.slice(startIndex, endIndex);
+  }, [invitedUsers, invitedPage, invitedItemsPerPage]);
 
   // Determine modal title/description depending on whether the user to delete is active
   const deletingUser = userToDelete ? users.find(u => u.user_id === userToDelete) : null;
@@ -257,6 +285,14 @@ const UserManagementPage = () => {
         </>
       )}
 
+      {/* Header */}
+      <div className="flex flex-col gap-2 mb-6">
+        <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
+        <p className="text-muted-foreground">
+          Manage user accounts, roles, and permissions across your organization
+        </p>
+      </div>
+
       {/* Toolbar */}
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
@@ -338,11 +374,41 @@ const UserManagementPage = () => {
             </TabsList>
 
             <TabsContent value="users" className="mt-0">
-              {renderUserTable(verifiedUsers, "Try adjusting your filters or search terms")}
+              <div className="flex flex-col gap-4">
+                {renderUserTable(paginatedVerifiedUsers, "Try adjusting your filters or search terms")}
+                {verifiedUsers.length > 0 && (
+                  <TablePagination
+                    currentPage={verifiedPage}
+                    totalPages={verifiedTotalPages}
+                    itemsPerPage={verifiedItemsPerPage}
+                    totalItems={verifiedUsers.length}
+                    onPageChange={setVerifiedPage}
+                    onItemsPerPageChange={(value) => {
+                      setVerifiedItemsPerPage(value);
+                      setVerifiedPage(1);
+                    }}
+                  />
+                )}
+              </div>
             </TabsContent>
 
             <TabsContent value="invited" className="mt-0">
-              {renderUserTable(invitedUsers, "There are no invited users at the moment")}
+              <div className="flex flex-col gap-4">
+                {renderUserTable(paginatedInvitedUsers, "There are no invited users at the moment")}
+                {invitedUsers.length > 0 && (
+                  <TablePagination
+                    currentPage={invitedPage}
+                    totalPages={invitedTotalPages}
+                    itemsPerPage={invitedItemsPerPage}
+                    totalItems={invitedUsers.length}
+                    onPageChange={setInvitedPage}
+                    onItemsPerPageChange={(value) => {
+                      setInvitedItemsPerPage(value);
+                      setInvitedPage(1);
+                    }}
+                  />
+                )}
+              </div>
             </TabsContent>
           </Tabs>
         )}
