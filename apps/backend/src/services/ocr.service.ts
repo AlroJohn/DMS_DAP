@@ -4,9 +4,9 @@ import {
   HarmBlockThreshold,
 } from "@google/generative-ai";
 import fs from "fs/promises";
-import path from "path";
+import { PDFDocument } from "pdf-lib";
 
-const MODEL_NAME = "gemini-1.5-flash"; // More recent and capable model
+const MODEL_NAME = "gemini-2.5-flash"; // A reliable and fast model for single-page OCR
 
 interface OcrPage {
   page: number;
@@ -30,13 +30,29 @@ export class OcrService {
     this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   }
 
-  private fileToGenerativePart(filePath: string, mimeType: string) {
-    return {
-      inlineData: {
-        data: Buffer.from(fs.readFileSync(filePath)).toString("base64"),
-        mimeType,
+  private async ocrSinglePage(
+    pageBuffer: Buffer,
+    mimeType: string
+  ): Promise<string> {
+    const model = this.genAI.getGenerativeModel({ model: MODEL_NAME });
+
+    const parts = [
+      {
+        inlineData: {
+          mimeType,
+          data: pageBuffer.toString("base64"),
+        },
       },
-    };
+      {
+        text: `Perform OCR on this single-page document. Extract all text content and return it as a raw string. Do not include any formatting, markdown, or explanations.`,
+      },
+    ];
+
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts }],
+    });
+
+    return result.response.text();
   }
 
   async extractTextFromPdf(
@@ -44,82 +60,70 @@ export class OcrService {
     mimeType: string = "application/pdf"
   ): Promise<OcrResult | null> {
     try {
-      console.log(`[OcrService] Starting OCR for file: ${filePath}`);
-
+      console.log(`[OcrService] Starting page-by-page OCR for file: ${filePath}`);
       const fileBuffer = await fs.readFile(filePath);
 
-      const generationConfig = {
-        temperature: 0.4,
-        topK: 32,
-        topP: 1,
-        maxOutputTokens: 8192,
+      // Load the PDF with pdf-lib
+      const mainPdfDoc = await PDFDocument.load(fileBuffer);
+      const totalPages = mainPdfDoc.getPageCount();
+      console.log(`[OcrService] PDF has ${totalPages} pages.`);
+
+      const allPagesText: OcrPage[] = [];
+
+      const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+      for (let i = 0; i < totalPages; i++) {
+        try {
+          console.log(`[OcrService] Processing page ${i + 1} of ${totalPages}...`);
+          // Create a new PDF with just one page
+          const singlePagePdf = await PDFDocument.create();
+          const [copiedPage] = await singlePagePdf.copyPages(mainPdfDoc, [i]);
+          singlePagePdf.addPage(copiedPage);
+
+          const pageBuffer = await singlePagePdf.save();
+          const pageText = await this.ocrSinglePage(
+            Buffer.from(pageBuffer),
+            mimeType
+          );
+
+          allPagesText.push({
+            page: i + 1,
+            text: pageText.trim(),
+          });
+          console.log(`[OcrService] Successfully processed page ${i + 1}.`);
+
+        } catch (pageError) {
+          console.error(`[OcrService] Failed to process page ${i + 1}. Skipping.`, pageError);
+          // Add a placeholder for the failed page
+          allPagesText.push({
+            page: i + 1,
+            text: `[OCR failed for this page]`,
+          });
+        }
+
+        // Add a delay to avoid hitting API rate limits, especially on the free tier.
+        if (i < totalPages - 1) {
+          await delay(1000); // 1-second delay
+        }
+      }
+
+      if (allPagesText.length === 0) {
+        console.error("[OcrService] No pages were successfully processed.");
+        return null;
+      }
+
+      const finalResult: OcrResult = {
+        language: "en", // Assuming English, could be made dynamic if needed
+        engine: MODEL_NAME,
+        processedAt: new Date().toISOString(),
+        pages: allPagesText,
       };
 
-      const safetySettings = [
-        {
-          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-        // ... other safety settings
-      ];
+      console.log(`[OcrService] Completed OCR for all pages of file: ${filePath}`);
+      return finalResult;
 
-      const model = this.genAI.getGenerativeModel({
-        model: MODEL_NAME,
-        generationConfig,
-        safetySettings,
-      });
-
-      const parts = [
-        {
-          inlineData: {
-            mimeType: mimeType,
-            data: fileBuffer.toString("base64"),
-          },
-        },
-        {
-          text: `Perform OCR on the provided PDF document. Extract all text from each page and return the result as a JSON object. The JSON object must follow this exact structure:
-          
-          {
-            "language": "en",
-            "engine": "gemini-1.5-flash",
-            "processedAt": "ISO_8601_TIMESTAMP",
-            "pages": [
-              {
-                "page": 1,
-                "text": "..."
-              },
-              {
-                "page": 2,
-                "text": "..."
-              }
-            ]
-          }
-          
-          - Replace "ISO_8601_TIMESTAMP" with the current UTC timestamp.
-          - For each page, provide the page number and the full extracted text.
-          - Ensure the output is a single, valid JSON object and nothing else.
-          - If a page is blank or contains no text, include it in the array with an empty string for the "text" field.`,
-        },
-      ];
-
-      const result = await model.generateContent({ contents: [{ role: "user", parts }] });
-      const response = result.response;
-      const text = response.text();
-
-      // Clean the response to get only the JSON part
-      const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/);
-      const jsonString = jsonMatch ? jsonMatch[1] : text;
-
-      console.log("[OcrService] Received raw response from Gemini.");
-
-      const ocrResult: OcrResult = JSON.parse(jsonString);
-
-      console.log(`[OcrService] Successfully parsed OCR result for file: ${filePath}`);
-
-      return ocrResult;
     } catch (error) {
-      console.error("[OcrService] Error during OCR processing:", error);
-      // Depending on requirements, you might want to re-throw or handle it
+      console.error("[OcrService] A critical error occurred during the OCR process:", error);
       return null;
     }
   }

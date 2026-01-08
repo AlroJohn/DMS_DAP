@@ -856,12 +856,12 @@ export class DocumentService {
 
         // Get the last department in the workflow (current)
         // Check for second, third, etc. to find the last one
-        const workflowKeys = Object.keys(workflow).filter(key => 
+        const workflowKeys = Object.keys(workflow).filter(key =>
           key !== 'first' && workflow[key] !== null && workflow[key] !== undefined
         );
         const lastKey = workflowKeys.length > 0 ? workflowKeys[workflowKeys.length - 1] : 'first';
         const lastDeptId = workflow[lastKey];
-        
+
         if (lastDeptId) {
           try {
             currentDept = await prisma.department.findUnique({
@@ -876,9 +876,9 @@ export class DocumentService {
     }
 
     // Get creator information from DocumentAdditionalDetails or first file uploader
-    const createdByAccount = document.DocumentAdditionalDetails?.[0]?.created_by_account || 
-                             document.files?.[0]?.uploaded_by_account || 
-                             null;
+    const createdByAccount = document.DocumentAdditionalDetails?.[0]?.created_by_account ||
+      document.files?.[0]?.uploaded_by_account ||
+      null;
 
     // Build the detail object to match frontend expectations
     const detail = {
@@ -887,7 +887,7 @@ export class DocumentService {
       classification: document.classification,
       origin: document.origin,
       delivery: null, // Not available in current schema
-      created_by: createdByAccount?.user ? 
+      created_by: createdByAccount?.user ?
         `${createdByAccount.user.first_name} ${createdByAccount.user.last_name}` : null,
       document_type: documentType ? {
         name: documentType.name
@@ -1481,22 +1481,19 @@ export class DocumentService {
 
       // ---- OCR Processing ----
       if (enableOcr && file.mimetype === 'application/pdf') {
-        try {
-          console.log(`[DocumentService] OCR enabled for ${file.originalname}. Starting process.`);
-          const ocrResult = await ocrService.extractTextFromPdf(fileMetadata.path, file.mimetype);
-          if (ocrResult) {
-            await prisma.oCR_Json.create({
-              data: {
-                documentDocument_id: document.document_id,
-                file_url: fileMetadata.path,
-                ocr_json: ocrResult as any, // Cast to any to match Prisma Json type
-              }
-            });
-            console.log(`[DocumentService] OCR data saved for document ${document.document_id} and file ${fileMetadata.path}`);
-          }
-        } catch (ocrError) {
-          console.error(`[DocumentService] OCR processing failed for ${file.originalname}, but continuing with document creation. Error:`, ocrError);
-          // We don't re-throw the error to avoid failing the whole upload process
+        console.log(`[DocumentService] OCR enabled for ${file.originalname}. Starting process.`);
+        const ocrResult = await ocrService.extractTextFromPdf(fileMetadata.path, file.mimetype);
+        if (ocrResult) {
+          await prisma.oCR_Json.create({
+            data: {
+              documentDocument_id: document.document_id,
+              file_url: fileMetadata.path,
+              ocr_json: ocrResult as any, // Cast to any to match Prisma Json type
+            },
+          });
+          console.log(`[DocumentService] OCR data saved for document ${document.document_id} and file ${fileMetadata.path}`);
+        } else {
+          console.warn(`[DocumentService] OCR processing failed or returned no result for ${file.originalname}. Continuing without saving OCR data.`);
         }
       }
       // ---- End OCR Processing ----
@@ -1553,20 +1550,24 @@ export class DocumentService {
 
     // Emit socket event to notify frontends of new document
     const io = getSocketInstance();
-    io.emit('documentAdded', {
-      documentId: document.document_id,
-      title: document.title,
-      document_code: document.document_code,
-      classification: document.classification,
-      document_type: document.document_type,
-      status: document.status,
-      created_at: document.created_at,
-      department_id: user.department_id,
-      created_by: {
-        first_name: user.first_name,
-        last_name: user.last_name
-      }
-    });
+    if (io) {
+      io.emit('documentAdded', {
+        documentId: document.document_id,
+        title: document.title,
+        document_code: document.document_code,
+        classification: document.classification,
+        document_type: document.document_type,
+        status: document.status,
+        created_at: document.created_at,
+        department_id: user.department_id,
+        created_by: {
+          first_name: user.first_name,
+          last_name: user.last_name,
+        },
+      });
+    } else {
+      console.error('[DocumentService] Socket.IO instance not available. Could not emit documentAdded event.');
+    }
 
     return document;
   }
@@ -2114,20 +2115,24 @@ export class DocumentService {
 
     // Emit socket event to notify frontends of new document
     const io = getSocketInstance();
-    io.emit('documentAdded', {
-      documentId: document.document_id,
-      title: document.title,
-      document_code: document.document_code,
-      classification: document.classification,
-      document_type: document.document_type,
-      status: document.status,
-      created_at: document.created_at,
-      department_id: user.department_id,
-      created_by: {
-        first_name: user.first_name,
-        last_name: user.last_name
-      }
-    });
+    if (io) {
+      io.emit('documentAdded', {
+        documentId: document.document_id,
+        title: document.title,
+        document_code: document.document_code,
+        classification: document.classification,
+        document_type: document.document_type,
+        status: document.status,
+        created_at: document.created_at,
+        department_id: user.department_id,
+        created_by: {
+          first_name: user.first_name,
+          last_name: user.last_name,
+        },
+      });
+    } else {
+      console.error('[DocumentService] Socket.IO instance not available. Could not emit documentAdded event.');
+    }
 
     // Create a document trail entry for document creation
     const documentTrailsService = new DocumentTrailsService();

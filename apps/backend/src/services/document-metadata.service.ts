@@ -126,30 +126,18 @@ export class DocumentMetadataService {
 
       // 2. Use advanced pdf-parse analysis for text content and language detection
       let pdfParseModule: any;
-      let loadError: unknown = null;
-
       try {
-        pdfParseModule = require('pdf-parse');
-      } catch (requireError) {
-        loadError = requireError;
-        try {
-          // If require fails, try dynamic import as fallback
-          const pdfParseImport: any = await import('pdf-parse');
-          // Handle different export patterns for pdf-parse
-          pdfParseModule = pdfParseImport.default || pdfParseImport || pdfParseImport['default'] || pdfParseImport;
-        } catch (dynamicImportError) {
-          loadError = dynamicImportError;
-        }
-      }
-
-      if (loadError) {
+        // Use dynamic import to load 'pdf-parse'
+        const module = await import('pdf-parse');
+        pdfParseModule = module.default;
+      } catch (loadError: unknown) {
         const errorMessage = loadError instanceof Error ? loadError.message : String(loadError);
         console.warn('Could not load pdf-parse module for advanced analysis:', errorMessage);
-      } else {
+      }
+
+      if (pdfParseModule) {
         try {
-          // Handle different export patterns for pdf-parse
-          const pdfParser = pdfParseModule.default || pdfParseModule;
-          const result = await pdfParser(dataBuffer);
+          const result = await pdfParseModule(dataBuffer);
           const text = (result.text || '').trim();
 
           // Extract author, producer, and creator if not already present
