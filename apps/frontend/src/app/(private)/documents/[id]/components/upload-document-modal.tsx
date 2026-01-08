@@ -269,7 +269,7 @@ export function UploadDocumentModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh]">
+      <DialogContent className="max-w-xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Upload Documents</DialogTitle>
         </DialogHeader>
@@ -278,7 +278,7 @@ export function UploadDocumentModal({
           onSubmit={handleSubmit}
           className="space-y-6 max-h-[70vh] overflow-y-auto"
         >
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="w-full grid grid-cols-1 gap-6">
             <div className="space-y-6 lg:col-span-2">
               <Card className="border shadow-sm rounded-xl">
                 <CardHeader className="pb-4">
@@ -462,7 +462,7 @@ export function UploadDocumentModal({
               )}
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-6 lg:col-span-2">
               <Card className="border shadow-sm rounded-xl">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -589,91 +589,6 @@ export function UploadDocumentModal({
                           </SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="space-y-6">
-              <Card className="border shadow-sm rounded-xl">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Shield className="h-4 w-4 text-primary" />
-                    Processing Options
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  {/* OCR Toggle */}
-                  <div className="flex flex-col sm:flex-row items-start gap-3 space-x-0 sm:space-x-4">
-                    <Checkbox
-                      id="enable-ocr-modal"
-                      checked={enableOcr}
-                      onCheckedChange={(checked) =>
-                        setEnableOcr(checked as boolean)
-                      }
-                      className="mt-1 h-4 w-4"
-                    />
-                    <div className="flex-1 space-y-1">
-                      <Label
-                        htmlFor="enable-ocr-modal"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex items-center gap-2"
-                      >
-                        <FileSearch className="h-4 w-4 text-primary" />
-                        Enable OCR Processing
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Convert scanned documents to searchable text.
-                        Recommended for images and non-searchable PDFs.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Encryption Toggle */}
-                  <div className="flex flex-col sm:flex-row items-start gap-3 space-x-0 sm:space-x-4">
-                    <Checkbox
-                      id="enable-encryption-modal"
-                      checked={enableEncryption}
-                      onCheckedChange={(checked) =>
-                        setEnableEncryption(checked as boolean)
-                      }
-                      className="mt-1 h-4 w-4"
-                    />
-                    <div className="flex-1 space-y-1">
-                      <Label
-                        htmlFor="enable-encryption-modal"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex items-center gap-2"
-                      >
-                        <Shield className="h-4 w-4 text-primary" />
-                        Encrypt at Rest
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Encrypt files using AES-256 encryption. Files are always
-                        encrypted in transit.
-                      </p>
-                      {enableEncryption && (
-                        <Badge
-                          variant="secondary"
-                          className="mt-2 flex items-center w-fit py-1 px-2 text-xs"
-                        >
-                          <Shield className="h-4 w-4 mr-1" />
-                          AES-256 Encryption Enabled
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Info Banner */}
-                  <div className="flex gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs sm:text-sm text-blue-900">
-                    <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="font-medium text-blue-900">
-                        File Validation Active
-                      </p>
-                      <p className="text-blue-700 mt-1">
-                        All files are automatically checked for corruption and
-                        integrity before upload.
-                      </p>
                     </div>
                   </div>
                 </CardContent>

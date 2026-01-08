@@ -122,24 +122,32 @@ export const useManagementOverview = (): ManagementOverviewData => {
     queryKey: ['departmentCount'],
     queryFn: () => fetchCount('/api/admin/counts/departments'),
     staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false, // Disable refetch on window focus
+    refetchOnReconnect: false,   // Disable refetch on reconnect
   });
 
   const { data: documentTypeCount, isLoading: isLoadingDocumentTypes } = useQuery<CounterData>({
     queryKey: ['documentTypeCount'],
     queryFn: () => fetchCount('/api/admin/counts/document-types'),
     staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false, // Disable refetch on window focus
+    refetchOnReconnect: false,   // Disable refetch on reconnect
   });
 
   const { data: documentActionCount, isLoading: isLoadingDocumentActions } = useQuery<CounterData>({
     queryKey: ['documentActionCount'],
     queryFn: () => fetchCount('/api/admin/counts/document-actions'),
     staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false, // Disable refetch on window focus
+    refetchOnReconnect: false,   // Disable refetch on reconnect
   });
 
   const { data: userCount, isLoading: isLoadingUsers } = useQuery<CounterData>({
     queryKey: ['userCount'],
     queryFn: () => fetchCount('/api/admin/counts/users'),
     staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false, // Disable refetch on window focus
+    refetchOnReconnect: false,   // Disable refetch on reconnect
   });
 
   // Fetch lists
@@ -147,24 +155,32 @@ export const useManagementOverview = (): ManagementOverviewData => {
     queryKey: ['departments'],
     queryFn: () => fetchList('/api/admin/departments'),
     staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false, // Disable refetch on window focus
+    refetchOnReconnect: false,   // Disable refetch on reconnect
   });
 
   const { data: documentTypes = [], isLoading: isLoadingDocumentTypesList } = useQuery<DocumentType[]>({
     queryKey: ['documentTypes'],
     queryFn: () => fetchList('/api/admin/document-types'),
     staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false, // Disable refetch on window focus
+    refetchOnReconnect: false,   // Disable refetch on reconnect
   });
 
   const { data: documentActions = [], isLoading: isLoadingDocumentActionsList } = useQuery<DocumentAction[]>({
     queryKey: ['documentActions'],
     queryFn: () => fetchList('/api/admin/document-actions'),
     staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false, // Disable refetch on window focus
+    refetchOnReconnect: false,   // Disable refetch on reconnect
   });
 
   const { data: users = [], isLoading: isLoadingUsersList } = useQuery<User[]>({
     queryKey: ['users'],
     queryFn: () => fetchList('/api/admin/users'),
     staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false, // Disable refetch on window focus
+    refetchOnReconnect: false,   // Disable refetch on reconnect
   });
 
   // Combine loading states

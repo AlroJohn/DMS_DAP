@@ -83,7 +83,7 @@ export class ScheduledReportsProcessor {
 
       // Write the report to the file system (binary mode for PDF)
       fs.writeFileSync(filePath, reportData);
-      
+
       // Verify file was written
       if (!fs.existsSync(filePath)) {
         throw new Error(`Failed to write report file to ${filePath}`);
@@ -91,7 +91,7 @@ export class ScheduledReportsProcessor {
 
       const fileStats = fs.statSync(filePath);
       console.log(`[REGENERATE] File written successfully. Size: ${fileStats.size} bytes`);
-      
+
       if (fileStats.size === 0) {
         throw new Error(`Report file is empty after writing: ${filePath}`);
       }
@@ -125,7 +125,7 @@ export class ScheduledReportsProcessor {
       return;
     }
 
-    console.log('Starting scheduled reports processor...');
+    // console.log('Starting scheduled reports processor...');
     this.isRunning = true;
 
     // Run immediately on startup
@@ -155,7 +155,7 @@ export class ScheduledReportsProcessor {
    */
   public async processScheduledReports(): Promise<void> {
     const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] ========== Checking for scheduled reports to process ==========`);
+    // console.log(`[${timestamp}] ========== Checking for scheduled reports to process ==========`);
 
     try {
       // Find all active scheduled reports that are due to run
@@ -173,7 +173,7 @@ export class ScheduledReportsProcessor {
       });
 
       console.log(`[${timestamp}] Found ${scheduledReports.length} scheduled report(s) due for processing`);
-      
+
       if (scheduledReports.length === 0) {
         // Also log all active reports for debugging
         const allActiveReports = await prisma.scheduledReport.findMany({
@@ -187,7 +187,7 @@ export class ScheduledReportsProcessor {
             user_id: true
           }
         });
-        
+
         if (allActiveReports.length > 0) {
           console.log(`[${timestamp}] Active scheduled reports (not due yet):`);
           allActiveReports.forEach(report => {
@@ -256,7 +256,7 @@ export class ScheduledReportsProcessor {
 
           // Write the report to the file system (binary mode for PDF)
           fs.writeFileSync(filePath, reportData);
-          
+
           // Verify file was written
           if (!fs.existsSync(filePath)) {
             throw new Error(`Failed to write report file to ${filePath}`);
@@ -264,7 +264,7 @@ export class ScheduledReportsProcessor {
 
           const fileStats = fs.statSync(filePath);
           console.log(`[${reportStartTime}] File written successfully. Size: ${fileStats.size} bytes`);
-          
+
           if (fileStats.size === 0) {
             throw new Error(`Report file is empty after writing: ${filePath}`);
           }
@@ -275,7 +275,7 @@ export class ScheduledReportsProcessor {
             scheduledReport.schedule_config as any,
             scheduledReport.report_type
           );
-          
+
           await prisma.scheduledReport.update({
             where: {
               scheduled_report_id: scheduledReport.scheduled_report_id
@@ -303,7 +303,7 @@ export class ScheduledReportsProcessor {
           }
         }
       }
-      
+
       const endTime = new Date().toISOString();
       console.log(`[${endTime}] ========== Finished processing scheduled reports ==========`);
     } catch (error) {
@@ -324,7 +324,7 @@ export class ScheduledReportsProcessor {
       try {
         // Get compliance report data
         const reportData = await this.documentReportsService.getComplianceReport();
-        
+
         if (!reportData) {
           throw new Error('Failed to retrieve compliance report data');
         }
@@ -364,7 +364,7 @@ export class ScheduledReportsProcessor {
         doc.fontSize(16).font('Helvetica-Bold').text('COMPLIANCE METRICS');
         doc.moveDown(0.5);
         doc.fontSize(10).font('Helvetica');
-        
+
         if (reportData.complianceMetrics) {
           const metrics = reportData.complianceMetrics;
           doc.text(`Documents Signed: ${metrics.documentsSigned || 0}`, { continued: false });
@@ -382,11 +382,11 @@ export class ScheduledReportsProcessor {
         doc.fontSize(16).font('Helvetica-Bold').text('PENDING SIGNATURES');
         doc.moveDown(0.5);
         doc.fontSize(10).font('Helvetica');
-        
+
         if (reportData.pendingSignatures && reportData.pendingSignatures.length > 0) {
           doc.text(`Total Documents with Placeholders: ${reportData.pendingSignatures.length}`, { continued: false });
           doc.moveDown(0.3);
-          
+
           // Table header
           doc.font('Helvetica-Bold');
           doc.text('Document', 50, doc.y, { width: 200, continued: true });
@@ -396,7 +396,7 @@ export class ScheduledReportsProcessor {
           doc.moveDown(0.3);
           doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
           doc.moveDown(0.2);
-          
+
           // Table rows
           doc.font('Helvetica');
           reportData.pendingSignatures.forEach((sig: any) => {
@@ -407,7 +407,7 @@ export class ScheduledReportsProcessor {
             const code = (sig.documentCode || 'N/A').substring(0, 15);
             const days = String(sig.daysOverdue || 0);
             const priority = sig.priority || 'N/A';
-            
+
             doc.text(docName, 50, doc.y, { width: 200, continued: true });
             doc.text(code, 250, doc.y, { width: 100, continued: true });
             doc.text(days, 350, doc.y, { width: 80, continued: true });
@@ -429,7 +429,7 @@ export class ScheduledReportsProcessor {
         doc.fontSize(16).font('Helvetica-Bold').text('RECENT SIGNATURES');
         doc.moveDown(0.5);
         doc.fontSize(10).font('Helvetica');
-        
+
         if (reportData.recentSignatures && reportData.recentSignatures.length > 0) {
           // Table header
           doc.font('Helvetica-Bold');
@@ -440,7 +440,7 @@ export class ScheduledReportsProcessor {
           doc.moveDown(0.3);
           doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
           doc.moveDown(0.2);
-          
+
           // Table rows
           doc.font('Helvetica');
           reportData.recentSignatures.forEach((sig: any) => {
@@ -451,7 +451,7 @@ export class ScheduledReportsProcessor {
             const signer = (sig.signer || 'N/A').substring(0, 20);
             const date = (sig.date || 'N/A').substring(0, 10);
             const status = sig.status || 'N/A';
-            
+
             doc.text(docName, 50, doc.y, { width: 200, continued: true });
             doc.text(signer, 250, doc.y, { width: 150, continued: true });
             doc.text(date, 400, doc.y, { width: 80, continued: true });
@@ -469,7 +469,7 @@ export class ScheduledReportsProcessor {
         doc.fontSize(16).font('Helvetica-Bold').text('COMPLIANCE TIMELINE');
         doc.moveDown(0.5);
         doc.fontSize(10).font('Helvetica');
-        
+
         if (reportData.timeline && reportData.timeline.length > 0) {
           reportData.timeline.forEach((event: any, index: number) => {
             if (doc.y > 750) { // New page if needed
@@ -506,13 +506,13 @@ export class ScheduledReportsProcessor {
     try {
       // Get usage report data
       const reportData = await this.documentReportsService.getUsageReport();
-      
+
       if (!reportData) {
         throw new Error('Failed to retrieve usage report data');
       }
 
       const lines: string[] = [];
-      
+
       // Header
       lines.push('='.repeat(80));
       lines.push('USAGE REPORT');
@@ -574,13 +574,13 @@ export class ScheduledReportsProcessor {
       lines.push('='.repeat(80));
 
       const reportContent = lines.join('\n');
-      
+
       if (!reportContent || reportContent.trim().length === 0) {
         throw new Error('Generated report content is empty');
       }
 
       console.log(`Generated usage report with ${reportContent.length} characters`);
-      
+
       return Buffer.from(reportContent, 'utf-8');
     } catch (error) {
       console.error('Error generating usage report:', error);
@@ -600,13 +600,13 @@ export class ScheduledReportsProcessor {
     try {
       // Get version history report data
       const reportData = await this.documentReportsService.getVersionHistoryReport();
-      
+
       if (!reportData) {
         throw new Error('Failed to retrieve version history report data');
       }
 
       const lines: string[] = [];
-      
+
       // Header
       lines.push('='.repeat(80));
       lines.push('VERSION HISTORY REPORT');
@@ -655,13 +655,13 @@ export class ScheduledReportsProcessor {
       lines.push('='.repeat(80));
 
       const reportContent = lines.join('\n');
-      
+
       if (!reportContent || reportContent.trim().length === 0) {
         throw new Error('Generated report content is empty');
       }
 
       console.log(`Generated version report with ${reportContent.length} characters`);
-      
+
       return Buffer.from(reportContent, 'utf-8');
     } catch (error) {
       console.error('Error generating version report:', error);

@@ -45,6 +45,7 @@ import dashboardRoutes from './routes/dashboard.routes'; // Import dashboard rou
 import documentSignatureRoutes from './routes/document-signatures'; // Import document signature routes
 import documentSignaturePlaceholderRoutes from './routes/document-signature-placeholders'; // Import document signature placeholder routes
 import documentReportsRoutes from './routes/document-reports.routes'; // Import document reports routes
+import counterRoutes from './routes/counter.routes'; // Import counter routes
 
 // Import middleware
 import { requestLogger, errorLogger } from './middleware/logging';
@@ -177,6 +178,7 @@ app.use('/api/dashboard', dashboardRoutes); // Add dashboard routes
 app.use('/api/signatures', documentSignatureRoutes); // Add document signature routes
 app.use('/api/document-signatures', documentSignaturePlaceholderRoutes); // Add document signature placeholder routes
 app.use('/api/reports', documentReportsRoutes); // Add document reports routes
+app.use('/api', counterRoutes); // Add counter routes
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
