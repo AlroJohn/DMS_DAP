@@ -948,10 +948,12 @@ export function SigningPdfViewer({
                           <img
                             src={overlaySignature}
                             alt="Signature"
-                            className="h-full w-full object-contain rounded-md bg-white"
+                            className="h-full w-full object-contain rounded-md bg-white pointer-events-none"
                           />
                         ) : (
-                          <div className="flex flex-col items-center gap-1 text-yellow-700 font-bold bg-white/80 px-2 py-1 rounded shadow-sm animate-pulse">
+                          <div
+                            className="flex flex-col items-center gap-1 text-yellow-700 font-bold bg-white/80 px-2 py-1 rounded shadow-sm animate-pulse pointer-events-none"
+                          >
                             <PenLine className="h-4 w-4" />
                             <span className="text-[10px]">
                               {isSigned ? "Signed" : "Sign Here"}
@@ -966,7 +968,7 @@ export function SigningPdfViewer({
           </div>
         </div>
 
-        {/* <div className="mt-2 border-t pt-4 flex flex-col gap-3">
+        <div className="mt-2 border-t pt-4 flex flex-col gap-3">
           <div className="flex flex-col gap-1">
             <h3 className="text-sm font-medium text-muted-foreground">
               Signature Actions
@@ -981,9 +983,13 @@ export function SigningPdfViewer({
 
         <SignatureModal
           isOpen={isSignatureModalOpen}
-          onClose={() => setIsSignatureModalOpen(false)}
+          onClose={() => {
+            setIsSignatureModalOpen(false);
+            setSignatureData(null); // Clear signature data when closing
+          }}
           onSave={(signature) => {
-            // When saving, immediately save as draft
+            setSignatureData(signature);
+            // Save as draft immediately
             if (selectedPlaceholder) {
               const placeholderId = selectedPlaceholder.placeholder_id;
               setPlacedSignatures((prev) => ({
@@ -997,6 +1003,7 @@ export function SigningPdfViewer({
           onCancel={() => {
             // When cancelling, clear any temporary signature data
             setSignatureData(null);
+            setIsSignatureModalOpen(false);
           }}
           initialSignature={signatureData || undefined}
           title="Create Your Signature"

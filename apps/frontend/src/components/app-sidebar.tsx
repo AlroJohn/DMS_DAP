@@ -217,10 +217,10 @@ const data = {
           title: "Access History",
           url: "/reports/access-history",
         },
-        {
-          title: "Query Reports",
-          url: "/reports/queries",
-        },
+        // {
+        //   title: "Query Reports",
+        //   url: "/reports/queries",
+        // },
         {
           title: "Version History",
           url: "/reports/versions",

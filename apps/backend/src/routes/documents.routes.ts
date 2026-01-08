@@ -149,12 +149,6 @@ router.post('/:id/cancel',
   documentController.cancelDocument
 );
 
-// POST /api/documents/:id/receive - Receive a document
-router.post('/:id/receive',
-  requirePermission('document_write'),
-  documentController.receiveDocument
-);
-
 // POST /api/documents/:id/sign - Sign document with blockchain
 router.post('/:id/sign',
   requirePermission('document_write'),

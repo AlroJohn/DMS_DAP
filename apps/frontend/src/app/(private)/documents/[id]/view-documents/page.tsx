@@ -153,7 +153,7 @@ export default function ViewDocumentPage() {
   }
 
   return (
-    <div className="flex flex-col gap-2 p-1 md:p-2 lg:p-4 mx-auto w-full pb-2">
+    <div className="flex flex-col gap-2 p-1 md:p-2 lg:p-4 mx-auto w-full pb-2 h-[calc(100vh-100px)] flex-1">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-lg font-bold tracking-tight">{title}</h1>
@@ -243,21 +243,21 @@ export default function ViewDocumentPage() {
         </div>
       </div>
 
-      <Card className="h-full w-full min-h-[800px] flex flex-col">
+      <Card className="h-full w-full flex flex-col flex-1 min-h-[calc(100vh-200px)]">
         <CardHeader>
           <CardTitle className="flex items-center gap-1">
             <FileText className="h-5 w-5" />
             Document Preview
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex-1 flex flex-col">
+        <CardContent className="flex-1 flex flex-col overflow-hidden">
           {filesLoading ? (
-            <div className="flex flex-1 items-center justify-center rounded-lg border border-muted bg-muted/10 min-h-[400px] md:min-h-[500px] lg:min-h-[650px]">
+            <div className="flex flex-1 items-center justify-center rounded-lg border border-muted bg-muted/10">
               <Skeleton className="h-8 w-8" />
             </div>
           ) : previewFile && isPreviewSupported && previewBaseUrl ? (
             <div
-              className="flex-1 flex items-center justify-center overflow-hidden rounded-lg border bg-background min-h-[400px] md:min-h-[500px] lg:min-h-[650px] cursor-pointer"
+              className="flex-1 flex items-center justify-center overflow-hidden rounded-lg border bg-background cursor-pointer"
               onClick={handlePreviewClick}
             >
               {previewMime.startsWith("image/") ? (
@@ -268,15 +268,16 @@ export default function ViewDocumentPage() {
                 />
               ) : (
                 <iframe
-                  src={`${previewBaseUrl}#toolbar=1&status=0`}
+                  src={`${previewBaseUrl}#toolbar=1&status=0&view=FitH`}
                   title={previewFile.name}
-                  className="w-full h-full min-h-[400px] md:min-h-[500px] lg:min-h-[650px]"
+                  className="w-full h-full"
+                  style={{ minHeight: '500px' }}
                 />
               )}
             </div>
           ) : (
             <div
-              className="flex-1 flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/10 min-h-[400px] md:min-h-[500px] lg:min-h-[650px] p-6 text-center cursor-pointer"
+              className="flex-1 flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/10 p-6 text-center cursor-pointer"
               onClick={handlePreviewClick}
             >
               <FileText className="h-12 w-12 text-muted-foreground" />
@@ -308,41 +309,43 @@ export default function ViewDocumentPage() {
             <p className="mt-3 text-sm text-destructive">{filesError}</p>
           )}
 
-          {!filesLoading && files.length > 0 && (
-            <div className="mt-4 space-y-2">
-              <p className="text-sm font-medium">Files</p>
-              <div className="space-y-1">
-                {files.map((file) => {
-                  const isPlaceholder = /placeholder/i.test(file.name);
-                  return (
-                    <div
-                      key={file.id}
-                      className="flex flex-col gap-2 rounded-lg border p-2"
-                    >
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium">{file.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {file.type || "Unknown type"} •{" "}
-                          {formatFileSize(file.size)}
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {file.isPrimary && (
-                            <Badge variant="default">Primary</Badge>
-                          )}
-                          {isPlaceholder && (
-                            <Badge variant="secondary">Placeholder</Badge>
-                          )}
-                          {file.version && (
-                            <Badge variant="outline">v{file.version}</Badge>
-                          )}
+          <div className="overflow-y-auto max-h-40 mt-4 space-y-2 flex-shrink-0">
+            {!filesLoading && files.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Files</p>
+                <div className="space-y-1">
+                  {files.map((file) => {
+                    const isPlaceholder = /placeholder/i.test(file.name);
+                    return (
+                      <div
+                        key={file.id}
+                        className="flex flex-col gap-2 rounded-lg border p-2"
+                      >
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">{file.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {file.type || "Unknown type"} •{" "}
+                            {formatFileSize(file.size)}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {file.isPrimary && (
+                              <Badge variant="default">Primary</Badge>
+                            )}
+                            {isPlaceholder && (
+                              <Badge variant="secondary">Placeholder</Badge>
+                            )}
+                            {file.version && (
+                              <Badge variant="outline">v{file.version}</Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </CardContent>
       </Card>
 
