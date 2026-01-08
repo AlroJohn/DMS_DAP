@@ -60,6 +60,12 @@ router.get('/:id',
   documentController.getDocumentById
 );
 
+// GET /api/documents/:id/ocr - Get OCR data for a document (requires document_read permission)
+router.get('/:id/ocr',
+  requirePermission('document_read'),
+  documentController.getDocumentOcrData
+);
+
 // POST /api/documents - Create new document (requires document_create permission)
 router.post('/',
   requirePermission('document_create'),

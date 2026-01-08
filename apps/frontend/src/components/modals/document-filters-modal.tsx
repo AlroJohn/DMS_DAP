@@ -16,6 +16,7 @@ import {
   DOC_STATUS_OPTIONS,
 } from "@/lib/doc-enums";
 import { Table } from "@tanstack/react-table";
+import { useDocumentTypes } from "@/hooks/use-document-types";
 
 interface DocumentFiltersModalProps<TData> {
   open: boolean;
@@ -62,12 +63,14 @@ export function DocumentFiltersModal<TData>({
     onOpenChange(false);
   };
 
-  const typeOptions = [
-    { label: "Report", value: "Report" },
-    { label: "Invoice", value: "Invoice" },
-    { label: "Guideline", value: "Guideline" },
-    { label: "Delivery notes", value: "Delivery notes" },
-  ];
+  // Fetch document types from the API
+  const { documentTypes } = useDocumentTypes();
+
+  // Convert document types to options format for the filter
+  const typeOptions = documentTypes.map((docType) => ({
+    label: docType.name,
+    value: docType.name,
+  }));
 
   const fileStatusOptions = [
     { label: "Uploaded", value: "uploaded" },

@@ -18,8 +18,10 @@ import {
   Shield,
   FilePenLine,
   RotateCcw,
+  FileText,
 } from "lucide-react";
 import { ViewDocumentsModal } from "@/components/reuseable/view-details-documents/view-documents";
+import { ViewOcrDataModal } from "@/components/modals/view-ocr-data-modal";
 
 import {
   DropdownMenu,
@@ -100,6 +102,7 @@ export function DataTableRowActions<TData>({
     null
   );
   const [viewDocumentModalOpen, setViewDocumentModalOpen] = useState(false);
+  const [viewOcrModalOpen, setViewOcrModalOpen] = useState(false);
 
   const document = row.original as Document;
 
@@ -152,6 +155,10 @@ export function DataTableRowActions<TData>({
 
   const handleOpenEditor = () => {
     router.push(`/documents/${document.id}?mode=edit`);
+  };
+
+  const handleViewOcrData = () => {
+    setViewOcrModalOpen(true);
   };
 
   const handleSign = () => {
@@ -484,6 +491,16 @@ export function DataTableRowActions<TData>({
                 </DropdownMenuItem>
               )}
 
+              {/* View Document OCR - for users with document read permissions */}
+              {showViewDocument && (
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleViewOcrData)}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  View Document OCR
+                </DropdownMenuItem>
+              )}
+
               {/* Sign Document - for users with signing permissions */}
               {showSignDocument && (
                 <DropdownMenuItem onClick={(e) => handleAction(e, handleSign)}>
@@ -636,6 +653,16 @@ export function DataTableRowActions<TData>({
                 </DropdownMenuItem>
               )}
 
+              {/* View Document OCR - for users with document read permissions */}
+              {showViewDocument && (
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleViewOcrData)}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  View Document OCR
+                </DropdownMenuItem>
+              )}
+
               {/* Sign Document - for users with signing permissions */}
               {showSignDocument && (
                 <DropdownMenuItem onClick={(e) => handleAction(e, handleSign)}>
@@ -748,6 +775,14 @@ export function DataTableRowActions<TData>({
               >
                 <Eye className="mr-2 h-4 w-4" />
                 View Documents
+              </DropdownMenuItem>
+
+              {/* View Document OCR - always available in shared view */}
+              <DropdownMenuItem
+                onClick={(e) => handleAction(e, handleViewOcrData)}
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                View Document OCR
               </DropdownMenuItem>
 
               {/* Sign Document - always available in shared view */}
@@ -1006,6 +1041,13 @@ export function DataTableRowActions<TData>({
           action={checkoutAction}
         />
       )}
+
+      {/* View OCR Data Modal */}
+      <ViewOcrDataModal
+        open={viewOcrModalOpen}
+        onOpenChange={setViewOcrModalOpen}
+        documentId={document.id}
+      />
 
       {/* Signature Capture Modal */}
     </>

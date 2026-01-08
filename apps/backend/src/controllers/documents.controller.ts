@@ -749,4 +749,27 @@ export class DocumentController {
 
     return sendSuccess(res, { message: 'Document signed successfully', signedDocument: result.data }, 201);
   });
+
+  getDocumentOcrData = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
+      return sendError(res, 'Invalid document ID format', 400);
+    }
+
+    try {
+      const ocrData = await this.documentService.getDocumentOcrData(id);
+
+      if (!ocrData || ocrData.length === 0) {
+        return sendSuccess(res, { ocrData: [], message: 'No OCR data found for this document' });
+      }
+
+      return sendSuccess(res, { ocrData });
+    } catch (error) {
+      console.error('Error fetching OCR data:', error);
+      return sendError(res, 'Failed to fetch OCR data', 500);
+    }
+  });
 }

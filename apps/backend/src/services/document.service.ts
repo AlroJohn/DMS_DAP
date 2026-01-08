@@ -3650,4 +3650,22 @@ export class DocumentService {
 
     return deleted;
   }
+
+  async getDocumentOcrData(documentId: string) {
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(documentId)) {
+      throw new Error('Invalid document ID format');
+    }
+
+    // Get OCR data associated with the document
+    const ocrData = await prisma.oCR_Json.findMany({
+      where: { documentDocument_id: documentId },
+      orderBy: {
+        created_at: 'desc' // Get most recent OCR data first
+      }
+    });
+
+    return ocrData;
+  }
 }
