@@ -46,6 +46,7 @@ import documentSignatureRoutes from './routes/document-signatures'; // Import do
 import documentSignaturePlaceholderRoutes from './routes/document-signature-placeholders'; // Import document signature placeholder routes
 import documentReportsRoutes from './routes/document-reports.routes'; // Import document reports routes
 import counterRoutes from './routes/counter.routes'; // Import counter routes
+import activityLogsRoutes from './routes/activity-logs.routes'; // Import activity logs routes
 
 // Import middleware
 import { requestLogger, errorLogger } from './middleware/logging';
@@ -179,6 +180,7 @@ app.use('/api/signatures', documentSignatureRoutes); // Add document signature r
 app.use('/api/document-signatures', documentSignaturePlaceholderRoutes); // Add document signature placeholder routes
 app.use('/api/reports', documentReportsRoutes); // Add document reports routes
 app.use('/api', counterRoutes); // Add counter routes
+app.use('/api', activityLogsRoutes); // Add activity logs routes
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
