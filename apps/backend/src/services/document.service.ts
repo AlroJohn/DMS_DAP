@@ -14,6 +14,7 @@ import { DocumentTrailsService } from './document-trails.service';
 import { NotificationService } from './notification.service';
 import { recordCompletionStatus, recordCreationStatus, recordReceiveStatus } from './workflow-status.service';
 import { auditService } from './audit.service';
+import { ocrService } from './ocr.service';
 // Import the getSocketInstance function instead of importing io directly from index
 
 // Create a type alias to avoid confusion with DOM Document
@@ -1340,7 +1341,7 @@ export class DocumentService {
   /**
    * Create a new document with file upload
    */
-  async createDocumentWithFile(documentData: any, file: Express.Multer.File | undefined, userId: string) {
+  async createDocumentWithFile(documentData: any, file: Express.Multer.File | undefined, userId: string, enableOcr: boolean = false) {
     // Verify user exists and get department
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
@@ -1429,6 +1430,28 @@ export class DocumentService {
         }
       });
 
+      // ---- OCR Processing ----
+      if (enableOcr && file.mimetype === 'application/pdf') {
+        try {
+          console.log(`[DocumentService] OCR enabled for ${file.originalname}. Starting process.`);
+          const ocrResult = await ocrService.extractTextFromPdf(fileMetadata.path, file.mimetype);
+          if (ocrResult) {
+            await prisma.oCR_Json.create({
+              data: {
+                documentDocument_id: document.document_id,
+                file_url: fileMetadata.path,
+                ocr_json: ocrResult as any, // Cast to any to match Prisma Json type
+              }
+            });
+            console.log(`[DocumentService] OCR data saved for document ${document.document_id} and file ${fileMetadata.path}`);
+          }
+        } catch (ocrError) {
+          console.error(`[DocumentService] OCR processing failed for ${file.originalname}, but continuing with document creation. Error:`, ocrError);
+          // We don't re-throw the error to avoid failing the whole upload process
+        }
+      }
+      // ---- End OCR Processing ----
+
       // Extract and save document metadata
       try {
         const metadata = await this.documentMetadataService.extractMetadata(fileMetadata.path);
@@ -1502,7 +1525,7 @@ export class DocumentService {
   /**
    * Upload multiple files to existing document
    */
-  async uploadFilesToDocument(documentId: string, files: Express.Multer.File[], userId: string, versionGroupId?: string) {
+  async uploadFilesToDocument(documentId: string, files: Express.Multer.File[], userId: string, versionGroupId?: string, enableOcr: boolean = false) {
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(documentId)) {
@@ -1605,6 +1628,27 @@ export class DocumentService {
           version_group_id: currentFileVersionGroupId
         }
       });
+
+      // ---- OCR Processing ----
+      if (enableOcr && file.mimetype === 'application/pdf') {
+        try {
+          console.log(`[DocumentService] OCR enabled for ${file.originalname}. Starting process.`);
+          const ocrResult = await ocrService.extractTextFromPdf(fileMetadata.path, file.mimetype);
+          if (ocrResult) {
+            await prisma.oCR_Json.create({
+              data: {
+                documentDocument_id: documentId,
+                file_url: fileMetadata.path,
+                ocr_json: ocrResult as any,
+              }
+            });
+            console.log(`[DocumentService] OCR data saved for document ${documentId} and file ${fileMetadata.path}`);
+          }
+        } catch (ocrError) {
+          console.error(`[DocumentService] OCR processing failed for ${file.originalname}, but continuing with upload. Error:`, ocrError);
+        }
+      }
+      // ---- End OCR Processing ----
 
       if (shouldBePrimary) {
         hasRealFile = true;

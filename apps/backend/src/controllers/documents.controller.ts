@@ -106,10 +106,13 @@ export class DocumentController {
       return sendError(res, `Missing required fields: ${missingFields.join(', ')}`, 400);
     }
 
+    const { enableOcr } = req.body;
+
     const document = await this.documentService.createDocumentWithFile(
       req.body,
       (req as any).file,
-      authReq.user.id
+      authReq.user.id,
+      enableOcr === 'true'
     );
 
     return sendSuccess(res, document, 201);
@@ -122,7 +125,7 @@ export class DocumentController {
     const authReq = req as AuthRequest;
     const { id } = req.params;
     const files = (req as any).files as Express.Multer.File[] | undefined;
-    const { versionGroupId } = req.body; // Get versionGroupId from request body if provided
+    const { versionGroupId, enableOcr } = req.body; // Get versionGroupId and enableOcr from request body if provided
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -139,7 +142,8 @@ export class DocumentController {
       id,
       files,
       authReq.user.id,
-      versionGroupId
+      versionGroupId,
+      enableOcr === 'true'
     );
 
     return sendSuccess(res, uploaded, 201);

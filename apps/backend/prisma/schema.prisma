@@ -98,6 +98,17 @@ model Document {
   document_trails           DocumentTrail[]
   signature_placeholders    SignaturePlaceholder[]
   signedDocuments           SignedDocument[]
+  ocr_json                  OCR_Json[]
+}
+
+model OCR_Json {
+  ocr_id              String    @id @default(uuid()) @db.Uuid
+  file_url            String //storage path / S3 / Supabase
+  ocr_json            Json?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @default(now()) @updatedAt
+  document            Document? @relation(fields: [documentDocument_id], references: [document_id])
+  documentDocument_id String?   @db.Uuid
 }
 
 model DocumentAdditionalDetails {
@@ -916,19 +927,19 @@ enum SessionAction {
 }
 
 model ScheduledReport {
-  scheduled_report_id String   @id @default(uuid()) @db.Uuid
-  user_id             String   @db.Uuid
-  report_type         String   // e.g., 'compliance', 'usage', 'version'
-  schedule_config     Json     // stores frequency, day, time, etc.
+  scheduled_report_id String    @id @default(uuid()) @db.Uuid
+  user_id             String    @db.Uuid
+  report_type         String // e.g., 'compliance', 'usage', 'version'
+  schedule_config     Json // stores frequency, day, time, etc.
   next_run            DateTime
   last_run            DateTime?
-  report_file_path    String?  // Path to the generated report file
-  report_file_name    String?  // Name of the generated report file
+  report_file_path    String? // Path to the generated report file
+  report_file_name    String? // Name of the generated report file
   report_generated_at DateTime? // Timestamp when the report was generated
-  is_active           Boolean  @default(true)
-  created_at          DateTime @default(now())
-  updated_at          DateTime @default(now()) @updatedAt
-  user                User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  is_active           Boolean   @default(true)
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @default(now()) @updatedAt
+  user                User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
   // Reverse relation is defined in the User model as scheduled_reports
 
   @@index([user_id])

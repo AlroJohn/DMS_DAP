@@ -154,6 +154,7 @@ export function UploadDocumentModal({
       formData.append("classification", selectedClassification);
       formData.append("type_id", selectedType);
       formData.append("origin", "internal");
+      formData.append("enableOcr", String(enableOcr));
       formData.append("file", files[0]); // Only send the first file to create the document
 
       setUploadProgress(20);
@@ -184,6 +185,7 @@ export function UploadDocumentModal({
 
           const additionalFileForm = new FormData();
           additionalFileForm.append("files", files[i]); // Use the 'files' field for additional uploads
+          additionalFileForm.append("enableOcr", String(enableOcr));
 
           // Generate a unique versionGroupId for each file during bulk upload
           const versionGroupId = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
@@ -591,6 +593,36 @@ export function UploadDocumentModal({
                       </Select>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border shadow-sm rounded-xl">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <FileSearch className="h-4 w-4 text-primary" />
+                    Additional Options
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="enable-ocr"
+                      checked={enableOcr}
+                      onCheckedChange={(checked) =>
+                        setEnableOcr(checked as boolean)
+                      }
+                    />
+                    <label
+                      htmlFor="enable-ocr"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Enable OCR (Optical Character Recognition)
+                    </label>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Extracts text from the PDF, making it searchable. This may
+                    increase processing time.
+                  </p>
                 </CardContent>
               </Card>
             </div>
