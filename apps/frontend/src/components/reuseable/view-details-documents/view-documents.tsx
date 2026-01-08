@@ -228,11 +228,11 @@ export function ViewDocumentsModal({
     document_name: (document as any)?.title,
     classification: (document as any)?.classification,
     origin: (document as any)?.origin,
-    delivery: null,
-    created_by: null,
-    created_by_account: null,
-    department: null,
-    document_type: null,
+    delivery: (document as any)?.delivery || null,
+    created_by: (document as any)?.created_by || null,
+    created_by_account: (document as any)?.created_by_account || null,
+    department: (document as any)?.originating_department || (document as any)?.department || null,
+    document_type: (document as any)?.document_type || null,
   };
 
   return (
@@ -816,90 +816,53 @@ export function ViewDocumentsModal({
                       </div>
                     </div>
 
-                    {/* Department Information */}
+                    {/* Department and Document Type */}
                     <div className="grid grid-cols-2 gap-6 mb-6 pb-6 border-b">
-                      <div className="flex gap-4">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                          <User className="h-6 w-6 text-muted-foreground" />
-                        </div>
-                        <div className="flex-1">
-                          <label className="text-sm text-muted-foreground block mb-1">
-                            Created By
-                          </label>
-                          <p className="font-semibold">
-                            {safeDetail?.created_by_account?.user
-                              ? `${
-                                  safeDetail.created_by_account.user
-                                    .first_name || ""
-                                } ${
-                                  safeDetail.created_by_account.user
-                                    .last_name || ""
-                                }`.trim() || "Unknown"
-                              : safeDetail?.created_by_account?.email ||
-                                safeDetail?.created_by ||
-                                "Unknown"}
-                          </p>
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <span className="text-xs text-muted-foreground">
-                              Department:
-                            </span>
-                            <span className="text-xs font-medium">
-                              {safeDetail?.department?.name ||
-                                document?.originating_department?.name || "N/A"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
                       <div className="flex gap-4">
                         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
                           <Building2 className="h-6 w-6 text-muted-foreground" />
                         </div>
                         <div className="flex-1">
                           <label className="text-sm text-muted-foreground block mb-1">
-                            Current Department
+                            Department
                           </label>
                           <p className="font-semibold">
-                            {document?.current_department?.name || "N/A"}
+                            {document?.current_department?.name || 
+                             document?.originating_department?.name || 
+                             safeDetail?.department?.name || "N/A"}
                           </p>
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <span className="text-xs text-muted-foreground">
-                              Origin:
-                            </span>
-                            <span className="text-xs font-medium">
-                              {document?.originating_department?.name || "N/A"}
-                            </span>
-                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Document Type and Origin */}
-                    <div className="grid grid-cols-2 gap-6 mb-6 pb-6 border-b">
                       <div className="flex gap-4">
                         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
                           <FileText className="h-6 w-6 text-muted-foreground" />
                         </div>
                         <div className="flex-1">
-                          <label className="text-sm text-muted-foreground block mb-1.5">
+                          <label className="text-sm text-muted-foreground block mb-1">
                             Document Type
                           </label>
                           <p className="font-semibold">
-                            {safeDetail?.document_type?.name || "N/A"}
+                            {safeDetail?.document_type?.name || 
+                             (document as any)?.document_type?.name || 
+                             (document as any)?.type?.name || "N/A"}
                           </p>
                         </div>
                       </div>
+                    </div>
 
+                    {/* Origin */}
+                    <div className="grid grid-cols-2 gap-6 mb-6 pb-6 border-b">
                       <div className="flex gap-4">
                         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
                           <Building2 className="h-6 w-6 text-muted-foreground" />
                         </div>
                         <div className="flex-1">
-                          <label className="text-sm text-muted-foreground block mb-1.5">
+                          <label className="text-sm text-muted-foreground block mb-1">
                             Origin
                           </label>
                           <p className="font-semibold">
-                            {safeDetail?.origin || "N/A"}
+                            {formatText(safeDetail?.origin || document?.detail?.origin || (document as any)?.origin || "N/A")}
                           </p>
                         </div>
                       </div>

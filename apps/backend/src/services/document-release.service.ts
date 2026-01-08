@@ -192,13 +192,20 @@ export class DocumentReleaseService {
                 console.log('📍 [DocumentReleaseService.releaseDocument] DocumentAdditionalDetails updated with pass_to_department');
             } else {
                 // If no detail exists, create one with the releasing department as 'first'
-                // First, get the user's department to set as 'first' in the workflow
+                // First, get the user's department and account to set as 'first' in the workflow
                 const user = await prisma.user.findUnique({
                     where: { user_id: userId },
-                    select: { department_id: true }
+                    select: { 
+                        department_id: true,
+                        account: {
+                            select: {
+                                account_id: true
+                            }
+                        }
+                    }
                 });
 
-                if (user) {
+                if (user && user.account?.account_id) {
                     const newWorkflow = {
                         first: user.department_id,
                         second: departmentId
@@ -209,7 +216,7 @@ export class DocumentReleaseService {
                             document_id: documentId,
                             work_flow_id: newWorkflow as any,
                             remarks: remarks || null,
-                            account_id: null // Will be updated with actual account ID when we have the user info
+                            account_id: user.account.account_id // Store the releasing user's account ID
                         }
                     });
                     console.log('📍 [DocumentReleaseService.releaseDocument] Created new DocumentAdditionalDetails with proper workflow');
@@ -224,7 +231,7 @@ export class DocumentReleaseService {
                             document_id: documentId,
                             work_flow_id: newWorkflow as any,
                             remarks: remarks || null,
-                            account_id: null
+                            account_id: user?.account?.account_id || null // Try to store account_id if available
                         }
                     });
                     console.log('📍 [DocumentReleaseService.releaseDocument] Created new DocumentAdditionalDetails with fallback workflow');
