@@ -47,6 +47,7 @@ import documentSignaturePlaceholderRoutes from './routes/document-signature-plac
 import documentReportsRoutes from './routes/document-reports.routes'; // Import document reports routes
 import counterRoutes from './routes/counter.routes'; // Import counter routes
 import activityLogsRoutes from './routes/activity-logs.routes'; // Import activity logs routes
+import accessHistoryRoutes from './routes/access-history.routes'; // Import access history routes
 
 // Import middleware
 import { requestLogger, errorLogger } from './middleware/logging';
@@ -149,7 +150,9 @@ app.get('/health', (req, res) => {
 // API routes - clean layered architecture
 // Mount auth routes (including profile update)
 app.use('/api/auth', authRoutes);
-// Mount OAuth routes under a different path to avoid conflicts
+// Mount OAuth routes - these should be under /api/auth as well to match the expected paths
+app.use('/api/auth', oauthRoutes);
+// Keep the /api/oauth path for backward compatibility
 app.use('/api/oauth', oauthRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/files', documentCheckoutRoutes);
@@ -181,6 +184,7 @@ app.use('/api/document-signatures', documentSignaturePlaceholderRoutes); // Add 
 app.use('/api/reports', documentReportsRoutes); // Add document reports routes
 app.use('/api', counterRoutes); // Add counter routes
 app.use('/api', activityLogsRoutes); // Add activity logs routes
+app.use('/api', accessHistoryRoutes); // Add access history routes
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {

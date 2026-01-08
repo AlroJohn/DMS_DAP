@@ -160,8 +160,7 @@ export function SignaturePdfViewer({
       return;
     }
     setBoxes(existingBoxes);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFileId, placeholders]);
+  }, [selectedFileId, existingBoxes]);
 
   useEffect(() => {
     if (!selectedFile) {
