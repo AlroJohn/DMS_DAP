@@ -36,17 +36,20 @@ const ManagementOverviewPage = () => {
 
   if (isLoading && (departments.length === 0 || documentTypes.length === 0 || documentActions.length === 0 || users.length === 0)) {
     return (
-      <div className="container mx-auto py-10 flex justify-center items-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="w-full flex h-full flex-col bg-background items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="mb-8">
-        <h2 className="text-3xl font-bold tracking-tight">Management Overview</h2>
-        <p className="text-muted-foreground mt-2">Monitor and manage your organization's resources</p>
+    <div className="w-full flex h-full flex-col bg-background">
+      {/* Header */}
+      <div className="flex flex-col gap-2 mb-6">
+        <h1 className="text-3xl font-bold tracking-tight">Management Overview</h1>
+        <p className="text-muted-foreground">
+          Monitor and manage your organization's resources and system settings
+        </p>
       </div>
 
       <ManagementCards />

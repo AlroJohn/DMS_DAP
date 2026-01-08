@@ -759,6 +759,19 @@ export class DocumentService {
           }
         },
         DocumentAdditionalDetails: {
+          include: {
+            created_by_account: {
+              select: {
+                email: true,
+                user: {
+                  select: {
+                    first_name: true,
+                    last_name: true,
+                  }
+                }
+              }
+            }
+          },
           orderBy: {
             created_at: 'asc'
           },
@@ -783,9 +796,16 @@ export class DocumentService {
     }
 
     // Get document type info
-    const documentType = await prisma.documentType.findUnique({
-      where: { name: document.document_type }
-    });
+    let documentType = null;
+    if (document.document_type) {
+      documentType = await prisma.documentType.findUnique({
+        where: { name: document.document_type }
+      });
+      // If no DocumentType record exists, create a simple object with the name
+      if (!documentType) {
+        documentType = { name: document.document_type } as any;
+      }
+    }
 
     // Generate QR code
     let qrCode = '';
@@ -818,14 +838,15 @@ export class DocumentService {
     let currentDept = null;
 
     if (document.DocumentAdditionalDetails && document.DocumentAdditionalDetails.length > 0) {
-      const workflow = document.DocumentAdditionalDetails[0].work_flow_id;
-      if (workflow && Array.isArray(workflow) && workflow.length > 0) {
-        // Try to get first department from workflow
-        const firstStep = workflow[0];
-        if (firstStep && typeof firstStep === 'object' && 'department_id' in firstStep) {
+      const workflow = document.DocumentAdditionalDetails[0].work_flow_id as any;
+      if (workflow && typeof workflow === 'object') {
+        // Workflow is stored as {"first": "dept_id", "second": "dept_id", ...}
+        // Get the first department (originating)
+        const firstDeptId = workflow.first;
+        if (firstDeptId) {
           try {
             originatingDept = await prisma.department.findUnique({
-              where: { department_id: firstStep.department_id as string },
+              where: { department_id: firstDeptId },
               select: { name: true, department_id: true }
             });
           } catch (e) {
@@ -833,12 +854,18 @@ export class DocumentService {
           }
         }
 
-        // Try to get last department from workflow
-        const lastStep = workflow[workflow.length - 1];
-        if (lastStep && typeof lastStep === 'object' && 'department_id' in lastStep) {
+        // Get the last department in the workflow (current)
+        // Check for second, third, etc. to find the last one
+        const workflowKeys = Object.keys(workflow).filter(key => 
+          key !== 'first' && workflow[key] !== null && workflow[key] !== undefined
+        );
+        const lastKey = workflowKeys.length > 0 ? workflowKeys[workflowKeys.length - 1] : 'first';
+        const lastDeptId = workflow[lastKey];
+        
+        if (lastDeptId) {
           try {
             currentDept = await prisma.department.findUnique({
-              where: { department_id: lastStep.department_id as string },
+              where: { department_id: lastDeptId },
               select: { name: true, department_id: true }
             });
           } catch (e) {
@@ -848,6 +875,11 @@ export class DocumentService {
       }
     }
 
+    // Get creator information from DocumentAdditionalDetails or first file uploader
+    const createdByAccount = document.DocumentAdditionalDetails?.[0]?.created_by_account || 
+                             document.files?.[0]?.uploaded_by_account || 
+                             null;
+
     // Build the detail object to match frontend expectations
     const detail = {
       document_code: document.document_code,
@@ -855,14 +887,18 @@ export class DocumentService {
       classification: document.classification,
       origin: document.origin,
       delivery: null, // Not available in current schema
-      created_by: null, // Not directly stored
+      created_by: createdByAccount?.user ? 
+        `${createdByAccount.user.first_name} ${createdByAccount.user.last_name}` : null,
       document_type: documentType ? {
         name: documentType.name
       } : null,
       department: originatingDept ? {
         name: originatingDept.name
       } : null,
-      created_by_account: null // Not directly available in schema
+      created_by_account: createdByAccount ? {
+        email: (createdByAccount as any).email || null,
+        user: createdByAccount.user || null
+      } : null
     };
 
     const blockchainDetail = document.DocumentAdditionalDetails?.[0] as any;
@@ -1370,13 +1406,25 @@ export class DocumentService {
     // Generate unique document code (department-based)
     const documentCode = await this.generateDocumentCode(user.department_id);
 
+    // Get document type name if type_id is provided
+    let documentTypeName = documentData.document_type || 'General';
+    if (documentData.type_id) {
+      const docType = await prisma.documentType.findUnique({
+        where: { type_id: documentData.type_id },
+        select: { name: true }
+      });
+      if (docType) {
+        documentTypeName = docType.name;
+      }
+    }
+
     // Create the document
     const document = await prisma.document.create({
       data: {
         title: documentData.document_name || documentData.title,
         description: documentData.description || null,
         document_code: documentCode,
-        document_type: documentData.type_id || documentData.document_type || 'General',
+        document_type: documentTypeName,
         classification: documentData.classification,
         origin: documentData.origin,
         status: 'dispatch'
@@ -1392,7 +1440,8 @@ export class DocumentService {
       data: {
         document_id: document.document_id,
         work_flow_id: workflowObject as any, // Initialize with creator's department as "first"
-        remarks: documentData.remarks || null
+        remarks: documentData.remarks || null,
+        account_id: user.account.account_id // Store the creator's account ID
       }
     });
 
@@ -2005,7 +2054,12 @@ export class DocumentService {
         user_id: true,
         department_id: true,
         first_name: true,
-        last_name: true
+        last_name: true,
+        account: {
+          select: {
+            account_id: true
+          }
+        }
       }
     });
 
@@ -2013,15 +2067,31 @@ export class DocumentService {
       throw new Error('User not found');
     }
 
+    if (!user.account?.account_id) {
+      throw new Error('User account context missing');
+    }
+
     // Create the document
     const documentCode = await this.generateDocumentCode(user.department_id);
+
+    // Get document type name if type_id is provided
+    let documentTypeName = documentData.document_type || 'General';
+    if (documentData.type_id) {
+      const docType = await prisma.documentType.findUnique({
+        where: { type_id: documentData.type_id },
+        select: { name: true }
+      });
+      if (docType) {
+        documentTypeName = docType.name;
+      }
+    }
 
     const document = await prisma.document.create({
       data: {
         title: documentData.document_name,
         description: documentData.description || null,
         document_code: documentCode,
-        document_type: documentData.type_id || 'General',
+        document_type: documentTypeName,
         classification: documentData.classification,
         origin: documentData.origin,
         status: 'dispatch'
@@ -2037,7 +2107,8 @@ export class DocumentService {
       data: {
         document_id: document.document_id,
         work_flow_id: workflowObject as any, // Initialize with creator's department as "first"
-        remarks: documentData.remarks || null
+        remarks: documentData.remarks || null,
+        account_id: user.account.account_id // Store the creator's account ID
       }
     });
 

@@ -19,9 +19,10 @@ model Account {
   last_login                 DateTime?
   created_at                 DateTime             @default(now())
   updated_at                 DateTime             @default(now()) @updatedAt
-  department                 Department?          @relation(fields: [department_id], references: [department_id])
-  documents_restored         Document[]           @relation("DocumentRestoredBy")
-  document_files             DocumentFile[]       @relation("AccountUploadedFiles")
+  department                 Department?                   @relation(fields: [department_id], references: [department_id])
+  documents_restored         Document[]                    @relation("DocumentRestoredBy")
+  document_files             DocumentFile[]                @relation("AccountUploadedFiles")
+  document_details_created   DocumentAdditionalDetails[]   @relation("DocumentDetailsCreatedBy")
   password_reset_tokens      PasswordResetToken[]
   permission_audit_performed PermissionAuditLog[] @relation("PermissionAuditPerformedBy")
   roles_created              Role[]               @relation("RoleCreatedBy")
@@ -133,8 +134,10 @@ model DocumentAdditionalDetails {
   restored_at                 DateTime?
   account_id                  String?   @db.Uuid
   Document                    Document  @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
+  created_by_account          Account?  @relation("DocumentDetailsCreatedBy", fields: [account_id], references: [account_id])
 
   @@index([document_id])
+  @@index([account_id])
 }
 
 model DocumentType {

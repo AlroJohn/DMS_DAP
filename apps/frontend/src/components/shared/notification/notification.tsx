@@ -112,20 +112,20 @@ export function NotificationSheet({ open, onOpenChange }: NotificationSheetProps
                       {/* Content */}
                       <div className="flex-1 min-w-0 space-y-1.5">
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold leading-tight truncate">
+                          <p className="text-sm font-semibold leading-tight break-words">
                             {notification.title}
                           </p>
                           <div className="text-xs text-muted-foreground mt-1">
                             {notification.documentName && (
-                              <span className="font-medium truncate block">{notification.documentName}</span>
+                              <span className="font-medium block break-words">{notification.documentName}</span>
                             )}
                             {notification.documentCode && (
-                              <span className="inline-block mt-1 px-2 py-0.5 bg-muted rounded text-xs font-mono">
+                              <span className="inline-block mt-1 px-2 py-0.5 bg-muted rounded text-xs font-mono break-all">
                                 {notification.documentCode}
                               </span>
                             )}
                             {!notification.documentName && !notification.documentCode && (
-                              <span className="line-clamp-2">{notification.message}</span>
+                              <span className="line-clamp-3 break-words">{notification.message}</span>
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground mt-2">
