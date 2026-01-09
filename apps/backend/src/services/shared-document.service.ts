@@ -81,12 +81,21 @@ export class SharedDocumentService {
 
       console.log('📍 [getSharedDocuments] Total document details found:', allDocumentDetails.length);
 
+      // First, filter documents that have been specifically shared to this user
+      // Look for the user ID in received_by_department_user field (which we're now using for user IDs)
+      const initiallySharedDocumentDetails = allDocumentDetails.filter((detail: any) => {
       // Filter documents that have been specifically shared to this user
       // Look for the user ID in received_by_departments field (which stores user IDs)
       const sharedDocumentDetails = allDocumentDetails.filter((detail: any) => {
         // Check if document is not deleted
         if (detail.Document?.status === 'deleted') {
           console.log('📍 [getSharedDocuments] Document is deleted, skipping:', detail.document_id);
+          return false;
+        }
+
+        // Exclude documents with certain statuses that shouldn't appear in shared view
+        if (['completed', 'archived'].includes(detail.Document?.status)) {
+          console.log('📍 [getSharedDocuments] Document has completed/archived status, skipping:', detail.document_id);
           return false;
         }
 
@@ -124,9 +133,74 @@ export class SharedDocumentService {
         return isSharedToUser;
       });
 
-      const sharedDocumentIds = sharedDocumentDetails.map((detail: any) => detail.document_id);
+      // Now, for documents that are in transit, check if they are assigned to the user's department
+      const sharedDocumentIds = [];
+      for (const detail of initiallySharedDocumentDetails) {
+        let shouldInclude = true;
 
-      console.log('📍 [getSharedDocuments] Shared document IDs:', sharedDocumentIds.length, sharedDocumentIds);
+        // Check if the document is in transit and if it's assigned to the user's department
+        if (detail.Document?.status === 'intransit') {
+          const latestTransitTrail = await prisma.documentTrail.findFirst({
+            where: {
+              document_id: detail.document_id,
+              status: 'intransit'
+            },
+            orderBy: {
+              created_at: 'desc'
+            },
+            select: {
+              to_department: true
+            }
+          });
+
+          // If the document is in transit and assigned to a different department,
+          // the originally shared user should not see it anymore
+          if (latestTransitTrail?.to_department && latestTransitTrail.to_department !== user.department_id) {
+            console.log('📍 [getSharedDocuments] Document is in transit to another department, excluding:', detail.document_id);
+            shouldInclude = false;
+          }
+        }
+
+        // Check if the user is still part of the current workflow
+        if (detail.work_flow_id && shouldInclude) {
+          let workflowDepartments: string[] = [];
+
+          if (typeof detail.work_flow_id === 'object' && detail.work_flow_id !== null) {
+            // New format: object with keys like "first", "second", etc.
+            workflowDepartments = Object.values(detail.work_flow_id);
+          } else if (typeof detail.work_flow_id === 'string') {
+            // Could be either a JSON string of an array or a JSON string of an object
+            const parsed = JSON.parse(detail.work_flow_id);
+            if (Array.isArray(parsed)) {
+              workflowDepartments = parsed;
+            } else {
+              // If it's an object, get its values
+              workflowDepartments = Object.values(parsed);
+            }
+          } else if (Array.isArray(detail.work_flow_id)) {
+            // Old format: array
+            workflowDepartments = detail.work_flow_id;
+          } else {
+            // Unexpected format
+            workflowDepartments = [];
+          }
+
+          // If the document has moved beyond the user's department in the workflow
+          // (meaning it's no longer relevant to the user), don't include it
+          const userDepartmentIndex = workflowDepartments.indexOf(user.department_id);
+          if (userDepartmentIndex === -1) {
+            // User's department is not in the workflow anymore
+            console.log('📍 [getSharedDocuments] User department not in workflow, excluding:', detail.document_id);
+            shouldInclude = false;
+          }
+        }
+
+        if (shouldInclude) {
+          sharedDocumentIds.push(detail.document_id);
+        }
+      }
+
+      console.log('📍 [getSharedDocuments] Shared document IDs after filtering:', sharedDocumentIds.length, sharedDocumentIds);
 
       if (sharedDocumentIds.length === 0) {
         console.log('📍 [getSharedDocuments] No shared documents found for user');
