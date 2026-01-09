@@ -57,6 +57,7 @@ export function UploadDocumentModal({
   const [selectedType, setSelectedType] = useState("");
   const [selectedClassification, setSelectedClassification] =
     useState("simple");
+  const [selectedOrigin, setSelectedOrigin] = useState("external");
   const [enableOcr, setEnableOcr] = useState(false);
   const [enableEncryption, setEnableEncryption] = useState(true);
 
@@ -153,7 +154,7 @@ export function UploadDocumentModal({
       formData.append("description", description || "");
       formData.append("classification", selectedClassification);
       formData.append("type_id", selectedType);
-      formData.append("origin", "internal");
+      formData.append("origin", selectedOrigin);
       formData.append("enableOcr", String(enableOcr));
       formData.append("file", files[0]); // Only send the first file to create the document
 
@@ -511,7 +512,7 @@ export function UploadDocumentModal({
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="type" className="text-sm font-medium">
                         Document Type *
@@ -588,6 +589,42 @@ export function UploadDocumentModal({
                             className="text-base py-2 px-3"
                           >
                             Highly Technical
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="origin"
+                        className="text-sm font-medium"
+                      >
+                        Origin
+                      </Label>
+                      <Select
+                        value={selectedOrigin}
+                        onValueChange={setSelectedOrigin}
+                      >
+                        <SelectTrigger
+                          className={`${
+                            selectedOrigin
+                              ? "border-primary/50 ring-1 ring-primary/20"
+                              : ""
+                          } text-base w-full transition-all focus:ring-2 focus:ring-primary/30 focus:border-primary`}
+                        >
+                          <SelectValue placeholder="Select origin" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem
+                            value="internal"
+                            className="text-base py-2 px-3"
+                          >
+                            Internal
+                          </SelectItem>
+                          <SelectItem
+                            value="external"
+                            className="text-base py-2 px-3"
+                          >
+                            External
                           </SelectItem>
                         </SelectContent>
                       </Select>
