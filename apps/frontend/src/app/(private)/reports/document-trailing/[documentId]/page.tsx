@@ -17,6 +17,8 @@ import {
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 
 interface DocumentTrailDetail {
   id: string;
@@ -118,11 +120,73 @@ export default function DocumentTrailsDetailPage() {
   };
 
   const handleExport = () => {
-    toast.info("Export initiated", {
-      description: "Exporting document trail history...",
+    if (!documentInfo || trails.length === 0) {
+      toast.error("No document data to export");
+      return;
+    }
+
+    // Create a new PDF instance
+    const doc = new jsPDF();
+
+    // Add title
+    doc.setFontSize(18);
+    doc.text("Document Trail History Report", 14, 20);
+
+    // Add document info
+    doc.setFontSize(12);
+    doc.text(`Document Title: ${documentInfo.title}`, 14, 35);
+    doc.text(`Document Code: ${documentInfo.code}`, 14, 42);
+    doc.text(`Document Type: ${documentInfo.type}`, 14, 49);
+    doc.text(`Classification: ${documentInfo.classification}`, 14, 56);
+    doc.text(`Status: ${getStatusText(documentInfo.status)}`, 14, 63);
+    doc.text(`Created: ${format(new Date(documentInfo.createdAt), "MMM d, yyyy h:mm a")}`, 14, 70);
+
+    // Add subtitle with date
+    doc.setFontSize(11);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 80);
+
+    // Prepare table data for trails
+    const tableColumn = [
+      "Action Date",
+      "User",
+      "From Department",
+      "To Department",
+      "Status",
+      "Remarks"
+    ];
+
+    const tableRows = trails.map((trail) => [
+      format(new Date(trail.actionDate), "MMM d, yyyy h:mm a"),
+      trail.user,
+      trail.fromDepartment,
+      trail.toDepartment,
+      getStatusText(trail.status),
+      trail.remarks
+    ]);
+
+    // Add table
+    (doc as any).autoTable({
+      head: [tableColumn],
+      body: tableRows,
+      startY: 90,
+      styles: {
+        fontSize: 9,
+        cellPadding: 5
+      },
+      headStyles: {
+        fillColor: [59, 130, 246], // blue-500
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+      },
+      alternateRowStyles: {
+        fillColor: [249, 250, 251] // gray-50
+      }
     });
-    // In a real application, this would trigger a download
-    console.log("Exporting document trail history");
+
+    // Save the PDF
+    doc.save(`document-trail-${documentInfo.code || documentId}.pdf`);
+
+    toast.success("PDF exported successfully!");
   };
 
   if (loading) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { DataTable } from "@/components/reuseable/tables/data-table";
 import { outgoingColumns, type OutgoingDocument } from "./outgoing-columns";
 import { incomingColumns, type IncomingDocument } from "./incoming-columns";
@@ -12,6 +13,7 @@ import {
 import { Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSocket } from "@/components/providers/providers";
+import { toast } from "sonner";
 
 export default function InTransitDocumentsPage() {
   const [activeTab, setActiveTab] = useState<"incoming" | "outgoing">(
@@ -19,6 +21,7 @@ export default function InTransitDocumentsPage() {
   );
   const { socket } = useSocket();
   const mountedRef = useRef(false);
+  const router = useRouter();
 
   // Mark component as mounted and clean up on unmount
   useEffect(() => {
@@ -80,9 +83,20 @@ export default function InTransitDocumentsPage() {
     };
   }, [socket, refetchIncoming, refetchOutgoing]);
 
+  const handleReceiveSuccess = () => {
+    refetchIncoming();
+    toast.success("Document received successfully!", {
+      description: "Redirecting to shared documents...",
+    });
+    setTimeout(() => {
+      router.push("/documents/shared");
+    }, 1500);
+  };
   // Check if the errors are authentication-related
-  const isAuthErrorIncoming = incomingError && incomingError.includes('Authentication required');
-  const isAuthErrorOutgoing = outgoingError && outgoingError.includes('Authentication required');
+  const isAuthErrorIncoming =
+    incomingError && incomingError.includes("Authentication required");
+  const isAuthErrorOutgoing =
+    outgoingError && outgoingError.includes("Authentication required");
 
   return (
     <div className="flex h-full flex-col gap-4 bg-background">
@@ -104,7 +118,9 @@ export default function InTransitDocumentsPage() {
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Error</AlertTitle>
-                <AlertDescription>Error loading incoming documents: {incomingError}</AlertDescription>
+                <AlertDescription>
+                  Error loading incoming documents: {incomingError}
+                </AlertDescription>
               </Alert>
             </div>
           )}
@@ -113,7 +129,9 @@ export default function InTransitDocumentsPage() {
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Authentication Required</AlertTitle>
-                <AlertDescription>You must be logged in to view documents.</AlertDescription>
+                <AlertDescription>
+                  You must be logged in to view documents.
+                </AlertDescription>
               </Alert>
             </div>
           )}
@@ -122,6 +140,9 @@ export default function InTransitDocumentsPage() {
             data={incomingDocuments}
             selection={true}
             isLoading={isLoadingIncoming}
+            meta={{
+              onReceived: handleReceiveSuccess,
+            }}
           />
         </TabsContent>
 
@@ -131,7 +152,9 @@ export default function InTransitDocumentsPage() {
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Error</AlertTitle>
-                <AlertDescription>Error loading outgoing documents: {outgoingError}</AlertDescription>
+                <AlertDescription>
+                  Error loading outgoing documents: {outgoingError}
+                </AlertDescription>
               </Alert>
             </div>
           )}
@@ -140,7 +163,9 @@ export default function InTransitDocumentsPage() {
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Authentication Required</AlertTitle>
-                <AlertDescription>You must be logged in to view documents.</AlertDescription>
+                <AlertDescription>
+                  You must be logged in to view documents.
+                </AlertDescription>
               </Alert>
             </div>
           )}

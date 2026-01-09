@@ -22,6 +22,8 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 
 interface DocumentTrail {
   id: string;
@@ -216,6 +218,91 @@ export default function DocumentTrailingPage() {
     router.push(`/reports/document-trailing/${documentId}`);
   };
 
+  const handleExportPDF = () => {
+    if (filteredDocuments.length === 0) {
+      toast.error("No documents to export");
+      return;
+    }
+
+    // Create a new PDF instance
+    const doc = new jsPDF();
+
+    // Add title
+    doc.setFontSize(18);
+    doc.text("Document Trailing Report", 14, 20);
+
+    // Add subtitle with date
+    doc.setFontSize(11);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+
+    // Add summary statistics
+    doc.setFontSize(12);
+    doc.text(`Total Documents: ${documents.length}`, 14, 40);
+    doc.text(`In Transit: ${documents.filter(d => d.status === "intransit").length}`, 14, 48);
+    doc.text(`Departments: ${[...new Set(documents.map(d => d.fromDepartment))].length}`, 14, 56);
+    doc.text(`Active Users: ${[...new Set(documents.map(d => d.user))].length}`, 14, 64);
+
+    // Prepare table data
+    const tableColumn = [
+      "Document Title",
+      "Document Code",
+      "Type",
+      "Status",
+      "From Department",
+      "To Department",
+      "User",
+      "Action Date",
+      "Remarks"
+    ];
+
+    const tableRows = filteredDocuments.map((doc) => [
+      doc.documentTitle,
+      doc.documentCode,
+      doc.documentType,
+      getStatusText(doc.status),
+      doc.fromDepartment,
+      doc.toDepartment,
+      doc.user,
+      format(new Date(doc.actionDate), "MMM d, yyyy h:mm a"),
+      doc.remarks
+    ]);
+
+    // Add table
+    (doc as any).autoTable({
+      head: [tableColumn],
+      body: tableRows,
+      startY: 75,
+      styles: {
+        fontSize: 8,
+        cellPadding: 4
+      },
+      headStyles: {
+        fillColor: [59, 130, 246], // blue-500
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+      },
+      alternateRowStyles: {
+        fillColor: [249, 250, 251] // gray-50
+      },
+      columnStyles: {
+        0: { cellWidth: 40 }, // Document Title
+        1: { cellWidth: 25 }, // Document Code
+        2: { cellWidth: 20 }, // Type
+        3: { cellWidth: 20 }, // Status
+        4: { cellWidth: 30 }, // From Department
+        5: { cellWidth: 30 }, // To Department
+        6: { cellWidth: 30 }, // User
+        7: { cellWidth: 30 }, // Action Date
+        8: { cellWidth: 35 }  // Remarks
+      }
+    });
+
+    // Save the PDF
+    doc.save(`document-trailing-report-${new Date().toISOString().split('T')[0]}.pdf`);
+
+    toast.success("PDF exported successfully!");
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -306,9 +393,9 @@ export default function DocumentTrailingPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleExportPDF}>
               <Download className="h-4 w-4 mr-2" />
-              Export
+              Export All to PDF
             </Button>
           </div>
         </CardHeader>

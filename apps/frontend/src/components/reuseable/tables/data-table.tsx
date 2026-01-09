@@ -55,6 +55,7 @@ interface DataTableProps<TData, TValue> {
   };
   isLoading?: boolean; // Prop to handle loading state within the table
   onSign?: (document: TData) => void;
+  meta?: any;
 }
 
 export function DataTable<TData, TValue>({
@@ -68,6 +69,7 @@ export function DataTable<TData, TValue>({
   initialState = {},
   isLoading = false, // Default to false to maintain existing behavior
   onSign,
+  meta,
 }: DataTableProps<TData, TValue>) {
   const filteredColumns = React.useMemo(
     () =>
@@ -121,6 +123,7 @@ export function DataTable<TData, TValue>({
       getSortedRowModel: getSortedRowModel(),
       getFacetedRowModel: getFacetedRowModel(),
       getFacetedUniqueValues: getFacetedUniqueValues(),
+      meta,
     });
   
     // Handle selection changes

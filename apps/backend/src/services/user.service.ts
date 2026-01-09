@@ -25,6 +25,9 @@ export interface UpdateUserData {
   department_id?: string;
   role_id?: string; // Add role_id to allow updating user's role
   active?: boolean;
+  is_active?: boolean; // Add is_active to allow updating account status
+  email?: string; // Add email to allow updating account email
+  password?: string; // Add password to allow updating account password
   signature?: string | null; // Base64 encoded signature
 }
 
@@ -433,6 +436,37 @@ export class UserService {
                   where: { account_id: existingUser.account_id },
                   data: {
                     department_id: userData.department_id,
+                  }
+                });
+              }
+
+              // Update account status if is_active changed
+              if (userData.is_active !== undefined) {
+                await tx.account.update({
+                  where: { account_id: existingUser.account_id },
+                  data: {
+                    is_active: userData.is_active,
+                  }
+                });
+              }
+
+              // Update account email if email changed
+              if (userData.email) {
+                await tx.account.update({
+                  where: { account_id: existingUser.account_id },
+                  data: {
+                    email: userData.email,
+                  }
+                });
+              }
+
+              // Update account password if password changed
+              if (userData.password) {
+                const hashedPassword = await hash(userData.password, 10);
+                await tx.account.update({
+                  where: { account_id: existingUser.account_id },
+                  data: {
+                    password: hashedPassword,
                   }
                 });
               }

@@ -186,7 +186,11 @@ export class UserController {
       title,
       type,
       department_id,
+      role_id,
       active,
+      is_active,
+      email,
+      password,
       signature
     } = req.body;
 
@@ -199,6 +203,11 @@ export class UserController {
       return sendError(res, 'Last name must be between 1 and 50 characters', 400);
     }
 
+    // Validate email if provided
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return sendError(res, 'Invalid email format', 400);
+    }
+
     try {
       const userData: UpdateUserData = {
         first_name,
@@ -208,7 +217,11 @@ export class UserController {
         title,
         type,
         department_id,
+        role_id,
         active,
+        is_active,
+        email,
+        password,
         signature: signature !== undefined ? signature : undefined,
       };
 

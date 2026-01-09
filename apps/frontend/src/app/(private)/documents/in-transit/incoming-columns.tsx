@@ -388,10 +388,10 @@ export const incomingColumns: ColumnDef<IncomingDocument>[] = [
     cell: ({ row, table }) => {
       const documentId = row.original.id;
 
-      // Get refetch function from table meta if available
-      const refetch = (table.options.meta as any)?.refetch;
+      // Get onReceived function from table meta if available
+      const onReceived = (table.options.meta as any)?.onReceived;
 
-      return <ReceiveButton documentId={documentId} onReceived={refetch} />;
+      return <ReceiveButton documentId={documentId} onReceived={onReceived} />;
     },
     enableSorting: false,
     enableHiding: false,
