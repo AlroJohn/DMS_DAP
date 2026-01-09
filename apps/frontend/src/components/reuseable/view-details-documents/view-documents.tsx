@@ -31,6 +31,140 @@ import { useState, useEffect } from 'react';
 import { generateDocumentPDF, downloadCSV, downloadExcel, downloadRoutingHistoryCSV, exportRoutingHistoryPDF } from "@/utils/document-export";
 import { DocumentViewerWithSignatures } from "@/components/reuseable/document-viewer-with-signatures/document-viewer-with-signatures";
 
+interface DocumentMetadata {
+  file_type?: string;
+  mime_type?: string;
+  author?: string;
+  creator?: string;
+  producer?: string;
+  creation_date?: string;
+  modification_date?: string;
+  security_level?: string;
+  retention_period?: number;
+  is_encrypted?: boolean;
+  checksum?: string;
+  version?: string;
+}
+
+interface DocumentFile {
+  file_id: string;
+  original_name: string;
+  mime_type: string;
+  is_primary: boolean;
+  downloadUrl: string;
+  version?: string;
+  uploadDate?: string;
+  file_size?: number;
+  version_group_id?: string;
+  uploaded_by_account?: {
+    email?: string;
+    user?: {
+      first_name: string;
+      last_name: string;
+    };
+  };
+  DocumentMetadata?: DocumentMetadata | null;
+}
+
+interface DocumentDetail {
+  document_code?: string;
+  document_name?: string;
+  classification?: string;
+  origin?: string;
+  delivery?: string | null;
+  created_by?: string | null;
+  created_by_account?: {
+    email?: string;
+    user?: {
+      first_name: string;
+      last_name: string;
+    };
+  } | null;
+  department?: {
+    name: string;
+  } | null;
+  document_type?: {
+    name: string;
+  } | null;
+}
+
+interface Document {
+  document_id: string;
+  tracking_code?: string;
+  status: string;
+  created_at: string;
+  detail?: DocumentDetail;
+  current_department?: {
+    name: string;
+  } | null;
+  originating_department?: {
+    name: string;
+  } | null;
+  document_logs: any[];
+  qrCode?: string;
+  barcode?: string;
+  blockchain?: {
+    status?: string | null;
+    projectUuid?: string | null;
+    transactionHash?: string | null;
+    redirectUrl?: string | null;
+    signedAt?: string | null;
+    signedBy?: string | null;
+  } | null;
+  files?: DocumentFile[];
+  title?: string;
+  document_code?: string;
+  classification?: string;
+  description?: string;
+  origin?: string;
+}
+
+interface DocumentTrail {
+  trail_id: string;
+  document_id: string;
+  action_id?: string;
+  from_department?: string;
+  to_department?: string;
+  user_id?: string;
+  action_date: string;
+  status: string;
+  remarks?: string;
+  created_at: string;
+  updated_at: string;
+  documentAction?: {
+    action_name: string;
+    description?: string;
+    sender_tag?: string;
+    recipient_tag?: string;
+    status: boolean;
+    action_date: string;
+    created_at: string;
+    updated_at: string;
+    permission_id?: string;
+  };
+  document: {
+    title: string;
+    description?: string;
+    document_code: string;
+    document_type: string;
+    classification: string;
+    origin: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+  };
+  fromDept?: {
+    name: string;
+  };
+  toDept?: {
+    name: string;
+  };
+  user?: {
+    first_name: string;
+    last_name: string;
+  };
+}
+
 interface ViewDocumentsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -130,10 +264,10 @@ export function ViewDocumentsModal({
   onConfirmSignaturePlacement,
 }: ViewDocumentsModalProps) {
   // All state hooks must be at the top to follow React Hooks rules
-  const [documentTrails, setDocumentTrails] = useState<any[]>([]);
-  const [trailsLoading, setTrailsLoading] = useState(false);
+  const [documentTrails, setDocumentTrails] = useState<DocumentTrail[]>([]);
+  const [trailsLoading, setTrailsLoading] = useState<boolean>(false);
 
-  const { document, isLoading, error } = useViewDocument(documentId);
+  const { document, isLoading, error } = useViewDocument(documentId) as { document?: Document; isLoading: boolean; error?: string };
 
   // Function to load document trails - moved to maintain consistent hook order
   useEffect(() => {
@@ -170,31 +304,70 @@ export function ViewDocumentsModal({
     }
   };
 
+  const createExportDocument = () => {
+    if (!document) return null;
+    
+    const exportDetail = {
+      document_code: document.detail?.document_code || document.document_code || 'N/A',
+      document_name: document.detail?.document_name || document.title || 'Untitled',
+      classification: document.detail?.classification || document.classification || 'N/A',
+      origin: document.detail?.origin || document.origin || 'N/A',
+      delivery: document.detail?.delivery || (document as any)?.delivery || null,
+      created_by: document.detail?.created_by || (document as any)?.created_by || null,
+      document_type: document.detail?.document_type || (document as any)?.document_type || null,
+      department: document.detail?.department || document.originating_department || (document as any)?.department || null,
+      created_by_account: document.detail?.created_by_account || (document as any)?.created_by_account || {
+        email: 'unknown@example.com',
+        user: { first_name: 'Unknown', last_name: 'User' }
+      }
+    };
+
+    // Include files with their metadata
+    const filesWithMetadata = document.files?.map(file => ({
+      ...file,
+      DocumentMetadata: file.DocumentMetadata || null
+    })) || [];
+
+    return {
+      ...document,
+      detail: exportDetail,
+      document_trails: documentTrails,
+      files: filesWithMetadata
+    };
+  };
+
   const handleExportPDF = () => {
-    if (!document) return;
-    generateDocumentPDF(document);
+    const docData = createExportDocument();
+    if (!docData) return;
+    generateDocumentPDF(docData as any);
   };
 
   const handleExportCSV = () => {
-    if (!document) return;
-    downloadCSV(document);
+    const docData = createExportDocument();
+    if (!docData) return;
+    downloadCSV(docData as any);
     toast.success('CSV exported successfully');
   };
 
   const handleExportExcel = () => {
-    if (!document) return;
-    downloadExcel(document);
+    const docData = createExportDocument();
+    if (!docData) return;
+    downloadExcel(docData as any);
     toast.success('Excel exported successfully');
   };
 
   const handleExportRoutingHistoryPDF = () => {
     if (!document || !documentTrails) return;
-    exportRoutingHistoryPDF(document, documentTrails);
+    const docData = createExportDocument();
+    if (!docData) return;
+    exportRoutingHistoryPDF(docData as any, documentTrails);
   };
 
   const handleExportRoutingHistoryCSV = () => {
     if (!document || !documentTrails) return;
-    downloadRoutingHistoryCSV(document, documentTrails);
+    const docData = createExportDocument();
+    if (!docData) return;
+    downloadRoutingHistoryCSV(docData as any, documentTrails);
     toast.success('Routing history CSV exported successfully');
   };
 
@@ -220,20 +393,20 @@ export function ViewDocumentsModal({
     }
   };
 
-  if (!open) return null;
-
   // Ensure detail object exists even if backend doesn't return it
-  const safeDetail = document?.detail || {
-    document_code: (document as any)?.document_code,
-    document_name: (document as any)?.title,
-    classification: (document as any)?.classification,
-    origin: (document as any)?.origin,
+  const safeDetail: DocumentDetail = document?.detail || {
+    document_code: document?.document_code,
+    document_name: document?.title,
+    classification: document?.classification,
+    origin: document?.origin,
     delivery: (document as any)?.delivery || null,
     created_by: (document as any)?.created_by || null,
     created_by_account: (document as any)?.created_by_account || null,
-    department: (document as any)?.originating_department || (document as any)?.department || null,
+    department: document?.originating_department || (document as any)?.department || null,
     document_type: (document as any)?.document_type || null,
   };
+
+  if (!open) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -356,7 +529,7 @@ export function ViewDocumentsModal({
                   {/* Timeline line */}
                   <div className="absolute left-[19px] top-[30px] bottom-[30px] w-[2px] bg-border" />
 
-                  {documentTrails.map((trail, index) => {
+                  {documentTrails.map((trail: DocumentTrail, index) => {
                     const isFirst = index === 0;
                     const isLast = index === documentTrails.length - 1;
                     const datetime = formatDateTime(trail.action_date);
@@ -537,9 +710,9 @@ export function ViewDocumentsModal({
                   {/* Timeline line */}
                   <div className="absolute left-[19px] top-[30px] bottom-[30px] w-[2px] bg-border" />
 
-                  {document.files
+                  {(document.files as DocumentFile[])
                     .slice()
-                    .sort((a, b) => {
+                    .sort((a: DocumentFile, b: DocumentFile) => {
                       // Sort by version number (e.g., 1.0, 1.1, 1.2, etc.)
                       const aParts = a.version?.split('.').map(Number) || [0, 0];
                       const bParts = b.version?.split('.').map(Number) || [0, 0];
@@ -551,7 +724,7 @@ export function ViewDocumentsModal({
                       // Compare minor version
                       return bParts[1] - aParts[1]; // Higher minor version first
                     })
-                    .map((file, index, sortedFiles) => {
+                    .map((file: DocumentFile, index, sortedFiles) => {
                       const isCurrent = index === 0; // Most recent version is first after sorting
                       const datetime = file.uploadDate ? formatDateTime(file.uploadDate) : { full: 'N/A' };
 
@@ -643,6 +816,51 @@ export function ViewDocumentsModal({
                                 </Badge>
                               )}
                             </div>
+
+                            {/* Document Metadata for this file */}
+                            {file.DocumentMetadata && (
+                              <div className="mt-4 pt-4 border-t">
+                                <h6 className="text-sm font-medium text-muted-foreground mb-2">File Metadata</h6>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  {file.DocumentMetadata.file_type && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Type:</span>
+                                      <span className="font-medium">{file.DocumentMetadata.file_type}</span>
+                                    </div>
+                                  )}
+                                  {file.DocumentMetadata.author && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Author:</span>
+                                      <span className="font-medium">{file.DocumentMetadata.author}</span>
+                                    </div>
+                                  )}
+                                  {file.DocumentMetadata.creator && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Creator:</span>
+                                      <span className="font-medium">{file.DocumentMetadata.creator}</span>
+                                    </div>
+                                  )}
+                                  {file.DocumentMetadata.creation_date && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Created:</span>
+                                      <span className="font-medium">{formatDateTime(file.DocumentMetadata.creation_date).date}</span>
+                                    </div>
+                                  )}
+                                  {file.DocumentMetadata.security_level && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Security:</span>
+                                      <span className="font-medium">{file.DocumentMetadata.security_level}</span>
+                                    </div>
+                                  )}
+                                  {file.DocumentMetadata.is_encrypted !== undefined && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Encrypted:</span>
+                                      <span className="font-medium">{file.DocumentMetadata.is_encrypted ? 'Yes' : 'No'}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
@@ -867,6 +1085,96 @@ export function ViewDocumentsModal({
                         </div>
                       </div>
                     </div>
+
+                    {/* Document Metadata Section */}
+                    {document?.files && document.files.length > 0 && (
+                      <div className="mb-6 pb-6 border-b">
+                        <h4 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                          <FileText className="h-5 w-5" />
+                          Additional Document Metadata
+                        </h4>
+                        <div className="grid grid-cols-1 gap-6 w-full">
+                          {(document.files as DocumentFile[]).map((file: DocumentFile, index: number) => (
+                            <div key={file.file_id} className="border rounded-lg p-4 bg-gray-50">
+                              <h5 className="font-medium text-sm mb-3 text-muted-foreground">File {index + 1}: {file.original_name}</h5>
+                              {file.DocumentMetadata && (
+                                <div className="space-y-2 text-sm">
+                                  {file.DocumentMetadata.file_type && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">File Type:</span>
+                                      <span className="font-medium">{file.DocumentMetadata.file_type}</span>
+                                    </div>
+                                  )}
+                                  {file.DocumentMetadata.mime_type && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">MIME Type:</span>
+                                      <span className="font-medium">{file.DocumentMetadata.mime_type}</span>
+                                    </div>
+                                  )}
+                                  {file.DocumentMetadata.author && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Author:</span>
+                                      <span className="font-medium">{file.DocumentMetadata.author}</span>
+                                    </div>
+                                  )}
+                                  {file.DocumentMetadata.creator && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Creator:</span>
+                                      <span className="font-medium">{file.DocumentMetadata.creator}</span>
+                                    </div>
+                                  )}
+                                  {file.DocumentMetadata.producer && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Producer:</span>
+                                      <span className="font-medium">{file.DocumentMetadata.producer}</span>
+                                    </div>
+                                  )}
+                                  {file.DocumentMetadata.creation_date && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Creation Date:</span>
+                                      <span className="font-medium">{formatDateTime(file.DocumentMetadata.creation_date).date}</span>
+                                    </div>
+                                  )}
+                                  {file.DocumentMetadata.modification_date && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Modification Date:</span>
+                                      <span className="font-medium">{formatDateTime(file.DocumentMetadata.modification_date).date}</span>
+                                    </div>
+                                  )}
+                                  {file.DocumentMetadata.security_level && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Security Level:</span>
+                                      <span className="font-medium">{file.DocumentMetadata.security_level}</span>
+                                    </div>
+                                  )}
+                                  {file.DocumentMetadata.retention_period && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Retention Period:</span>
+                                      <span className="font-medium">{file.DocumentMetadata.retention_period} days</span>
+                                    </div>
+                                  )}
+                                  {file.DocumentMetadata.is_encrypted !== undefined && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Encrypted:</span>
+                                      <span className="font-medium">{file.DocumentMetadata.is_encrypted ? 'Yes' : 'No'}</span>
+                                    </div>
+                                  )}
+                                  {file.DocumentMetadata.version && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Version:</span>
+                                      <span className="font-medium">{file.DocumentMetadata.version}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {!file.DocumentMetadata && (
+                                <p className="text-muted-foreground text-sm">No metadata available for this file</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* QR Code and Barcode */}
                     <div className="bg-gray-50 rounded-lg p-6 border">

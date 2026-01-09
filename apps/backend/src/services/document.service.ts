@@ -755,7 +755,8 @@ export class DocumentService {
                   }
                 }
               }
-            }
+            },
+            DocumentMetadata: true
           }
         },
         DocumentAdditionalDetails: {
@@ -903,7 +904,7 @@ export class DocumentService {
 
     const blockchainDetail = document.DocumentAdditionalDetails?.[0] as any;
 
-    // Process files to include version information
+    // Process files to include version information and metadata
     const processedFiles = document.files.map((file: any) => ({
       file_id: file.file_id,
       original_name: file.original_name,
@@ -914,7 +915,8 @@ export class DocumentService {
       uploadDate: file.uploaded_at, // Include upload date
       file_size: Number(file.file_size), // Include file size
       version_group_id: file.version_group_id, // Include version group ID
-      uploaded_by_account: file.uploaded_by_account || null // Include uploader info if available
+      uploaded_by_account: file.uploaded_by_account || null, // Include uploader info if available
+      DocumentMetadata: file.DocumentMetadata || null // Include document metadata
     }));
 
     return {
@@ -3297,7 +3299,7 @@ export class DocumentService {
         throw new Error('User not found');
       }
 
-      // Get all document additional details 
+      // Get all document additional details
       const allDocumentDetails = await prisma.documentAdditionalDetails.findMany({
         include: {
           Document: true  // Include the related document to verify status

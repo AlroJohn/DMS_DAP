@@ -85,274 +85,280 @@ export interface DocumentData {
   classification?: string;
 }
 
-export const generateDocumentPDF = (document: DocumentData) => {
-  const { detail, status, created_at, document_logs = [], document_trails = [] } = document || {};
-  
-  const docName = detail?.document_name || 'Document';
-  const docCode = detail?.document_code || 'N/A';
-  
-  // Get document creator information
-  const creatorName = detail?.created_by_account?.user
-    ? `${detail.created_by_account.user.first_name || ""} ${detail.created_by_account.user.last_name || ""}`.trim() || "Unknown"
-    : detail?.created_by_account?.email || detail?.created_by || "Unknown";
-  
-  const creatorDept = detail?.department?.name || document?.originating_department?.name || "N/A";
-  
-  // Format classification
-  const classification = detail?.classification || (document as any)?.classification || "simple";
-  const formattedClassification = classification
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/^\w/, (c: string) => c.toUpperCase());
-
-  const docDate = formatDateTime(created_at);
-
-  // Format document logs
-  const logsHTML = document_logs.length > 0 
-    ? `
-        <div class="section">
-          <h3>Document History</h3>
-          <div class="timeline">
-            ${document_logs.map(log => `
-              <div class="timeline-item">
-                <div class="log-header">
-                  <p><span class="label">Action:</span> ${formatText(log.action)}</p>
-                  <p><span class="label">Date:</span> ${formatDateTime(log.performed_at).full}</p>
-                </div>
-                ${log.performed_by_user ? `<p><span class="label">By:</span> ${log.performed_by_user.first_name} ${log.performed_by_user.last_name}</p>` : ''}
-                ${log.remarks ? `<p><span class="label">Remarks:</span> ${log.remarks}</p>` : ''}
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `
-    : '';
-
-  // Format document trails
-  const trailsHTML = document_trails.length > 0 
-    ? `
-        <div class="section">
-          <h3>Document Routing History</h3>
-          <div class="trails-container">
-            ${document_trails.map(trail => {
-              const datetime = formatDateTime(trail.action_date);
-              const statusName = formatText(trail.status);
-              return `
-                <div class="trail-item">
-                  <div class="trail-header">
-                    <p><span class="label">Status:</span> ${statusName}</p>
-                    <p><span class="label">Date:</span> ${datetime.full}</p>
-                  </div>
-                  ${trail.fromDept && trail.toDept ? `
-                    <div class="dept-flow">
-                      <p><span class="label">From:</span> ${trail.fromDept.name}</p>
-                      <p><span class="label">To:</span> ${trail.toDept.name}</p>
-                    </div>
-                  ` : ''}
-                  ${trail.user ? `<p><span class="label">Performed By:</span> ${trail.user.first_name} ${trail.user.last_name}</p>` : ''}
-                  ${trail.documentAction ? `<p><span class="label">Action:</span> ${trail.documentAction.action_name}</p>` : ''}
-                  ${trail.remarks ? `<p><span class="label">Remarks:</span> ${trail.remarks}</p>` : ''}
-                </div>
-              `;
-            }).join('')}
-          </div>
-        </div>
-      `
-    : '';
-
-  const printContent = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>Document Report - ${docName}</title>
-        <meta charset="utf-8">
-        <style>
-          body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 30px;
-            color: #333;
-            line-height: 1.6;
-            background-color: #fff;
-          }
-          .header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #e5e7eb;
-          }
-          .header h1 {
-            color: #1f2937;
-            font-size: 28px;
-            margin: 0 0 8px 0;
-          }
-          .header h2 {
-            color: #4b5563;
-            font-size: 22px;
-            font-weight: 500;
-            margin: 0;
-          }
-          .header p {
-            color: #6b7280;
-            font-size: 16px;
-            margin-top: 8px;
-          }
-          .section {
-            margin-bottom: 30px;
-            page-break-inside: avoid;
-          }
-          .section h3 {
-            color: #374151;
-            border-bottom: 1px solid #e5e7eb;
-            padding-bottom: 8px;
-            margin: 0 0 15px 0;
-            font-size: 18px;
-          }
-          .label {
-            font-weight: 600;
-            color: #4b5563;
-            min-width: 100px;
-            display: inline-block;
-          }
-          .metadata-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
-          }
-          .metadata-item {
-            background: #f9fafb;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #3b82f6;
-          }
-          .metadata-item .label {
-            display: block;
-            font-size: 12px;
-            text-transform: uppercase;
-            color: #6b7280;
-            margin-bottom: 5px;
-          }
-          .metadata-item p {
-            margin: 0;
-            font-size: 16px;
-            color: #1f2937;
-          }
-          .timeline {
-            margin-left: 20px;
-          }
-          .timeline-item {
-            margin-bottom: 20px;
-            padding: 15px;
-            border-left: 3px solid #d1d5db;
-            background-color: #f9fafb;
-            border-radius: 0 4px 4px 0;
-          }
-          .log-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 10px;
-            border-bottom: 1px dashed #e5e7eb;
-            padding-bottom: 10px;
-          }
-          .trails-container {
-            margin-top: 15px;
-          }
-          .trail-item {
-            margin-bottom: 20px;
-            padding: 15px;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            background-color: #f9fafb;
-          }
-          .trail-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 10px;
-            border-bottom: 1px solid #e5e7eb;
-            padding-bottom: 10px;
-          }
-          .dept-flow {
-            margin: 10px 0;
-            display: flex;
-            gap: 20px;
-          }
-          .footer {
-            margin-top: 40px;
-            text-align: center;
-            color: #6b7280;
-            font-size: 14px;
-            padding-top: 15px;
-            border-top: 1px solid #e5e7eb;
-          }
-          @media print {
-            body {
-              padding: 20px;
-            }
-            .header {
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>Document Report</h1>
-          <h2>${docName}</h2>
-          <p>Document Code: ${docCode}</p>
-        </div>
-
-        <div class="section">
-          <div class="metadata-grid">
-            <div class="metadata-item">
-              <span class="label">Status</span>
-              <p>${formatText(status)}</p>
-            </div>
-            <div class="metadata-item">
-              <span class="label">Classification</span>
-              <p>${formattedClassification}</p>
-            </div>
-            <div class="metadata-item">
-              <span class="label">Created Date</span>
-              <p>${docDate.full}</p>
-            </div>
-            <div class="metadata-item">
-              <span class="label">Origin/Department</span>
-              <p>${creatorDept}</p>
-            </div>
-            <div class="metadata-item">
-              <span class="label">Created By</span>
-              <p>${creatorName}</p>
-            </div>
-          </div>
-        </div>
-
-        ${logsHTML}
-        ${trailsHTML}
-
-        <div class="footer">
-          <p>Generated on ${new Date().toLocaleString()}</p>
-          <p>Document Management System - Ateneo de Manila University</p>
-        </div>
-      </body>
-    </html>
-  `;
-
-  // Open the print window
-  const printWindow = window.open('', '_blank', 'width=800,height=600');
-  if (printWindow) {
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    printWindow.focus();
-    
-    // Wait for content to load before printing
-    printWindow.onload = () => {
-      printWindow.print();
-      printWindow.close();
+// Declare jsPDF type - check multiple possible locations
+declare global {
+  interface Window {
+    jspdf?: {
+      jsPDF: any;
     };
-  } else {
-    alert('Please allow popups for this site to enable printing.');
+    jsPDF?: any;
+  }
+}
+
+const getJsPDF = () => {
+  // Try different ways jsPDF might be loaded
+  if (typeof window !== 'undefined') {
+    if (window.jspdf && window.jspdf.jsPDF) {
+      return window.jspdf.jsPDF;
+    }
+    if (window.jsPDF) {
+      return window.jsPDF;
+    }
+    // Try requiring if it's available
+    try {
+      const jsPDF = require('jspdf');
+      return jsPDF.jsPDF || jsPDF;
+    } catch (e) {
+      console.error('jsPDF not found');
+    }
+  }
+  return null;
+};
+
+export const generateDocumentPDF = (document: any) => {
+  try {
+    const jsPDF = getJsPDF();
+    
+    if (!jsPDF) {
+      alert('PDF library not loaded. Please refresh the page and try again.');
+      console.error('jsPDF is not available. Make sure the library is properly loaded.');
+      return;
+    }
+
+    const doc = new jsPDF();
+
+    const { detail, status, created_at, document_logs = [], document_trails = [] } = document || {};
+    
+    const docName = detail?.document_name || 'Document';
+    const docCode = detail?.document_code || 'N/A';
+    
+    // Get document creator information
+    const creatorName = detail?.created_by_account?.user
+      ? `${detail.created_by_account.user.first_name || ""} ${detail.created_by_account.user.last_name || ""}`.trim() || "Unknown"
+      : detail?.created_by_account?.email || detail?.created_by || "Unknown";
+    
+    const creatorDept = detail?.department?.name || document?.originating_department?.name || "N/A";
+    
+    // Format classification
+    const classification = detail?.classification || (document as any)?.classification || "simple";
+    const formattedClassification = classification
+      .replace(/_/g, " ")
+      .toLowerCase()
+      .replace(/^\w/, (c: string) => c.toUpperCase());
+
+    const docDate = formatDateTime(created_at);
+
+    let yPos = 20;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    const contentWidth = pageWidth - (margin * 2);
+
+    // Header
+    doc.setFontSize(20);
+    doc.setFont(undefined, 'bold');
+    doc.text('Document Report', pageWidth / 2, yPos, { align: 'center' });
+    
+    yPos += 10;
+    doc.setFontSize(16);
+    doc.text(docName, pageWidth / 2, yPos, { align: 'center' });
+    
+    yPos += 8;
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Document Code: ${docCode}`, pageWidth / 2, yPos, { align: 'center' });
+    
+    yPos += 15;
+    doc.setDrawColor(229, 231, 235);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    yPos += 10;
+
+    // Document Details
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    
+    const addField = (label: string, value: string) => {
+      if (yPos > 270) {
+        doc.addPage();
+        yPos = 20;
+      }
+      doc.setFont(undefined, 'bold');
+      doc.text(`${label}:`, margin, yPos);
+      doc.setFont(undefined, 'normal');
+      doc.text(value, margin + 50, yPos);
+      yPos += 7;
+    };
+
+    addField('Status', formatText(status));
+    addField('Classification', formattedClassification);
+    addField('Created Date', docDate.full);
+    addField('Department', creatorDept);
+    addField('Created By', creatorName);
+
+    // File Metadata
+    if ((document as any)?.files && (document as any).files.length > 0) {
+      yPos += 5;
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(12);
+      doc.text('Document File Metadata', margin, yPos);
+      yPos += 7;
+      doc.setFontSize(10);
+
+      (document as any).files.forEach((file: any, index: number) => {
+        if (yPos > 260) {
+          doc.addPage();
+          yPos = 20;
+        }
+
+        doc.setFont(undefined, 'bold');
+        doc.text(`File ${index + 1}: ${file.original_name || 'Unnamed File'}`, margin, yPos);
+        yPos += 6;
+        doc.setFont(undefined, 'normal');
+
+        const metadata = file.DocumentMetadata;
+        if (metadata) {
+          if (metadata.file_type) addField('  File Type', metadata.file_type);
+          if (metadata.mime_type) addField('  MIME Type', metadata.mime_type);
+          if (metadata.author) addField('  Author', metadata.author);
+          if (metadata.creator) addField('  Creator', metadata.creator);
+          if (metadata.producer) addField('  Producer', metadata.producer);
+          if (metadata.creation_date) addField('  Creation Date', formatDateTime(metadata.creation_date).date);
+          if (metadata.modification_date) addField('  Modification Date', formatDateTime(metadata.modification_date).date);
+          if (metadata.security_level) addField('  Security Level', metadata.security_level);
+          if (metadata.retention_period) addField('  Retention Period', `${metadata.retention_period} days`);
+          if (metadata.is_encrypted !== undefined) addField('  Encrypted', metadata.is_encrypted ? 'Yes' : 'No');
+          if (metadata.version) addField('  Version', metadata.version);
+        } else {
+          doc.text('  No metadata available', margin, yPos);
+          yPos += 7;
+        }
+        yPos += 3;
+      });
+    }
+
+    // Document History
+    if (document_logs.length > 0) {
+      yPos += 5;
+      if (yPos > 260) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(12);
+      doc.text('Document History', margin, yPos);
+      yPos += 7;
+      doc.setFontSize(10);
+
+      document_logs.forEach((log: any) => {
+        if (yPos > 260) {
+          doc.addPage();
+          yPos = 20;
+        }
+
+        doc.setFont(undefined, 'bold');
+        doc.text(`${formatText(log.action)}`, margin, yPos);
+        yPos += 6;
+        doc.setFont(undefined, 'normal');
+        
+        doc.text(`Date: ${formatDateTime(log.performed_at).full}`, margin + 5, yPos);
+        yPos += 6;
+        
+        if (log.performed_by_user) {
+          doc.text(`By: ${log.performed_by_user.first_name} ${log.performed_by_user.last_name}`, margin + 5, yPos);
+          yPos += 6;
+        }
+        
+        if (log.remarks) {
+          const remarks = doc.splitTextToSize(`Remarks: ${log.remarks}`, contentWidth - 10);
+          doc.text(remarks, margin + 5, yPos);
+          yPos += (remarks.length * 6);
+        }
+        
+        yPos += 3;
+      });
+    }
+
+    // Document Routing History
+    if (document_trails.length > 0) {
+      yPos += 5;
+      if (yPos > 260) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(12);
+      doc.text('Document Routing History', margin, yPos);
+      yPos += 7;
+      doc.setFontSize(10);
+
+      document_trails.forEach((trail: any) => {
+        if (yPos > 250) {
+          doc.addPage();
+          yPos = 20;
+        }
+
+        const datetime = formatDateTime(trail.action_date);
+        const statusName = formatText(trail.status);
+
+        doc.setFont(undefined, 'bold');
+        doc.text(`${statusName}`, margin, yPos);
+        yPos += 6;
+        doc.setFont(undefined, 'normal');
+        
+        doc.text(`Date: ${datetime.full}`, margin + 5, yPos);
+        yPos += 6;
+
+        if (trail.fromDept && trail.toDept) {
+          doc.text(`From: ${trail.fromDept.name}  To: ${trail.toDept.name}`, margin + 5, yPos);
+          yPos += 6;
+        }
+
+        if (trail.user) {
+          doc.text(`Performed By: ${trail.user.first_name} ${trail.user.last_name}`, margin + 5, yPos);
+          yPos += 6;
+        }
+
+        if (trail.documentAction) {
+          doc.text(`Action: ${trail.documentAction.action_name}`, margin + 5, yPos);
+          yPos += 6;
+        }
+
+        if (trail.remarks) {
+          const remarks = doc.splitTextToSize(`Remarks: ${trail.remarks}`, contentWidth - 10);
+          doc.text(remarks, margin + 5, yPos);
+          yPos += (remarks.length * 6);
+        }
+
+        yPos += 3;
+      });
+    }
+
+    // Footer
+    const pageCount = doc.internal.pages.length - 1;
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setFont(undefined, 'normal');
+      doc.text(
+        `Generated on ${new Date().toLocaleString()}`,
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 15,
+        { align: 'center' }
+      );
+      doc.text(
+        'Document Management System - Ateneo de Manila University',
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 10,
+        { align: 'center' }
+      );
+    }
+
+    // Download instead of print
+    doc.save(`document-${document.document_id || 'report'}.pdf`);
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    alert(`Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
 
@@ -366,7 +372,6 @@ const formatText = (text: string): string => {
 export const exportToCSV = (doc: DocumentData) => {
   const { detail, status, created_at, document_logs = [] } = doc || {};
   
-  // Prepare document metadata
   const header = [
     'Document Name',
     'Document Code',
@@ -404,7 +409,31 @@ export const exportToCSV = (doc: DocumentData) => {
   
   const csvContent = [header, metadata].join('\n');
   
-  // Add logs if available
+  let fileMetadataSection = '';
+  if ((doc as any)?.files && (doc as any).files.length > 0) {
+    fileMetadataSection = '\n\n"File Metadata","","","","","",""\n';
+    (doc as any).files.forEach((file: any, index: number) => {
+      fileMetadataSection += `"\nFile ${index + 1}: ${file.original_name || 'Unnamed'}"\n`;
+      if (file.DocumentMetadata) {
+        const meta = file.DocumentMetadata;
+        if (meta.file_type) fileMetadataSection += `"File Type","${meta.file_type}"\n`;
+        if (meta.mime_type) fileMetadataSection += `"MIME Type","${meta.mime_type}"\n`;
+        if (meta.author) fileMetadataSection += `"Author","${meta.author}"\n`;
+        if (meta.creator) fileMetadataSection += `"Creator","${meta.creator}"\n`;
+        if (meta.producer) fileMetadataSection += `"Producer","${meta.producer}"\n`;
+        if (meta.creation_date) fileMetadataSection += `"Creation Date","${formatDateTime(meta.creation_date).date}"\n`;
+        if (meta.modification_date) fileMetadataSection += `"Modification Date","${formatDateTime(meta.modification_date).date}"\n`;
+        if (meta.security_level) fileMetadataSection += `"Security Level","${meta.security_level}"\n`;
+        if (meta.retention_period) fileMetadataSection += `"Retention Period","${meta.retention_period} days"\n`;
+        if (meta.is_encrypted !== undefined) fileMetadataSection += `"Encrypted","${meta.is_encrypted ? 'Yes' : 'No'}"\n`;
+        if (meta.version) fileMetadataSection += `"Version","${meta.version}"\n`;
+        if (meta.checksum) fileMetadataSection += `"Checksum","${meta.checksum}"\n`;
+      } else {
+        fileMetadataSection += `"No metadata available"\n`;
+      }
+    });
+  }
+  
   if (document_logs.length > 0) {
     const logsHeader = '\n\n"Document Logs","","","","","",""\n';
     const logsColumns = '"Action","Date","By","Remarks"\n';
@@ -420,10 +449,10 @@ export const exportToCSV = (doc: DocumentData) => {
       return `"${action}","${date}","${performer}","${remarks}"`;
     }).join('\n');
     
-    return csvContent + logsHeader + logsColumns + logsRows;
+    return csvContent + fileMetadataSection + logsHeader + logsColumns + logsRows;
   }
   
-  return csvContent;
+  return csvContent + fileMetadataSection;
 };
 
 export const downloadCSV = (doc: DocumentData) => {
@@ -443,8 +472,6 @@ export const downloadCSV = (doc: DocumentData) => {
   }
 };
 
-// To use Excel export, we need to install xlsx library
-// For now, we'll simulate Excel export by providing CSV with .xlsx extension
 export const downloadExcel = (doc: DocumentData) => {
   const csvContent = exportToCSV(doc);
   const blob = new Blob([csvContent], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=utf-8;' });
@@ -463,7 +490,6 @@ export const downloadExcel = (doc: DocumentData) => {
 };
 
 export const exportRoutingHistoryToCSV = (doc: DocumentData, trails: any[]) => {
-  // Prepare routing history header
   const header = [
     'Status',
     'Action Date',
@@ -474,8 +500,7 @@ export const exportRoutingHistoryToCSV = (doc: DocumentData, trails: any[]) => {
     'Remarks'
   ].join(',');
 
-  // Format routing history rows
-  const rows = trails.map(trail => {
+  const rows = trails.map((trail: any) => {
     const datetime = formatDateTime(trail.action_date).full;
     const statusName = formatText(trail.status);
     const fromDept = trail.fromDept?.name || '';
@@ -509,186 +534,117 @@ export const downloadRoutingHistoryCSV = (doc: DocumentData, trails: any[]) => {
   }
 };
 
-export const exportRoutingHistoryPDF = (document: DocumentData, trails: any[]) => {
-  const docName = document.detail?.document_name || 'Document';
-  const docCode = document.detail?.document_code || 'N/A';
+export const exportRoutingHistoryPDF = (document: any, trails: any[]) => {
+  try {
+    const jsPDF = getJsPDF();
+    
+    if (!jsPDF) {
+      alert('PDF library not loaded. Please refresh the page and try again.');
+      console.error('jsPDF is not available. Make sure the library is properly loaded.');
+      return;
+    }
 
-  const trailsHTML = trails.length > 0
-    ? `
-        <div class="section">
-          <h3>Document Routing History</h3>
-          <div class="trails-container">
-            ${trails.map(trail => {
-              const datetime = formatDateTime(trail.action_date);
-              const statusName = formatText(trail.status);
-              return `
-                <div class="trail-item">
-                  <div class="trail-header">
-                    <div class="trail-info">
-                      <p><span class="label">Status:</span> ${statusName}</p>
-                      <p><span class="label">Date:</span> ${datetime.full}</p>
-                    </div>
+    const doc = new jsPDF();
 
-                    ${trail.fromDept && trail.toDept ? `
-                      <div class="dept-flow">
-                        <div class="dept-info">
-                          <p><span class="label">From:</span> ${trail.fromDept.name}</p>
-                          <p><span class="label">To:</span> ${trail.toDept.name}</p>
-                        </div>
-                      </div>
-                    ` : ''}
+    const docName = document.detail?.document_name || 'Document';
+    const docCode = document.detail?.document_code || 'N/A';
 
-                    <div class="user-info">
-                      <p><span class="label">Performed By:</span> ${trail.user ? `${trail.user.first_name} ${trail.user.last_name}` : 'System'}</p>
-                    </div>
+    let yPos = 20;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    const contentWidth = pageWidth - (margin * 2);
 
-                    ${trail.documentAction ? `
-                      <div class="action-info">
-                        <p><span class="label">Action:</span> ${trail.documentAction.action_name}</p>
-                      </div>
-                    ` : ''}
+    // Header
+    doc.setFontSize(20);
+    doc.setFont(undefined, 'bold');
+    doc.text('Document Routing Report', pageWidth / 2, yPos, { align: 'center' });
+    
+    yPos += 10;
+    doc.setFontSize(16);
+    doc.text(docName, pageWidth / 2, yPos, { align: 'center' });
+    
+    yPos += 8;
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Document Code: ${docCode}`, pageWidth / 2, yPos, { align: 'center' });
+    
+    yPos += 15;
+    doc.setDrawColor(229, 231, 235);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    yPos += 10;
 
-                    ${trail.remarks ? `
-                      <div class="remarks-section">
-                        <p><span class="label">Remarks:</span> ${trail.remarks}</p>
-                      </div>
-                    ` : ''}
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        </div>
-      `
-    : '<p>No routing history available</p>';
+    // Routing History
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('Document Routing History', margin, yPos);
+    yPos += 7;
+    doc.setFontSize(10);
 
-  const printContent = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>Document Routing History - ${docName}</title>
-        <meta charset="utf-8">
-        <style>
-          body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 30px;
-            color: #333;
-            line-height: 1.6;
-            background-color: #fff;
-          }
-          .header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #e5e7eb;
-          }
-          .header h1 {
-            color: #1f2937;
-            font-size: 28px;
-            margin: 0 0 8px 0;
-          }
-          .header h2 {
-            color: #4b5563;
-            font-size: 22px;
-            font-weight: 500;
-            margin: 0;
-          }
-          .header p {
-            color: #6b7280;
-            font-size: 16px;
-            margin-top: 8px;
-          }
-          .section {
-            margin-bottom: 30px;
-            page-break-inside: avoid;
-          }
-          .section h3 {
-            color: #374151;
-            border-bottom: 1px solid #e5e7eb;
-            padding-bottom: 8px;
-            margin: 0 0 15px 0;
-            font-size: 18px;
-          }
-          .label {
-            font-weight: 600;
-            color: #4b5563;
-          }
-          .trail-item {
-            margin-bottom: 20px;
-            padding: 15px;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            background-color: #f9fafb;
-          }
-          .trail-header {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-          }
-          .trail-info {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 10px;
-            border-bottom: 1px solid #e5e7eb;
-            padding-bottom: 10px;
-          }
-          .dept-flow {
-            margin: 10px 0;
-          }
-          .dept-info {
-            display: flex;
-            gap: 20px;
-          }
-          .footer {
-            margin-top: 40px;
-            text-align: center;
-            color: #6b7280;
-            font-size: 14px;
-            padding-top: 15px;
-            border-top: 1px solid #e5e7eb;
-          }
-          @media print {
-            body {
-              padding: 20px;
-            }
-            .header {
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>Document Routing Report</h1>
-          <h2>${docName}</h2>
-          <p>Document Code: ${docCode}</p>
-        </div>
+    trails.forEach((trail: any) => {
+      if (yPos > 250) {
+        doc.addPage();
+        yPos = 20;
+      }
 
-        ${trailsHTML}
+      const datetime = formatDateTime(trail.action_date);
+      const statusName = formatText(trail.status);
 
-        <div class="footer">
-          <p>Generated on ${new Date().toLocaleString()}</p>
-          <p>Document Management System - Ateneo de Manila University</p>
-        </div>
-      </body>
-    </html>
-  `;
+      doc.setFont(undefined, 'bold');
+      doc.text(`${statusName}`, margin, yPos);
+      yPos += 6;
+      doc.setFont(undefined, 'normal');
+      
+      doc.text(`Date: ${datetime.full}`, margin + 5, yPos);
+      yPos += 6;
 
-  // Open the print window
-  const printWindow = window.open('', '_blank', 'width=800,height=600');
-  if (printWindow) {
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    printWindow.focus();
+      if (trail.fromDept && trail.toDept) {
+        doc.text(`From: ${trail.fromDept.name}  To: ${trail.toDept.name}`, margin + 5, yPos);
+        yPos += 6;
+      }
 
-    // Wait for content to load before printing
-    printWindow.onload = () => {
-      printWindow.print();
-      printWindow.close();
-    };
-  } else {
-    alert('Please allow popups for this site to enable printing.');
+      if (trail.user) {
+        doc.text(`Performed By: ${trail.user.first_name} ${trail.user.last_name}`, margin + 5, yPos);
+        yPos += 6;
+      }
+
+      if (trail.documentAction) {
+        doc.text(`Action: ${trail.documentAction.action_name}`, margin + 5, yPos);
+        yPos += 6;
+      }
+
+      if (trail.remarks) {
+        const remarks = doc.splitTextToSize(`Remarks: ${trail.remarks}`, contentWidth - 10);
+        doc.text(remarks, margin + 5, yPos);
+        yPos += (remarks.length * 6);
+      }
+
+      yPos += 3;
+    });
+
+    // Footer
+    const pageCount = doc.internal.pages.length - 1;
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setFont(undefined, 'normal');
+      doc.text(
+        `Generated on ${new Date().toLocaleString()}`,
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 15,
+        { align: 'center' }
+      );
+      doc.text(
+        'Document Management System - Ateneo de Manila University',
+        pageWidth / 2,
+        doc.internal.pageSize.getHeight() - 10,
+        { align: 'center' }
+      );
+    }
+
+    // Download instead of print
+    doc.save(`routing-history-${document.document_id || 'report'}.pdf`);
+  } catch (error) {
+    console.error('Error generating routing history PDF:', error);
+    alert(`Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
