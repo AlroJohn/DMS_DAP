@@ -116,7 +116,7 @@ model DocumentAdditionalDetails {
   detail_id                   String    @id @default(uuid()) @db.Uuid
   document_id                 String    @db.Uuid
   received_by                 String?   @db.Uuid
-  work_flow_id                Json?
+  work_flow_id                Json? 
   received_by_department_user Json?
   work_flow_status            Json?
   blockchain_project_uuid     String?

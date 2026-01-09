@@ -64,60 +64,129 @@ export class IntransitService {
         documentDetailsMap.set(detail.document_id, detail);
       });
 
-      // Filter documents that are incoming to user's department
-      // Incoming means: department is in workflow AND NOT the originator AND NOT yet received
-      const incomingDocumentIds = documentDetails
-        .filter((detail: any) => {
-          if (!detail.work_flow_id) return false;
+      // First, filter documents based on workflow criteria only (without async operations)
+      const filteredDocumentDetails = documentDetails.filter((detail: any) => {
+        if (!detail.work_flow_id) return false;
 
-          try {
-            let workflowDepartments: string[] = [];
+        try {
+          let workflowDepartments: string[] = [];
 
-            if (typeof detail.work_flow_id === 'object' && detail.work_flow_id !== null) {
-              // New format: object with keys like "first", "second", etc.
-              workflowDepartments = Object.values(detail.work_flow_id);
-            } else if (typeof detail.work_flow_id === 'string') {
-              // Could be either a JSON string of an array or a JSON string of an object
-              const parsed = JSON.parse(detail.work_flow_id);
-              if (Array.isArray(parsed)) {
-                workflowDepartments = parsed;
-              } else {
-                // If it's an object, get its values
-                workflowDepartments = Object.values(parsed);
-              }
-            } else if (Array.isArray(detail.work_flow_id)) {
-              // Old format: array
-              workflowDepartments = detail.work_flow_id;
+          if (typeof detail.work_flow_id === 'object' && detail.work_flow_id !== null) {
+            // New format: object with keys like "first", "second", etc.
+            workflowDepartments = Object.values(detail.work_flow_id);
+          } else if (typeof detail.work_flow_id === 'string') {
+            // Could be either a JSON string of an array or a JSON string of an object
+            const parsed = JSON.parse(detail.work_flow_id);
+            if (Array.isArray(parsed)) {
+              workflowDepartments = parsed;
             } else {
-              // Unexpected format
-              workflowDepartments = [];
+              // If it's an object, get its values
+              workflowDepartments = Object.values(parsed);
             }
-
-            // Check if user's department is in workflow but NOT the first (not originator)
-            const isInWorkflow = workflowDepartments.includes(user.department_id);
-            const isNotOriginator = workflowDepartments.length > 0 && workflowDepartments[0] !== user.department_id;  // The first department is the originator
-
-            // Check if not yet received by this user
-            let receivedByUsers: string[] = [];
-            if (detail.received_by_department_user) {
-              try {
-                receivedByUsers = Array.isArray(detail.received_by_department_user)
-                  ? detail.received_by_department_user
-                  : JSON.parse(detail.received_by_department_user as any);
-              } catch (e) {
-                console.error('📍 [getIncomingDocuments] Error parsing received_by_department_user:', e);
-              }
-            }
-
-            const notYetReceived = !receivedByUsers.includes(userId);
-
-            return isInWorkflow && isNotOriginator && notYetReceived;
-          } catch (e) {
-            console.error('📍 [getIncomingDocuments] Error parsing work_flow_id:', e);
-            return false;
+          } else if (Array.isArray(detail.work_flow_id)) {
+            // Old format: array
+            workflowDepartments = detail.work_flow_id;
+          } else {
+            // Unexpected format
+            workflowDepartments = [];
           }
-        })
-        .map((detail: any) => detail.document_id);
+
+          // Check if user's department is in workflow but NOT the first (not originator)
+          const isInWorkflow = workflowDepartments.includes(user.department_id);
+          const isNotOriginator = workflowDepartments.length > 0 && workflowDepartments[0] !== user.department_id;  // The first department is the originator
+
+          // Check if not yet received by this user
+          let receivedByUsers: string[] = [];
+          if (detail.received_by_department_user) {
+            try {
+              receivedByUsers = Array.isArray(detail.received_by_department_user)
+                ? detail.received_by_department_user
+                : JSON.parse(detail.received_by_department_user as any);
+            } catch (e) {
+              console.error('📍 [getIncomingDocuments] Error parsing received_by_department_user:', e);
+            }
+          }
+
+          const notYetReceived = !receivedByUsers.includes(userId);
+
+          return isInWorkflow && isNotOriginator && notYetReceived;
+        } catch (e) {
+          console.error('📍 [getIncomingDocuments] Error parsing work_flow_id:', e);
+          return false;
+        }
+      });
+
+      // Then, for documents that didn't pass the initial filter due to being received,
+      // check if they are currently assigned to this department via document trail
+      const additionalDocumentIds = [];
+      for (const detail of documentDetails) {
+        if (!detail.work_flow_id) continue;
+
+        try {
+          let workflowDepartments: string[] = [];
+
+          if (typeof detail.work_flow_id === 'object' && detail.work_flow_id !== null) {
+            workflowDepartments = Object.values(detail.work_flow_id);
+          } else if (typeof detail.work_flow_id === 'string') {
+            const parsed = JSON.parse(detail.work_flow_id);
+            if (Array.isArray(parsed)) {
+              workflowDepartments = parsed;
+            } else {
+              workflowDepartments = Object.values(parsed);
+            }
+          } else if (Array.isArray(detail.work_flow_id)) {
+            workflowDepartments = detail.work_flow_id;
+          } else {
+            workflowDepartments = [];
+          }
+
+          // Check if user's department is in workflow but NOT the first (not originator)
+          const isInWorkflow = workflowDepartments.includes(user.department_id);
+          const isNotOriginator = workflowDepartments.length > 0 && workflowDepartments[0] !== user.department_id;
+
+          // Check if already received by this user
+          let receivedByUsers: string[] = [];
+          if (detail.received_by_department_user) {
+            try {
+              receivedByUsers = Array.isArray(detail.received_by_department_user)
+                ? detail.received_by_department_user
+                : JSON.parse(detail.received_by_department_user as any);
+            } catch (e) {
+              console.error('📍 [getIncomingDocuments] Error parsing received_by_department_user:', e);
+            }
+          }
+
+          const alreadyReceived = receivedByUsers.includes(userId);
+
+          // Only check document trail if the document was already received (so it wouldn't be in the initial filter)
+          if (isInWorkflow && isNotOriginator && alreadyReceived) {
+            // Check if the document is currently assigned to this department via document trail
+            // This handles cases where a document might be sent back to a department after being processed
+            const currentAssignment = await prisma.documentTrail.findFirst({
+              where: {
+                document_id: detail.document_id,
+                to_department: user.department_id,
+                status: { in: ['intransit', 'dispatch'] } // Document is currently assigned to this department
+              },
+              orderBy: {
+                created_at: 'desc'
+              }
+            });
+
+            if (currentAssignment) {
+              additionalDocumentIds.push(detail.document_id);
+            }
+          }
+        } catch (e) {
+          console.error('📍 [getIncomingDocuments] Error in secondary filter:', e);
+        }
+      }
+
+      // Combine both sets of document IDs
+      const incomingDocumentIds = [
+        ...filteredDocumentDetails.map((detail: any) => detail.document_id),
+        ...additionalDocumentIds
+      ];
 
       console.log('📍 [getIncomingDocuments] Incoming document IDs:', incomingDocumentIds.length);
 
@@ -175,7 +244,8 @@ export class IntransitService {
         return ownerName;
       };
 
-      // Get documents with status 'intransit' or 'dispatch' that are incoming
+      // Get documents with status 'intransit', 'dispatch', or 'received' that are incoming
+      // Documents that have been received but are still in workflow should appear in incoming
       const [documents, total] = await Promise.all([
         prisma.document.findMany({
           where: {
@@ -183,7 +253,7 @@ export class IntransitService {
               in: incomingDocumentIds
             },
             status: {
-              in: ['intransit', 'dispatch']
+              in: ['intransit', 'dispatch', 'received']
             }
           },
           include: {
@@ -201,7 +271,7 @@ export class IntransitService {
               in: incomingDocumentIds
             },
             status: {
-              in: ['intransit', 'dispatch']
+              in: ['intransit', 'dispatch', 'received']
             }
           }
         })
@@ -323,10 +393,12 @@ export class IntransitService {
       });
 
       // Filter documents that are outgoing from user's department
-      // Outgoing means: department is the originator AND sent to other departments
-      const outgoingDocumentIds = documentDetails
-        .filter((detail: any) => {
-          if (!detail.work_flow_id) return false;
+      // Outgoing means: department is the originator AND sent to other departments AND NOT currently assigned back to this department
+      const outgoingDocumentIds = await (async () => {
+        const ids = [];
+
+        for (const detail of documentDetails) {
+          if (!detail.work_flow_id) continue;
 
           try {
             let workflowDepartments: string[] = [];
@@ -355,13 +427,32 @@ export class IntransitService {
             const isOriginator = workflowDepartments.length > 0 && workflowDepartments[0] === user.department_id;
             const sentToOthers = workflowDepartments.length > 1;
 
-            return isOriginator && sentToOthers;
+            // Additionally, check if the document is currently assigned to this department
+            // If it is, it should be considered incoming, not outgoing
+            const currentAssignment = await prisma.documentTrail.findFirst({
+              where: {
+                document_id: detail.document_id,
+                to_department: user.department_id,
+                status: { in: ['intransit', 'dispatch'] } // Document is currently assigned to this department
+              },
+              orderBy: {
+                created_at: 'desc'
+              }
+            });
+
+            const isCurrentlyAssignedToUser = !!currentAssignment;
+
+            // Only consider it outgoing if it's originated by this department, sent to others, and NOT currently assigned back to this department
+            if (isOriginator && sentToOthers && !isCurrentlyAssignedToUser) {
+              ids.push(detail.document_id);
+            }
           } catch (e) {
             console.error('📍 [getOutgoingDocuments] Error parsing work_flow_id:', e);
-            return false;
           }
-        })
-        .map((detail: any) => detail.document_id);
+        }
+
+        return ids;
+      })();
 
       console.log('📍 [getOutgoingDocuments] Outgoing document IDs:', outgoingDocumentIds.length);
 

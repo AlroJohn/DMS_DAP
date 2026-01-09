@@ -1,11 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   FileText,
   Search,
@@ -16,7 +22,8 @@ import {
   Download,
   Filter,
   ChevronRight,
-  Clock
+  Clock,
+  AlertCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -42,8 +49,11 @@ interface DocumentTrail {
 
 export default function DocumentTrailingPage() {
   const [documents, setDocuments] = useState<DocumentTrail[]>([]);
-  const [filteredDocuments, setFilteredDocuments] = useState<DocumentTrail[]>([]);
+  const [filteredDocuments, setFilteredDocuments] = useState<DocumentTrail[]>(
+    []
+  );
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -62,12 +72,12 @@ export default function DocumentTrailingPage() {
       }
 
       // If the existing trail is 'completed', keep it regardless of date
-      if (existing.status === 'completed') {
+      if (existing.status === "completed") {
         continue;
       }
 
       // If the new trail is 'completed', use it regardless of date
-      if (trail.status === 'completed') {
+      if (trail.status === "completed") {
         byDocument.set(trail.documentId, trail);
         continue;
       }
@@ -83,62 +93,66 @@ export default function DocumentTrailingPage() {
     return Array.from(byDocument.values());
   };
 
+  const fetchDocuments = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const departmentId = user?.department_id;
+      if (!departmentId) {
+        const msg = "Department information not available";
+        toast.error(msg);
+        setError(msg);
+        setDocuments([]);
+        setFilteredDocuments([]);
+        return;
+      }
+
+      const params = new URLSearchParams();
+      if (statusFilter !== "all") params.append("status", statusFilter);
+      if (ownershipFilter !== "all")
+        params.append("ownership", ownershipFilter);
+      if (searchTerm) params.append("searchTerm", searchTerm);
+
+      const query = params.toString();
+      const url = query
+        ? `/api/documents/departments/${departmentId}/trails?${query}`
+        : `/api/documents/departments/${departmentId}/trails`;
+
+      const response = await fetch(url, { credentials: "include" });
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        const msg = result?.message || "Failed to load document trails";
+        toast.error(msg);
+        setError(msg);
+        setDocuments([]);
+        setFilteredDocuments([]);
+        return;
+      }
+
+      const trails = Array.isArray(result.data) ? result.data : [];
+      const uniqueDocuments = collapseTrailsToDocuments(trails);
+      setDocuments(uniqueDocuments);
+      setFilteredDocuments(uniqueDocuments);
+    } catch (e) {
+      console.error("Error fetching documents:", e);
+      const msg = "Failed to load document data. Please try again.";
+      toast.error(msg);
+      setError(msg);
+      setDocuments([]);
+      setFilteredDocuments([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.department_id, statusFilter, ownershipFilter, searchTerm]);
+
   // Fetch data from API
   useEffect(() => {
-    const fetchDocuments = async () => {
-      try {
-        setLoading(true);
-
-        const departmentId = user?.department_id;
-        if (!departmentId) {
-          toast.error("Department information not available");
-          setDocuments([]);
-          setFilteredDocuments([]);
-          return;
-        }
-
-        // Build query parameters
-        const params = new URLSearchParams();
-        if (statusFilter && statusFilter !== "all") {
-          params.append("status", statusFilter);
-        }
-        if (ownershipFilter && ownershipFilter !== "all") {
-          params.append("ownership", ownershipFilter);
-        }
-        if (searchTerm) {
-          params.append("searchTerm", searchTerm);
-        }
-
-        const query = params.toString();
-        const url = query
-          ? `/api/documents/departments/${departmentId}/trails?${query}`
-          : `/api/documents/departments/${departmentId}/trails`;
-
-        const response = await fetch(url, {
-          credentials: "include",
-        });
-        const result = await response.json();
-
-        if (!response.ok || !result?.success) {
-          throw new Error(result?.message || "Failed to load document trails");
-        }
-
-        const trails = Array.isArray(result.data) ? result.data : [];
-        const uniqueDocuments = collapseTrailsToDocuments(trails);
-        setDocuments(uniqueDocuments);
-        setFilteredDocuments(uniqueDocuments);
-      } catch (error) {
-        console.error("Error fetching documents:", error);
-        toast.error("Failed to load document data");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     if (!isAuthLoading) {
       fetchDocuments();
     }
-  }, [isAuthLoading, user?.department_id, statusFilter, ownershipFilter, searchTerm]); // Include filters in dependency array
+  }, [isAuthLoading, fetchDocuments]); // Include filters in dependency array
 
   // Apply filters whenever search term or filters change
   useEffect(() => {
@@ -146,30 +160,34 @@ export default function DocumentTrailingPage() {
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      result = result.filter(doc =>
-        doc.documentTitle.toLowerCase().includes(term) ||
-        doc.documentCode.toLowerCase().includes(term) ||
-        doc.user.toLowerCase().includes(term) ||
-        doc.remarks.toLowerCase().includes(term)
+      result = result.filter(
+        (doc) =>
+          doc.documentTitle.toLowerCase().includes(term) ||
+          doc.documentCode.toLowerCase().includes(term) ||
+          doc.user.toLowerCase().includes(term) ||
+          doc.remarks.toLowerCase().includes(term)
       );
     }
 
     if (departmentFilter && departmentFilter !== "all") {
-      result = result.filter(doc =>
-        doc.fromDepartment.toLowerCase().includes(departmentFilter.toLowerCase()) ||
-        doc.toDepartment.toLowerCase().includes(departmentFilter.toLowerCase())
+      result = result.filter(
+        (doc) =>
+          doc.fromDepartment
+            .toLowerCase()
+            .includes(departmentFilter.toLowerCase()) ||
+          doc.toDepartment.toLowerCase().includes(departmentFilter.toLowerCase())
       );
     }
 
     if (statusFilter && statusFilter !== "all") {
-      result = result.filter(doc => doc.status === statusFilter);
+      result = result.filter((doc) => doc.status === statusFilter);
     }
 
     if (ownershipFilter && ownershipFilter !== "all") {
       if (ownershipFilter === "owned") {
-        result = result.filter(doc => doc.isOwned);
+        result = result.filter((doc) => doc.isOwned);
       } else if (ownershipFilter === "shared") {
-        result = result.filter(doc => !doc.isOwned);
+        result = result.filter((doc) => !doc.isOwned);
       }
     }
 
@@ -238,9 +256,23 @@ export default function DocumentTrailingPage() {
     // Add summary statistics
     doc.setFontSize(12);
     doc.text(`Total Documents: ${documents.length}`, 14, 40);
-    doc.text(`In Transit: ${documents.filter(d => d.status === "intransit").length}`, 14, 48);
-    doc.text(`Departments: ${[...new Set(documents.map(d => d.fromDepartment))].length}`, 14, 56);
-    doc.text(`Active Users: ${[...new Set(documents.map(d => d.user))].length}`, 14, 64);
+    doc.text(
+      `In Transit: ${
+        documents.filter((d) => d.status === "intransit").length
+      }`,
+      14,
+      48
+    );
+    doc.text(
+      `Departments: ${[...new Set(documents.map((d) => d.fromDepartment))].length}`,
+      14,
+      56
+    );
+    doc.text(
+      `Active Users: ${[...new Set(documents.map((d) => d.user))].length}`,
+      14,
+      64
+    );
 
     // Prepare table data
     const tableColumn = [
@@ -252,7 +284,7 @@ export default function DocumentTrailingPage() {
       "To Department",
       "User",
       "Action Date",
-      "Remarks"
+      "Remarks",
     ];
 
     const tableRows = filteredDocuments.map((doc) => [
@@ -264,7 +296,7 @@ export default function DocumentTrailingPage() {
       doc.toDepartment,
       doc.user,
       format(new Date(doc.actionDate), "MMM d, yyyy h:mm a"),
-      doc.remarks
+      doc.remarks,
     ]);
 
     // Add table
@@ -274,15 +306,15 @@ export default function DocumentTrailingPage() {
       startY: 75,
       styles: {
         fontSize: 8,
-        cellPadding: 4
+        cellPadding: 4,
       },
       headStyles: {
         fillColor: [59, 130, 246], // blue-500
         textColor: [255, 255, 255],
-        fontStyle: 'bold'
+        fontStyle: "bold",
       },
       alternateRowStyles: {
-        fillColor: [249, 250, 251] // gray-50
+        fillColor: [249, 250, 251], // gray-50
       },
       columnStyles: {
         0: { cellWidth: 40 }, // Document Title
@@ -293,12 +325,14 @@ export default function DocumentTrailingPage() {
         5: { cellWidth: 30 }, // To Department
         6: { cellWidth: 30 }, // User
         7: { cellWidth: 30 }, // Action Date
-        8: { cellWidth: 35 }  // Remarks
-      }
+        8: { cellWidth: 35 }, // Remarks
+      },
     });
 
     // Save the PDF
-    doc.save(`document-trailing-report-${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(
+      `document-trailing-report-${new Date().toISOString().split("T")[0]}.pdf`
+    );
 
     toast.success("PDF exported successfully!");
   };
@@ -317,7 +351,9 @@ export default function DocumentTrailingPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Document Trailing</h1>
+        <h1 className="text-3xl font-bold tracking-tight">
+          Document Trailing
+        </h1>
         <p className="text-muted-foreground">
           Track documents created by departments and shared documents
         </p>
@@ -345,9 +381,11 @@ export default function DocumentTrailingPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {documents.filter(d => d.status === "intransit").length}
+              {documents.filter((d) => d.status === "intransit").length}
             </div>
-            <p className="text-xs text-muted-foreground">Documents in transit</p>
+            <p className="text-xs text-muted-foreground">
+              Documents in transit
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -359,7 +397,7 @@ export default function DocumentTrailingPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {[...new Set(documents.map(d => d.fromDepartment))].length}
+              {[...new Set(documents.map((d) => d.fromDepartment))].length}
             </div>
             <p className="text-xs text-muted-foreground">Active departments</p>
           </CardContent>
@@ -373,7 +411,7 @@ export default function DocumentTrailingPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {[...new Set(documents.map(d => d.user))].length}
+              {[...new Set(documents.map((d) => d.user))].length}
             </div>
             <p className="text-xs text-muted-foreground">Users involved</p>
           </CardContent>
@@ -386,9 +424,9 @@ export default function DocumentTrailingPage() {
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input 
-                placeholder="Search documents, users, or remarks..." 
-                className="pl-9" 
+              <Input
+                placeholder="Search documents, users, or remarks..."
+                className="pl-9"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -405,7 +443,10 @@ export default function DocumentTrailingPage() {
               <Filter className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Filters:</span>
             </div>
-            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+            <Select
+              value={departmentFilter}
+              onValueChange={setDepartmentFilter}
+            >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filter by department" />
               </SelectTrigger>
@@ -420,7 +461,10 @@ export default function DocumentTrailingPage() {
                 <SelectItem value="Executive">Executive</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={ownershipFilter} onValueChange={setOwnershipFilter}>
+            <Select
+              value={ownershipFilter}
+              onValueChange={setOwnershipFilter}
+            >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filter by ownership" />
               </SelectTrigger>
@@ -449,14 +493,31 @@ export default function DocumentTrailingPage() {
           <div className="space-y-4">
             {filteredDocuments.length === 0 ? (
               <div className="text-center py-12">
-                {documents.length === 0 ? (
+                {error ? (
+                  <div className="space-y-4">
+                    <AlertCircle className="h-16 w-16 mx-auto text-destructive" />
+                    <div className="space-y-2">
+                      <h3 className="text-xl font-semibold">
+                        Failed to load documents
+                      </h3>
+                      <p className="text-muted-foreground max-w-md mx-auto">
+                        {error}
+                      </p>
+                      <Button onClick={fetchDocuments}>Retry</Button>
+                    </div>
+                  </div>
+                ) : documents.length === 0 ? (
                   // No documents at all (empty state)
                   <div className="space-y-4">
                     <FileText className="h-16 w-16 mx-auto text-muted" />
                     <div className="space-y-2">
-                      <h3 className="text-xl font-semibold">No Document Trails Yet</h3>
+                      <h3 className="text-xl font-semibold">
+                        No Document Trails Yet
+                      </h3>
                       <p className="text-muted-foreground max-w-md mx-auto">
-                        There are no document trails to display. Documents will appear here once they are created or shared with your department.
+                        There are no document trails to display. Documents will
+                        appear here once they are created or shared with your
+                        department.
                       </p>
                     </div>
                   </div>
@@ -465,9 +526,12 @@ export default function DocumentTrailingPage() {
                   <div className="space-y-4">
                     <FileText className="h-16 w-16 mx-auto text-muted" />
                     <div className="space-y-2">
-                      <h3 className="text-xl font-semibold">No Matching Documents</h3>
+                      <h3 className="text-xl font-semibold">
+                        No Matching Documents
+                      </h3>
                       <p className="text-muted-foreground max-w-md mx-auto">
-                        No documents match your current filter criteria. Try adjusting your search or filter settings.
+                        No documents match your current filter criteria. Try
+                        adjusting your search or filter settings.
                       </p>
                       <Button
                         variant="outline"
@@ -496,10 +560,16 @@ export default function DocumentTrailingPage() {
                         <FileText className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <h3 className="font-medium truncate">{doc.documentTitle}</h3>
-                            <Badge variant="secondary">{doc.documentCode}</Badge>
+                            <h3 className="font-medium truncate">
+                              {doc.documentTitle}
+                            </h3>
+                            <Badge variant="secondary">
+                              {doc.documentCode}
+                            </Badge>
                           </div>
-                          <p className="text-sm text-muted-foreground truncate">{doc.documentType} document</p>
+                          <p className="text-sm text-muted-foreground truncate">
+                            {doc.documentType} document
+                          </p>
                         </div>
                       </div>
 
@@ -522,13 +592,21 @@ export default function DocumentTrailingPage() {
                         <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-muted-foreground" />
                           <span className="text-muted-foreground">On:</span>
-                          <span>{format(new Date(doc.actionDate), "MMM d, yyyy h:mm a")}</span>
+                          <span>
+                            {format(
+                              new Date(doc.actionDate),
+                              "MMM d, yyyy h:mm a"
+                            )}
+                          </span>
                         </div>
                       </div>
 
                       {doc.remarks && (
                         <div className="mt-2 text-sm">
-                          <span className="text-muted-foreground">Remarks:</span> {doc.remarks}
+                          <span className="text-muted-foreground">
+                            Remarks:
+                          </span>{" "}
+                          {doc.remarks}
                         </div>
                       )}
                     </div>
