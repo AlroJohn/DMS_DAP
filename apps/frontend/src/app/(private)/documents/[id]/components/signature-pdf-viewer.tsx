@@ -142,13 +142,13 @@ export function SignaturePdfViewer({
 
   // Memoize boxes with their indices for efficient rendering
   const boxesWithIndices = useMemo(() => {
-    const existingBoxesList = boxes.filter(b => b.isExisting);
-    const newBoxesList = boxes.filter(b => !b.isExisting);
+    const existingBoxesList = boxes.filter((b) => b.isExisting);
+    const newBoxesList = boxes.filter((b) => !b.isExisting);
 
     return boxes.map((box) => {
       const index = box.isExisting
-        ? existingBoxesList.findIndex(b => b.id === box.id) + 1
-        : newBoxesList.findIndex(b => b.id === box.id) + 1;
+        ? existingBoxesList.findIndex((b) => b.id === box.id) + 1
+        : newBoxesList.findIndex((b) => b.id === box.id) + 1;
 
       return { box, index };
     });

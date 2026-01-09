@@ -252,14 +252,26 @@ export class SharedDocumentService {
           }
 
           // Get the DocumentType name based on the stored type ID
-          let documentTypeName = (doc as any).document_type || 'General';
+          let documentTypeName = 'General'; // Default to 'General' if type is not found
           if ((doc as any).document_type) {
-            const documentType = await prisma.documentType.findUnique({
-              where: { type_id: (doc as any).document_type },
-              select: { name: true }
-            });
-            if (documentType) {
-              documentTypeName = documentType.name;
+            // Validate UUID format before querying
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (uuidRegex.test((doc as any).document_type)) {
+              try {
+                const documentType = await prisma.documentType.findUnique({
+                  where: { type_id: (doc as any).document_type },
+                  select: { name: true }
+                });
+                if (documentType) {
+                  documentTypeName = documentType.name;
+                }
+              } catch (error) {
+                console.error('Error fetching document type:', error);
+                // Keep default 'General' if there's an error
+              }
+            } else {
+              console.warn(`Invalid UUID format for document_type: ${(doc as any).document_type} in document ${doc.document_id}`);
+              // Keep default 'General' for invalid UUIDs
             }
           }
 

@@ -1,42 +1,5 @@
 import { useState, useEffect } from 'react'
-
-export interface SharedDocument {
-  id: string
-  qrCode?: string
-  barcode?: string
-  document: string  // Now includes both title and document_code
-  documentId?: string
-  contactPerson?: string  // Now contains the root owner's name instead of 'N/A'
-  contactOrganization?: string
-  type: string  // Now contains DocumentType name instead of UUID
-  classification?: string
-  status?: string
-  activity?: string
-  activityTime?: string
-  checkedOutBy?: {
-    id: string;
-    name: string;
-    email?: string;
-  } | null;
-  checkedOutAt?: string | null;
-}
-
-export interface Pagination {
-  page: number
-  limit: number
-  total: number
-  totalPages: number
-  hasNext: boolean
-  hasPrev: boolean
-}
-
-export interface UseSharedDocumentsResult {
-  documents: SharedDocument[]
-  pagination: Pagination | null
-  isLoading: boolean
-  error: string | null
-  refetch: () => void
-}
+import { SharedDocument, Pagination, UseSharedDocumentsResult } from '@dms/types/document.types';
 
 /**
  * Fetch documents that are shared to the current user
@@ -73,14 +36,18 @@ export function useSharedDocuments(page: number = 1, limit: number = 10): UseSha
             }
           };
         }
-        throw new Error(err.error?.message || 'Failed to fetch shared documents')
+        throw new Error(err.error?.message || err.message || 'Failed to fetch shared documents')
       }
 
       const data = await response.json()
 
       if (data.success) {
-        setDocuments(data.data || [])
-        setPagination(data.meta?.pagination || null)
+        // Ensure data is an array and pagination is properly structured
+        const documentsData = Array.isArray(data.data) ? data.data : [];
+        const paginationData = data.meta?.pagination || null;
+
+        setDocuments(documentsData)
+        setPagination(paginationData)
       } else {
         throw new Error(data.error?.message || data.message || 'Failed to fetch shared documents')
       }

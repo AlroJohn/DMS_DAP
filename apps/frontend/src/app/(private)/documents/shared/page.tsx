@@ -10,6 +10,7 @@ import { useSocket } from "@/components/providers/providers";
 import { useAuth } from "@/hooks/use-auth";
 import { SignatureCaptureModal } from "@/components/modals/signature-capture-modal";
 import { toast } from "sonner";
+import { SharedDocument } from "@dms/types";
 
 export default function SharedDocumentsPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -23,7 +24,8 @@ export default function SharedDocumentsPage() {
   const mountedRef = useRef(false);
 
   const [isSignModalOpen, setIsSignModalOpen] = useState(false);
-  const [selectedDocument, setSelectedDocument] = useState<SharedDocument | null>(null);
+  const [selectedDocument, setSelectedDocument] =
+    useState<SharedDocument | null>(null);
 
   const handleSignClick = (document: SharedDocument) => {
     setSelectedDocument(document);
@@ -33,24 +35,31 @@ export default function SharedDocumentsPage() {
   const handleSignConfirm = async (signatureData: string) => {
     if (!selectedDocument) return;
 
-    const response = await fetch(`/api/documents/${selectedDocument.id}/sign-from-placeholder`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ signatureData }),
-    });
+    try {
+      const response = await fetch(
+        `/api/documents/${selectedDocument.id}/sign-from-placeholder`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ signatureData }),
+        }
+      );
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error?.message || "Signing failed.");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || "Signing failed.");
+      }
+
+      refetch(); // Refetch documents to show updated status
+    } catch (error) {
+      console.error("Error signing document:", error);
+      toast.error("Failed to sign document. Please try again.");
     }
-
-    refetch(); // Refetch documents to show updated status
   };
 
   const columns = useMemo(() => getColumns({ onSign: handleSignClick }), []);
-
 
   // Mark component as mounted and clean up on unmount
   useEffect(() => {
@@ -118,14 +127,18 @@ export default function SharedDocumentsPage() {
         return { ...doc, documentTitle: doc?.document || "" };
       }
 
+      // Safe access to document properties
+      const documentStr = doc?.document || "";
+      const documentId = doc?.documentId || "";
+
       const suffix =
-        doc.documentId && doc.document.endsWith(` (${doc.documentId})`)
-          ? ` (${doc.documentId})`
+        documentId && documentStr.endsWith(` (${documentId})`)
+          ? ` (${documentId})`
           : null;
 
       const documentTitle = suffix
-        ? doc.document.slice(0, -suffix.length).trimEnd()
-        : doc.document;
+        ? documentStr.slice(0, -suffix.length).trimEnd()
+        : documentStr;
 
       return {
         ...doc,
@@ -135,7 +148,11 @@ export default function SharedDocumentsPage() {
   }, [documents]);
 
   // Check if the error is authentication-related
-  const isAuthError = error && error.includes('Authentication required');
+  const isAuthError =
+    error &&
+    (error.includes("Authentication required") ||
+      error.includes("401") ||
+      error.includes("Unauthorized"));
 
   return (
     <>
@@ -146,7 +163,9 @@ export default function SharedDocumentsPage() {
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Error</AlertTitle>
-              <AlertDescription>Error loading shared documents: {error}</AlertDescription>
+              <AlertDescription>
+                Error loading shared documents: {error}
+              </AlertDescription>
             </Alert>
           </div>
         )}
@@ -155,7 +174,9 @@ export default function SharedDocumentsPage() {
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Authentication Required</AlertTitle>
-              <AlertDescription>You must be logged in to view documents.</AlertDescription>
+              <AlertDescription>
+                You must be logged in to view documents.
+              </AlertDescription>
             </Alert>
           </div>
         )}
@@ -173,7 +194,11 @@ export default function SharedDocumentsPage() {
           open={isSignModalOpen}
           onOpenChange={setIsSignModalOpen}
           onConfirm={handleSignConfirm}
-          documentTitle={selectedDocument.documentTitle || selectedDocument.document}
+          documentTitle={
+            selectedDocument.documentTitle ||
+            selectedDocument.document ||
+            "Unknown Document"
+          }
         />
       )}
     </>
