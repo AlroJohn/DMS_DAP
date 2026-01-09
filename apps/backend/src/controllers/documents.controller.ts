@@ -360,7 +360,8 @@ export class DocumentController {
    * GET /api/documents/search - Search documents
    */
   searchDocuments = asyncHandler(async (req: Request, res: Response) => {
-    const { q: query, userId } = req.query;
+    const authReq = req as AuthRequest;
+    const { q: query } = req.query;
 
     if (!query || typeof query !== 'string') {
       return sendError(res, 'Search query is required', 400);
@@ -368,7 +369,7 @@ export class DocumentController {
 
     const documents = await this.documentService.searchDocuments(
       query,
-      userId as string
+      authReq.user.id
     );
 
     return sendSuccess(res, documents);

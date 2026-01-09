@@ -212,6 +212,11 @@ export const outgoingColumns: ColumnDef<OutgoingDocument>[] = [
           bgColor: "bg-orange-500",
           label: "In Transit",
         },
+        intransit: {
+          color: "text-orange-600",
+          bgColor: "bg-orange-500",
+          label: "In Transit",
+        },
         delivered: {
           color: "text-emerald-600",
           bgColor: "bg-emerald-500",
@@ -226,6 +231,11 @@ export const outgoingColumns: ColumnDef<OutgoingDocument>[] = [
           color: "text-amber-600",
           bgColor: "bg-amber-500",
           label: "Processing",
+        },
+        received: {
+          color: "text-emerald-600",
+          bgColor: "bg-emerald-500",
+          label: "Received",
         },
         completed: {
           color: "text-emerald-600",

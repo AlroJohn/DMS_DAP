@@ -309,7 +309,9 @@ export class DocumentService {
 
             if (typeof detail.work_flow_id === 'object' && detail.work_flow_id !== null) {
               // New format: object with keys like "first", "second", etc.
-              workflowDepartments = Object.values(detail.work_flow_id);
+              workflowDepartments = Object.values(detail.work_flow_id)
+                .map((value: any) => (value == null ? '' : String(value)))
+                .filter((value: string) => value.length > 0);
             } else if (typeof detail.work_flow_id === 'string') {
               // Could be either a JSON string of an array or a JSON string of an object
               const parsed = JSON.parse(detail.work_flow_id);
@@ -321,7 +323,9 @@ export class DocumentService {
               }
             } else if (Array.isArray(detail.work_flow_id)) {
               // Old format: array
-              workflowDepartments = detail.work_flow_id;
+              workflowDepartments = detail.work_flow_id
+                .map((value: any) => (value == null ? '' : String(value)))
+                .filter((value: string) => value.length > 0);
             } else {
               // Unexpected format
               workflowDepartments = [];
@@ -534,7 +538,9 @@ export class DocumentService {
 
               if (typeof detail.work_flow_id === 'object' && detail.work_flow_id !== null) {
                 // New format: object with keys like "first", "second", etc.
-                workflowDepartments = Object.values(detail.work_flow_id);
+                workflowDepartments = Object.values(detail.work_flow_id)
+                  .map((value: any) => (value == null ? '' : String(value)))
+                  .filter((value: string) => value.length > 0);
               } else if (typeof detail.work_flow_id === 'string') {
                 // Could be either a JSON string of an array or a JSON string of an object
                 const parsed = JSON.parse(detail.work_flow_id);
@@ -546,7 +552,9 @@ export class DocumentService {
                 }
               } else if (Array.isArray(detail.work_flow_id)) {
                 // Old format: array
-                workflowDepartments = detail.work_flow_id;
+                workflowDepartments = detail.work_flow_id
+                  .map((value: any) => (value == null ? '' : String(value)))
+                  .filter((value: string) => value.length > 0);
               } else {
                 // Unexpected format
                 workflowDepartments = [];
@@ -989,7 +997,9 @@ export class DocumentService {
 
             if (typeof detail.work_flow_id === 'object' && detail.work_flow_id !== null) {
               // New format: object with keys like "first", "second", etc.
-              workflowDepartments = Object.values(detail.work_flow_id);
+              workflowDepartments = Object.values(detail.work_flow_id)
+                .map((value: any) => (value == null ? '' : String(value)))
+                .filter((value: string) => value.length > 0);
             } else if (typeof detail.work_flow_id === 'string') {
               // Could be either a JSON string of an array or a JSON string of an object
               const parsed = JSON.parse(detail.work_flow_id);
@@ -1001,7 +1011,9 @@ export class DocumentService {
               }
             } else if (Array.isArray(detail.work_flow_id)) {
               // Old format: array
-              workflowDepartments = detail.work_flow_id;
+              workflowDepartments = detail.work_flow_id
+                .map((value: any) => (value == null ? '' : String(value)))
+                .filter((value: string) => value.length > 0);
             } else {
               // Unexpected format
               workflowDepartments = [];
@@ -1148,6 +1160,16 @@ export class DocumentService {
    * Search documents
    */
   async searchDocuments(query: string, userId?: string) {
+    // First get the user's department if userId is provided
+    let userDepartmentId: string | null = null;
+    if (userId) {
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { department_id: true }
+      });
+      userDepartmentId = user?.department_id || null;
+    }
+
     const whereCondition: any = {
       OR: [
         {
@@ -1171,12 +1193,116 @@ export class DocumentService {
       ]
     };
 
-    return await prisma.document.findMany({
+    const documents = await prisma.document.findMany({
       where: whereCondition,
       include: {
-        files: true
+        files: true,
+        DocumentAdditionalDetails: {
+          include: {
+            created_by_account: {
+              include: {
+                user: true
+              }
+            }
+          }
+        }
       }
     });
+
+    // Process documents to add ownership and department information
+    return await Promise.all(documents.map(async (doc) => {
+      let ownerInfo = null;
+      let originatingDepartment = null;
+      let isOwner = false;
+      let isFromSameDepartment = false;
+      let isAssignedToUserDepartment = false;
+      let latestTransitTrail = null;
+
+      if (doc.DocumentAdditionalDetails && doc.DocumentAdditionalDetails.length > 0) {
+        const details = doc.DocumentAdditionalDetails[0];
+
+        // Extract owner information
+        if (details.created_by_account?.user) {
+          ownerInfo = {
+            user_id: details.created_by_account.user.user_id,
+            first_name: details.created_by_account.user.first_name,
+            last_name: details.created_by_account.user.last_name,
+            department_id: details.created_by_account.user.department_id
+          };
+        }
+
+        // Extract originating department from workflow
+        if (details.work_flow_id) {
+          let workflowDepartments: string[] = [];
+          if (typeof details.work_flow_id === 'object' && details.work_flow_id !== null) {
+            // Handle both array and object formats
+            if (Array.isArray(details.work_flow_id)) {
+              workflowDepartments = details.work_flow_id
+                .map((value: any) => (value == null ? '' : String(value)))
+                .filter((value: string) => value.length > 0);
+            } else {
+              // If it's an object like {"first": "deptId", "second": "deptId", ...}
+              workflowDepartments = Object.values(details.work_flow_id as any)
+                .map((value: any) => (value == null ? '' : String(value)))
+                .filter((value: string) => value.length > 0);
+            }
+          }
+
+          if (workflowDepartments.length > 0) {
+            // The first department in the workflow is the originating department
+            const originatingDeptId = workflowDepartments[0];
+
+            // Get department info
+            originatingDepartment = {
+              department_id: originatingDeptId
+            };
+
+            // Check ownership and department match
+            if (ownerInfo && userId && ownerInfo.user_id === userId) {
+              isOwner = true;
+            }
+
+            if (userDepartmentId && originatingDeptId === userDepartmentId) {
+              isFromSameDepartment = true;
+            }
+          }
+        }
+      }
+
+      // Check if the document is assigned to the user's department for receiving
+      if (userDepartmentId && doc.status === 'intransit') {
+        // Find the latest transit trail to see which department it's assigned to
+        latestTransitTrail = await prisma.documentTrail.findFirst({
+          where: {
+            document_id: doc.document_id,
+            status: 'intransit'
+          },
+          orderBy: {
+            created_at: 'desc'
+          },
+          select: {
+            to_department: true,
+            from_department: true,
+            user_id: true,
+            action_date: true
+          }
+        });
+
+        if (latestTransitTrail?.to_department && latestTransitTrail.to_department === userDepartmentId) {
+          isAssignedToUserDepartment = true;
+        }
+      }
+
+      return {
+        ...doc,
+        owner: ownerInfo,
+        originating_department: originatingDepartment,
+        isOwner: isOwner,
+        isFromSameDepartment: isFromSameDepartment,
+        isAssignedToUserDepartment: isAssignedToUserDepartment,
+        latestTransitTrail: latestTransitTrail
+      };
+    }));
   }
 
   /**
@@ -1219,7 +1345,9 @@ export class DocumentService {
 
             if (typeof detail.work_flow_id === 'object' && detail.work_flow_id !== null) {
               // New format: object with keys like "first", "second", etc.
-              workflowDepartments = Object.values(detail.work_flow_id);
+              workflowDepartments = Object.values(detail.work_flow_id)
+                .map((value: any) => (value == null ? '' : String(value)))
+                .filter((value: string) => value.length > 0);
             } else if (typeof detail.work_flow_id === 'string') {
               // Could be either a JSON string of an array or a JSON string of an object
               const parsed = JSON.parse(detail.work_flow_id);
@@ -1231,7 +1359,9 @@ export class DocumentService {
               }
             } else if (Array.isArray(detail.work_flow_id)) {
               // Old format: array
-              workflowDepartments = detail.work_flow_id;
+              workflowDepartments = detail.work_flow_id
+                .map((value: any) => (value == null ? '' : String(value)))
+                .filter((value: string) => value.length > 0);
             } else {
               // Unexpected format
               workflowDepartments = [];
@@ -3327,7 +3457,9 @@ export class DocumentService {
 
           if (typeof detail.work_flow_id === 'object' && detail.work_flow_id !== null) {
             // New format: object with keys like "first", "second", etc.
-            workflowDepartments = Object.values(detail.work_flow_id);
+            workflowDepartments = Object.values(detail.work_flow_id)
+              .map((value: any) => (value == null ? '' : String(value)))
+              .filter((value: string) => value.length > 0);
           } else if (typeof detail.work_flow_id === 'string') {
             // Could be either a JSON string of an array or a JSON string of an object
             const parsed = JSON.parse(detail.work_flow_id);
@@ -3339,7 +3471,9 @@ export class DocumentService {
             }
           } else if (Array.isArray(detail.work_flow_id)) {
             // Old format: array
-            workflowDepartments = detail.work_flow_id;
+            workflowDepartments = detail.work_flow_id
+              .map((value: any) => (value == null ? '' : String(value)))
+              .filter((value: string) => value.length > 0);
           } else {
             // Unexpected format
             workflowDepartments = [];
@@ -3484,7 +3618,9 @@ export class DocumentService {
 
               if (typeof detail.work_flow_id === 'object' && detail.work_flow_id !== null) {
                 // New format: object with keys like "first", "second", etc.
-                workflowDepartments = Object.values(detail.work_flow_id);
+                workflowDepartments = Object.values(detail.work_flow_id)
+                  .map((value: any) => (value == null ? '' : String(value)))
+                  .filter((value: string) => value.length > 0);
               } else if (typeof detail.work_flow_id === 'string') {
                 // Could be either a JSON string of an array or a JSON string of an object
                 const parsed = JSON.parse(detail.work_flow_id);
@@ -3496,7 +3632,9 @@ export class DocumentService {
                 }
               } else if (Array.isArray(detail.work_flow_id)) {
                 // Old format: array
-                workflowDepartments = detail.work_flow_id;
+                workflowDepartments = detail.work_flow_id
+                  .map((value: any) => (value == null ? '' : String(value)))
+                  .filter((value: string) => value.length > 0);
               } else {
                 // Unexpected format
                 workflowDepartments = [];

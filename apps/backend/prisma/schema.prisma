@@ -116,7 +116,7 @@ model DocumentAdditionalDetails {
   detail_id               String    @id @default(uuid()) @db.Uuid
   document_id             String    @db.Uuid
   received_by             String?   @db.Uuid
-  work_flow_id            Json? // Array of department IDs tracking document routing path: [first:, dest_dept_1_id, second:dest_dept_2_id, ...]. First element is the originating department.
+  work_flow_id            Json? // Workflow route for department IDs (array or object); first entry is the originating/owner department.
   received_by_departments Json? // Array of user IDs that have received/acknowledged this document: [first:"user_id_1", second:"user_id_2"...]. first element is the originating department user.
   work_flow_status        Json? // Object tracking the status of each document in the workflow: {created:("at:"datetime", status:"dispatch"), released_1:("at:"datetime", status:"intransit"), released_2:("at:"datetime", status:"intransit")..., received:("at:"datetime", status:"received"), completed:("at:"datetime", status:"completed")}
   blockchain_project_uuid String?

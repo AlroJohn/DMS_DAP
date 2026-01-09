@@ -27,6 +27,24 @@ interface DocumentLookup {
   status: string;
   document_type: string;
   created_at: string;
+  owner?: {
+    user_id: string;
+    first_name: string;
+    last_name: string;
+    department_id: string;
+  };
+  originating_department?: {
+    department_id: string;
+  };
+  isOwner?: boolean;
+  isFromSameDepartment?: boolean;
+  isAssignedToUserDepartment?: boolean;
+  latestTransitTrail?: {
+    to_department: string;
+    from_department: string;
+    user_id: string;
+    action_date: string;
+  };
 }
 
 interface TransmitByCodeModalProps {
@@ -133,6 +151,12 @@ export function TransmitByCodeModal({
       return;
     }
 
+    // Check if the document is assigned to the user's department
+    if (!document.isAssignedToUserDepartment) {
+      toast.error("You can only receive documents that are assigned to your department.");
+      return;
+    }
+
     setIsReceiving(true);
 
     try {
@@ -172,6 +196,15 @@ export function TransmitByCodeModal({
 
     if (!canRelease) {
       toast.error("You don't have permission to release documents.");
+      return;
+    }
+
+    // Check if the user is the owner of the document or from the same department
+    const isOwner = document.isOwner;
+    const isFromSameDepartment = document.isFromSameDepartment;
+
+    if (!isOwner && !isFromSameDepartment) {
+      toast.error("You can only release documents that you own or that were created in your department.");
       return;
     }
 
@@ -232,6 +265,23 @@ export function TransmitByCodeModal({
                   Classification:{" "}
                   <span className="font-medium">{document.classification}</span>
                 </div>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {document.isOwner && (
+                    <Badge variant="secondary">Document Owner</Badge>
+                  )}
+                  {document.isFromSameDepartment && !document.isOwner && (
+                    <Badge variant="secondary">From Your Department</Badge>
+                  )}
+                  {!document.isOwner && !document.isFromSameDepartment && (
+                    <Badge variant="destructive">Not Authorized</Badge>
+                  )}
+                  {document.status === 'intransit' && document.isAssignedToUserDepartment && (
+                    <Badge variant="default">Assigned to Your Department</Badge>
+                  )}
+                  {document.status === 'intransit' && !document.isAssignedToUserDepartment && (
+                    <Badge variant="destructive">Not Assigned to Your Department</Badge>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -243,11 +293,23 @@ export function TransmitByCodeModal({
             <Button
               variant="outline"
               onClick={handleReceive}
-              disabled={!document || isReceiving || !canReceive}
+              disabled={
+                !document ||
+                isReceiving ||
+                !canReceive ||
+                (document && document.status === 'intransit' && !document.isAssignedToUserDepartment)
+              }
             >
               {isReceiving ? "Receiving..." : "Receive"}
             </Button>
-            <Button onClick={handleRelease} disabled={!document || !canRelease}>
+            <Button
+              onClick={handleRelease}
+              disabled={
+                !document ||
+                !canRelease ||
+                (document && !document.isOwner && !document.isFromSameDepartment)
+              }
+            >
               Release
             </Button>
           </DialogFooter>

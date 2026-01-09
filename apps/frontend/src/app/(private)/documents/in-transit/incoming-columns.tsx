@@ -298,6 +298,21 @@ export const incomingColumns: ColumnDef<IncomingDocument>[] = [
           bgColor: "bg-orange-500",
           label: "In Transit",
         },
+        intransit: {
+          color: "text-orange-600",
+          bgColor: "bg-orange-500",
+          label: "In Transit",
+        },
+        dispatch: {
+          color: "text-cyan-600",
+          bgColor: "bg-cyan-500",
+          label: "Dispatch",
+        },
+        received: {
+          color: "text-emerald-600",
+          bgColor: "bg-emerald-500",
+          label: "Received",
+        },
         delivered: {
           color: "text-emerald-600",
           bgColor: "bg-emerald-500",

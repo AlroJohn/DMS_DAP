@@ -417,31 +417,12 @@ export class DocumentReleaseService {
         return { success: false, error: 'Document is not in transit' };
       }
 
-      const latestTransitTrail = await prisma.documentTrail.findFirst({
-        where: {
-          document_id: documentId,
-          status: 'intransit'
-        },
-        orderBy: {
-          created_at: 'desc'
-        },
-        select: {
-          to_department: true
-        }
-      });
-      console.log('📍 [DocumentReleaseService.receiveDocument] Latest transit trail:', latestTransitTrail);
-
-      if (latestTransitTrail?.to_department && latestTransitTrail.to_department !== user.department_id) {
-        console.error('📍 [DocumentReleaseService.receiveDocument] Error: Document is not assigned to this user\'s department. Assigned to:', latestTransitTrail.to_department, 'User department:', user.department_id);
-        return { success: false, error: 'Document is not assigned to your department' };
-      }
-
       const currentDetail = document.DocumentAdditionalDetails?.[0];
       if (!currentDetail) {
-        console.error('📍 [DocumentReleaseService.receiveDocument] Error: Document details not found for document ID:', documentId);
+        console.error('?? [DocumentReleaseService.receiveDocument] Error: Document details not found for document ID:', documentId);
         return { success: false, error: 'Document details not found' };
       }
-      console.log('📍 [DocumentReleaseService.receiveDocument] Current document details:', currentDetail);
+      console.log('?? [DocumentReleaseService.receiveDocument] Current document details:', currentDetail);
 
       // Get current workflow and received_by_department_user
       let currentWorkflow: any = {};
@@ -455,40 +436,73 @@ export class DocumentReleaseService {
             currentWorkflow = JSON.parse(currentDetail.work_flow_id);
           }
         } catch (e) {
-          console.error('📍 [DocumentReleaseService.receiveDocument] Error parsing work_flow_id:', e);
+          console.error('?? [DocumentReleaseService.receiveDocument] Error parsing work_flow_id:', e);
         }
       }
-      console.log('📍 [DocumentReleaseService.receiveDocument] Parsed workflow:', currentWorkflow);
+      console.log('?? [DocumentReleaseService.receiveDocument] Parsed workflow:', currentWorkflow);
 
-      console.log('📍 [DocumentReleaseService.receiveDocument] received_by_department_user before parsing:', currentDetail.received_by_department_user);
+      console.log('?? [DocumentReleaseService.receiveDocument] received_by_department_user before parsing:', currentDetail.received_by_department_user);
       if (currentDetail.received_by_department_user) {
         try {
           receivedByUsers = Array.isArray(currentDetail.received_by_department_user)
             ? currentDetail.received_by_department_user
             : JSON.parse(currentDetail.received_by_department_user as any);
         } catch (e) {
-          console.error('📍 [DocumentReleaseService.receiveDocument] Error parsing received_by_department_user:', e);
+          console.error('?? [DocumentReleaseService.receiveDocument] Error parsing received_by_department_user:', e);
           // If parsing fails, and it's a non-array value, we might want to handle it
           // For now, it will default to an empty array.
         }
       }
-      console.log('📍 [DocumentReleaseService.receiveDocument] Parsed receivedByUsers:', receivedByUsers);
+      console.log('?? [DocumentReleaseService.receiveDocument] Parsed receivedByUsers:', receivedByUsers);
+      const isSharedToUser = receivedByUsers.includes(userId);
+
+      const latestTransitTrail = await prisma.documentTrail.findFirst({
+        where: {
+          document_id: documentId,
+          status: 'intransit'
+        },
+        orderBy: {
+          created_at: 'desc'
+        },
+        select: {
+          to_department: true
+        }
+      });
+      console.log('?? [DocumentReleaseService.receiveDocument] Latest transit trail:', latestTransitTrail);
+
+      if (latestTransitTrail?.to_department && latestTransitTrail.to_department !== user.department_id && !isSharedToUser) {
+        console.error('?? [DocumentReleaseService.receiveDocument] Error: Document is not assigned to this user\'s department. Assigned to:', latestTransitTrail.to_department, 'User department:', user.department_id);
+        return { success: false, error: 'Document is not assigned to your department' };
+      }
 
       // Check if department is in workflow (allowed to receive) by looking at workflow object values
       const workflowDepartments = Object.values(currentWorkflow);
-      if (!workflowDepartments.includes(user.department_id)) {
-        console.error('📍 [DocumentReleaseService.receiveDocument] Error: Department not in document workflow. User department:', user.department_id, 'Workflow departments:', workflowDepartments);
+      if (!workflowDepartments.includes(user.department_id) && !isSharedToUser) {
+        console.error('?? [DocumentReleaseService.receiveDocument] Error: Department not in document workflow. User department:', user.department_id, 'Workflow departments:', workflowDepartments);
         return { success: false, error: 'Department not in document workflow' };
       }
 
+      const existingReceiveTrail = await prisma.documentTrail.findFirst({
+        where: {
+          document_id: documentId,
+          status: 'received',
+          user_id: userId
+        },
+        select: {
+          trail_id: true
+        }
+      });
+
       // Check if already received by this user
-      if (receivedByUsers.includes(userId)) {
-        console.warn('📍 [DocumentReleaseService.receiveDocument] Warning: Document already received by this user.', { userId, receivedByUsers });
+      if (existingReceiveTrail) {
+        console.warn('?? [DocumentReleaseService.receiveDocument] Warning: Document already received by this user.', { userId });
         return { success: false, error: 'Document already received by this user' };
       }
 
       // Add user to received_by_department_user array
-      receivedByUsers.push(userId);
+      if (!receivedByUsers.includes(userId)) {
+        receivedByUsers.push(userId);
+      }
       console.log('📍 [DocumentReleaseService.receiveDocument] Updated receivedByUsers:', receivedByUsers);
 
       // Update the document status to 'received'
@@ -581,4 +595,6 @@ export class DocumentReleaseService {
         }
       }
 }
+
+
 
