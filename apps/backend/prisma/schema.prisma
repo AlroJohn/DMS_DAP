@@ -629,6 +629,8 @@ enum DocStatus {
   completed
   deleted
   archive
+  checkout
+  checkin
 }
 
 enum IntransitStatus {

@@ -147,6 +147,11 @@ class AuditService {
               description: true
             }
           },
+          documentAction: {
+            select: {
+              action_name: true
+            }
+          },
           user: {
             select: {
               first_name: true,
@@ -264,6 +269,7 @@ class AuditService {
           documentType: trail.document?.document_type || 'Unknown',
           documentDescription: trail.document?.description || '',
           status: finalStatus,
+          actionName: trail.documentAction?.action_name || '',
           fromDepartment: trail.fromDept?.name || 'Unknown',
           toDepartment: trail.toDept?.name || 'Unknown',
           user: `${trail.user?.first_name || ''} ${trail.user?.last_name || ''}`.trim() || 'Unknown User',
@@ -308,6 +314,11 @@ class AuditService {
       const trails = await prisma.documentTrail.findMany({
         where: { document_id: documentId },
         include: {
+          documentAction: {
+            select: {
+              action_name: true
+            }
+          },
           user: {
             select: {
               first_name: true,
@@ -344,6 +355,7 @@ class AuditService {
         id: trail.trail_id,
         documentId: trail.document_id,
         actionDate: trail.action_date.toISOString(),
+        actionName: trail.documentAction?.action_name || '',
         user: `${trail.user?.first_name || ''} ${trail.user?.last_name || ''}`.trim() || 'Unknown User',
         fromDepartment: trail.fromDept?.name || 'Unknown',
         toDepartment: trail.toDept?.name || 'Unknown',

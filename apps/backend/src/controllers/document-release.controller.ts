@@ -76,6 +76,73 @@ export class DocumentReleaseController {
 
     const canAccess = await this.checkUserCanAccessDocument(id, authReq.user.id);
     if (!canAccess) {
+      // Perform individual checks to provide more specific error messages
+      const user = await this.documentReleaseService['prisma'].user.findUnique({
+        where: { user_id: authReq.user.id },
+        select: { department_id: true }
+      });
+
+      if (!user) {
+        return sendError(res, 'User not found', 404);
+      }
+
+      // Check document status
+      if (existingDocument.status !== 'intransit') {
+        return sendError(res, `Document is not in transit. Current status: ${existingDocument.status}`, 400);
+      }
+
+      // Check if user's department matches the to_department in the latest transit trail
+      const latestTransitTrail = await this.documentReleaseService['prisma'].documentTrail.findFirst({
+        where: {
+          document_id: id,
+          status: 'intransit'
+        },
+        orderBy: {
+          created_at: 'desc'
+        },
+        select: {
+          to_department: true
+        }
+      });
+
+      if (latestTransitTrail?.to_department && latestTransitTrail.to_department !== user.department_id) {
+        return sendError(res, `Document is assigned to department: ${latestTransitTrail.to_department}, not your department: ${user.department_id}`, 403);
+      }
+
+      // Check if user's department is in the workflow
+      const documentWithDetails = await this.documentReleaseService['prisma'].document.findUnique({
+        where: { document_id: id },
+        include: { DocumentAdditionalDetails: true }
+      });
+
+      const detail = documentWithDetails?.DocumentAdditionalDetails?.[0];
+      if (detail && detail.work_flow_id) {
+        let workflowDepartments: string[] = [];
+
+        try {
+          if (typeof detail.work_flow_id === 'object' && detail.work_flow_id !== null) {
+            const values = Object.values(detail.work_flow_id);
+            workflowDepartments = values.map(val => String(val));
+          } else if (typeof detail.work_flow_id === 'string') {
+            const parsed = JSON.parse(detail.work_flow_id);
+            if (Array.isArray(parsed)) {
+              workflowDepartments = parsed.map(val => String(val));
+            } else {
+              const values = Object.values(parsed);
+              workflowDepartments = values.map(val => String(val));
+            }
+          } else if (Array.isArray(detail.work_flow_id)) {
+            workflowDepartments = detail.work_flow_id.map(val => String(val));
+          }
+        } catch (e) {
+          console.error('Error parsing work_flow_id:', e);
+        }
+
+        if (!workflowDepartments.includes(user.department_id)) {
+          return sendError(res, `Your department (${user.department_id}) is not in the document's workflow`, 403);
+        }
+      }
+
       return sendError(res, 'You do not have permission to receive this document', 403);
     }
 
@@ -135,7 +202,7 @@ export class DocumentReleaseController {
     if (detail && detail.work_flow_id) {
       try {
         let workflowDepartments: string[] = [];
-        
+
         if (typeof detail.work_flow_id === 'object' && detail.work_flow_id !== null) {
           // New format: object with keys like "first", "second", etc.
           const values = Object.values(detail.work_flow_id);
@@ -157,7 +224,7 @@ export class DocumentReleaseController {
           // Unexpected format
           workflowDepartments = [];
         }
-        
+
         return workflowDepartments.includes(user.department_id);
       } catch (e) {
         console.error('Error parsing work_flow_id:', e);
@@ -168,8 +235,8 @@ export class DocumentReleaseController {
     // Also check if the user's department is in the workflow
     if (detail && detail.work_flow_id) {
       try {
-        const workflow = Array.isArray(detail.work_flow_id) 
-          ? detail.work_flow_id 
+        const workflow = Array.isArray(detail.work_flow_id)
+          ? detail.work_flow_id
           : JSON.parse(detail.work_flow_id as any);
         return workflow.includes(user.department_id);
       } catch (e) {

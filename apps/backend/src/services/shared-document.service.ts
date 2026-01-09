@@ -82,7 +82,7 @@ export class SharedDocumentService {
       console.log('📍 [getSharedDocuments] Total document details found:', allDocumentDetails.length);
 
       // Filter documents that have been specifically shared to this user
-      // Look for the user ID in received_by_department_user field (which we're now using for user IDs)
+      // Look for the user ID in received_by_departments field (which stores user IDs)
       const sharedDocumentDetails = allDocumentDetails.filter((detail: any) => {
         // Check if document is not deleted
         if (detail.Document?.status === 'deleted') {
@@ -92,21 +92,21 @@ export class SharedDocumentService {
 
         let receivedByUsers: string[] = [];
 
-        // Handle different possible formats of received_by_department_user (which now stores user IDs)
-        if (Array.isArray(detail.received_by_department_user)) {
-          receivedByUsers = detail.received_by_department_user as string[];
+        // Handle different possible formats of received_by_departments (which stores user IDs)
+        if (Array.isArray(detail.received_by_departments)) {
+          receivedByUsers = detail.received_by_departments as string[];
           console.log('📍 [getSharedDocuments] Document received_by_users (array):', detail.document_id, receivedByUsers);
-        } else if (typeof detail.received_by_department_user === 'string' && detail.received_by_department_user) {
+        } else if (typeof detail.received_by_departments === 'string' && detail.received_by_departments) {
           try {
-            receivedByUsers = JSON.parse(detail.received_by_department_user);
+            receivedByUsers = JSON.parse(detail.received_by_departments);
             console.log('📍 [getSharedDocuments] Document received_by_users (parsed):', detail.document_id, receivedByUsers);
           } catch (e) {
-            console.error('📍 [getSharedDocuments] Error parsing received_by_department_user for doc', detail.document_id, e);
+            console.error('📍 [getSharedDocuments] Error parsing received_by_departments for doc', detail.document_id, e);
             return false;
           }
-        } else if (detail.received_by_department_user && typeof detail.received_by_department_user === 'object') {
+        } else if (detail.received_by_departments && typeof detail.received_by_departments === 'object') {
           // If it's already parsed as an object/array
-          receivedByUsers = detail.received_by_department_user as string[];
+          receivedByUsers = detail.received_by_departments as string[];
           console.log('📍 [getSharedDocuments] Document received_by_users (object):', detail.document_id, receivedByUsers);
         } else {
           console.log('📍 [getSharedDocuments] Document has no received_by_users, skipping:', detail.document_id);
@@ -154,7 +154,23 @@ export class SharedDocumentService {
             }
           },
           include: {
-            files: true
+            files: {
+              include: {
+                uploaded_by_account: {
+                  include: {
+                    user: {
+                      select: {
+                        first_name: true,
+                        last_name: true
+                      }
+                    }
+                  }
+                }
+              },
+              orderBy: {
+                uploaded_at: 'asc' // Ensure oldest file is first
+              }
+            }
           },
           orderBy: {
             created_at: 'desc'
@@ -278,15 +294,11 @@ export class SharedDocumentService {
           // Get the root owner of the document (the user who first uploaded to this document, typically the creator)
           let contactPerson = 'N/A';
           if (doc.files && doc.files.length > 0) {
-            // Sort files by upload date to get the first uploaded file (likely the document creator)
-            const sortedFiles = [...doc.files].sort((a, b) => new Date(a.uploaded_at).getTime() - new Date(b.uploaded_at).getTime());
-            const firstUploadedFile = sortedFiles[0]; // First file by upload date
+            // Files are already ordered by uploaded_at ASC, so first file is the original
+            const firstUploadedFile = doc.files[0]; // First file by upload date (oldest)
 
-            if (firstUploadedFile && firstUploadedFile.uploaded_by) {
-              const uploader = await prisma.user.findUnique({
-                where: { user_id: firstUploadedFile.uploaded_by },
-                select: { first_name: true, last_name: true }
-              });
+            if (firstUploadedFile && firstUploadedFile.uploaded_by_account) {
+              const uploader = firstUploadedFile.uploaded_by_account.user;
               if (uploader) {
                 contactPerson = `${uploader.first_name} ${uploader.last_name}`;
               }

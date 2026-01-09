@@ -99,7 +99,7 @@ export function SignaturePdfViewer({
   const [boxes, setBoxes] = useState<SignatureBox[]>([]);
   const [isPlacingBox, setIsPlacingBox] = useState(false);
 
-  const RENDER_SCALE = 1.4;
+  const RENDER_SCALE = useMemo(() => 1.4, []);
 
   const { data: placeholders = [] } = useQuery({
     queryKey: ["signature-placeholders", documentId],
@@ -125,20 +125,6 @@ export function SignaturePdfViewer({
     enabled: Boolean(documentId),
   });
 
-  const existingBoxes = useMemo(() => {
-    if (!selectedFileId) return [];
-    return placeholders
-      .filter((placeholder) => placeholder.document_file_id === selectedFileId)
-      .map((placeholder) => ({
-        id: placeholder.placeholder_id,
-        pageNumber: placeholder.page_number,
-        x: placeholder.x_position * RENDER_SCALE,
-        y: placeholder.y_position * RENDER_SCALE,
-        width: placeholder.width * RENDER_SCALE,
-        height: placeholder.height * RENDER_SCALE,
-        isExisting: true,
-      }));
-  }, [placeholders, selectedFileId]);
 
   // Memoize boxes with their indices for efficient rendering
   const boxesWithIndices = useMemo(() => {
@@ -159,8 +145,46 @@ export function SignaturePdfViewer({
       setBoxes([]);
       return;
     }
-    setBoxes(existingBoxes);
-  }, [selectedFileId, existingBoxes]);
+
+    // Create a stable reference to existing boxes to prevent infinite loops
+    const newExistingBoxes = placeholders
+      .filter((placeholder) => placeholder.document_file_id === selectedFileId)
+      .map((placeholder) => ({
+        id: placeholder.placeholder_id,
+        pageNumber: placeholder.page_number,
+        x: placeholder.x_position * RENDER_SCALE,
+        y: placeholder.y_position * RENDER_SCALE,
+        width: placeholder.width * RENDER_SCALE,
+        height: placeholder.height * RENDER_SCALE,
+        isExisting: true,
+      }));
+
+    setBoxes((prevBoxes) => {
+      // Separate existing and new boxes
+      const prevExistingBoxes = prevBoxes.filter(b => b.isExisting);
+      const prevNewBoxes = prevBoxes.filter(b => !b.isExisting);
+
+      // Check if existing boxes have changed by comparing IDs and positions
+      const hasExistingBoxesChanged =
+        newExistingBoxes.length !== prevExistingBoxes.length ||
+        !newExistingBoxes.every((newBox) =>
+          prevExistingBoxes.some(prevBox =>
+            prevBox.id === newBox.id &&
+            prevBox.x === newBox.x &&
+            prevBox.y === newBox.y &&
+            prevBox.width === newBox.width &&
+            prevBox.height === newBox.height
+          )
+        );
+
+      if (!hasExistingBoxesChanged) {
+        // Only return new boxes if existing ones haven't changed
+        return [...newExistingBoxes, ...prevNewBoxes];
+      }
+
+      return [...newExistingBoxes, ...prevNewBoxes];
+    });
+  }, [selectedFileId, placeholders, RENDER_SCALE]);
 
   useEffect(() => {
     if (!selectedFile) {

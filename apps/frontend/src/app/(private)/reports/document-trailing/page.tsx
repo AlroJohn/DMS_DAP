@@ -39,6 +39,7 @@ interface DocumentTrail {
   documentCode: string;
   documentType: string;
   status: string;
+  actionName: string; // Specific action taken (e.g., Checkout, Checkin, Dispatch, etc.)
   fromDepartment: string;
   toDepartment: string;
   user: string;
@@ -194,7 +195,35 @@ export default function DocumentTrailingPage() {
     setFilteredDocuments(result);
   }, [searchTerm, departmentFilter, statusFilter, ownershipFilter, documents]);
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (actionName: string, status: string, remarks?: string) => {
+    // Prioritize action name for more specific colors
+    const action = actionName?.toLowerCase().trim() || "";
+    const remarksLower = remarks?.toLowerCase().trim() || "";
+    
+    // Check for checkout/checkin in action name or remarks
+    if (action.includes("checkout") || action.includes("check out") || action === "checkout" ||
+        remarksLower.includes("checkout") || remarksLower.includes("check out") || remarksLower.includes("checked out")) {
+      return "bg-orange-100 text-orange-800";
+    }
+    if (action.includes("checkin") || action.includes("check in") || action === "checkin" ||
+        remarksLower.includes("checkin") || remarksLower.includes("check in") || remarksLower.includes("checked in")) {
+      return "bg-teal-100 text-teal-800";
+    }
+    
+    // Check status field directly for checkout/checkin
+    if (status === "checkout") {
+      return "bg-orange-100 text-orange-800";
+    }
+    if (status === "checkin") {
+      return "bg-teal-100 text-teal-800";
+    }
+    
+    // If action name exists and is not empty, use a default color
+    if (action && action !== "dispatch" && action !== "dispatched") {
+      return "bg-indigo-100 text-indigo-800";
+    }
+    
+    // Fall back to status-based colors
     switch (status) {
       case "dispatch":
         return "bg-blue-100 text-blue-800";
@@ -213,7 +242,42 @@ export default function DocumentTrailingPage() {
     }
   };
 
-  const getStatusText = (status: string) => {
+  const getStatusText = (actionName: string, status: string, remarks?: string) => {
+    // Check remarks first for checkout/checkin keywords
+    const remarksLower = remarks?.toLowerCase().trim() || "";
+    if (remarksLower.includes("checkout") || remarksLower.includes("check out") || remarksLower.includes("checked out")) {
+      return "Check Out";
+    }
+    if (remarksLower.includes("checkin") || remarksLower.includes("check in") || remarksLower.includes("checked in")) {
+      return "Check In";
+    }
+    
+    // Check status field directly for checkout/checkin
+    if (status === "checkout") {
+      return "Check Out";
+    }
+    if (status === "checkin") {
+      return "Check In";
+    }
+    
+    // Prioritize action name for more specific display
+    const action = actionName?.trim();
+    
+    // If action name exists and is not empty, use it
+    if (action && action !== "") {
+      // Ensure checkout/checkin are properly capitalized
+      const lowerAction = action.toLowerCase();
+      if (lowerAction.includes("checkout") || lowerAction.includes("check out")) {
+        return "Check Out";
+      }
+      if (lowerAction.includes("checkin") || lowerAction.includes("check in")) {
+        return "Check In";
+      }
+      // Return the action name as-is for other actions
+      return action;
+    }
+    
+    // Fall back to status-based text only if no action name
     switch (status) {
       case "dispatch":
         return "Dispatched";
@@ -291,7 +355,7 @@ export default function DocumentTrailingPage() {
       doc.documentTitle,
       doc.documentCode,
       doc.documentType,
-      getStatusText(doc.status),
+      getStatusText(doc.actionName, doc.status, doc.remarks),
       doc.fromDepartment,
       doc.toDepartment,
       doc.user,
@@ -612,8 +676,8 @@ export default function DocumentTrailingPage() {
                     </div>
 
                     <div className="flex flex-col items-end gap-2">
-                      <Badge className={getStatusColor(doc.status)}>
-                        {getStatusText(doc.status)}
+                      <Badge className={getStatusColor(doc.actionName, doc.status, doc.remarks)}>
+                        {getStatusText(doc.actionName, doc.status, doc.remarks)}
                       </Badge>
                       <Button
                         variant="outline"

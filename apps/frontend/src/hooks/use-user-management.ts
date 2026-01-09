@@ -113,8 +113,9 @@ export const useUserManagement = () => {
         toast.error(data.message || "Failed to fetch users");
       }
     } catch (error) {
-      console.error("Error fetching users:", error);
-      toast.error("Error fetching users");
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred while fetching users';
+      console.error("Error fetching users:", errorMessage);
+      toast.error(errorMessage);
     } finally {
       setState(prev => ({ ...prev, loading: false }));
     }
@@ -135,7 +136,8 @@ export const useUserManagement = () => {
         setState(prev => ({ ...prev, departments: data.data }));
       }
     } catch (error) {
-      console.error("Error fetching departments:", error);
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred while fetching departments';
+      console.error("Error fetching departments:", errorMessage);
     }
   }, []);
 
@@ -154,7 +156,8 @@ export const useUserManagement = () => {
         setState(prev => ({ ...prev, roles: data.data }));
       }
     } catch (error) {
-      console.error("Error fetching roles:", error);
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred while fetching roles';
+      console.error("Error fetching roles:", errorMessage);
     }
   }, []);
 

@@ -56,7 +56,7 @@ export class IntransitService {
         select: {
           document_id: true,
           work_flow_id: true,
-          received_by_department_user: true
+          received_by_departments: true
         }
       });
       const documentDetailsMap = new Map<string, any>();
@@ -64,37 +64,77 @@ export class IntransitService {
         documentDetailsMap.set(detail.document_id, detail);
       });
 
-      // Get all documents that are currently assigned to this department via document trail
-      // This includes documents from other departments or documents sent back to this department
+      // Collect all incoming document IDs
       const incomingDocumentIds = new Set<string>();
+
+      // Add documents from initial filter (not yet received)
       for (const detail of documentDetails) {
-        const sharedWithUsers = this.parseReceivedByUsers(detail.received_by_department_user);
-        const isSharedToUser = sharedWithUsers.includes(userId);
+        if (!detail.work_flow_id) continue;
 
-        // Check if the document is currently assigned to this department via document trail
-        // This handles cases where a document is sent to this department (whether from others or returned)
-        const currentAssignment = await prisma.documentTrail.findFirst({
-          where: {
-            document_id: detail.document_id,
-            to_department: user.department_id,
-            status: { in: ['intransit', 'dispatch', 'received'] } // Document is currently assigned to this department
-          },
-          orderBy: {
-            created_at: 'desc'
+        try {
+          let workflowDepartments: string[] = [];
+
+          if (typeof detail.work_flow_id === 'object' && detail.work_flow_id !== null) {
+            workflowDepartments = Object.values(detail.work_flow_id).filter(val => typeof val === 'string') as string[];
+          } else if (typeof detail.work_flow_id === 'string') {
+            const parsed = JSON.parse(detail.work_flow_id);
+            if (Array.isArray(parsed)) {
+              workflowDepartments = parsed;
+            } else {
+              workflowDepartments = Object.values(parsed).filter(val => typeof val === 'string') as string[];
+            }
+          } else if (Array.isArray(detail.work_flow_id)) {
+            workflowDepartments = detail.work_flow_id;
+          } else {
+            workflowDepartments = [];
           }
-        });
 
-        const releasedByOtherDepartment =
-          currentAssignment?.from_department &&
-          currentAssignment.from_department !== user.department_id;
+          // Check if user's department is in workflow but NOT the first (not originator)
+          const isInWorkflow = workflowDepartments.includes(user.department_id);
+          const isNotOriginator = workflowDepartments.length > 0 && workflowDepartments[0] !== user.department_id;
 
-        if ((currentAssignment && releasedByOtherDepartment) || isSharedToUser) {
-          // Incoming means released by another department OR explicitly shared to the user.
-          incomingDocumentIds.add(detail.document_id);
+          // Check if not yet received by this user
+          let receivedByUsers: string[] = [];
+          if (detail.received_by_departments) {
+            try {
+              receivedByUsers = Array.isArray(detail.received_by_departments)
+                ? detail.received_by_departments
+                : JSON.parse(detail.received_by_departments as any);
+            } catch (e) {
+              console.error('📍 [getIncomingDocuments] Error parsing received_by_departments:', e);
+            }
+          }
+
+          const notYetReceived = !receivedByUsers.includes(userId);
+
+          // Check if document is currently assigned to this department via document trail with 'intransit' status
+          // This means the document has been released to this department but not yet received
+          const currentIntransitTrail = await prisma.documentTrail.findFirst({
+            where: {
+              document_id: detail.document_id,
+              to_department: user.department_id,
+              status: 'intransit' // Only check for intransit status
+            },
+            orderBy: {
+              created_at: 'desc'
+            }
+          });
+
+          const releasedByOtherDepartment =
+            currentIntransitTrail?.from_department &&
+            currentIntransitTrail.from_department !== user.department_id;
+
+          // Include document if:
+          // 1. In workflow, not originator, not yet received, AND has an active intransit trail to this department
+          if (isInWorkflow && isNotOriginator && notYetReceived && currentIntransitTrail && releasedByOtherDepartment) {
+            incomingDocumentIds.add(detail.document_id);
+          }
+        } catch (e) {
+          console.error('📍 [getIncomingDocuments] Error processing document:', e);
         }
       }
 
-      console.log('?? [getIncomingDocuments] Incoming document IDs:', incomingDocumentIds.size);
+      console.log('📍 [getIncomingDocuments] Incoming document IDs:', incomingDocumentIds.size);
 
       if (incomingDocumentIds.size === 0) {
         return {
@@ -150,8 +190,8 @@ export class IntransitService {
         return ownerName;
       };
 
-      // Get documents with status 'intransit', 'dispatch', or 'received' that are incoming
-      // Documents that have been received but are still in workflow should appear in incoming
+      // Get documents with status 'intransit' or 'dispatch' that are incoming
+      // Only show documents that haven't been received yet by this user
       const [documents, total] = await Promise.all([
         prisma.document.findMany({
           where: {
@@ -159,11 +199,27 @@ export class IntransitService {
               in: Array.from(incomingDocumentIds)
             },
             status: {
-              in: ['intransit', 'dispatch', 'received']
+              in: ['intransit', 'dispatch'] // Exclude 'received' - once received, it moves to shared
             }
           },
           include: {
-            files: true
+            files: {
+              include: {
+                uploaded_by_account: {
+                  include: {
+                    user: {
+                      select: {
+                        first_name: true,
+                        last_name: true
+                      }
+                    }
+                  }
+                }
+              },
+              orderBy: {
+                uploaded_at: 'asc'
+              }
+            }
           },
           orderBy: {
             created_at: 'desc'
@@ -177,7 +233,7 @@ export class IntransitService {
               in: Array.from(incomingDocumentIds)
             },
             status: {
-              in: ['intransit', 'dispatch', 'received']
+              in: ['intransit', 'dispatch'] // Exclude 'received' - once received, it moves to shared
             }
           }
         })
@@ -195,12 +251,10 @@ export class IntransitService {
 
           let contactPerson = 'N/A';
           if (doc.files && doc.files.length > 0) {
-            const sortedFiles = [...doc.files].sort(
-              (a, b) => new Date(a.uploaded_at).getTime() - new Date(b.uploaded_at).getTime()
-            );
-            const firstFile = sortedFiles[0];
-            if (firstFile?.uploaded_by) {
-              contactPerson = await getAccountOwnerName(firstFile.uploaded_by);
+            // Files are already ordered by uploaded_at ASC, so first file is the original
+            const firstFile = doc.files[0];
+            if (firstFile?.uploaded_by_account?.user) {
+              contactPerson = `${firstFile.uploaded_by_account.user.first_name} ${firstFile.uploaded_by_account.user.last_name}`;
             }
           }
 
@@ -299,7 +353,7 @@ export class IntransitService {
       });
 
       // Filter documents that are outgoing from user's department
-      // Outgoing means: department is the originator AND sent to other departments
+      // Outgoing means: department is the originator AND sent to other departments AND NOT currently assigned back to this department
       const outgoingDocumentIds = await (async () => {
         const ids = [];
 
@@ -311,19 +365,19 @@ export class IntransitService {
 
             if (typeof detail.work_flow_id === 'object' && detail.work_flow_id !== null) {
               // New format: object with keys like "first", "second", etc.
-              workflowDepartments = Object.values(detail.work_flow_id).map(value => String(value));
+              workflowDepartments = Object.values(detail.work_flow_id).filter(val => typeof val === 'string') as string[];
             } else if (typeof detail.work_flow_id === 'string') {
               // Could be either a JSON string of an array or a JSON string of an object
               const parsed = JSON.parse(detail.work_flow_id);
               if (Array.isArray(parsed)) {
-                workflowDepartments = parsed.map(value => String(value));
+                workflowDepartments = parsed;
               } else {
                 // If it's an object, get its values
-                workflowDepartments = Object.values(parsed).map(value => String(value));
+                workflowDepartments = Object.values(parsed).filter(val => typeof val === 'string') as string[];
               }
             } else if (Array.isArray(detail.work_flow_id)) {
               // Old format: array
-              workflowDepartments = detail.work_flow_id.map(value => String(value));
+              workflowDepartments = detail.work_flow_id;
             } else {
               // Unexpected format
               workflowDepartments = [];
@@ -333,8 +387,23 @@ export class IntransitService {
             const isOriginator = workflowDepartments.length > 0 && workflowDepartments[0] === user.department_id;
             const sentToOthers = workflowDepartments.length > 1;
 
-            // Only consider it outgoing if it's originated by this department and sent to others
-            if (isOriginator && sentToOthers) {
+            // Additionally, check if the document is currently assigned to this department
+            // If it is, it should be considered incoming, not outgoing
+            const currentAssignment = await prisma.documentTrail.findFirst({
+              where: {
+                document_id: detail.document_id,
+                to_department: user.department_id,
+                status: { in: ['intransit', 'dispatch'] } // Document is currently assigned to this department
+              },
+              orderBy: {
+                created_at: 'desc'
+              }
+            });
+
+            const isCurrentlyAssignedToUser = !!currentAssignment;
+
+            // Only consider it outgoing if it's originated by this department, sent to others, and NOT currently assigned back to this department
+            if (isOriginator && sentToOthers && !isCurrentlyAssignedToUser) {
               ids.push(detail.document_id);
             }
           } catch (e) {
@@ -414,7 +483,23 @@ export class IntransitService {
             }
           },
           include: {
-            files: true
+            files: {
+              include: {
+                uploaded_by_account: {
+                  include: {
+                    user: {
+                      select: {
+                        first_name: true,
+                        last_name: true
+                      }
+                    }
+                  }
+                }
+              },
+              orderBy: {
+                uploaded_at: 'asc'
+              }
+            }
           },
           orderBy: {
             created_at: 'desc'
@@ -446,12 +531,10 @@ export class IntransitService {
 
           let contactPerson = 'N/A';
           if (doc.files && doc.files.length > 0) {
-            const sortedFiles = [...doc.files].sort(
-              (a, b) => new Date(a.uploaded_at).getTime() - new Date(b.uploaded_at).getTime()
-            );
-            const firstFile = sortedFiles[0];
-            if (firstFile?.uploaded_by) {
-              contactPerson = await getAccountOwnerName(firstFile.uploaded_by);
+            // Files are already ordered by uploaded_at ASC, so first file is the original
+            const firstFile = doc.files[0];
+            if (firstFile?.uploaded_by_account?.user) {
+              contactPerson = `${firstFile.uploaded_by_account.user.first_name} ${firstFile.uploaded_by_account.user.last_name}`;
             }
           }
 
@@ -562,11 +645,11 @@ export class IntransitService {
       try {
         await documentTrailsService.createDocumentTrail({
           document_id: documentId,
-          from_department: user.department_id,
-          to_department: user.department_id, // For completion, from and to can be same
+          from_department: user!.department_id,
+          to_department: user!.department_id, // For completion, from and to can be same
           user_id: userId,
           status: 'completed',
-          remarks: `Document completed by ${user.first_name} ${user.last_name}`
+          remarks: `Document completed by ${user!.first_name} ${user!.last_name}`
         });
       } catch (error) {
         console.error('Error creating document trail for document completion:', error);
@@ -599,16 +682,20 @@ export class IntransitService {
 
     try {
       if (Array.isArray(workflow)) {
-        return workflow as string[];
+        return workflow.filter(val => typeof val === 'string') as string[];
       }
 
       if (typeof workflow === 'string') {
         const parsed = JSON.parse(workflow);
-        return Array.isArray(parsed) ? parsed : Object.values(parsed);
+        if (Array.isArray(parsed)) {
+          return parsed.filter(val => typeof val === 'string') as string[];
+        } else {
+          return Object.values(parsed).filter(val => typeof val === 'string') as string[];
+        }
       }
 
       if (typeof workflow === 'object' && workflow !== null) {
-        return Object.values(workflow as Record<string, string>);
+        return Object.values(workflow).filter(val => typeof val === 'string') as string[];
       }
     } catch (error) {
       console.error('?? [IntransitService] Error parsing work_flow_id:', error);
@@ -706,11 +793,11 @@ export class IntransitService {
       try {
         await documentTrailsService.createDocumentTrail({
           document_id: documentId,
-          from_department: user.department_id,
-          to_department: user.department_id, // For cancellation, same department
+          from_department: user!.department_id,
+          to_department: user!.department_id, // For cancellation, same department
           user_id: userId,
           status: 'canceled',
-          remarks: `In-transit document canceled by ${user.first_name} ${user.last_name}, status reverted to dispatch`
+          remarks: `In-transit document canceled by ${user!.first_name} ${user!.last_name}, status reverted to dispatch`
         });
       } catch (error) {
         console.error('Error creating document trail for in-transit cancellation:', error);
@@ -802,11 +889,11 @@ export class IntransitService {
       try {
         await documentTrailsService.createDocumentTrail({
           document_id: documentId,
-          from_department: user.department_id, // From the department of the user making the change
-          to_department: user.department_id, // For an edit, the user's department is where change occurred
+          from_department: user!.department_id, // From the department of the user making the change
+          to_department: user!.department_id, // For an edit, the user's department is where change occurred
           user_id: userId,
           status: statusForTrail,
-          remarks: updateData.remarks || `Document updated by ${user.first_name} ${user.last_name}: ${Object.keys(updateData).join(', ')}`
+          remarks: updateData.remarks || `Document updated by ${user!.first_name} ${user!.last_name}: ${Object.keys(updateData).join(', ')}`
         });
       } catch (error) {
         console.error('Error creating document trail for document update:', error);
@@ -824,5 +911,3 @@ export class IntransitService {
     }
   }
 }
-
-

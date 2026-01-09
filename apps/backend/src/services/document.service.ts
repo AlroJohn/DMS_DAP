@@ -508,7 +508,7 @@ export class DocumentService {
         select: {
           document_id: true,
           work_flow_id: true,
-          received_by_department_user: true,  // This field now stores user IDs for direct sharing
+          received_by_departments: true,  // This field now stores user IDs for direct sharing
           blockchain_status: true,
           blockchain_project_uuid: true,
           blockchain_tx_hash: true,
@@ -574,11 +574,11 @@ export class DocumentService {
           }
 
           // Check user-specific access (new user-level sharing logic)
-          if (detail.received_by_department_user) {
+          if (detail.received_by_departments) {
             try {
-              const receivedByUsers = Array.isArray(detail.received_by_department_user)
-                ? detail.received_by_department_user
-                : JSON.parse(detail.received_by_department_user as any);
+              const receivedByUsers = Array.isArray(detail.received_by_departments)
+                ? detail.received_by_departments
+                : JSON.parse(detail.received_by_departments as any);
 
               // Check if the current user is in the received_by_users list
               hasUserAccess = receivedByUsers.includes(userId);
@@ -586,7 +586,7 @@ export class DocumentService {
               // Store received_by_users for later use
               documentReceivedByUsersMap.set(detail.document_id, receivedByUsers);
             } catch (e) {
-              console.error('📍 [getAllDocuments] Error parsing received_by_department_user:', e);
+              console.error('📍 [getAllDocuments] Error parsing received_by_departments:', e);
             }
           }
 
@@ -1330,12 +1330,12 @@ export class DocumentService {
         select: {
           document_id: true,
           work_flow_id: true,
-          received_by_department_user: true
+          received_by_departments: true
         }
       });
 
       // Filter documents that were received by user's department
-      // Received means: department has acknowledged receipt (is in received_by_department_user array)
+      // Received means: department has acknowledged receipt (is in received_by_departments array)
       const receivedDocumentIds = documentDetails
         .filter((detail: any) => {
           if (!detail.work_flow_id) return false;
@@ -1373,13 +1373,13 @@ export class DocumentService {
 
             // Check if received by this department (acknowledged)
             let receivedByUsers: string[] = [];
-            if (detail.received_by_department_user) {
+            if (detail.received_by_departments) {
               try {
-                receivedByUsers = Array.isArray(detail.received_by_department_user)
-                  ? detail.received_by_department_user
-                  : JSON.parse(detail.received_by_department_user as any);
+                receivedByUsers = Array.isArray(detail.received_by_departments)
+                  ? detail.received_by_departments
+                  : JSON.parse(detail.received_by_departments as any);
               } catch (e) {
-                console.error('📍 [getReceivedDocuments] Error parsing received_by_department_user:', e);
+                console.error('📍 [getReceivedDocuments] Error parsing received_by_departments:', e);
               }
             }
 
@@ -3030,7 +3030,7 @@ export class DocumentService {
 
   //     const detail = document.DocumentAdditionalDetails[0];
   //     if (detail) {
-  //       const receivedByUserIds = detail.received_by_department_user ? (detail.received_by_department_user as string[]) : [];
+  //       const receivedByUserIds = detail.received_by_departments ? (detail.received_by_departments as string[]) : [];
   //       if (!receivedByUserIds.includes(userId)) {
   //         receivedByUserIds.push(userId);
   //       }
@@ -3038,7 +3038,7 @@ export class DocumentService {
   //       await prisma.documentAdditionalDetails.update({
   //         where: { detail_id: detail.detail_id },
   //         data: {
-  //           received_by_department_user: receivedByUserIds as any,
+  //           received_by_departments: receivedByUserIds as any,
   //         },
   //       });
 
@@ -3440,7 +3440,7 @@ export class DocumentService {
 
       // Filter documents that the user can access:
       // 1. Documents originated by their department (first in workflow), OR
-      // 2. Documents specifically shared to the user (user ID in received_by_department_user)
+      // 2. Documents specifically shared to the user (user ID in received_by_departments)
       const accessibleDocumentDetails = allDocumentDetails.filter((detail: any) => {
         // Check if document is not deleted
         if (detail.Document?.status === 'deleted') {
@@ -3487,24 +3487,24 @@ export class DocumentService {
         }
 
         // Check user-specific access
-        if (detail.received_by_department_user) {
+        if (detail.received_by_departments) {
           let receivedByUsers: string[] = [];
 
-          // Handle different possible formats of received_by_department_user (which now stores user IDs)
-          if (Array.isArray(detail.received_by_department_user)) {
-            receivedByUsers = detail.received_by_department_user as string[];
+          // Handle different possible formats of received_by_departments (which now stores user IDs)
+          if (Array.isArray(detail.received_by_departments)) {
+            receivedByUsers = detail.received_by_departments as string[];
             console.log('📍 [getAllAccessibleDocuments] Document received_by_users (array):', detail.document_id, receivedByUsers);
-          } else if (typeof detail.received_by_department_user === 'string' && detail.received_by_department_user) {
+          } else if (typeof detail.received_by_departments === 'string' && detail.received_by_departments) {
             try {
-              receivedByUsers = JSON.parse(detail.received_by_department_user);
+              receivedByUsers = JSON.parse(detail.received_by_departments);
               console.log('📍 [getAllAccessibleDocuments] Document received_by_users (parsed):', detail.document_id, receivedByUsers);
             } catch (e) {
-              console.error('📍 [getAllAccessibleDocuments] Error parsing received_by_department_user for doc', detail.document_id, e);
+              console.error('📍 [getAllAccessibleDocuments] Error parsing received_by_departments for doc', detail.document_id, e);
               return false;
             }
-          } else if (detail.received_by_department_user && typeof detail.received_by_department_user === 'object') {
+          } else if (detail.received_by_departments && typeof detail.received_by_departments === 'object') {
             // If it's already parsed as an object/array
-            receivedByUsers = detail.received_by_department_user as string[];
+            receivedByUsers = detail.received_by_departments as string[];
             console.log('📍 [getAllAccessibleDocuments] Document received_by_users (object):', detail.document_id, receivedByUsers);
           } else {
             console.log('📍 [getAllAccessibleDocuments] Document has no received_by_users, continuing:', detail.document_id);

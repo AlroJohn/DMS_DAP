@@ -64,7 +64,7 @@ function ReceiveButton({
       setIsReceived(true);
       onReceived?.();
       setOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       // The onError in the hook will show the toast.
       console.error("Receiving document failed", error);
     }

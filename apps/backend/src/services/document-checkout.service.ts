@@ -79,7 +79,7 @@ export class DocumentCheckoutService {
           from_department: userWithDept?.department_id,
           to_department: userWithDept?.department_id, // User's department
           user_id: userId,
-          status: 'dispatch', // Using 'dispatch' status since checkout doesn't change document workflow status
+          status: 'checkout',
           remarks: `File checked out by ${userWithDept?.first_name} ${userWithDept?.last_name}`
         });
       } catch (trailError) {
@@ -166,7 +166,7 @@ export class DocumentCheckoutService {
           from_department: userWithDept?.department_id,
           to_department: userWithDept?.department_id, // User's department
           user_id: userId,
-          status: 'dispatch', // Using 'dispatch' status since checkin doesn't change document workflow status
+          status: 'checkin',
           remarks: `File checked in by ${userWithDept?.first_name} ${userWithDept?.last_name}`
         });
       } catch (trailError) {
@@ -248,7 +248,7 @@ export class DocumentCheckoutService {
           from_department: userWithDept?.department_id,
           to_department: userWithDept?.department_id, // User's department
           user_id: userId,
-          status: 'dispatch', // Using 'dispatch' status since checkout override doesn't change document workflow status
+          status: 'checkin', // Checkout override releases the lock, similar to checkin
           remarks: `File checkout overridden by ${userWithDept?.first_name} ${userWithDept?.last_name}`
         });
       } catch (trailError) {

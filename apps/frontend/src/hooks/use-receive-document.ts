@@ -39,7 +39,9 @@ export const useReceiveDocument = () => {
     },
     onError: (error: any) => {
       console.error('Error receiving document:', error);
-      toast.error(error.message || 'Failed to receive document');
+      // Provide more specific error messages to the user
+      const errorMessage = error.message || 'Failed to receive document';
+      toast.error(errorMessage);
     },
   });
 };
