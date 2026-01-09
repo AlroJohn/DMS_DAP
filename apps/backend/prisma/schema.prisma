@@ -8,25 +8,25 @@ datasource db {
 }
 
 model Account {
-  account_id                 String               @id @default(uuid()) @db.Uuid
-  department_id              String?              @db.Uuid
-  email                      String               @unique
+  account_id                 String                      @id @default(uuid()) @db.Uuid
+  department_id              String?                     @db.Uuid
+  email                      String                      @unique
   password                   String?
-  google_provider_id         String?              @unique
-  microsoft_provider_id      String?              @unique
-  is_active                  Boolean              @default(true)
-  email_verified             Boolean              @default(false)
+  google_provider_id         String?                     @unique
+  microsoft_provider_id      String?                     @unique
+  is_active                  Boolean                     @default(true)
+  email_verified             Boolean                     @default(false)
   last_login                 DateTime?
-  created_at                 DateTime             @default(now())
-  updated_at                 DateTime             @default(now()) @updatedAt
-  department                 Department?                   @relation(fields: [department_id], references: [department_id])
-  documents_restored         Document[]                    @relation("DocumentRestoredBy")
-  document_files             DocumentFile[]                @relation("AccountUploadedFiles")
-  document_details_created   DocumentAdditionalDetails[]   @relation("DocumentDetailsCreatedBy")
+  created_at                 DateTime                    @default(now())
+  updated_at                 DateTime                    @default(now()) @updatedAt
+  department                 Department?                 @relation(fields: [department_id], references: [department_id])
+  documents_restored         Document[]                  @relation("DocumentRestoredBy")
+  document_files             DocumentFile[]              @relation("AccountUploadedFiles")
+  document_details_created   DocumentAdditionalDetails[] @relation("DocumentDetailsCreatedBy")
   password_reset_tokens      PasswordResetToken[]
-  permission_audit_performed PermissionAuditLog[] @relation("PermissionAuditPerformedBy")
-  roles_created              Role[]               @relation("RoleCreatedBy")
-  roles_updated              Role[]               @relation("RoleUpdatedBy")
+  permission_audit_performed PermissionAuditLog[]        @relation("PermissionAuditPerformedBy")
+  roles_created              Role[]                      @relation("RoleCreatedBy")
+  roles_updated              Role[]                      @relation("RoleUpdatedBy")
   role_permissions_granted   RolePermission[]
   saved_searches             SavedSearch[]
   session_logs               SessionLog[]
@@ -34,8 +34,8 @@ model Account {
   userCheckouts              UserCheckout[]
   UserFeedback               UserFeedback[]
   sent_invitations           UserInvitation[]
-  user_permissions_granted   UserPermission[]     @relation("UserPermissionGrantedBy")
-  user_role_assignments      UserRole[]           @relation("UserRoleAssignedBy")
+  user_permissions_granted   UserPermission[]            @relation("UserPermissionGrantedBy")
+  user_role_assignments      UserRole[]                  @relation("UserRoleAssignedBy")
   sessions                   UserSession[]
 }
 
@@ -113,28 +113,28 @@ model OCR_Json {
 }
 
 model DocumentAdditionalDetails {
-  detail_id                   String    @id @default(uuid()) @db.Uuid
-  document_id                 String    @db.Uuid
-  received_by                 String?   @db.Uuid
-  work_flow_id                Json? 
-  received_by_department_user Json?
-  work_flow_status            Json?
-  blockchain_project_uuid     String?
-  blockchain_tx_hash          String?
-  blockchain_status           String?
-  blockchain_redirect_url     String?
-  signed_at                   DateTime?
-  signed_by                   String?   @db.Uuid
-  remarks                     String?
-  deleted_by                  String?   @db.Uuid
-  restored_by                 String?   @db.Uuid
-  created_at                  DateTime  @default(now())
-  updated_at                  DateTime  @default(now()) @updatedAt
-  deleted_at                  DateTime?
-  restored_at                 DateTime?
-  account_id                  String?   @db.Uuid
-  Document                    Document  @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
-  created_by_account          Account?  @relation("DocumentDetailsCreatedBy", fields: [account_id], references: [account_id])
+  detail_id               String    @id @default(uuid()) @db.Uuid
+  document_id             String    @db.Uuid
+  received_by             String?   @db.Uuid
+  work_flow_id            Json? // Array of department IDs tracking document routing path: [first:, dest_dept_1_id, second:dest_dept_2_id, ...]. First element is the originating department.
+  received_by_departments Json? // Array of user IDs that have received/acknowledged this document: [first:"user_id_1", second:"user_id_2"...]. first element is the originating department user.
+  work_flow_status        Json? // Object tracking the status of each document in the workflow: {created:("at:"datetime", status:"dispatch"), released_1:("at:"datetime", status:"intransit"), released_2:("at:"datetime", status:"intransit")..., received:("at:"datetime", status:"received"), completed:("at:"datetime", status:"completed")}
+  blockchain_project_uuid String?
+  blockchain_tx_hash      String?
+  blockchain_status       String?
+  blockchain_redirect_url String?
+  signed_at               DateTime?
+  signed_by               String?   @db.Uuid
+  remarks                 String?
+  deleted_by              String?   @db.Uuid
+  restored_by             String?   @db.Uuid
+  created_at              DateTime  @default(now())
+  updated_at              DateTime  @default(now()) @updatedAt
+  deleted_at              DateTime?
+  restored_at             DateTime?
+  account_id              String?   @db.Uuid
+  Document                Document  @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
+  created_by_account      Account?  @relation("DocumentDetailsCreatedBy", fields: [account_id], references: [account_id])
 
   @@index([document_id])
   @@index([account_id])
