@@ -9,28 +9,47 @@ export async function GET(request: NextRequest) {
     const token = tokenCookie ? tokenCookie.value : null;
 
     if (!token) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      return Response.json({ 
+        success: false,
+        error: 'Unauthorized',
+        message: 'No authentication token found'
+      }, { status: 401 });
     }
 
-    // Fetch scheduled reports from the backend API
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-    const apiUrl = backendUrl.endsWith('/api')
-      ? `${backendUrl}/reports/scheduled`
-      : `${backendUrl}/api/reports/scheduled`;
+    // Construct backend API URL - ensure we have /api in the path
+    let backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    if (!backendUrl.includes('/api')) {
+      backendUrl = `${backendUrl}/api`;
+    }
+    const apiUrl = `${backendUrl}/reports/scheduled`;
+    
+    console.log('Fetching scheduled reports from:', apiUrl);
 
+    // Fetch scheduled reports from the backend API
     const response = await fetch(apiUrl, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
+      cache: 'no-store'
     });
 
+    console.log('Backend response status:', response.status);
+
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorText = await response.text();
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { message: errorText };
+      }
+      console.error('Backend error:', errorData);
       throw new Error(errorData.message || 'Failed to fetch scheduled reports');
     }
 
     const result = await response.json();
+    console.log('Backend result success:', result.success);
 
     if (!result.success) {
       throw new Error(result.message || 'Failed to fetch scheduled reports');

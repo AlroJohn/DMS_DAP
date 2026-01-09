@@ -45,17 +45,45 @@ export const useSigningHistory = (dateRange?: string, filter?: string): UseSigni
 
       const queryString = queryParams.toString();
       const url = `/api/reports/signing${queryString ? `?${queryString}` : ''}`;
+      
+      console.log('Fetching signing history from:', url);
 
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        cache: 'no-store'
+      });
+      
+      console.log('Response status:', response.status);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch signing history');
+        const errorText = await response.text();
+        console.error('Error response text:', errorText);
+        
+        let errorData: any = {};
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          // If parsing fails, create an object with the raw text
+          errorData = { message: errorText || `HTTP ${response.status}` };
+        }
+        
+        console.error('Parsed error data:', errorData);
+        
+        // Extract error message from various possible formats
+        const errorMessage = 
+          errorData.message || 
+          errorData.error?.message || 
+          errorData.error || 
+          (typeof errorData === 'string' ? errorData : null) ||
+          `Failed to fetch signing history (Status: ${response.status})`;
+          
+        throw new Error(errorMessage);
       }
       
       const result = await response.json();
+      console.log('Result success:', result.success);
       
       if (!result.success) {
-        throw new Error(result.message || 'Failed to fetch signing history');
+        throw new Error(result.message || result.error || 'Failed to fetch signing history');
       }
       
       setData(result.data);

@@ -9,30 +9,42 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Construct backend API URL - ensure we have /api in the path
     let backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-    
-    // Remove trailing /api if it exists to avoid double /api/api/
-    if (backendUrl.endsWith('/api')) {
-      backendUrl = backendUrl.slice(0, -4);
+    if (!backendUrl.includes('/api')) {
+      backendUrl = `${backendUrl}/api`;
     }
     
     const { id } = await params;
+    
+    console.log('Document API: Fetching document with ID:', id);
 
     const cookies = request.headers.get("cookie");
+    
+    const apiUrl = `${backendUrl}/documents/${id}`;
+    console.log('Document API: Backend URL:', apiUrl);
 
-    const response = await fetch(`${backendUrl}/api/documents/${id}`, {
+    const response = await fetch(apiUrl, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
         ...(cookies && { Cookie: cookies }),
       },
       credentials: "include",
+      cache: "no-store"
     });
 
+    console.log('Document API: Backend response status:', response.status);
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({
-        error: { message: "Failed to fetch document" },
-      }));
+      const errorText = await response.text();
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { error: { message: errorText || `HTTP ${response.status}` } };
+      }
+      console.error('Document API: Backend error:', errorData);
 
       return NextResponse.json(
         {
@@ -44,6 +56,7 @@ export async function GET(
     }
 
     const data = await response.json();
+    console.log('Document API: Success:', data.success);
 
     return NextResponse.json({
       success: data.success ?? true,

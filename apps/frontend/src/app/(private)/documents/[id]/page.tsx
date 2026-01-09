@@ -716,6 +716,239 @@ export default function DocumentDetailPage() {
         </div>
       )}
 
+      {/* Main Document Content */}
+      {!isEditorOpen && !isSignatureModeOpen && (
+        <div className="space-y-4">
+          {/* Header Section */}
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => router.back()}
+                >
+                  <ArrowLeft className="h-4 w-4 mr-1" />
+                  Back
+                </Button>
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+              <div className="flex flex-wrap items-center gap-2 mt-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <Hash className="h-3 w-3" />
+                  <span>{document.document_code || document.detail?.document_code || 'N/A'}</span>
+                </div>
+                <span>•</span>
+                <div className="flex items-center gap-1">
+                  <Shield className="h-3 w-3" />
+                  <span>{classification}</span>
+                </div>
+                <span>•</span>
+                <Badge variant={document.status === 'completed' ? 'default' : 'secondary'}>
+                  {document.status}
+                </Badge>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {canSign && (
+                <Button
+                  size="sm"
+                  onClick={() => setIsSigningModalOpen(true)}
+                >
+                  <Shield className="h-4 w-4 mr-1" />
+                  Sign with Blockchain
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsShareModalOpen(true)}
+              >
+                <Share className="h-4 w-4 mr-1" />
+                Share
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleDownloadClick}
+                disabled={!downloadUrl}
+              >
+                <Download className="h-4 w-4 mr-1" />
+                Download
+              </Button>
+            </div>
+          </div>
+
+          {/* Document Preview */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Document Preview
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {previewFile && isPreviewSupported ? (
+                <div className="border rounded-lg overflow-hidden bg-muted/10">
+                  <div className="aspect-[8.5/11] relative">
+                    {previewMime.includes('pdf') ? (
+                      <iframe
+                        src={previewBaseUrl || ''}
+                        className="w-full h-full"
+                        title="Document Preview"
+                      />
+                    ) : (
+                      <img
+                        src={previewBaseUrl || ''}
+                        alt="Document Preview"
+                        className="w-full h-full object-contain"
+                      />
+                    )}
+                  </div>
+                  <div className="p-4 border-t bg-background">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handlePreviewClick}
+                      className="w-full"
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      View Full Document
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-64 text-muted-foreground">
+                  <div className="text-center">
+                    <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>No preview available</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Document Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Document Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Building className="h-4 w-4" />
+                    <span className="font-medium">Department</span>
+                  </div>
+                  <p className="text-sm">{department}</p>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <User className="h-4 w-4" />
+                    <span className="font-medium">Created By</span>
+                  </div>
+                  <p className="text-sm">{author}</p>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="h-4 w-4" />
+                    <span className="font-medium">Created Date</span>
+                  </div>
+                  <p className="text-sm">{formatDate(document.created_at)}</p>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Clock className="h-4 w-4" />
+                    <span className="font-medium">Last Modified</span>
+                  </div>
+                  <p className="text-sm">{formatDate(document.updated_at)}</p>
+                </div>
+              </div>
+              {document.description && (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Description</p>
+                  <p className="text-sm">{document.description}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Blockchain Status */}
+          {blockchainStatus && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Blockchain Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Status:</span>
+                    <Badge variant={blockchainStatus === 'signed' ? 'default' : 'secondary'}>
+                      {blockchainStatus}
+                    </Badge>
+                  </div>
+                  {transactionHash && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="font-medium">Transaction Hash:</span>
+                      <code className="text-xs">{transactionHash}</code>
+                    </div>
+                  )}
+                  {blockchainRedirectUrl && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(blockchainRedirectUrl, '_blank')}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      View on Blockchain
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* File Versions */}
+          {files && files.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <GitBranch className="h-5 w-5" />
+                  File Versions ({files.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {sortedPdfFiles.map((file) => (
+                    <div key={file.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50">
+                      <div className="flex items-center gap-3">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium">{file.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Version {file.version} • {formatFileSize(file.size)} • {formatDate(file.uploadDate)}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => window.open(`/api/documents/${documentIdForRoutes}/files/${file.id}/stream?download=1`, '_blank')}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
       <DocumentPreviewModal
         isOpen={isPreviewModalOpen}
         onClose={() => setIsPreviewModalOpen(false)}
@@ -772,6 +1005,21 @@ export default function DocumentDetailPage() {
           status: document.status || "unknown",
           activity: "",
           activityTime: "",
+        }}
+      />
+
+      <BlockchainSigningModal
+        open={isSigningModalOpen}
+        onOpenChange={setIsSigningModalOpen}
+        document={{
+          id: documentId,
+          title: title,
+          hash: document?.blockchain?.transactionHash || undefined,
+          blockchainStatus: blockchainStatus || undefined,
+        }}
+        onSigned={() => {
+          refetch();
+          setIsSigningModalOpen(false);
         }}
       />
     </div>

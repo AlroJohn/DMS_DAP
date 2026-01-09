@@ -49,16 +49,31 @@ export const useComplianceReport = () => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('/api/reports/compliance');
+      console.log('Fetching compliance report from /api/reports/compliance');
+      
+      const response = await fetch('/api/reports/compliance', {
+        cache: 'no-store'
+      });
+      
+      console.log('Response status:', response.status);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch compliance report');
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { message: `HTTP ${response.status}: ${errorText}` };
+        }
+        console.error('Error response:', errorData);
+        throw new Error(errorData.message || errorData.error || 'Failed to fetch compliance report');
       }
       
       const result = await response.json();
+      console.log('Result success:', result.success);
       
       if (!result.success) {
-        throw new Error(result.message || 'Failed to fetch compliance report');
+        throw new Error(result.message || result.error || 'Failed to fetch compliance report');
       }
       
       setData(result.data);

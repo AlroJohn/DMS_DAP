@@ -105,22 +105,39 @@ export const NotificationsProvider = ({
 
   const fetchNotifications = async () => {
     try {
+      console.log('Fetching notifications from /api/notifications');
+      
       const response = await fetch('/api/notifications?limit=50', {
         credentials: 'include', // Include cookies for authentication
         headers: {
           'Content-Type': 'application/json',
         },
+        cache: 'no-store'
       });
       
+      console.log('Notifications response status:', response.status);
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch notifications');
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: `HTTP ${response.status}: ${errorText}` };
+        }
+        console.error('Notifications error response:', errorData);
+        throw new Error(
+          typeof errorData.error === 'string' 
+            ? errorData.error 
+            : errorData.error?.message || errorData.message || 'Failed to fetch notifications'
+        );
       }
       
       const data = await response.json();
+      console.log('Notifications data success:', data.success);
       
       // Convert API response to our AppNotification format
-      const formattedNotifications: AppNotification[] = data.data.map((n: any) => {
+      const formattedNotifications: AppNotification[] = (data.data || []).map((n: any) => {
         const { name: documentName, code: documentCode } = extractDocumentInfo(n.message);
         return {
           id: n.notification_id,
@@ -138,7 +155,8 @@ export const NotificationsProvider = ({
       setNotifications(formattedNotifications);
     } catch (error) {
       console.error('Error fetching notifications:', error);
-      toast.error('Failed to load notifications');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load notifications';
+      toast.error(errorMessage);
     }
   };
 
