@@ -67,7 +67,32 @@ export class IntransitService {
       // Collect all incoming document IDs
       const incomingDocumentIds = new Set<string>();
 
-      // Add documents from initial filter (not yet received)
+      // First, get all documents that have been released TO this department via DocumentTrail
+      const releasedToThisDepartment = await prisma.documentTrail.findMany({
+        where: {
+          to_department: user.department_id,
+          status: { in: ['intransit', 'dispatch'] },
+          from_department: {
+            not: user.department_id // Exclude documents from same department
+          }
+        },
+        select: {
+          document_id: true,
+          from_department: true
+        },
+        orderBy: {
+          created_at: 'desc'
+        }
+      });
+
+      // Add all documents that have been released to this department
+      releasedToThisDepartment.forEach(trail => {
+        incomingDocumentIds.add(trail.document_id);
+      });
+
+      console.log('📍 [getIncomingDocuments] Documents released to department via trail:', releasedToThisDepartment.length);
+
+      // Add documents from workflow analysis (documents in workflow but not yet received)
       for (const detail of documentDetails) {
         if (!detail.work_flow_id) continue;
 
@@ -108,29 +133,43 @@ export class IntransitService {
           const notYetReceived = !receivedByUsers.includes(userId);
 
           // Check if document is currently assigned to this department via document trail with 'intransit' status
-          // This means the document has been released to this department but not yet received
           const currentIntransitTrail = await prisma.documentTrail.findFirst({
             where: {
               document_id: detail.document_id,
               to_department: user.department_id,
-              status: 'intransit' // Only check for intransit status
+              status: 'intransit'
             },
             orderBy: {
               created_at: 'desc'
             }
           });
 
-          const releasedByOtherDepartment =
-            currentIntransitTrail?.from_department &&
-            currentIntransitTrail.from_department !== user.department_id;
-
-          // Include document if:
-          // 1. In workflow, not originator, not yet received, AND has an active intransit trail to this department
-          if (isInWorkflow && isNotOriginator && notYetReceived && currentIntransitTrail && releasedByOtherDepartment) {
+          // Include document if in workflow, not originator, not yet received, and has active intransit trail
+          if (isInWorkflow && isNotOriginator && notYetReceived && currentIntransitTrail) {
             incomingDocumentIds.add(detail.document_id);
           }
         } catch (e) {
           console.error('📍 [getIncomingDocuments] Error processing document:', e);
+        }
+      }
+
+      // Remove documents that the user has already received
+      const documentsToCheck = Array.from(incomingDocumentIds);
+      for (const docId of documentsToCheck) {
+        const detail = documentDetailsMap.get(docId);
+        if (detail?.received_by_departments) {
+          try {
+            const receivedByUsers = Array.isArray(detail.received_by_departments)
+              ? detail.received_by_departments
+              : JSON.parse(detail.received_by_departments as any);
+            
+            // If this user has already received the document, remove from incoming
+            if (receivedByUsers.includes(userId)) {
+              incomingDocumentIds.delete(docId);
+            }
+          } catch (e) {
+            console.error('📍 [getIncomingDocuments] Error checking received status:', e);
+          }
         }
       }
 
@@ -199,7 +238,8 @@ export class IntransitService {
               in: Array.from(incomingDocumentIds)
             },
             status: {
-              in: ['intransit', 'dispatch'] // Exclude 'received' - once received, it moves to shared
+              in: ['intransit', 'dispatch'], // Only show intransit/dispatch
+              not: 'received' // Explicitly exclude received documents
             }
           },
           include: {
@@ -233,7 +273,8 @@ export class IntransitService {
               in: Array.from(incomingDocumentIds)
             },
             status: {
-              in: ['intransit', 'dispatch'] // Exclude 'received' - once received, it moves to shared
+              in: ['intransit', 'dispatch'], // Only show intransit/dispatch
+              not: 'received' // Explicitly exclude received documents
             }
           }
         })
@@ -353,9 +394,49 @@ export class IntransitService {
       });
 
       // Filter documents that are outgoing from user's department
-      // Outgoing means: department is the originator AND sent to other departments AND NOT currently assigned back to this department
+      // Outgoing means: 
+      // 1. Department is the originator AND sent to other departments, OR
+      // 2. Department has released/transmitted the document to another department (via DocumentTrail)
+      // AND the document is NOT currently assigned back to this department
+      
+      // First, get documents released by this department (from DocumentTrail)
+      // Get the most recent trail for each document where this department sent it out
+      const releasedByDepartment = await prisma.documentTrail.findMany({
+        where: {
+          from_department: user.department_id,
+          to_department: {
+            not: user.department_id // Sent to different department
+          },
+          status: { in: ['intransit', 'dispatch'] }
+        },
+        select: {
+          document_id: true,
+          to_department: true,
+          created_at: true
+        },
+        orderBy: {
+          created_at: 'desc'
+        }
+      });
+
+      // Group by document_id and keep only the latest trail for each document
+      const latestTrailsByDoc = new Map<string, any>();
+      releasedByDepartment.forEach(trail => {
+        if (!latestTrailsByDoc.has(trail.document_id) || 
+            new Date(trail.created_at) > new Date(latestTrailsByDoc.get(trail.document_id).created_at)) {
+          latestTrailsByDoc.set(trail.document_id, trail);
+        }
+      });
+
+      const releasedDocumentIds = new Set(latestTrailsByDoc.keys());
+      
+      console.log('📍 [getOutgoingDocuments] Documents released by department:', releasedDocumentIds.size);
+
       const outgoingDocumentIds = await (async () => {
-        const ids = [];
+        const ids = new Set<string>();
+
+        // Add documents released by this department
+        releasedDocumentIds.forEach(docId => ids.add(docId));
 
         for (const detail of documentDetails) {
           if (!detail.work_flow_id) continue;
@@ -387,31 +468,43 @@ export class IntransitService {
             const isOriginator = workflowDepartments.length > 0 && workflowDepartments[0] === user.department_id;
             const sentToOthers = workflowDepartments.length > 1;
 
-            // Additionally, check if the document is currently assigned to this department
-            // If it is, it should be considered incoming, not outgoing
-            const currentAssignment = await prisma.documentTrail.findFirst({
-              where: {
-                document_id: detail.document_id,
-                to_department: user.department_id,
-                status: { in: ['intransit', 'dispatch'] } // Document is currently assigned to this department
-              },
-              orderBy: {
-                created_at: 'desc'
-              }
-            });
-
-            const isCurrentlyAssignedToUser = !!currentAssignment;
-
-            // Only consider it outgoing if it's originated by this department, sent to others, and NOT currently assigned back to this department
-            if (isOriginator && sentToOthers && !isCurrentlyAssignedToUser) {
-              ids.push(detail.document_id);
+            // Only add originator documents if they've been sent to others
+            if (isOriginator && sentToOthers) {
+              ids.add(detail.document_id);
             }
           } catch (e) {
             console.error('📍 [getOutgoingDocuments] Error parsing work_flow_id:', e);
           }
         }
 
-        return ids;
+        // Remove documents that are currently assigned back to this department (those should be in incoming)
+        // Only remove if the latest trail shows it's coming back TO this department (not going FROM this department)
+        const documentsToCheck = Array.from(ids);
+        for (const docId of documentsToCheck) {
+          // Get all trails for this document
+          const allTrails = await prisma.documentTrail.findMany({
+            where: {
+              document_id: docId,
+              status: { in: ['intransit', 'dispatch'] }
+            },
+            orderBy: {
+              created_at: 'desc'
+            }
+          });
+
+          if (allTrails.length > 0) {
+            const latestTrail = allTrails[0];
+            
+            // If the latest trail shows document is coming TO this department (not FROM), 
+            // it should be in incoming, not outgoing
+            if (latestTrail.to_department === user.department_id && 
+                latestTrail.from_department !== user.department_id) {
+              ids.delete(docId);
+            }
+          }
+        }
+
+        return Array.from(ids);
       })();
 
       console.log('📍 [getOutgoingDocuments] Outgoing document IDs:', outgoingDocumentIds.length);
@@ -479,7 +572,7 @@ export class IntransitService {
               in: outgoingDocumentIds
             },
             status: {
-              not: { in: ['completed', 'deleted'] }
+              not: { in: ['completed', 'deleted', 'received'] } // Exclude completed, deleted, and received
             }
           },
           include: {
@@ -513,7 +606,7 @@ export class IntransitService {
               in: outgoingDocumentIds
             },
             status: {
-              not: { in: ['completed', 'deleted'] }
+              not: { in: ['completed', 'deleted', 'received'] } // Exclude completed, deleted, and received
             }
           }
         })

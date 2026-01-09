@@ -81,9 +81,6 @@ export class SharedDocumentService {
 
       console.log('📍 [getSharedDocuments] Total document details found:', allDocumentDetails.length);
 
-      // First, filter documents that have been specifically shared to this user
-      // Look for the user ID in received_by_department_user field (which we're now using for user IDs)
-      const initiallySharedDocumentDetails = allDocumentDetails.filter((detail: any) => {
       // Filter documents that have been specifically shared to this user
       // Look for the user ID in received_by_departments field (which stores user IDs)
       const sharedDocumentDetails = allDocumentDetails.filter((detail: any) => {
@@ -94,8 +91,8 @@ export class SharedDocumentService {
         }
 
         // Exclude documents with certain statuses that shouldn't appear in shared view
-        if (['completed', 'archived'].includes(detail.Document?.status)) {
-          console.log('📍 [getSharedDocuments] Document has completed/archived status, skipping:', detail.document_id);
+        if (['completed', 'archived', 'intransit', 'in-transit'].includes(detail.Document?.status)) {
+          console.log('📍 [getSharedDocuments] Document has completed/archived/intransit status, skipping:', detail.document_id);
           return false;
         }
 
@@ -133,77 +130,56 @@ export class SharedDocumentService {
         return isSharedToUser;
       });
 
-      // Now, for documents that are in transit, check if they are assigned to the user's department
-      const sharedDocumentIds = [];
-      for (const detail of initiallySharedDocumentDetails) {
-        let shouldInclude = true;
+      const sharedDocumentIds = sharedDocumentDetails.map((detail: any) => detail.document_id);
 
-        // Check if the document is in transit and if it's assigned to the user's department
-        if (detail.Document?.status === 'intransit') {
-          const latestTransitTrail = await prisma.documentTrail.findFirst({
-            where: {
-              document_id: detail.document_id,
-              status: 'intransit'
-            },
-            orderBy: {
-              created_at: 'desc'
-            },
-            select: {
-              to_department: true
-            }
-          });
-
-          // If the document is in transit and assigned to a different department,
-          // the originally shared user should not see it anymore
-          if (latestTransitTrail?.to_department && latestTransitTrail.to_department !== user.department_id) {
-            console.log('📍 [getSharedDocuments] Document is in transit to another department, excluding:', detail.document_id);
-            shouldInclude = false;
-          }
-        }
-
-        // Check if the user is still part of the current workflow
-        if (detail.work_flow_id && shouldInclude) {
-          let workflowDepartments: string[] = [];
-
-          if (typeof detail.work_flow_id === 'object' && detail.work_flow_id !== null) {
-            // New format: object with keys like "first", "second", etc.
-            workflowDepartments = Object.values(detail.work_flow_id);
-          } else if (typeof detail.work_flow_id === 'string') {
-            // Could be either a JSON string of an array or a JSON string of an object
-            const parsed = JSON.parse(detail.work_flow_id);
-            if (Array.isArray(parsed)) {
-              workflowDepartments = parsed;
-            } else {
-              // If it's an object, get its values
-              workflowDepartments = Object.values(parsed);
-            }
-          } else if (Array.isArray(detail.work_flow_id)) {
-            // Old format: array
-            workflowDepartments = detail.work_flow_id;
-          } else {
-            // Unexpected format
-            workflowDepartments = [];
-          }
-
-          // If the document has moved beyond the user's department in the workflow
-          // (meaning it's no longer relevant to the user), don't include it
-          const userDepartmentIndex = workflowDepartments.indexOf(user.department_id);
-          if (userDepartmentIndex === -1) {
-            // User's department is not in the workflow anymore
-            console.log('📍 [getSharedDocuments] User department not in workflow, excluding:', detail.document_id);
-            shouldInclude = false;
-          }
-        }
-
-        if (shouldInclude) {
-          sharedDocumentIds.push(detail.document_id);
-        }
-      }
-
-      console.log('📍 [getSharedDocuments] Shared document IDs after filtering:', sharedDocumentIds.length, sharedDocumentIds);
+      console.log('📍 [getSharedDocuments] Shared document IDs:', sharedDocumentIds.length, sharedDocumentIds);
 
       if (sharedDocumentIds.length === 0) {
         console.log('📍 [getSharedDocuments] No shared documents found for user');
+        return {
+          data: [],
+          pagination: {
+            page,
+            limit,
+            total: 0,
+            totalPages: 0,
+            hasNext: false,
+            hasPrev: false
+          }
+        };
+      }
+
+      // Exclude documents that the user has already released/transmitted to another department
+      // Check DocumentTrail for any "release" or "transmit" actions by this user
+      const releasedDocumentIds = await prisma.documentTrail.findMany({
+        where: {
+          document_id: {
+            in: sharedDocumentIds
+          },
+          user_id: userId,
+          documentAction: {
+            action_name: {
+              in: ['release', 'transmit', 'transmitted', 'released', 'Release', 'Transmit', 'Transmitted', 'Released']
+            }
+          }
+        },
+        select: {
+          document_id: true
+        }
+      });
+
+      const releasedDocIds = releasedDocumentIds.map((trail: any) => trail.document_id);
+      console.log('📍 [getSharedDocuments] Documents already released by user:', releasedDocIds.length, releasedDocIds);
+
+      // Filter out documents that have been released
+      const activeSharedDocumentIds = sharedDocumentIds.filter(
+        (docId: string) => !releasedDocIds.includes(docId)
+      );
+
+      console.log('📍 [getSharedDocuments] Active shared document IDs (after filtering released):', activeSharedDocumentIds.length, activeSharedDocumentIds);
+
+      if (activeSharedDocumentIds.length === 0) {
+        console.log('📍 [getSharedDocuments] No active shared documents found after filtering released documents');
         return {
           data: [],
           pagination: {
@@ -221,7 +197,7 @@ export class SharedDocumentService {
         prisma.document.findMany({
           where: {
             document_id: {
-              in: sharedDocumentIds
+              in: activeSharedDocumentIds
             },
             status: {
               not: 'deleted' // Exclude deleted documents
@@ -255,7 +231,7 @@ export class SharedDocumentService {
         prisma.document.count({
           where: {
             document_id: {
-              in: sharedDocumentIds
+              in: activeSharedDocumentIds
             },
             status: {
               not: 'deleted' // Exclude deleted documents from count
@@ -544,24 +520,24 @@ export class SharedDocumentService {
         }
 
         // Track which users specifically received this document (for user-level sharing)
-        if (currentDetail.received_by_department_user) {
-          // Note: This field is named "received_by_department_user" in the schema but we'll use it for user IDs
-          if (Array.isArray(currentDetail.received_by_department_user)) {
-            currentReceivedByUsers = currentDetail.received_by_department_user as string[];
+        if (currentDetail.received_by_departments) {
+          // Use the received_by_departments field for user IDs
+          if (Array.isArray(currentDetail.received_by_departments)) {
+            currentReceivedByUsers = currentDetail.received_by_departments as string[];
             console.log('📍 [shareDocument] Current received_by_users (array):', currentReceivedByUsers);
-          } else if (typeof currentDetail.received_by_department_user === 'string') {
+          } else if (typeof currentDetail.received_by_departments === 'string') {
             try {
-              currentReceivedByUsers = JSON.parse(currentDetail.received_by_department_user as string);
+              currentReceivedByUsers = JSON.parse(currentDetail.received_by_departments as string);
               console.log('📍 [shareDocument] Current received_by_users (parsed):', currentReceivedByUsers);
             } catch (e) {
-              console.error('📍 [shareDocument] Error parsing received_by_department_user:', e);
+              console.error('📍 [shareDocument] Error parsing received_by_departments:', e);
               currentReceivedByUsers = [];
             }
-          } else if (typeof currentDetail.received_by_department_user === 'object' && Array.isArray(currentDetail.received_by_department_user)) {
-            currentReceivedByUsers = currentDetail.received_by_department_user as string[];
+          } else if (typeof currentDetail.received_by_departments === 'object' && Array.isArray(currentDetail.received_by_departments)) {
+            currentReceivedByUsers = currentDetail.received_by_departments as string[];
             console.log('📍 [shareDocument] Current received_by_users (object array):', currentReceivedByUsers);
           } else {
-            console.error('📍 [shareDocument] Unexpected received_by_department_user type:', typeof currentDetail.received_by_department_user);
+            console.error('📍 [shareDocument] Unexpected received_by_departments type:', typeof currentDetail.received_by_departments);
             currentReceivedByUsers = [];
           }
         }
@@ -681,7 +657,7 @@ export class SharedDocumentService {
         await prisma.documentAdditionalDetails.update({
           where: { detail_id: currentDetail.detail_id },
           data: {
-            received_by_department_user: updatedReceivedByUsers  // Using the field for user IDs
+            received_by_departments: updatedReceivedByUsers  // Using the correct field for user IDs
           }
         });
       } else {
@@ -690,7 +666,7 @@ export class SharedDocumentService {
         await prisma.documentAdditionalDetails.create({
           data: {
             document_id: documentId,
-            received_by_department_user: updatedReceivedByUsers,  // Using the field for user IDs
+            received_by_departments: updatedReceivedByUsers,  // Using the correct field for user IDs
             work_flow_id: []  // Initialize with empty workflow if not set
           }
         });
@@ -699,11 +675,11 @@ export class SharedDocumentService {
       // Get the final state of received_by_users for confirmation
       const finalDetails = await prisma.documentAdditionalDetails.findFirst({
         where: { document_id: documentId },
-        select: { received_by_department_user: true }
+        select: { received_by_departments: true }
       });
-      const finalReceivedBy = Array.isArray(finalDetails?.received_by_department_user)
-        ? finalDetails.received_by_department_user as string[]
-        : JSON.parse(finalDetails?.received_by_department_user as string || '[]');
+      const finalReceivedBy = Array.isArray(finalDetails?.received_by_departments)
+        ? finalDetails.received_by_departments as string[]
+        : JSON.parse(finalDetails?.received_by_departments as string || '[]');
 
       console.log(`Document shared with ${targetUsers.length} user(s): Document ID ${documentId}, User ID ${userId}`);
       console.log('📍 [shareDocument] Document shared successfully with users:', userIds);
