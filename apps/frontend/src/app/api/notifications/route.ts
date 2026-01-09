@@ -8,18 +8,19 @@ export async function GET(request: NextRequest) {
     const page = searchParams.get('page') || '1';
     const unreadOnly = searchParams.get('unreadOnly') || 'false';
 
+    // Construct backend API URL - ensure we have /api in the path
     let backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-    
-    // Remove trailing /api if it exists to avoid double /api/api/
-    if (backendUrl.endsWith('/api')) {
-      backendUrl = backendUrl.slice(0, -4);
+    if (!backendUrl.includes('/api')) {
+      backendUrl = `${backendUrl}/api`;
     }
 
     // Get cookies from the request to forward to backend
     const cookies = request.headers.get('cookie');
 
     // Construct the backend API URL with query parameters
-    const backendApiUrl = `${backendUrl}/api/notifications?limit=${limit}&page=${page}&unreadOnly=${unreadOnly}`;
+    const backendApiUrl = `${backendUrl}/notifications?limit=${limit}&page=${page}&unreadOnly=${unreadOnly}`;
+    
+    console.log('Fetching notifications from:', backendApiUrl);
 
     const response = await fetch(backendApiUrl, {
       method: 'GET',
@@ -27,13 +28,21 @@ export async function GET(request: NextRequest) {
         'Content-Type': 'application/json',
         ...(cookies && { 'Cookie': cookies })
       },
-      credentials: 'include'
+      credentials: 'include',
+      cache: 'no-store'
     });
 
+    console.log('Backend response status:', response.status);
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({
-        error: { message: 'Failed to fetch notifications' }
-      }));
+      const errorText = await response.text();
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { error: { message: errorText } };
+      }
+      console.error('Backend error:', errorData);
 
       return NextResponse.json(
         {
@@ -45,6 +54,7 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
+    console.log('Backend result success:', data.success);
 
     return NextResponse.json({
       success: data.success || true,

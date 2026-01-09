@@ -9,7 +9,11 @@ export async function GET(request: NextRequest) {
     const token = tokenCookie ? tokenCookie.value : null;
 
     if (!token) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      return Response.json({ 
+        success: false,
+        error: 'Unauthorized',
+        message: 'No authentication token found'
+      }, { status: 401 });
     }
 
     // Get query parameters
@@ -23,22 +27,55 @@ export async function GET(request: NextRequest) {
     if (filter) queryParams.append('filter', filter);
 
     const queryString = queryParams.toString();
-    const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/reports/signing${queryString ? `?${queryString}` : ''}`;
+    
+    // Construct backend API URL - ensure we have /api in the path
+    let backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    if (!backendUrl.includes('/api')) {
+      backendUrl = `${backendUrl}/api`;
+    }
+    const apiUrl = `${backendUrl}/reports/signing${queryString ? `?${queryString}` : ''}`;
+    
+    console.log('Fetching signing history from:', apiUrl);
 
     // Fetch signing history data from the backend API
-    const response = await fetch(url, {
+    const response = await fetch(apiUrl, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
+      cache: 'no-store'
     });
 
+    console.log('Backend response status:', response.status);
+
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to fetch signing history');
+      const errorText = await response.text();
+      console.error('Backend error text:', errorText);
+      
+      let errorData: any = {};
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        // If parsing fails, create proper error structure
+        errorData = { 
+          message: errorText || `Backend returned status ${response.status}`,
+          status: response.status 
+        };
+      }
+      
+      console.error('Backend error data:', errorData);
+      
+      const errorMessage = 
+        errorData.message || 
+        errorData.error?.message ||
+        errorData.error ||
+        `Failed to fetch signing history (Status: ${response.status})`;
+        
+      throw new Error(errorMessage);
     }
 
     const result = await response.json();
+    console.log('Backend result success:', result.success);
 
     if (!result.success) {
       throw new Error(result.message || 'Failed to fetch signing history');

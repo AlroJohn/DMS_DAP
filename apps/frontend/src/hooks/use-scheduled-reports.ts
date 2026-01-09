@@ -27,16 +27,31 @@ export const useScheduledReports = () => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('/api/reports/scheduled');
+      console.log('Fetching scheduled reports from /api/reports/scheduled');
+      
+      const response = await fetch('/api/reports/scheduled', {
+        cache: 'no-store'
+      });
+      
+      console.log('Response status:', response.status);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch scheduled reports');
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { message: `HTTP ${response.status}: ${errorText}` };
+        }
+        console.error('Error response:', errorData);
+        throw new Error(errorData.message || errorData.error || 'Failed to fetch scheduled reports');
       }
       
       const result = await response.json();
+      console.log('Result success:', result.success);
       
       if (!result.success) {
-        throw new Error(result.message || 'Failed to fetch scheduled reports');
+        throw new Error(result.message || result.error || 'Failed to fetch scheduled reports');
       }
       
       setData(result.data);

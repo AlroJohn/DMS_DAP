@@ -53,11 +53,17 @@ export function useDocumentDetail(documentId: string): UseDocumentDetailResult {
   const [error, setError] = useState<string | null>(null);
 
   const fetchDocument = useCallback(async () => {
-    if (!documentId) return;
+    if (!documentId) {
+      console.log('useDocumentDetail: No documentId provided');
+      return;
+    }
+
+    console.log('useDocumentDetail: Fetching document with ID:', documentId);
 
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(documentId)) {
-      setError("Invalid document ID format");
+      console.error('useDocumentDetail: Invalid document ID format:', documentId);
+      setError(`Invalid document ID format: ${documentId}`);
       setIsLoading(false);
       return;
     }
@@ -66,27 +72,39 @@ export function useDocumentDetail(documentId: string): UseDocumentDetailResult {
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch(`/api/documents/${documentId}`, {
+      const apiUrl = `/api/documents/${documentId}`;
+      console.log('useDocumentDetail: Fetching from:', apiUrl);
+
+      const response = await fetch(apiUrl, {
         method: "GET",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
+        cache: "no-store"
       });
 
+      console.log('useDocumentDetail: Response status:', response.status);
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({
-          error: { message: "Failed to fetch document" },
-        }));
-        throw new Error(errorData.error?.message || "Failed to fetch document");
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: { message: errorText || `HTTP ${response.status}` } };
+        }
+        console.error('useDocumentDetail: Error response:', errorData);
+        throw new Error(errorData.error?.message || errorData.message || "Failed to fetch document");
       }
 
       const result = await response.json();
+      console.log('useDocumentDetail: Success result:', result.success);
 
       if (result.success) {
         setDocument(result.data as DocumentDetail);
       } else {
-        throw new Error(result.error?.message || "Failed to fetch document");
+        throw new Error(result.error?.message || result.message || "Failed to fetch document");
       }
     } catch (err: any) {
       console.error("Error fetching document detail:", err);
