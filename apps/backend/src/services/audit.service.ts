@@ -183,10 +183,29 @@ class AuditService {
         }
       });
 
-      // Create a map of document to its workflow information
+      // Get document status information to determine if document is completed
+      const documentStatuses = await prisma.document.findMany({
+        where: {
+          document_id: {
+            in: documentIds
+          }
+        },
+        select: {
+          document_id: true,
+          status: true
+        }
+      });
+
+      // Create maps for document workflow and status
       const documentWorkflowMap = new Map<string, any>();
+      const documentStatusMap = new Map<string, string>();
+
       documentDetails.forEach(detail => {
         documentWorkflowMap.set(detail.document_id, detail.work_flow_id);
+      });
+
+      documentStatuses.forEach(doc => {
+        documentStatusMap.set(doc.document_id, doc.status);
       });
 
       // Process trails to add ownership information
@@ -232,6 +251,11 @@ class AuditService {
           isOwned = trail.from_department === departmentId;
         }
 
+        // If the document's overall status is 'completed', override the trail status to 'completed'
+        // This ensures that completed documents always show as completed regardless of individual trail status
+        const documentStatus = documentStatusMap.get(trail.document_id);
+        const finalStatus = documentStatus === 'completed' ? 'completed' : trail.status;
+
         return {
           id: trail.trail_id,
           documentId: trail.document_id,
@@ -239,7 +263,7 @@ class AuditService {
           documentCode: trail.document?.document_code || 'N/A',
           documentType: trail.document?.document_type || 'Unknown',
           documentDescription: trail.document?.description || '',
-          status: trail.status,
+          status: finalStatus,
           fromDepartment: trail.fromDept?.name || 'Unknown',
           toDepartment: trail.toDept?.name || 'Unknown',
           user: `${trail.user?.first_name || ''} ${trail.user?.last_name || ''}`.trim() || 'Unknown User',

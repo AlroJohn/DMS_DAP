@@ -59,6 +59,18 @@ export default function DocumentTrailingPage() {
         continue;
       }
 
+      // If the existing trail is 'completed', keep it regardless of date
+      if (existing.status === 'completed') {
+        continue;
+      }
+
+      // If the new trail is 'completed', use it regardless of date
+      if (trail.status === 'completed') {
+        byDocument.set(trail.documentId, trail);
+        continue;
+      }
+
+      // Otherwise, use the most recent trail
       const existingDate = new Date(existing.actionDate).getTime();
       const currentDate = new Date(trail.actionDate).getTime();
       if (currentDate > existingDate) {

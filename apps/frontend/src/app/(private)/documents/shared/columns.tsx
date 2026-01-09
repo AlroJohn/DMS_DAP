@@ -8,28 +8,7 @@ import { DataTableRowActions } from "@/components/reuseable/tables/data-table-ro
 import { toast } from "sonner";
 import { Copy, User, Building2, Calendar } from "lucide-react";
 import { CheckoutStatusCell } from "./checkout-status-cell";
-
-export type SharedDocument = {
-  id: string;
-  qrCode?: string;
-  barcode?: string;
-  document: string;
-  documentTitle?: string;
-  documentId?: string;
-  contactPerson?: string; // Will now be the root owner of the document
-  contactOrganization?: string;
-  type: string; // Backend ensures this is always present after our changes
-  classification?: string;
-  status?: string;
-  activity?: string;
-  activityTime?: string;
-  checkedOutBy?: {
-    id: string;
-    name: string;
-    email?: string;
-  } | null;
-  checkedOutAt?: string | null;
-};
+import { SharedDocument } from '@dms/types/document.types';
 
 const formatText = (text: string | undefined): string => {
   if (!text) return "";
