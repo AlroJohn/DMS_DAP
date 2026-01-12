@@ -44,9 +44,11 @@ export const useArchive = (): ArchiveHook => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch archived documents');
+        console.error('Response status:', response.status);
+        console.error('Response text:', await response.text());
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-
+      
       const data = await response.json();
       setArchivedDocuments(data.data || []);
     } catch (err) {

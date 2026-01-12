@@ -414,16 +414,12 @@ export function ViewDocumentsModal({
         {" "}
         {/* Custom animation classes applied based on dialog state */}
         <DialogHeader className="p-6 pb-4 border-b">
-          {" "}
-          {/* Added padding and border to fix header styling */}
           <div className="flex items-start justify-between">
             <div className="space-y-1.5">
               <DialogTitle className="text-2xl font-semibold">
                 {isLoading ? (
                   <Skeleton className="h-8 w-48" />
                 ) : (
-                  safeDetail?.document_name ||
-                  (document as any)?.title ||
                   "Document Details"
                 )}
               </DialogTitle>
