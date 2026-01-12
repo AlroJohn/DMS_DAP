@@ -69,6 +69,19 @@ export interface DocumentCompletedEmailData {
   companyName?: string;
 }
 
+/**
+ * Interface for generic notification email data
+ */
+export interface GenericNotificationEmailData {
+  recipientEmail: string;
+  recipientName: string;
+  subject: string;
+  message: string;
+  documentTitle?: string;
+  documentUrl?: string;
+  companyName?: string;
+}
+
 export class EmailService {
   private transporter: nodemailer.Transporter;
 
@@ -745,6 +758,29 @@ This is an automated message. Please do not reply to this email.
       return true;
     } catch (error) {
       console.error('Error sending document completed email:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Send generic notification email
+   */
+  async sendGenericNotificationEmail(data: GenericNotificationEmailData): Promise<boolean> {
+    try {
+      const companyName = data.companyName || 'Document Management System';
+      const mailOptions = {
+        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        to: data.recipientEmail,
+        subject: data.subject,
+        html: this.generateGenericNotificationEmailHTML(data),
+        text: this.generateGenericNotificationEmailText(data)
+      };
+
+      const result = await this.transporter.sendMail(mailOptions);
+      console.log('Generic notification email sent:', result.messageId);
+      return true;
+    } catch (error) {
+      console.error('Error sending generic notification email:', error);
       return false;
     }
   }
@@ -1479,6 +1515,79 @@ This is an automated message. Please do not reply to this email.
         </div>
       </body>
       </html>
+    `;
+  }
+
+  /**
+   * Generate HTML email template for generic notification
+   */
+  private generateGenericNotificationEmailHTML(data: GenericNotificationEmailData): string {
+    const companyName = data.companyName || 'Document Management System';
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${data.subject}</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f7fa; }
+          .container { max-width: 600px; margin: 30px auto; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden; }
+          .header { background: linear-gradient(135deg, #007bff, #0056b3); color: white; padding: 30px; text-align: center; }
+          .header h1 { margin: 0; font-size: 24px; font-weight: 600; }
+          .content { padding: 30px; }
+          .greeting { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: #2c3e50; }
+          .message { font-size: 15px; line-height: 1.8; margin-bottom: 25px; color: #555; }
+          .action-button { display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #007bff, #0056b3); color: #ffffff !important; text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: bold; }
+          .footer { background-color: #f8f9fa; padding: 25px 30px; text-align: center; font-size: 14px; color: #6c757d; border-top: 1px solid #e9ecef; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🔔 ${data.subject}</h1>
+          </div>
+          <div class="content">
+            <div class="greeting">Hi ${data.recipientName},</div>
+            <div class="message">
+              <p>${data.message}</p>
+              ${data.documentTitle ? `<p><strong>Document:</strong> ${data.documentTitle}</p>` : ''}
+            </div>
+            ${data.documentUrl ? `
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${data.documentUrl}" class="action-button">View Details</a>
+              </div>
+            ` : ''}
+          </div>
+          <div class="footer">
+            <p>This is an automated message. Please do not reply to this email.</p>
+            <p>&copy; ${new Date().getFullYear()} ${companyName}. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  /**
+   * Generate plain text email for generic notification
+   */
+  private generateGenericNotificationEmailText(data: GenericNotificationEmailData): string {
+    const companyName = data.companyName || 'Document Management System';
+    return `
+${data.subject}
+
+Hi ${data.recipientName},
+
+${data.message}
+
+${data.documentTitle ? `Document: ${data.documentTitle}` : ''}
+
+${data.documentUrl ? `View Details: ${data.documentUrl}` : ''}
+
+---
+This is an automated message from ${companyName}.
+© ${new Date().getFullYear()} ${companyName}. All rights reserved.
     `;
   }
 

@@ -40,6 +40,7 @@ import documentMetadataRoutes from './routes/document-metadata.routes'; // Impor
 import documentTrailsRoutes from './routes/document-trails.routes'; // Import document trails routes
 import documentTrailingRoutes from './routes/document-trailing.routes'; // Import document trailing routes
 import notificationsRoutes from './routes/notifications'; // Import notifications route
+import notificationPreferencesRoutes from './routes/notification-preferences'; // Import notification preferences route
 import archiveRoutes from './routes/archive.routes'; // Import archive routes
 import dashboardRoutes from './routes/dashboard.routes'; // Import dashboard routes
 import documentSignatureRoutes from './routes/document-signatures'; // Import document signature routes
@@ -178,6 +179,7 @@ app.use('/api/document-metadata', documentMetadataRoutes); // Add the new route
 app.use('/api/documents', documentTrailsRoutes); // Add document trails routes
 app.use('/api/documents', documentTrailingRoutes); // Add document trailing routes
 app.use('/api/notifications', notificationsRoutes); // Add notifications route
+app.use('/api/notification-preferences', notificationPreferencesRoutes); // Add notification preferences route
 app.use('/api/archive', archiveRoutes); // Add archive routes
 app.use('/api/dashboard', dashboardRoutes); // Add dashboard routes
 app.use('/api/signatures', documentSignatureRoutes); // Add document signature routes
