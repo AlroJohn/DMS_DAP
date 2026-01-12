@@ -23,6 +23,7 @@ import { EditablePdfViewer } from "./components/editable-pdf-viewer";
 import {
   SignaturePdfViewer,
   SignatureBox,
+  TextBox,
 } from "./components/signature-pdf-viewer";
 import { SigningPdfViewer } from "./components/signing-pdf-viewer";
 import {
@@ -419,24 +420,17 @@ export default function DocumentDetailPage() {
       }
       return response.json();
     },
-    onSuccess: () => {
-      toast.success("Document released with signature requests.");
-      refetch();
-      // Redirect to owned documents page instead of back to document detail
-      router.push("/documents");
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
   });
 
   const handleConfirmSignatures = async ({
     fileId,
     boxes,
+    textBoxes,
     targetFileIds,
   }: {
     fileId: string;
     boxes: SignatureBox[];
+    textBoxes: TextBox[];
     targetFileIds?: string[];
   }) => {
     const params = new URLSearchParams(searchParams?.toString() || "");
@@ -461,55 +455,151 @@ export default function DocumentDetailPage() {
       }))
     );
 
+    const textPlaceholders = normalizedTargetIds.flatMap((targetFileId) =>
+      textBoxes.map((box) => ({
+        document_file_id: targetFileId,
+        page_number: box.pageNumber,
+        x_position: box.x / RENDER_SCALE,
+        y_position: box.y / RENDER_SCALE,
+        width: box.width / RENDER_SCALE,
+        height: box.height / RENDER_SCALE,
+        font_family: box.fontFamily,
+        font_size: box.fontSize,
+        font_color: box.fontColor,
+        text_value: box.text || "Text",
+      }))
+    );
+
+    const saveSignaturePlaceholders = async (
+      placeholders: Array<{
+        document_file_id: string;
+        page_number: number;
+        x_position: number;
+        y_position: number;
+        width: number;
+        height: number;
+      }>
+    ) => {
+      await Promise.all(
+        placeholders.map(async (placeholder) => {
+          const response = await fetch(
+            `/api/document-signatures/documents/${documentIdForRoutes}/signature-placeholders`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify(placeholder),
+            }
+          );
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({
+              error: "Failed to save signature placeholder.",
+            }));
+            throw new Error(
+              errorData.error || "Failed to save signature placeholder."
+            );
+          }
+        })
+      );
+    };
+
+    const saveTextPlaceholders = async (
+      placeholders: Array<{
+        document_file_id: string;
+        page_number: number;
+        x_position: number;
+        y_position: number;
+        width: number;
+        height: number;
+        font_family: string;
+        font_size: number;
+        font_color: string;
+        text_value: string;
+      }>
+    ) => {
+      await Promise.all(
+        placeholders.map(async (placeholder) => {
+          const response = await fetch(
+            `/api/document-texts/documents/${documentIdForRoutes}/text-placeholders`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify(placeholder),
+            }
+          );
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({
+              error: "Failed to save text placeholder.",
+            }));
+            throw new Error(
+              errorData.error || "Failed to save text placeholder."
+            );
+          }
+        })
+      );
+    };
+
+    const hasAnyPlaceholders =
+      signaturePlaceholders.length > 0 || textPlaceholders.length > 0;
+
     if (!departmentId || !requestActionsRaw) {
-      if (signaturePlaceholders.length === 0) {
-        toast.error("Add at least one signature placeholder.");
+      if (!hasAnyPlaceholders) {
+        toast.error("Add at least one signature or text placeholder.");
         return;
       }
 
       try {
-        await Promise.all(
-          signaturePlaceholders.map(async (placeholder) => {
-            const response = await fetch(
-              `/api/document-signatures/documents/${documentIdForRoutes}/signature-placeholders`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify(placeholder),
-              }
-            );
+        await Promise.all([
+          signaturePlaceholders.length
+            ? saveSignaturePlaceholders(signaturePlaceholders)
+            : Promise.resolve(),
+          textPlaceholders.length
+            ? saveTextPlaceholders(textPlaceholders)
+            : Promise.resolve(),
+        ]);
 
-            if (!response.ok) {
-              const errorData = await response.json().catch(() => ({
-                error: "Failed to save signature placeholder.",
-              }));
-              throw new Error(
-                errorData.error || "Failed to save signature placeholder."
-              );
-            }
-          })
-        );
-
-        toast.success("Signature placeholders saved.");
+        const successMessage =
+          signaturePlaceholders.length && textPlaceholders.length
+            ? "Signature and text placeholders saved."
+            : signaturePlaceholders.length
+              ? "Signature placeholders saved."
+              : "Text placeholders saved.";
+        toast.success(successMessage);
         refetch();
         // Redirect to owned documents page instead of back to document detail
         router.push("/documents");
       } catch (error: any) {
-        toast.error(error.message || "Failed to save signature placeholders.");
+        toast.error(error.message || "Failed to save placeholders.");
       }
       return;
     }
 
     const requestActions = requestActionsRaw.split(",");
 
-    // Create signature placeholders in the database
-    releaseWithSignaturesMutation.mutate({
-      departmentId,
-      requestActions,
-      remarks,
-      signatures: signaturePlaceholders,
-    });
+    try {
+      await releaseWithSignaturesMutation.mutateAsync({
+        departmentId,
+        requestActions,
+        remarks,
+        signatures: signaturePlaceholders,
+      });
+
+      if (textPlaceholders.length) {
+        await saveTextPlaceholders(textPlaceholders);
+      }
+
+      toast.success("Document released with signature requests.");
+      refetch();
+      // Redirect to owned documents page instead of back to document detail
+      router.push("/documents");
+    } catch (error: any) {
+      toast.error(
+        error.message || "Failed to release document with signatures."
+      );
+    }
   };
 
   const statusBadge = () => {

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf";
 import { useQuery } from "@tanstack/react-query";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { Loader2, PenLine } from "lucide-react";
 import { toast } from "sonner";
 import { SignatureModal } from "@/components/modals/signature-modal";
+import { TextPlaceholderModal } from "@/components/modals/text-placeholder-modal";
 import { useAuth } from "@/hooks/use-auth";
 
 const PDFJS_WORKER_CDN =
@@ -44,6 +45,21 @@ export interface SignaturePlaceholder {
   page_number: number;
 }
 
+export interface TextPlaceholder {
+  placeholder_id: string;
+  document_id: string;
+  document_file_id: string;
+  x_position: number;
+  y_position: number;
+  width: number;
+  height: number;
+  page_number: number;
+  font_family: string;
+  font_size: number;
+  font_color: string;
+  text_value?: string | null;
+}
+
 interface SigningPdfViewerProps {
   documentId: string;
   files: DocumentFileMetadata[];
@@ -62,6 +78,35 @@ const dataUrlToUint8Array = (dataUrl: string) => {
     buffer[i] = byteString.charCodeAt(i);
   }
   return buffer;
+};
+
+const resolvePdfFont = (fontFamily?: string) => {
+  const normalized = (fontFamily || "").toLowerCase();
+  if (normalized.includes("courier")) return StandardFonts.Courier;
+  if (normalized.includes("times") || normalized.includes("georgia")) {
+    return StandardFonts.TimesRoman;
+  }
+  return StandardFonts.Helvetica;
+};
+
+const hexToRgb = (value?: string) => {
+  const cleaned = (value || "").replace("#", "");
+  if (!cleaned) {
+    return { r: 17, g: 24, b: 39 };
+  }
+  const normalized =
+    cleaned.length === 3
+      ? cleaned
+          .split("")
+          .map((char) => `${char}${char}`)
+          .join("")
+      : cleaned.padEnd(6, "0");
+  const intValue = Number.parseInt(normalized.slice(0, 6), 16);
+  return {
+    r: (intValue >> 16) & 255,
+    g: (intValue >> 8) & 255,
+    b: intValue & 255,
+  };
 };
 
 const isPdfLikeFile = (file?: DocumentFileMetadata | null) => {
@@ -197,6 +242,10 @@ export function SigningPdfViewer({
     Record<string, string>
   >({});
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+  const [selectedTextPlaceholder, setSelectedTextPlaceholder] =
+    useState<TextPlaceholder | null>(null);
+  const [textValues, setTextValues] = useState<Record<string, string>>({});
+  const [isTextModalOpen, setIsTextModalOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [shouldNavigateAfterSuccess, setShouldNavigateAfterSuccess] =
     useState(false);
@@ -243,6 +292,21 @@ export function SigningPdfViewer({
         if (!response.ok)
           throw new Error("Failed to fetch signature placeholders");
         return response.json() as Promise<SignaturePlaceholder[]>;
+      },
+      enabled: !!documentId,
+    });
+
+  const { data: textPlaceholders = [], isLoading: isLoadingTextPlaceholders } =
+    useQuery({
+      queryKey: ["text-placeholders", documentId],
+      queryFn: async () => {
+        const response = await fetch(
+          `/api/document-texts/documents/${documentId}/text-placeholders`
+        );
+        if (!response.ok) {
+          throw new Error("Failed to fetch text placeholders");
+        }
+        return response.json() as Promise<TextPlaceholder[]>;
       },
       enabled: !!documentId,
     });
@@ -297,6 +361,11 @@ export function SigningPdfViewer({
     if (!selectedFileId) return [];
     return placeholders.filter((p) => p.document_file_id === selectedFileId);
   }, [placeholders, selectedFileId]);
+
+  const fileTextPlaceholders = useMemo(() => {
+    if (!selectedFileId) return [];
+    return textPlaceholders.filter((p) => p.document_file_id === selectedFileId);
+  }, [textPlaceholders, selectedFileId]);
 
   const normalizedSignatures = useMemo(() => {
     return signatures.map((signature) => ({
@@ -373,6 +442,19 @@ export function SigningPdfViewer({
       setSignatureData(null);
     }
   }, [selectedPlaceholder, signedPlaceholderIds]);
+
+  useEffect(() => {
+    if (!textPlaceholders.length) return;
+    setTextValues((prev) => {
+      const next = { ...prev };
+      textPlaceholders.forEach((placeholder) => {
+        if (placeholder.text_value && !next[placeholder.placeholder_id]) {
+          next[placeholder.placeholder_id] = placeholder.text_value;
+        }
+      });
+      return next;
+    });
+  }, [textPlaceholders]);
 
   useEffect(() => {
     if (!selectedFile) {
@@ -537,8 +619,22 @@ export function SigningPdfViewer({
       pendingSignatures[selectedPlaceholder.placeholder_id] = signatureData;
     }
 
-    if (Object.keys(pendingSignatures).length === 0) {
-      toast.error("Save at least one signature draft before confirming.");
+    const pendingTextEntries = Object.entries(textValues).reduce(
+      (acc, [placeholderId, value]) => {
+        const trimmed = value.trim();
+        if (trimmed) {
+          acc[placeholderId] = trimmed;
+        }
+        return acc;
+      },
+      {} as Record<string, string>
+    );
+
+    if (
+      Object.keys(pendingSignatures).length === 0 &&
+      Object.keys(pendingTextEntries).length === 0
+    ) {
+      toast.error("Save at least one signature or text entry before confirming.");
       return;
     }
 
@@ -608,7 +704,15 @@ export function SigningPdfViewer({
         const filePlaceholdersForTarget = placeholders.filter(
           (placeholder) => placeholder.document_file_id === fileId
         );
-        if (!filePlaceholdersForTarget.length) continue;
+        const fileTextPlaceholdersForTarget = textPlaceholders.filter(
+          (placeholder) => placeholder.document_file_id === fileId
+        );
+        if (
+          !filePlaceholdersForTarget.length &&
+          !fileTextPlaceholdersForTarget.length
+        ) {
+          continue;
+        }
 
         const signatureEntries = new Map<
           string,
@@ -664,6 +768,19 @@ export function SigningPdfViewer({
           });
         }
 
+        const textEntries = fileTextPlaceholdersForTarget
+          .map((placeholder) => {
+            const textValue =
+              pendingTextEntries[placeholder.placeholder_id] ??
+              placeholder.text_value ??
+              "";
+            return {
+              placeholder,
+              text: textValue.trim(),
+            };
+          })
+          .filter((entry) => entry.text.length > 0);
+
         const pdfResponse = await fetch(
           `/api/documents/${documentId}/files/${
             targetFile.id
@@ -680,6 +797,15 @@ export function SigningPdfViewer({
 
         const buffer = await pdfResponse.arrayBuffer();
         const pdfDoc = await PDFDocument.load(buffer);
+        const fontCache = new Map<StandardFonts, PDFFont>();
+        const getFont = async (fontName: StandardFonts) => {
+          if (fontCache.has(fontName)) {
+            return fontCache.get(fontName)!;
+          }
+          const font = await pdfDoc.embedFont(fontName);
+          fontCache.set(fontName, font);
+          return font;
+        };
 
         for (const signature of signatureEntries.values()) {
           const page = pdfDoc.getPage(signature.pageNumber - 1);
@@ -718,6 +844,42 @@ export function SigningPdfViewer({
             y,
             width: renderWidth,
             height: renderHeight,
+          });
+        }
+
+        for (const entry of textEntries) {
+          const page = pdfDoc.getPage(entry.placeholder.page_number - 1);
+          const { width: pageWidth, height: pageHeight } = page.getSize();
+          const boxWidth = entry.placeholder.width;
+          const boxHeight = entry.placeholder.height;
+          const fontName = resolvePdfFont(entry.placeholder.font_family);
+          const font = await getFont(fontName);
+          const baseSize = Math.max(6, entry.placeholder.font_size || 12);
+          const widthAtSize = font.widthOfTextAtSize(entry.text, baseSize);
+          const size =
+            widthAtSize > boxWidth
+              ? Math.max(6, (boxWidth / widthAtSize) * baseSize)
+              : baseSize;
+          const textWidth = font.widthOfTextAtSize(entry.text, size);
+          const textHeight = font.heightAtSize(size);
+          const x = entry.placeholder.x_position + (boxWidth - textWidth) / 2;
+          const y =
+            pageHeight -
+            entry.placeholder.y_position -
+            boxHeight +
+            (boxHeight - textHeight) / 2;
+          const { r, g, b } = hexToRgb(entry.placeholder.font_color);
+
+          if (boxWidth > pageWidth || boxHeight > pageHeight) {
+            throw new Error("Text placement is outside the page bounds.");
+          }
+
+          page.drawText(entry.text, {
+            x,
+            y,
+            size,
+            font,
+            color: rgb(r / 255, g / 255, b / 255),
           });
         }
 
@@ -810,7 +972,7 @@ export function SigningPdfViewer({
     }
   };
 
-  if (isLoadingFiles || isLoadingPlaceholders) {
+  if (isLoadingFiles || isLoadingPlaceholders || isLoadingTextPlaceholders) {
     return (
       <Card className="h-full w-full min-h-[600px] flex flex-col">
         <CardHeader>
@@ -845,6 +1007,9 @@ export function SigningPdfViewer({
   const pendingCount = filePlaceholders.length;
   const hasDrafts = Object.keys(placedSignatures).length > 0;
   const hasCurrentSignature = Boolean(selectedPlaceholder && signatureData);
+  const hasTextDrafts = Object.values(textValues).some((value) =>
+    value.trim()
+  );
   const hasSelectedDraft = selectedPlaceholder
     ? Boolean(placedSignatures[selectedPlaceholder.placeholder_id])
     : false;
@@ -931,7 +1096,10 @@ export function SigningPdfViewer({
           <Button
             size="sm"
             onClick={handleConfirmSignature}
-            disabled={isSaving || (!hasDrafts && !hasCurrentSignature)}
+            disabled={
+              isSaving ||
+              (!hasDrafts && !hasCurrentSignature && !hasTextDrafts)
+            }
           >
             {isSaving ? (
               <>
@@ -939,7 +1107,7 @@ export function SigningPdfViewer({
                 Confirming...
               </>
             ) : (
-              "Confirm Signatures"
+              "Confirm Entries"
             )}
           </Button>
         </div>
@@ -947,52 +1115,90 @@ export function SigningPdfViewer({
       <CardContent className="flex-1 overflow-hidden p-4 flex flex-col gap-4">
         <div className="flex flex-col md:flex-row gap-3 flex-1 overflow-hidden">
           {/* Sidebar for pending signatures */}
-          <div className="w-full md:w-48 flex flex-col gap-2 overflow-y-auto ">
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">
-              Signatures
-            </h3>
-            {filePlaceholders.length === 0 ? (
-              <div className="text-xs text-muted-foreground italic">
-                No pending signatures
-              </div>
-            ) : (
-              filePlaceholders.map((p, i) =>
-                (() => {
-                  const isSigned = signedPlaceholderIds.has(p.placeholder_id);
-                  return (
-                    <Button
-                      key={p.placeholder_id}
-                      variant="outline"
-                      size="sm"
-                      className="justify-start text-xs h-auto py-2 whitespace-normal text-left"
-                      disabled={isSigned}
-                      onClick={() => {
-                        if (!isSigned) {
-                          setSelectedPlaceholder(p);
-                          if (p.page_number !== activePage) {
-                            setActivePage(p.page_number);
+          <div className="w-full md:w-56 flex flex-col gap-4 overflow-y-auto">
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-medium text-muted-foreground">
+                Signatures
+              </h3>
+              {filePlaceholders.length === 0 ? (
+                <div className="text-xs text-muted-foreground italic">
+                  No pending signatures
+                </div>
+              ) : (
+                filePlaceholders.map((p, i) =>
+                  (() => {
+                    const isSigned = signedPlaceholderIds.has(
+                      p.placeholder_id
+                    );
+                    return (
+                      <Button
+                        key={p.placeholder_id}
+                        variant="outline"
+                        size="sm"
+                        className="justify-start text-xs h-auto py-2 whitespace-normal text-left"
+                        disabled={isSigned}
+                        onClick={() => {
+                          if (!isSigned) {
+                            setSelectedPlaceholder(p);
+                            if (p.page_number !== activePage) {
+                              setActivePage(p.page_number);
+                            }
                           }
-                        }
-                      }}
-                    >
-                      <div className="flex flex-col gap-1">
-                        <span className="font-semibold">
-                          Signature #{i + 1}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          Page {p.page_number}
-                        </span>
-                        {isSigned && (
-                          <span className="text-[10px] text-emerald-600">
-                            Signed
+                        }}
+                      >
+                        <div className="flex flex-col gap-1">
+                          <span className="font-semibold">
+                            Signature #{i + 1}
                           </span>
-                        )}
-                      </div>
-                    </Button>
-                  );
-                })()
-              )
-            )}
+                          <span className="text-[10px] text-muted-foreground">
+                            Page {p.page_number}
+                          </span>
+                          {isSigned && (
+                            <span className="text-[10px] text-emerald-600">
+                              Signed
+                            </span>
+                          )}
+                        </div>
+                      </Button>
+                    );
+                  })()
+                )
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-medium text-muted-foreground">
+                Text
+              </h3>
+              {fileTextPlaceholders.length === 0 ? (
+                <div className="text-xs text-muted-foreground italic">
+                  No text placeholders
+                </div>
+              ) : (
+                fileTextPlaceholders.map((p, i) => (
+                  <Button
+                    key={p.placeholder_id}
+                    variant="outline"
+                    size="sm"
+                    className="justify-start text-xs h-auto py-2 whitespace-normal text-left"
+                    onClick={() => {
+                      setSelectedTextPlaceholder(p);
+                      setIsTextModalOpen(true);
+                      if (p.page_number !== activePage) {
+                        setActivePage(p.page_number);
+                      }
+                    }}
+                  >
+                    <div className="flex flex-col gap-1">
+                      <span className="font-semibold">Text #{i + 1}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        Page {p.page_number}
+                      </span>
+                    </div>
+                  </Button>
+                ))
+              )}
+            </div>
           </div>
 
           <div className="flex-1 flex items-center justify-center overflow-auto min-h-[300px]">
@@ -1071,6 +1277,44 @@ export function SigningPdfViewer({
                       </div>
                     );
                   })}
+                {fileTextPlaceholders
+                  .filter((p) => p.page_number === activePage)
+                  .map((placeholder) => {
+                    const displayText =
+                      textValues[placeholder.placeholder_id] ||
+                      placeholder.text_value ||
+                      "Text";
+                    return (
+                      <div
+                        key={placeholder.placeholder_id}
+                        style={{
+                          position: "absolute",
+                          left: placeholder.x_position * RENDER_SCALE,
+                          top: placeholder.y_position * RENDER_SCALE,
+                          width: placeholder.width * RENDER_SCALE,
+                          height: placeholder.height * RENDER_SCALE,
+                          zIndex: 8,
+                        }}
+                        className="rounded-md border-2 border-dashed border-amber-500/70 bg-transparent flex items-center justify-center cursor-pointer hover:border-amber-500"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedTextPlaceholder(placeholder);
+                          setIsTextModalOpen(true);
+                        }}
+                      >
+                        <div
+                          className="text-center px-1"
+                          style={{
+                            fontFamily: placeholder.font_family || "Arial",
+                            fontSize: placeholder.font_size || 14,
+                            color: placeholder.font_color || "#111827",
+                          }}
+                        >
+                          {displayText}
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </div>
@@ -1083,7 +1327,8 @@ export function SigningPdfViewer({
             </h3>
             <p className="text-xs text-muted-foreground">
               Select a &quot;Sign Here&quot; box on the document to add your
-              signature. Confirm all signatures when finished.
+              signature or tap a text box to enter text. Confirm all entries
+              when finished.
             </p>
           </div>
         </div>
@@ -1134,6 +1379,41 @@ export function SigningPdfViewer({
           }}
           initialSignature={signatureData || undefined}
           title="Create Your Signature"
+        />
+
+        <TextPlaceholderModal
+          isOpen={isTextModalOpen}
+          onClose={() => {
+            setIsTextModalOpen(false);
+            setSelectedTextPlaceholder(null);
+          }}
+          onSave={(text) => {
+            if (selectedTextPlaceholder) {
+              const placeholderId = selectedTextPlaceholder.placeholder_id;
+              setTextValues((prev) => ({
+                ...prev,
+                [placeholderId]: text,
+              }));
+              toast.success("Text saved to placeholder.");
+            }
+            setIsTextModalOpen(false);
+            setSelectedTextPlaceholder(null);
+          }}
+          onCancel={() => {
+            setIsTextModalOpen(false);
+            setSelectedTextPlaceholder(null);
+          }}
+          initialText={
+            selectedTextPlaceholder
+              ? textValues[selectedTextPlaceholder.placeholder_id] ||
+                selectedTextPlaceholder.text_value ||
+                ""
+              : ""
+          }
+          title="Add Text"
+          fontFamily={selectedTextPlaceholder?.font_family}
+          fontSize={selectedTextPlaceholder?.font_size}
+          fontColor={selectedTextPlaceholder?.font_color}
         />
 
         {/* Success Modal */}

@@ -46,6 +46,20 @@ export interface SignatureBox {
   isExisting?: boolean;
 }
 
+export interface TextBox {
+  id: string;
+  pageNumber: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fontFamily: string;
+  fontSize: number;
+  fontColor: string;
+  text?: string;
+  isExisting?: boolean;
+}
+
 interface SignaturePdfViewerProps {
   documentId: string;
   files: DocumentFileMetadata[];
@@ -56,6 +70,7 @@ interface SignaturePdfViewerProps {
   onConfirm: (payload: {
     fileId: string;
     boxes: SignatureBox[];
+    textBoxes: TextBox[];
     targetFileIds?: string[];
   }) => void;
 }
@@ -134,9 +149,19 @@ export function SignaturePdfViewer({
   const [activePage, setActivePage] = useState(1);
   const [isRendering, setIsRendering] = useState(false);
   const [boxes, setBoxes] = useState<SignatureBox[]>([]);
-  const [isPlacingBox, setIsPlacingBox] = useState(false);
+  const [textBoxes, setTextBoxes] = useState<TextBox[]>([]);
+  const [placementMode, setPlacementMode] = useState<
+    "signature" | "text" | null
+  >(null);
 
   const RENDER_SCALE = useMemo(() => 1.4, []);
+  const TEXT_FONT_OPTIONS = useMemo(
+    () => ["Arial", "Times New Roman", "Courier New", "Georgia"],
+    []
+  );
+  const DEFAULT_TEXT_FONT = "Arial";
+  const DEFAULT_TEXT_SIZE = 14;
+  const DEFAULT_TEXT_COLOR = "#111827";
 
   const { data: placeholders = [] } = useQuery({
     queryKey: ["signature-placeholders", documentId],
@@ -162,6 +187,34 @@ export function SignaturePdfViewer({
     enabled: Boolean(documentId),
   });
 
+  const { data: textPlaceholders = [] } = useQuery({
+    queryKey: ["text-placeholders", documentId],
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/document-texts/documents/${documentId}/text-placeholders`
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch text placeholders");
+      }
+      return response.json() as Promise<
+        Array<{
+          placeholder_id: string;
+          document_file_id: string;
+          page_number: number;
+          x_position: number;
+          y_position: number;
+          width: number;
+          height: number;
+          font_family: string;
+          font_size: number;
+          font_color: string;
+          text_value?: string | null;
+        }>
+      >;
+    },
+    enabled: Boolean(documentId),
+  });
+
 
   // Memoize boxes with their indices for efficient rendering
   const boxesWithIndices = useMemo(() => {
@@ -176,6 +229,19 @@ export function SignaturePdfViewer({
       return { box, index };
     });
   }, [boxes]);
+
+  const textBoxesWithIndices = useMemo(() => {
+    const existingBoxesList = textBoxes.filter((b) => b.isExisting);
+    const newBoxesList = textBoxes.filter((b) => !b.isExisting);
+
+    return textBoxes.map((box) => {
+      const index = box.isExisting
+        ? existingBoxesList.findIndex((b) => b.id === box.id) + 1
+        : newBoxesList.findIndex((b) => b.id === box.id) + 1;
+
+      return { box, index };
+    });
+  }, [textBoxes]);
 
   useEffect(() => {
     if (!selectedFileId) {
@@ -222,6 +288,64 @@ export function SignaturePdfViewer({
       return [...newExistingBoxes, ...prevNewBoxes];
     });
   }, [selectedFileId, placeholders, RENDER_SCALE]);
+
+  useEffect(() => {
+    if (!selectedFileId) {
+      setTextBoxes([]);
+      return;
+    }
+
+    const newExistingTextBoxes = textPlaceholders
+      .filter((placeholder) => placeholder.document_file_id === selectedFileId)
+      .map((placeholder) => ({
+        id: placeholder.placeholder_id,
+        pageNumber: placeholder.page_number,
+        x: placeholder.x_position * RENDER_SCALE,
+        y: placeholder.y_position * RENDER_SCALE,
+        width: placeholder.width * RENDER_SCALE,
+        height: placeholder.height * RENDER_SCALE,
+        fontFamily: placeholder.font_family || DEFAULT_TEXT_FONT,
+        fontSize: placeholder.font_size || DEFAULT_TEXT_SIZE,
+        fontColor: placeholder.font_color || DEFAULT_TEXT_COLOR,
+        text: placeholder.text_value || "Text",
+        isExisting: true,
+      }));
+
+    setTextBoxes((prevBoxes) => {
+      const prevExistingBoxes = prevBoxes.filter((b) => b.isExisting);
+      const prevNewBoxes = prevBoxes.filter((b) => !b.isExisting);
+
+      const hasExistingBoxesChanged =
+        newExistingTextBoxes.length !== prevExistingBoxes.length ||
+        !newExistingTextBoxes.every((newBox) =>
+          prevExistingBoxes.some(
+            (prevBox) =>
+              prevBox.id === newBox.id &&
+              prevBox.x === newBox.x &&
+              prevBox.y === newBox.y &&
+              prevBox.width === newBox.width &&
+              prevBox.height === newBox.height &&
+              prevBox.fontFamily === newBox.fontFamily &&
+              prevBox.fontSize === newBox.fontSize &&
+              prevBox.fontColor === newBox.fontColor &&
+              prevBox.text === newBox.text
+          )
+        );
+
+      if (!hasExistingBoxesChanged) {
+        return [...newExistingTextBoxes, ...prevNewBoxes];
+      }
+
+      return [...newExistingTextBoxes, ...prevNewBoxes];
+    });
+  }, [
+    selectedFileId,
+    textPlaceholders,
+    RENDER_SCALE,
+    DEFAULT_TEXT_FONT,
+    DEFAULT_TEXT_SIZE,
+    DEFAULT_TEXT_COLOR,
+  ]);
 
   useEffect(() => {
     if (!selectedFile) {
@@ -342,11 +466,16 @@ export function SignaturePdfViewer({
 
   const handleAddBox = () => {
     if (!pages.length) return;
-    setIsPlacingBox((prev) => !prev);
+    setPlacementMode((prev) => (prev === "signature" ? null : "signature"));
+  };
+
+  const handleAddTextBox = () => {
+    if (!pages.length) return;
+    setPlacementMode((prev) => (prev === "text" ? null : "text"));
   };
 
   const handlePlaceBox = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!isPlacingBox || !pages.length) return;
+    if (!placementMode || !pages.length) return;
     const targetPage = pages.find((p) => p.pageNumber === activePage);
     if (!targetPage) return;
 
@@ -363,22 +492,47 @@ export function SignaturePdfViewer({
     const x = Math.min(Math.max(clickX - defaultWidth / 2, 0), maxX);
     const y = Math.min(Math.max(clickY - defaultHeight / 2, 0), maxY);
 
-    const newBox: SignatureBox = {
-      id: createId(),
-      pageNumber: targetPage.pageNumber,
-      x,
-      y,
-      width: defaultWidth,
-      height: defaultHeight,
-      isExisting: false,
-    };
+    if (placementMode === "signature") {
+      const newBox: SignatureBox = {
+        id: createId(),
+        pageNumber: targetPage.pageNumber,
+        x,
+        y,
+        width: defaultWidth,
+        height: defaultHeight,
+        isExisting: false,
+      };
 
-    setBoxes((prev) => [...prev, newBox]);
-    setIsPlacingBox(false);
+      setBoxes((prev) => [...prev, newBox]);
+    } else {
+      const newTextBox: TextBox = {
+        id: createId(),
+        pageNumber: targetPage.pageNumber,
+        x,
+        y,
+        width: defaultWidth,
+        height: defaultHeight,
+        fontFamily: DEFAULT_TEXT_FONT,
+        fontSize: DEFAULT_TEXT_SIZE,
+        fontColor: DEFAULT_TEXT_COLOR,
+        text: "Text",
+        isExisting: false,
+      };
+
+      setTextBoxes((prev) => [...prev, newTextBox]);
+    }
+
+    setPlacementMode(null);
   };
 
   const handleUpdatePosition = (id: string, x: number, y: number) => {
     setBoxes((prev) =>
+      prev.map((box) => (box.id === id ? { ...box, x, y } : box))
+    );
+  };
+
+  const handleUpdateTextPosition = (id: string, x: number, y: number) => {
+    setTextBoxes((prev) =>
       prev.map((box) => (box.id === id ? { ...box, x, y } : box))
     );
   };
@@ -395,8 +549,33 @@ export function SignaturePdfViewer({
     );
   };
 
+  const handleResizeText = (
+    id: string,
+    width: number,
+    height: number,
+    x: number,
+    y: number
+  ) => {
+    setTextBoxes((prev) =>
+      prev.map((box) => (box.id === id ? { ...box, width, height, x, y } : box))
+    );
+  };
+
+  const handleUpdateTextStyle = (
+    id: string,
+    updates: Partial<Pick<TextBox, "fontFamily" | "fontSize" | "fontColor">>
+  ) => {
+    setTextBoxes((prev) =>
+      prev.map((box) => (box.id === id ? { ...box, ...updates } : box))
+    );
+  };
+
   const handleRemove = (id: string) => {
     setBoxes((prev) => prev.filter((box) => box.id !== id));
+  };
+
+  const handleRemoveText = (id: string) => {
+    setTextBoxes((prev) => prev.filter((box) => box.id !== id));
   };
 
   const handleConfirm = () => {
@@ -409,9 +588,10 @@ export function SignaturePdfViewer({
     }
 
     const newBoxes = boxes.filter((box) => !box.isExisting);
-    if (newBoxes.length === 0) {
+    const newTextBoxes = textBoxes.filter((box) => !box.isExisting);
+    if (newBoxes.length === 0 && newTextBoxes.length === 0) {
       toast.error(
-        "No new signature positions added. Please add at least one signature position before confirming."
+        "No new placeholders added. Please add at least one signature or text placeholder before confirming."
       );
       return;
     }
@@ -422,6 +602,7 @@ export function SignaturePdfViewer({
     onConfirm({
       fileId: selectedFileId,
       boxes: newBoxes,
+      textBoxes: newTextBoxes,
       targetFileIds: targets.filter(Boolean) as string[],
     });
   };
@@ -473,8 +654,8 @@ export function SignaturePdfViewer({
             )}
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1 max-w-xl">
-            Add one or more signature boxes on the PDF. These positions will be
-            used when processing the document for signature.
+            Add signature and text placeholders on the PDF. These positions
+            will be used when processing the document for signature.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -484,7 +665,7 @@ export function SignaturePdfViewer({
           <Button
             size="sm"
             onClick={handleConfirm}
-            disabled={boxes.length === 0 || isRendering}
+            disabled={(boxes.length === 0 && textBoxes.length === 0) || isRendering}
           >
             {isRendering ? (
               <>
@@ -492,7 +673,7 @@ export function SignaturePdfViewer({
                 Rendering PDF...
               </>
             ) : (
-              "Confirm Signature Boxes"
+              "Confirm Placeholders"
             )}
           </Button>
         </div>
@@ -577,7 +758,7 @@ export function SignaturePdfViewer({
             ) : (
               <div className="flex items-center object-fill justify-center min-h-full min-w-full">
                 <div
-                  className={cn("relative", isPlacingBox && "cursor-crosshair")}
+                  className={cn("relative", placementMode && "cursor-crosshair")}
                   style={{
                     width: activePageData.width,
                     height: activePageData.height,
@@ -666,6 +847,90 @@ export function SignaturePdfViewer({
                         </div>
                       </Rnd>
                     ))}
+
+                  {textBoxesWithIndices
+                    .filter(({ box }) => box.pageNumber === activePage)
+                    .map(({ box, index }) => (
+                      <Rnd
+                        key={box.id}
+                        size={{ width: box.width, height: box.height }}
+                        position={{ x: box.x, y: box.y }}
+                        bounds="parent"
+                        minWidth={60}
+                        minHeight={30}
+                        disableDragging={box.isExisting}
+                        enableResizing={
+                          box.isExisting
+                            ? false
+                            : {
+                                top: true,
+                                right: true,
+                                bottom: true,
+                                left: true,
+                                topRight: true,
+                                topLeft: true,
+                                bottomRight: true,
+                                bottomLeft: true,
+                              }
+                        }
+                        dragHandleClassName="text-box-drag-handle"
+                        onDragStop={(_, data) =>
+                          handleUpdateTextPosition(box.id, data.x, data.y)
+                        }
+                        onResizeStop={(_, _dir, ref, _delta, position) => {
+                          handleResizeText(
+                            box.id,
+                            ref.offsetWidth,
+                            ref.offsetHeight,
+                            position.x,
+                            position.y
+                          );
+                        }}
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClick={(event: { stopPropagation: () => any }) =>
+                          event.stopPropagation()
+                        }
+                        className={cn(
+                          "absolute rounded-md border-2 border-dashed shadow-sm bg-transparent",
+                          box.isExisting
+                            ? "border-amber-500/70"
+                            : "border-amber-500/80"
+                        )}
+                      >
+                        <div className="relative h-full w-full">
+                          {!box.isExisting && (
+                            <div className="text-box-drag-handle absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
+                              <Move className="h-3 w-3" />
+                              Drag text
+                            </div>
+                          )}
+                          <div
+                            className="flex h-full w-full items-center justify-center text-center px-1"
+                            style={{
+                              fontFamily: box.fontFamily,
+                              fontSize: box.fontSize,
+                              color: box.fontColor,
+                            }}
+                          >
+                            {box.isExisting
+                              ? `Text Placeholder #${index}`
+                              : box.text || "Text"}
+                          </div>
+                          {!box.isExisting && (
+                            <button
+                              type="button"
+                              className="absolute -right-2 -top-2 rounded-full bg-white p-1 text-destructive shadow"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleRemoveText(box.id);
+                              }}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      </Rnd>
+                    ))}
                 </div>
               </div>
             )}
@@ -681,7 +946,7 @@ export function SignaturePdfViewer({
                 Add one or more boxes where signers need to sign. You can drag
                 and resize them on the page.
               </p>
-              {isPlacingBox && (
+              {placementMode === "signature" && (
                 <p className="text-xs text-primary">
                   Click on the page to place the signature box.
                 </p>
@@ -694,118 +959,319 @@ export function SignaturePdfViewer({
                 onClick={handleAddBox}
                 disabled={isRendering || !pages.length}
               >
-                {isPlacingBox ? "Cancel Placement" : "Add Signature Box"}
+                {placementMode === "signature"
+                  ? "Cancel Placement"
+                  : "Add Signature Box"}
+              </Button>
+            </div>
+
+            <div className="rounded-md border bg-background p-3 text-sm space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-medium">Text Boxes</span>
+                <Badge variant="outline">{textBoxes.length}</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Add text placeholders with custom font, size, and color. Text
+                stays centered with no background.
+              </p>
+              {placementMode === "text" && (
+                <p className="text-xs text-primary">
+                  Click on the page to place the text box.
+                </p>
+              )}
+              <Button
+                type="button"
+                size="sm"
+                className="mt-1 w-full"
+                variant="outline"
+                onClick={handleAddTextBox}
+                disabled={isRendering || !pages.length}
+              >
+                {placementMode === "text"
+                  ? "Cancel Placement"
+                  : "Add Text Box"}
               </Button>
             </div>
 
             <div className="rounded-md border bg-background p-3 text-xs space-y-2 max-h-64 overflow-auto">
-              {boxes.length === 0 ? (
+              {boxes.length === 0 && textBoxes.length === 0 ? (
                 <p className="text-muted-foreground">
-                  No signature boxes yet. Use &quot;Add Signature Box&quot; to
-                  place one on the current page.
+                  No placeholders yet. Use the buttons above to add signature
+                  or text boxes.
                 </p>
               ) : (
-                boxesWithIndices.map(({ box, index }) => (
-                  <div
-                    key={box.id}
-                    className="flex flex-col gap-2 rounded border p-2"
-                  >
-                    <div className="flex items-center justify-between">
-                      <p className="font-medium">
-                        {box.isExisting
-                          ? `Existing Signature #${index} (Page ${box.pageNumber})`
-                          : `Signature ${index} (Page ${box.pageNumber})`}
-                      </p>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="h-6 w-6 text-destructive"
-                        onClick={() => handleRemove(box.id)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
+                <>
+                  {boxesWithIndices.map(({ box, index }) => (
+                    <div
+                      key={box.id}
+                      className="flex flex-col gap-2 rounded border p-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium">
+                          {box.isExisting
+                            ? `Existing Signature #${index} (Page ${box.pageNumber})`
+                            : `Signature ${index} (Page ${box.pageNumber})`}
+                        </p>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 text-destructive"
+                          onClick={() => handleRemove(box.id)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs text-muted-foreground">
+                            X
+                          </label>
+                          <input
+                            type="number"
+                            className="w-full rounded border bg-background px-2 py-1 text-xs"
+                            value={Math.round(box.x)}
+                            onChange={(e) =>
+                              handleUpdatePosition(
+                                box.id,
+                                Number(e.target.value),
+                                box.y
+                              )
+                            }
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">
+                            Y
+                          </label>
+                          <input
+                            type="number"
+                            className="w-full rounded border bg-background px-2 py-1 text-xs"
+                            value={Math.round(box.y)}
+                            onChange={(e) =>
+                              handleUpdatePosition(
+                                box.id,
+                                box.x,
+                                Number(e.target.value)
+                              )
+                            }
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">
+                            Width
+                          </label>
+                          <input
+                            type="number"
+                            className="w-full rounded border bg-background px-2 py-1 text-xs"
+                            value={Math.round(box.width)}
+                            min="50"
+                            onChange={(e) => {
+                              const value = Math.max(
+                                50,
+                                Number(e.target.value)
+                              );
+                              handleResize(
+                                box.id,
+                                value,
+                                box.height,
+                                box.x,
+                                box.y
+                              );
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">
+                            Height
+                          </label>
+                          <input
+                            type="number"
+                            className="w-full rounded border bg-background px-2 py-1 text-xs"
+                            value={Math.round(box.height)}
+                            min="30"
+                            onChange={(e) => {
+                              const value = Math.max(
+                                30,
+                                Number(e.target.value)
+                              );
+                              handleResize(
+                                box.id,
+                                box.width,
+                                value,
+                                box.x,
+                                box.y
+                              );
+                            }}
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          X
-                        </label>
-                        <input
-                          type="number"
-                          className="w-full rounded border bg-background px-2 py-1 text-xs"
-                          value={Math.round(box.x)}
-                          onChange={(e) =>
-                            handleUpdatePosition(
-                              box.id,
-                              Number(e.target.value),
-                              box.y
-                            )
-                          }
-                        />
+                  ))}
+
+                  {textBoxesWithIndices.map(({ box, index }) => (
+                    <div
+                      key={box.id}
+                      className="flex flex-col gap-2 rounded border p-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium">
+                          {box.isExisting
+                            ? `Existing Text #${index} (Page ${box.pageNumber})`
+                            : `Text ${index} (Page ${box.pageNumber})`}
+                        </p>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 text-destructive"
+                          onClick={() => handleRemoveText(box.id)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
                       </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Y
-                        </label>
-                        <input
-                          type="number"
-                          className="w-full rounded border bg-background px-2 py-1 text-xs"
-                          value={Math.round(box.y)}
-                          onChange={(e) =>
-                            handleUpdatePosition(
-                              box.id,
-                              box.x,
-                              Number(e.target.value)
-                            )
-                          }
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Width
-                        </label>
-                        <input
-                          type="number"
-                          className="w-full rounded border bg-background px-2 py-1 text-xs"
-                          value={Math.round(box.width)}
-                          min="50"
-                          onChange={(e) => {
-                            const value = Math.max(50, Number(e.target.value));
-                            handleResize(
-                              box.id,
-                              value,
-                              box.height,
-                              box.x,
-                              box.y
-                            );
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Height
-                        </label>
-                        <input
-                          type="number"
-                          className="w-full rounded border bg-background px-2 py-1 text-xs"
-                          value={Math.round(box.height)}
-                          min="30"
-                          onChange={(e) => {
-                            const value = Math.max(30, Number(e.target.value));
-                            handleResize(
-                              box.id,
-                              box.width,
-                              value,
-                              box.x,
-                              box.y
-                            );
-                          }}
-                        />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs text-muted-foreground">
+                            X
+                          </label>
+                          <input
+                            type="number"
+                            className="w-full rounded border bg-background px-2 py-1 text-xs"
+                            value={Math.round(box.x)}
+                            onChange={(e) =>
+                              handleUpdateTextPosition(
+                                box.id,
+                                Number(e.target.value),
+                                box.y
+                              )
+                            }
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">
+                            Y
+                          </label>
+                          <input
+                            type="number"
+                            className="w-full rounded border bg-background px-2 py-1 text-xs"
+                            value={Math.round(box.y)}
+                            onChange={(e) =>
+                              handleUpdateTextPosition(
+                                box.id,
+                                box.x,
+                                Number(e.target.value)
+                              )
+                            }
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">
+                            Width
+                          </label>
+                          <input
+                            type="number"
+                            className="w-full rounded border bg-background px-2 py-1 text-xs"
+                            value={Math.round(box.width)}
+                            min="60"
+                            onChange={(e) => {
+                              const value = Math.max(
+                                60,
+                                Number(e.target.value)
+                              );
+                              handleResizeText(
+                                box.id,
+                                value,
+                                box.height,
+                                box.x,
+                                box.y
+                              );
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">
+                            Height
+                          </label>
+                          <input
+                            type="number"
+                            className="w-full rounded border bg-background px-2 py-1 text-xs"
+                            value={Math.round(box.height)}
+                            min="30"
+                            onChange={(e) => {
+                              const value = Math.max(
+                                30,
+                                Number(e.target.value)
+                              );
+                              handleResizeText(
+                                box.id,
+                                box.width,
+                                value,
+                                box.x,
+                                box.y
+                              );
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">
+                            Font
+                          </label>
+                          <select
+                            className="w-full rounded border bg-background px-2 py-1 text-xs"
+                            value={box.fontFamily}
+                            onChange={(e) =>
+                              handleUpdateTextStyle(box.id, {
+                                fontFamily: e.target.value,
+                              })
+                            }
+                          >
+                            {TEXT_FONT_OPTIONS.map((font) => (
+                              <option key={font} value={font}>
+                                {font}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">
+                            Size
+                          </label>
+                          <input
+                            type="number"
+                            className="w-full rounded border bg-background px-2 py-1 text-xs"
+                            value={Math.round(box.fontSize)}
+                            min="8"
+                            onChange={(e) => {
+                              const value = Math.max(
+                                8,
+                                Number(e.target.value)
+                              );
+                              handleUpdateTextStyle(box.id, {
+                                fontSize: value,
+                              });
+                            }}
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="text-xs text-muted-foreground">
+                            Color
+                          </label>
+                          <input
+                            type="color"
+                            className="h-8 w-full rounded border bg-background px-1 py-1 text-xs"
+                            value={box.fontColor}
+                            onChange={(e) =>
+                              handleUpdateTextStyle(box.id, {
+                                fontColor: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </>
               )}
             </div>
           </div>

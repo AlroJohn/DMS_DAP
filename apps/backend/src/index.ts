@@ -44,6 +44,7 @@ import archiveRoutes from './routes/archive.routes'; // Import archive routes
 import dashboardRoutes from './routes/dashboard.routes'; // Import dashboard routes
 import documentSignatureRoutes from './routes/document-signatures'; // Import document signature routes
 import documentSignaturePlaceholderRoutes from './routes/document-signature-placeholders'; // Import document signature placeholder routes
+import documentTextPlaceholderRoutes from './routes/document-text-placeholders'; // Import document text placeholder routes
 import documentReportsRoutes from './routes/document-reports.routes'; // Import document reports routes
 import counterRoutes from './routes/counter.routes'; // Import counter routes
 import activityLogsRoutes from './routes/activity-logs.routes'; // Import activity logs routes
@@ -181,6 +182,7 @@ app.use('/api/archive', archiveRoutes); // Add archive routes
 app.use('/api/dashboard', dashboardRoutes); // Add dashboard routes
 app.use('/api/signatures', documentSignatureRoutes); // Add document signature routes
 app.use('/api/document-signatures', documentSignaturePlaceholderRoutes); // Add document signature placeholder routes
+app.use('/api/document-texts', documentTextPlaceholderRoutes); // Add document text placeholder routes
 app.use('/api/reports', documentReportsRoutes); // Add document reports routes
 app.use('/api', counterRoutes); // Add counter routes
 app.use('/api', activityLogsRoutes); // Add activity logs routes
