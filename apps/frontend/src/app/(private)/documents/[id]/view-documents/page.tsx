@@ -153,7 +153,7 @@ export default function ViewDocumentPage() {
   }
 
   return (
-    <div className="flex flex-col gap-2 p-1 md:p-2 lg:p-4 mx-auto w-full pb-2 h-[calc(100vh-100px)] flex-1">
+    <div className="flex flex-col gap-2    mx-auto w-full pb-2 h-[calc(100vh-100px)] flex-1">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-lg font-bold tracking-tight">{title}</h1>
@@ -267,12 +267,14 @@ export default function ViewDocumentPage() {
                   className="max-h-full max-w-full object-contain"
                 />
               ) : (
-                <iframe
-                  src={`${previewBaseUrl}#toolbar=1&status=0&view=FitH`}
-                  title={previewFile.name}
-                  className="w-full h-full"
-                  style={{ minHeight: '500px' }}
-                />
+                <div className="w-full max-w-3xl aspect-[8.5/11]">
+                  <iframe
+                    src={`${previewBaseUrl}#toolbar=1&status=0`}
+                    title={previewFile.name}
+                    className="w-full h-full"
+                    style={{ border: 0 }}
+                  />
+                </div>
               )}
             </div>
           ) : (

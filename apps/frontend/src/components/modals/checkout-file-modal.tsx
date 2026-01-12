@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/use-auth";
 import { UploadVersionModal } from "./upload-version-modal";
 
@@ -135,6 +136,7 @@ export function CheckoutFileModal({
   const [files, setFiles] = useState<DocumentFile[]>([]);
   const [fileItems, setFileItems] = useState<FileItem[]>([]);
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
+  const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -142,6 +144,21 @@ export function CheckoutFileModal({
   const [currentPath, setCurrentPath] = useState<
     { id: string; name: string }[]
   >([]);
+
+  const isSignatureAction = action === "signature";
+
+  const isPdfFile = (file?: DocumentFile | null) => {
+    if (!file) return false;
+    const type = (file.type || "").toLowerCase();
+    const name = (file.name || "").toLowerCase();
+    return type.includes("pdf") || name.endsWith(".pdf");
+  };
+
+  const isSelectableForSignature = (file: DocumentFile) => {
+    const isLockedByOther =
+      file.checkout && file.checkedOutBy?.accountId !== user?.accountId;
+    return isPdfFile(file) && !isLockedByOther;
+  };
 
   const fetchFiles = useCallback(async () => {
     if (!documentId) return;
@@ -155,6 +172,7 @@ export function CheckoutFileModal({
       setFileItems(groupFilesToItems(fetchedFiles));
       setCurrentPath([]);
       setSelectedFileId(null);
+      setSelectedFileIds([]);
     } catch (error) {
       console.error(error);
       toast.error("Could not load document files.");
@@ -170,18 +188,42 @@ export function CheckoutFileModal({
     }
   }, [open, fetchFiles]);
 
-  const handleConfirm = async () => {
-    if (!selectedFileId || !documentId) return;
-    const selectedFile = files.find((f) => f.id === selectedFileId);
-    if (!selectedFile) return;
-
-    if (action === "signature") {
-      onOpenChange(false);
-      router.push(
-        `/documents/${documentId}?mode=signature&fileId=${selectedFileId}`
-      );
+  useEffect(() => {
+    if (!isSignatureAction) {
+      setSelectedFileIds([]);
       return;
     }
+    if (!selectedFileIds.length) {
+      setSelectedFileId(null);
+      return;
+    }
+    if (!selectedFileId || !selectedFileIds.includes(selectedFileId)) {
+      setSelectedFileId(selectedFileIds[0]);
+    }
+  }, [isSignatureAction, selectedFileIds, selectedFileId]);
+
+  const handleConfirm = async () => {
+    if (!documentId) return;
+    if (action === "signature") {
+      const signatureTargets = selectedFileIds.length
+        ? selectedFileIds
+        : selectedFileId
+          ? [selectedFileId]
+          : [];
+      if (!signatureTargets.length) return;
+      const primaryFileId = signatureTargets[0];
+      onOpenChange(false);
+      const params = new URLSearchParams();
+      params.set("mode", "signature");
+      params.set("fileId", primaryFileId);
+      params.set("fileIds", signatureTargets.join(","));
+      router.push(`/documents/${documentId}?${params.toString()}`);
+      return;
+    }
+
+    if (!selectedFileId) return;
+    const selectedFile = files.find((f) => f.id === selectedFileId);
+    if (!selectedFile) return;
 
     if (
       selectedFile.checkout &&
@@ -249,6 +291,29 @@ export function CheckoutFileModal({
     setSelectedFileId(file.id);
   };
 
+  const handleSignatureSelection = (file: DocumentFile) => {
+    if (!isSelectableForSignature(file)) return;
+    setSelectedFileIds((prev) => {
+      const isSelected = prev.includes(file.id);
+      if (isSelected) {
+        return prev.filter((id) => id !== file.id);
+      }
+      return [...prev, file.id];
+    });
+  };
+
+  const selectableSignatureFileIds = files
+    .filter((file) => isSelectableForSignature(file))
+    .map((file) => file.id);
+
+  const handleSelectAllSignatureFiles = () => {
+    setSelectedFileIds(selectableSignatureFileIds);
+  };
+
+  const handleClearSignatureSelection = () => {
+    setSelectedFileIds([]);
+  };
+
   const handleVersionGroupClick = (item: FileItem) => {
     if (item.children && item.children.length > 0) {
       setCurrentPath((prev) => [...prev, { id: item.id, name: item.name }]);
@@ -283,19 +348,26 @@ export function CheckoutFileModal({
   let buttonText = "Select a file";
   let buttonDisabled = true;
 
-  if (selectedFile) {
+  if (isSignatureAction) {
+    const selectedCount = selectedFileIds.length;
+    if (selectedCount > 0) {
+      buttonText = `Open Signature Mode (${selectedCount} file${selectedCount > 1 ? "s" : ""})`;
+      buttonDisabled = false;
+    } else {
+      buttonText = "Select files for signature";
+      buttonDisabled = true;
+    }
+  } else if (selectedFile) {
     if (selectedFile.checkout) {
       if (selectedFile.checkedOutBy?.accountId === user?.accountId) {
-        buttonText =
-          action === "signature" ? "Open Signature Mode" : "Edit PDF";
+        buttonText = "Edit PDF";
         buttonDisabled = false;
       } else {
         buttonText = "Locked by another user";
         buttonDisabled = true;
       }
     } else {
-      buttonText =
-        action === "signature" ? "Open Signature Mode" : "Checkout & Edit";
+      buttonText = "Checkout & Edit";
       buttonDisabled = false;
     }
   }
@@ -338,7 +410,7 @@ export function CheckoutFileModal({
               ))}
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -348,6 +420,30 @@ export function CheckoutFileModal({
                 <ChevronLeft className="h-4 w-4 mr-2" />
                 Back
               </Button>
+              {isSignatureAction && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>
+                    Selected {selectedFileIds.length} of{" "}
+                    {selectableSignatureFileIds.length}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSelectAllSignatureFiles}
+                    disabled={!selectableSignatureFileIds.length || isProcessing}
+                  >
+                    Select all PDFs
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleClearSignatureSelection}
+                    disabled={!selectedFileIds.length || isProcessing}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              )}
               <div className="text-sm text-muted-foreground">
                 {fileItems.length} items
               </div>
@@ -387,23 +483,40 @@ export function CheckoutFileModal({
                         isLocked &&
                         file.checkedOutBy?.accountId === user?.accountId;
                       const isLockedByOther = isLocked && !isLockedByMe;
+                      const isSelectable =
+                        !isSignatureAction || isSelectableForSignature(file);
+                      const isSelected =
+                        isSignatureAction && selectedFileIds.includes(file.id);
                       return (
                         <div
                           key={file.id}
                           className={`flex items-center justify-between rounded-md border p-3 group ${
-                            isLockedByOther
+                            !isSelectable
                               ? "cursor-not-allowed bg-muted/30 text-muted-foreground"
                               : "cursor-pointer hover:bg-accent"
                           } ${
-                            selectedFileId === file.id
+                            (!isSignatureAction && selectedFileId === file.id) ||
+                            isSelected
                               ? "bg-accent border-primary"
                               : ""
                           }`}
                           onClick={() =>
-                            !isLockedByOther && handleFileClick(file)
+                            isSignatureAction
+                              ? isSelectable && handleSignatureSelection(file)
+                              : !isLockedByOther && handleFileClick(file)
                           }
                         >
                           <div className="flex items-center space-x-3 overflow-hidden">
+                            {isSignatureAction && (
+                              <Checkbox
+                                checked={isSelected}
+                                disabled={!isSelectable}
+                                onClick={(event) => event.stopPropagation()}
+                                onCheckedChange={() =>
+                                  handleSignatureSelection(file)
+                                }
+                              />
+                            )}
                             <File className="h-5 w-5 text-green-500 flex-shrink-0" />
                             <div className="overflow-hidden">
                               <div className="font-medium truncate">

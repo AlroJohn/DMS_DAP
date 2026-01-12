@@ -50,9 +50,14 @@ interface SignaturePdfViewerProps {
   documentId: string;
   files: DocumentFileMetadata[];
   initialFileId?: string | null;
+  targetFileIds?: string[];
   isLoadingFiles: boolean;
   onExit: () => void;
-  onConfirm: (payload: { fileId: string; boxes: SignatureBox[] }) => void;
+  onConfirm: (payload: {
+    fileId: string;
+    boxes: SignatureBox[];
+    targetFileIds?: string[];
+  }) => void;
 }
 
 const isPdfLikeFile = (file?: DocumentFileMetadata | null) => {
@@ -74,6 +79,7 @@ export function SignaturePdfViewer({
   documentId,
   files,
   initialFileId,
+  targetFileIds,
   isLoadingFiles,
   onExit,
   onConfirm,
@@ -83,15 +89,46 @@ export function SignaturePdfViewer({
     [files]
   );
 
+  const normalizedTargetFileIds = useMemo(() => {
+    if (!targetFileIds?.length) return [];
+    const allowedIds = new Set(pdfFiles.map((file) => file.id));
+    return targetFileIds.filter((id) => allowedIds.has(id));
+  }, [pdfFiles, targetFileIds]);
+
+  const selectableFiles = useMemo(() => {
+    if (!normalizedTargetFileIds.length) return pdfFiles;
+    const selectedSet = new Set(normalizedTargetFileIds);
+    return pdfFiles.filter((file) => selectedSet.has(file.id));
+  }, [normalizedTargetFileIds, pdfFiles]);
+
   const [selectedFileId, setSelectedFileId] = useState<string | null>(
-    initialFileId ?? pdfFiles[0]?.id ?? null
+    initialFileId ?? selectableFiles[0]?.id ?? null
   );
 
   const selectedFile = useMemo(() => {
-    if (!pdfFiles || pdfFiles.length === 0) return null;
-    const targetId = selectedFileId ?? pdfFiles[0]?.id ?? null;
-    return targetId ? pdfFiles.find((file) => file.id === targetId) : null;
-  }, [pdfFiles, selectedFileId]);
+    if (!selectableFiles || selectableFiles.length === 0) return null;
+    const targetId = selectedFileId ?? selectableFiles[0]?.id ?? null;
+    return targetId
+      ? selectableFiles.find((file) => file.id === targetId)
+      : null;
+  }, [selectableFiles, selectedFileId]);
+
+  useEffect(() => {
+    if (!selectableFiles.length) {
+      setSelectedFileId(null);
+      return;
+    }
+    if (!selectedFileId) {
+      setSelectedFileId(selectableFiles[0]?.id ?? null);
+      return;
+    }
+    const isAvailable = selectableFiles.some(
+      (file) => file.id === selectedFileId
+    );
+    if (!isAvailable) {
+      setSelectedFileId(selectableFiles[0]?.id ?? null);
+    }
+  }, [selectableFiles, selectedFileId]);
 
   const [pages, setPages] = useState<PdfPageRender[]>([]);
   const [activePage, setActivePage] = useState(1);
@@ -379,7 +416,14 @@ export function SignaturePdfViewer({
       return;
     }
 
-    onConfirm({ fileId: selectedFileId, boxes: newBoxes });
+    const targets = normalizedTargetFileIds.length
+      ? normalizedTargetFileIds
+      : [selectedFileId];
+    onConfirm({
+      fileId: selectedFileId,
+      boxes: newBoxes,
+      targetFileIds: targets.filter(Boolean) as string[],
+    });
   };
 
   if (isLoadingFiles) {
@@ -415,6 +459,7 @@ export function SignaturePdfViewer({
   }
 
   const activePageData = pages.find((p) => p.pageNumber === activePage);
+  const applyingToCount = normalizedTargetFileIds.length || 1;
 
   return (
     <Card className="h-full w-full min-h-[600px] flex flex-col border-primary/40">
@@ -423,6 +468,9 @@ export function SignaturePdfViewer({
           <CardTitle className="flex items-center gap-2">
             Prepare Signature Positions
             <Badge variant="outline">For Signature</Badge>
+            {applyingToCount > 1 && (
+              <Badge variant="secondary">{applyingToCount} files</Badge>
+            )}
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1 max-w-xl">
             Add one or more signature boxes on the PDF. These positions will be
@@ -472,7 +520,7 @@ export function SignaturePdfViewer({
                 align="end"
                 className="w-56 max-h-64 overflow-y-auto"
               >
-                {pdfFiles.map((file) => (
+                {selectableFiles.map((file) => (
                   <DropdownMenuItem
                     key={file.id}
                     onSelect={() => setSelectedFileId(file.id)}

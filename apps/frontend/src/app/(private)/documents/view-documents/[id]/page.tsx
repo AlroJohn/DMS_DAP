@@ -24,21 +24,21 @@ export default function DocumentSignatureViewerPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user } = useAuth();
-  const documentId = Array.isArray(id) ? id[0] : id;
+  const documentId = Array.isArray(id) ? id[0] : (id || '');
   const fileIdFromUrl = searchParams?.get('fileId');
-  
+
   const [activeSignatureData, setActiveSignatureData] = useState<string | null>(null);
   const [isPlacingSignature, setIsPlacingSignature] = useState(false);
   const [signatureMode, setSignatureMode] = useState<'view' | 'place'>('view');
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [signatureRecords, setSignatureRecords] = useState<any[]>([]);
-  
-  const { document, isLoading: docLoading, error: docError } = useDocumentDetail(documentId);
-  const { 
-    files, 
-    isLoading: filesLoading, 
+
+  const { document: documentDetail, isLoading: docLoading, error: docError } = useDocumentDetail(documentId);
+  const {
+    files,
+    isLoading: filesLoading,
     error: filesError,
-    refetch 
+    refetch
   } = useDocumentFiles(documentId);
 
   const parseVersion = useCallback((value?: string | null) => {
@@ -275,14 +275,14 @@ export default function DocumentSignatureViewerPage() {
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Error loading document: {docError?.message || filesError?.message}
+            Error loading document: {docError || filesError}
           </AlertDescription>
         </Alert>
       </div>
     );
   }
 
-  if (!document) {
+  if (!documentDetail) {
     return (
       <div className="container mx-auto py-6">
         <Alert>
@@ -297,7 +297,7 @@ export default function DocumentSignatureViewerPage() {
   // Get any existing signatures for the document
   const signedDocuments = signatureRecords.length
     ? signatureRecords
-    : (document.signedDocuments || []);
+    : ((documentDetail as any).signedDocuments || []);
 
   const mappedSignedDocuments = signedDocuments.map((sig: any, index: number) => ({
     signed_document_id:
@@ -319,7 +319,7 @@ export default function DocumentSignatureViewerPage() {
   const documentFiles = (sortedFiles || []).map((file) => {
     const cacheKey = file.uploadDate
       ? new Date(file.uploadDate).getTime().toString()
-      : file.version || file.id;
+      : (file.version || file.id || file.name || 'default');
 
     return {
     id: file.id,
@@ -335,7 +335,7 @@ export default function DocumentSignatureViewerPage() {
   const viewDocumentFiles = (sortedFiles || []).map((file) => {
     const cacheKey = file.uploadDate
       ? new Date(file.uploadDate).getTime().toString()
-      : file.version || file.id;
+      : (file.version || file.id || file.name || 'default');
 
     return {
       id: file.id,
@@ -351,8 +351,8 @@ export default function DocumentSignatureViewerPage() {
     <div className="container mx-auto py-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{document.title}</h1>
-          <p className="text-muted-foreground">Document ID: {document.document_id}</p>
+          <h1 className="text-2xl font-bold">{documentDetail.title}</h1>
+          <p className="text-muted-foreground">Document ID: {documentDetail.document_id}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleGoBack}>
@@ -373,7 +373,7 @@ export default function DocumentSignatureViewerPage() {
           <p className="text-sm text-blue-800">
             <strong>For Signature:</strong> This document will be released to department{' '}
             <span className="font-medium">
-              {document.current_department?.name || releaseDepartmentId}
+              {documentDetail.current_department?.name || releaseDepartmentId}
             </span>{' '}
             for signature.
           </p>
@@ -469,26 +469,26 @@ export default function DocumentSignatureViewerPage() {
             <CardContent className="space-y-4">
               <div>
                 <p className="text-sm text-muted-foreground">Status</p>
-                <p className="font-medium">{document.status}</p>
+                <p className="font-medium">{documentDetail.status}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Type</p>
-                <p className="font-medium">{document.detail?.document_type?.name || 'N/A'}</p>
+                <p className="font-medium">{documentDetail.detail?.document_type?.name || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Classification</p>
-                <p className="font-medium">{document.classification}</p>
+                <p className="font-medium">{documentDetail.classification}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Department</p>
-                <p className="font-medium">{document.current_department?.name || 'N/A'}</p>
+                <p className="font-medium">{documentDetail.current_department?.name || 'N/A'}</p>
               </div>
               {releaseDepartmentId && (
                 <>
                   <div className="pt-4 border-t">
                     <p className="text-sm text-muted-foreground">Release To</p>
                     <p className="font-medium">
-                      {document.current_department?.name || releaseDepartmentId}
+                      {documentDetail.current_department?.name || releaseDepartmentId}
                     </p>
                   </div>
                   <div>

@@ -115,6 +115,7 @@ export default function DocumentDetailPage() {
   } = useDocumentFiles(documentId);
   const modeParam = searchParams?.get("mode");
   const fileIdFromUrl = searchParams?.get("fileId");
+  const fileIdsFromUrl = searchParams?.get("fileIds");
   const [isEditorOpen, setIsEditorOpen] = useState(modeParam === "edit");
   const [isSignatureModeOpen, setIsSignatureModeOpen] = useState(
     modeParam === "signature"
@@ -179,13 +180,19 @@ export default function DocumentDetailPage() {
     () => [...pdfFiles].sort(compareDocumentFilesByVersionDesc),
     [pdfFiles]
   );
+  const signatureFileIdsFromUrl = useMemo(() => {
+    if (!fileIdsFromUrl) return [];
+    return fileIdsFromUrl.split(",").filter(Boolean);
+  }, [fileIdsFromUrl]);
+
   const editableFileFromUrl = useMemo(() => {
-    if (fileIdFromUrl) {
-      const file = pdfFiles.find((f) => f.id === fileIdFromUrl);
+    const candidateId = fileIdFromUrl || signatureFileIdsFromUrl[0];
+    if (candidateId) {
+      const file = pdfFiles.find((f) => f.id === candidateId);
       if (file) return file;
     }
     return null;
-  }, [pdfFiles, fileIdFromUrl]);
+  }, [pdfFiles, fileIdFromUrl, signatureFileIdsFromUrl]);
 
   const defaultEditableFileId =
     editableFileFromUrl?.id ?? sortedPdfFiles[0]?.id ?? null;
@@ -426,9 +433,11 @@ export default function DocumentDetailPage() {
   const handleConfirmSignatures = async ({
     fileId,
     boxes,
+    targetFileIds,
   }: {
     fileId: string;
     boxes: SignatureBox[];
+    targetFileIds?: string[];
   }) => {
     const params = new URLSearchParams(searchParams?.toString() || "");
     const departmentId = params.get("releaseDepartmentId");
@@ -436,16 +445,21 @@ export default function DocumentDetailPage() {
     const remarks = params.get("releaseRemarks") || undefined;
 
     const RENDER_SCALE = 1.4;
+    const normalizedTargetIds = Array.from(
+      new Set([...(targetFileIds || []), fileId].filter(Boolean))
+    );
 
     // Prepare signature placeholders data
-    const signaturePlaceholders = boxes.map((box) => ({
-      document_file_id: fileId,
-      page_number: box.pageNumber,
-      x_position: box.x / RENDER_SCALE, // Adjust for scale
-      y_position: box.y / RENDER_SCALE,
-      width: box.width / RENDER_SCALE,
-      height: box.height / RENDER_SCALE,
-    }));
+    const signaturePlaceholders = normalizedTargetIds.flatMap((targetFileId) =>
+      boxes.map((box) => ({
+        document_file_id: targetFileId,
+        page_number: box.pageNumber,
+        x_position: box.x / RENDER_SCALE, // Adjust for scale
+        y_position: box.y / RENDER_SCALE,
+        width: box.width / RENDER_SCALE,
+        height: box.height / RENDER_SCALE,
+      }))
+    );
 
     if (!departmentId || !requestActionsRaw) {
       if (signaturePlaceholders.length === 0) {
@@ -619,6 +633,7 @@ export default function DocumentDetailPage() {
           documentId={documentIdForRoutes}
           files={files}
           initialFileId={defaultEditableFileId}
+          targetFileIds={signatureFileIdsFromUrl}
           isLoadingFiles={filesLoading}
           onExit={() => {
             // Redirect to owned documents page instead of back to document detail
@@ -705,6 +720,7 @@ export default function DocumentDetailPage() {
               documentId={documentIdForRoutes}
               files={files}
               initialFileId={defaultEditableFileId}
+              targetFileIds={signatureFileIdsFromUrl}
               isLoadingFiles={filesLoading}
               onExit={() => {
                 // Redirect to owned documents page instead of back to document detail
@@ -723,11 +739,7 @@ export default function DocumentDetailPage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => router.back()}
-                >
+                <Button variant="ghost" size="sm" onClick={() => router.back()}>
                   <ArrowLeft className="h-4 w-4 mr-1" />
                   Back
                 </Button>
@@ -736,7 +748,11 @@ export default function DocumentDetailPage() {
               <div className="flex flex-wrap items-center gap-2 mt-2 text-sm text-muted-foreground">
                 <div className="flex items-center gap-1">
                   <Hash className="h-3 w-3" />
-                  <span>{document.document_code || document.detail?.document_code || 'N/A'}</span>
+                  <span>
+                    {document.document_code ||
+                      document.detail?.document_code ||
+                      "N/A"}
+                  </span>
                 </div>
                 <span>•</span>
                 <div className="flex items-center gap-1">
@@ -744,17 +760,18 @@ export default function DocumentDetailPage() {
                   <span>{classification}</span>
                 </div>
                 <span>•</span>
-                <Badge variant={document.status === 'completed' ? 'default' : 'secondary'}>
+                <Badge
+                  variant={
+                    document.status === "completed" ? "default" : "secondary"
+                  }
+                >
                   {document.status}
                 </Badge>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
               {canSign && (
-                <Button
-                  size="sm"
-                  onClick={() => setIsSigningModalOpen(true)}
-                >
+                <Button size="sm" onClick={() => setIsSigningModalOpen(true)}>
                   <Shield className="h-4 w-4 mr-1" />
                   Sign with Blockchain
                 </Button>
@@ -791,15 +808,15 @@ export default function DocumentDetailPage() {
               {previewFile && isPreviewSupported ? (
                 <div className="border rounded-lg overflow-hidden bg-muted/10">
                   <div className="aspect-[8.5/11] relative">
-                    {previewMime.includes('pdf') ? (
+                    {previewMime.includes("pdf") ? (
                       <iframe
-                        src={previewBaseUrl || ''}
+                        src={previewBaseUrl || ""}
                         className="w-full h-full"
                         title="Document Preview"
                       />
                     ) : (
                       <img
-                        src={previewBaseUrl || ''}
+                        src={previewBaseUrl || ""}
                         alt="Document Preview"
                         className="w-full h-full object-contain"
                       />
@@ -866,7 +883,9 @@ export default function DocumentDetailPage() {
               </div>
               {document.description && (
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-muted-foreground">Description</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Description
+                  </p>
                   <p className="text-sm">{document.description}</p>
                 </div>
               )}
@@ -886,7 +905,11 @@ export default function DocumentDetailPage() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">Status:</span>
-                    <Badge variant={blockchainStatus === 'signed' ? 'default' : 'secondary'}>
+                    <Badge
+                      variant={
+                        blockchainStatus === "signed" ? "default" : "secondary"
+                      }
+                    >
                       {blockchainStatus}
                     </Badge>
                   </div>
@@ -900,7 +923,9 @@ export default function DocumentDetailPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => window.open(blockchainRedirectUrl, '_blank')}
+                      onClick={() =>
+                        window.open(blockchainRedirectUrl, "_blank")
+                      }
                     >
                       <ExternalLink className="h-4 w-4 mr-2" />
                       View on Blockchain
@@ -923,20 +948,29 @@ export default function DocumentDetailPage() {
               <CardContent>
                 <div className="space-y-2">
                   {sortedPdfFiles.map((file) => (
-                    <div key={file.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50">
+                    <div
+                      key={file.id}
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
+                    >
                       <div className="flex items-center gap-3">
                         <FileText className="h-4 w-4 text-muted-foreground" />
                         <div>
                           <p className="text-sm font-medium">{file.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            Version {file.version} • {formatFileSize(file.size)} • {formatDate(file.uploadDate)}
+                            Version {file.version} • {formatFileSize(file.size)}{" "}
+                            • {formatDate(file.uploadDate)}
                           </p>
                         </div>
                       </div>
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => window.open(`/api/documents/${documentIdForRoutes}/files/${file.id}/stream?download=1`, '_blank')}
+                        onClick={() =>
+                          window.open(
+                            `/api/documents/${documentIdForRoutes}/files/${file.id}/stream?download=1`,
+                            "_blank"
+                          )
+                        }
                       >
                         <Download className="h-4 w-4" />
                       </Button>
