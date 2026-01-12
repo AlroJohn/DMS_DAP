@@ -200,12 +200,22 @@ export class ArchiveService {
       });
 
       // Get document types to map IDs to names
-      const documentTypeIds = archivedDocs.map(doc => doc.document_type);
-      const documentTypes = await prisma.documentType.findMany({
-        where: {
-          type_id: { in: documentTypeIds }
-        }
-      });
+      // Filter out invalid UUIDs before querying
+      const validDocumentTypeIds = archivedDocs
+        .map(doc => doc.document_type)
+        .filter(id => {
+          // Simple UUID validation regex: 8-4-4-4-12 hex characters
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          return id && typeof id === 'string' && uuidRegex.test(id);
+        });
+
+      const documentTypes = validDocumentTypeIds.length > 0
+        ? await prisma.documentType.findMany({
+            where: {
+              type_id: { in: validDocumentTypeIds }
+            }
+          })
+        : [];
       const typeMap = new Map(documentTypes.map(dt => [dt.type_id, dt.name]));
 
       // Process each document to add QR codes, barcodes, and proper names
@@ -410,10 +420,19 @@ export class ArchiveService {
       }
 
       // Get the document type name
-      const documentType = await prisma.documentType.findUnique({
-        where: { type_id: document.document_type }
-      });
-      const typeName = documentType?.name || document.document_type;
+      // Validate UUID before querying
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      let typeName = document.document_type; // Default to the raw value
+
+      if (document.document_type && typeof document.document_type === 'string' && uuidRegex.test(document.document_type)) {
+        const documentType = await prisma.documentType.findUnique({
+          where: { type_id: document.document_type }
+        });
+        typeName = documentType?.name || document.document_type;
+      } else {
+        // If it's not a valid UUID, use the raw value as the type name
+        typeName = document.document_type;
+      }
 
       // Get classification and other document details with fallbacks
       const classification = document.classification || 'Simple';
