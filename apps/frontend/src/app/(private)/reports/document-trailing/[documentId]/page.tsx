@@ -202,12 +202,17 @@ export default function DocumentTrailsDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="sm" onClick={() => router.back()}>
+      <div className="flex flex-col gap-4">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => router.back()}
+          className="w-fit"
+        >
           <ChevronLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
-        <div>
+        <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight">
             Document Trail Details
           </h1>
@@ -223,32 +228,32 @@ export default function DocumentTrailsDetailPage() {
             <CardTitle>Document Information</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Title</p>
-                <p className="font-medium">{documentInfo.title}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Title</p>
+                <p className="text-base font-semibold">{documentInfo.title}</p>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Code</p>
-                <p className="font-medium">{documentInfo.code}</p>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Code</p>
+                <p className="text-base font-semibold">{documentInfo.code}</p>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Type</p>
-                <p className="font-medium">{documentInfo.type}</p>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Type</p>
+                <p className="text-base font-semibold">{documentInfo.type}</p>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Classification</p>
-                <p className="font-medium">{documentInfo.classification}</p>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Classification</p>
+                <p className="text-base font-semibold capitalize">{documentInfo.classification}</p>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Status</p>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Status</p>
                 <Badge className={getStatusColor(documentInfo.status)}>
                   {getStatusText(documentInfo.status)}
                 </Badge>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Created</p>
-                <p className="font-medium">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Created</p>
+                <p className="text-base font-semibold">
                   {format(
                     new Date(documentInfo.createdAt),
                     "MMM d, yyyy h:mm a"
@@ -260,9 +265,9 @@ export default function DocumentTrailsDetailPage() {
         </Card>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h2 className="text-2xl font-bold">Trail History</h2>
-        <Button onClick={handleExport}>
+        <Button onClick={handleExport} className="w-full sm:w-auto">
           <Download className="h-4 w-4 mr-2" />
           Export Trail
         </Button>
