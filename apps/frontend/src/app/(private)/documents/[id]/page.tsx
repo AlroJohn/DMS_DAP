@@ -354,29 +354,9 @@ export default function DocumentDetailPage() {
     router.push("/documents");
   };
 
-  const handleCloseSignatureMode = () => {
-    setIsSignatureModeOpen(false);
-    const currentParams = new URLSearchParams(searchParams?.toString() || "");
-    currentParams.delete("mode");
-    currentParams.delete("releaseDepartmentId");
-    currentParams.delete("releaseActions");
-    currentParams.delete("releaseRemarks");
-    const nextQuery = currentParams.toString();
-    router.replace(
-      nextQuery ? `/documents/${documentId}?${nextQuery}` : `/documents/owned`,
-      { scroll: false }
-    );
-  };
-
   const handleCloseSigningMode = () => {
     setIsSigningModeOpen(false);
-    const currentParams = new URLSearchParams(searchParams?.toString() || "");
-    currentParams.delete("mode");
-    const nextQuery = currentParams.toString();
-    router.replace(
-      nextQuery ? `/documents/${documentId}?${nextQuery}` : `/documents/owned`,
-      { scroll: false }
-    );
+    router.back();
   };
 
   const handleSigned = () => {
@@ -466,7 +446,7 @@ export default function DocumentDetailPage() {
         font_family: box.fontFamily,
         font_size: box.fontSize,
         font_color: box.fontColor,
-        text_value: box.text || "Text",
+        text_value: box.text?.trim() || "",
       }))
     );
 
@@ -565,8 +545,8 @@ export default function DocumentDetailPage() {
           signaturePlaceholders.length && textPlaceholders.length
             ? "Signature and text placeholders saved."
             : signaturePlaceholders.length
-              ? "Signature placeholders saved."
-              : "Text placeholders saved.";
+            ? "Signature placeholders saved."
+            : "Text placeholders saved.";
         toast.success(successMessage);
         refetch();
         // Redirect to owned documents page instead of back to document detail
@@ -698,7 +678,7 @@ export default function DocumentDetailPage() {
 
   if (isSignatureModeOpen) {
     return (
-      <div className="flex flex-col gap-2 p-1 md:p-2 lg:p-4 mx-auto w-full pb-2">
+      <div className="mx-auto max-w-[80dvw] flex flex-col gap-2 p-1 md:p-2 lg:p-4 w-full pb-2">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-lg font-bold tracking-tight">
@@ -709,11 +689,7 @@ export default function DocumentDetailPage() {
             </p> */}
           </div>
           <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCloseSignatureMode}
-            >
+            <Button variant="outline" size="sm" onClick={() => router.back()}>
               Back to Document
             </Button>
           </div>
@@ -725,10 +701,7 @@ export default function DocumentDetailPage() {
           initialFileId={defaultEditableFileId}
           targetFileIds={signatureFileIdsFromUrl}
           isLoadingFiles={filesLoading}
-          onExit={() => {
-            // Redirect to owned documents page instead of back to document detail
-            router.push("/documents");
-          }}
+          onExit={() => router.back()}
           onConfirm={handleConfirmSignatures}
         />
       </div>
@@ -771,10 +744,7 @@ export default function DocumentDetailPage() {
           files={files}
           initialFileId={defaultEditableFileId}
           isLoadingFiles={filesLoading}
-          onExit={() => {
-            // Redirect to owned documents page instead of back to document detail
-            router.push("/documents");
-          }}
+          onExit={() => router.back()}
           onSigned={handleSigned}
         />
       </div>
@@ -782,7 +752,7 @@ export default function DocumentDetailPage() {
   }
 
   return (
-    <div className="flex flex-col gap-2 p-1 md:p-2 lg:p-4 mx-auto w-full pb-2">
+    <div className="flex flex-col gap-2 mx-auto w-full pb-2">
       {isRedirectingToView && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="flex items-center gap-2 rounded-md border bg-white/90 px-4 py-3 text-sm text-muted-foreground shadow-lg">
@@ -805,7 +775,7 @@ export default function DocumentDetailPage() {
 
       {isSignatureModeOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/90 p-2 md:p-4">
-          <div className="w-full max-w-6xl max-h-[95vh] flex flex-col gap-2">
+          <div className="w-full max-h-[95vh] flex flex-col gap-2">
             <SignaturePdfViewer
               documentId={documentIdForRoutes}
               files={files}

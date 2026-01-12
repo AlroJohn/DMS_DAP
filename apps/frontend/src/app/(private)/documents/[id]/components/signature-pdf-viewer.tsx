@@ -215,7 +215,6 @@ export function SignaturePdfViewer({
     enabled: Boolean(documentId),
   });
 
-
   // Memoize boxes with their indices for efficient rendering
   const boxesWithIndices = useMemo(() => {
     const existingBoxesList = boxes.filter((b) => b.isExisting);
@@ -264,19 +263,20 @@ export function SignaturePdfViewer({
 
     setBoxes((prevBoxes) => {
       // Separate existing and new boxes
-      const prevExistingBoxes = prevBoxes.filter(b => b.isExisting);
-      const prevNewBoxes = prevBoxes.filter(b => !b.isExisting);
+      const prevExistingBoxes = prevBoxes.filter((b) => b.isExisting);
+      const prevNewBoxes = prevBoxes.filter((b) => !b.isExisting);
 
       // Check if existing boxes have changed by comparing IDs and positions
       const hasExistingBoxesChanged =
         newExistingBoxes.length !== prevExistingBoxes.length ||
         !newExistingBoxes.every((newBox) =>
-          prevExistingBoxes.some(prevBox =>
-            prevBox.id === newBox.id &&
-            prevBox.x === newBox.x &&
-            prevBox.y === newBox.y &&
-            prevBox.width === newBox.width &&
-            prevBox.height === newBox.height
+          prevExistingBoxes.some(
+            (prevBox) =>
+              prevBox.id === newBox.id &&
+              prevBox.x === newBox.x &&
+              prevBox.y === newBox.y &&
+              prevBox.width === newBox.width &&
+              prevBox.height === newBox.height
           )
         );
 
@@ -307,7 +307,7 @@ export function SignaturePdfViewer({
         fontFamily: placeholder.font_family || DEFAULT_TEXT_FONT,
         fontSize: placeholder.font_size || DEFAULT_TEXT_SIZE,
         fontColor: placeholder.font_color || DEFAULT_TEXT_COLOR,
-        text: placeholder.text_value || "Text",
+        text: placeholder.text_value || "",
         isExisting: true,
       }));
 
@@ -515,7 +515,7 @@ export function SignaturePdfViewer({
         fontFamily: DEFAULT_TEXT_FONT,
         fontSize: DEFAULT_TEXT_SIZE,
         fontColor: DEFAULT_TEXT_COLOR,
-        text: "Text",
+        text: "",
         isExisting: false,
       };
 
@@ -654,8 +654,8 @@ export function SignaturePdfViewer({
             )}
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1 max-w-xl">
-            Add signature and text placeholders on the PDF. These positions
-            will be used when processing the document for signature.
+            Add signature and text placeholders on the PDF. These positions will
+            be used when processing the document for signature.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -665,7 +665,9 @@ export function SignaturePdfViewer({
           <Button
             size="sm"
             onClick={handleConfirm}
-            disabled={(boxes.length === 0 && textBoxes.length === 0) || isRendering}
+            disabled={
+              (boxes.length === 0 && textBoxes.length === 0) || isRendering
+            }
           >
             {isRendering ? (
               <>
@@ -758,7 +760,10 @@ export function SignaturePdfViewer({
             ) : (
               <div className="flex items-center object-fill justify-center min-h-full min-w-full">
                 <div
-                  className={cn("relative", placementMode && "cursor-crosshair")}
+                  className={cn(
+                    "relative",
+                    placementMode && "cursor-crosshair"
+                  )}
                   style={{
                     width: activePageData.width,
                     height: activePageData.height,
@@ -768,7 +773,7 @@ export function SignaturePdfViewer({
                   <img
                     src={activePageData.imageUrl}
                     alt={`Page ${activePageData.pageNumber}`}
-                    className="h-full w-full object-contain rounded-md border bg-white"
+                    className="h-full w-full object-fill rounded-md border bg-white"
                   />
 
                   {boxesWithIndices
@@ -914,7 +919,7 @@ export function SignaturePdfViewer({
                           >
                             {box.isExisting
                               ? `Text Placeholder #${index}`
-                              : box.text || "Text"}
+                              : box.text?.trim() || "Text"}
                           </div>
                           {!box.isExisting && (
                             <button
@@ -987,17 +992,15 @@ export function SignaturePdfViewer({
                 onClick={handleAddTextBox}
                 disabled={isRendering || !pages.length}
               >
-                {placementMode === "text"
-                  ? "Cancel Placement"
-                  : "Add Text Box"}
+                {placementMode === "text" ? "Cancel Placement" : "Add Text Box"}
               </Button>
             </div>
 
-            <div className="rounded-md border bg-background p-3 text-xs space-y-2 max-h-64 overflow-auto">
+            <div className="rounded-md border bg-background p-3 text-xs space-y-2 max-h-[100dvh] overflow-auto">
               {boxes.length === 0 && textBoxes.length === 0 ? (
                 <p className="text-muted-foreground">
-                  No placeholders yet. Use the buttons above to add signature
-                  or text boxes.
+                  No placeholders yet. Use the buttons above to add signature or
+                  text boxes.
                 </p>
               ) : (
                 <>
@@ -1243,10 +1246,7 @@ export function SignaturePdfViewer({
                             value={Math.round(box.fontSize)}
                             min="8"
                             onChange={(e) => {
-                              const value = Math.max(
-                                8,
-                                Number(e.target.value)
-                              );
+                              const value = Math.max(8, Number(e.target.value));
                               handleUpdateTextStyle(box.id, {
                                 fontSize: value,
                               });

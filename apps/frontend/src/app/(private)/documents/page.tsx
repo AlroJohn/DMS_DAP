@@ -80,14 +80,14 @@ export default function DocumentsPage() {
     };
 
     // Listen for document-related events
-    socket.on('documentAdded', handleDocumentAdded);
-    socket.on('documentUpdated', handleDocumentUpdated);
-    socket.on('documentDeleted', handleDocumentDeleted);
-    socket.on('documentArchived', handleDocumentUpdated);
-    socket.on('documentRestored', handleDocumentUpdated);
-    socket.on('documentShared', handleDocumentAdded); // Refetch when documents are shared
-    socket.on('documentAddedToUser', handleDocumentAdded); // Refetch when a document is specifically shared to this user
-    socket.on('documentUploadCompleted', handleDocumentAdded); // Also refetch on upload completion
+    socket.on("documentAdded", handleDocumentAdded);
+    socket.on("documentUpdated", handleDocumentUpdated);
+    socket.on("documentDeleted", handleDocumentDeleted);
+    socket.on("documentArchived", handleDocumentUpdated);
+    socket.on("documentRestored", handleDocumentUpdated);
+    socket.on("documentShared", handleDocumentAdded); // Refetch when documents are shared
+    socket.on("documentAddedToUser", handleDocumentAdded); // Refetch when a document is specifically shared to this user
+    socket.on("documentUploadCompleted", handleDocumentAdded); // Also refetch on upload completion
 
     // Cleanup listeners on unmount
     return () => {
@@ -103,10 +103,10 @@ export default function DocumentsPage() {
   }, [socket, refetch]);
 
   // Check if the error is authentication-related
-  const isAuthError = error && error.includes('Authentication required');
+  const isAuthError = error && error.includes("Authentication required");
 
   return (
-    <div className="w-full flex h-full flex-col bg-background">
+    <div className="p-4 w-full flex h-full flex-col bg-background">
       {error && !isAuthError && (
         <div className="mb-4">
           <Alert variant="destructive" className="max-w-md">
@@ -121,7 +121,9 @@ export default function DocumentsPage() {
           <Alert variant="destructive" className="max-w-md">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Authentication Required</AlertTitle>
-            <AlertDescription>You must be logged in to view documents.</AlertDescription>
+            <AlertDescription>
+              You must be logged in to view documents.
+            </AlertDescription>
           </Alert>
         </div>
       )}

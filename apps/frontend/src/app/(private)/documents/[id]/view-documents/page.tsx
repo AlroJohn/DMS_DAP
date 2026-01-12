@@ -153,7 +153,7 @@ export default function ViewDocumentPage() {
   }
 
   return (
-    <div className="flex flex-col gap-2    mx-auto w-full pb-2 h-[calc(100vh-100px)] flex-1">
+    <div className="flex flex-col gap-2 p-4 mx-auto w-full h-[calc(100vh-100px)] flex-1">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-lg font-bold tracking-tight">{title}</h1>
@@ -269,7 +269,7 @@ export default function ViewDocumentPage() {
               ) : (
                 <div className="w-full max-w-3xl aspect-[8.5/11]">
                   <iframe
-                    src={`${previewBaseUrl}#toolbar=1&status=0`}
+                    src={`${previewBaseUrl}#toolbar=0&status=0&view=Fit&pagemode=none&zoom=140`}
                     title={previewFile.name}
                     className="w-full h-full"
                     style={{ border: 0 }}

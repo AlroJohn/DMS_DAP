@@ -109,6 +109,12 @@ const hexToRgb = (value?: string) => {
   };
 };
 
+const normalizeTextValue = (value?: string | null) => {
+  const trimmed = (value || "").trim();
+  if (!trimmed) return "";
+  return trimmed.toLowerCase() === "text" ? "" : trimmed;
+};
+
 const isPdfLikeFile = (file?: DocumentFileMetadata | null) => {
   if (!file) return false;
   const type = (file.type || "").toLowerCase();
@@ -448,8 +454,9 @@ export function SigningPdfViewer({
     setTextValues((prev) => {
       const next = { ...prev };
       textPlaceholders.forEach((placeholder) => {
-        if (placeholder.text_value && !next[placeholder.placeholder_id]) {
-          next[placeholder.placeholder_id] = placeholder.text_value;
+        const storedText = normalizeTextValue(placeholder.text_value);
+        if (storedText && !next[placeholder.placeholder_id]) {
+          next[placeholder.placeholder_id] = storedText;
         }
       });
       return next;
@@ -770,13 +777,12 @@ export function SigningPdfViewer({
 
         const textEntries = fileTextPlaceholdersForTarget
           .map((placeholder) => {
-            const textValue =
+            const baseText =
               pendingTextEntries[placeholder.placeholder_id] ??
-              placeholder.text_value ??
-              "";
+              normalizeTextValue(placeholder.text_value);
             return {
               placeholder,
-              text: textValue.trim(),
+              text: baseText.trim(),
             };
           })
           .filter((entry) => entry.text.length > 0);
@@ -1175,28 +1181,43 @@ export function SigningPdfViewer({
                   No text placeholders
                 </div>
               ) : (
-                fileTextPlaceholders.map((p, i) => (
-                  <Button
-                    key={p.placeholder_id}
-                    variant="outline"
-                    size="sm"
-                    className="justify-start text-xs h-auto py-2 whitespace-normal text-left"
-                    onClick={() => {
-                      setSelectedTextPlaceholder(p);
-                      setIsTextModalOpen(true);
-                      if (p.page_number !== activePage) {
-                        setActivePage(p.page_number);
-                      }
-                    }}
-                  >
-                    <div className="flex flex-col gap-1">
-                      <span className="font-semibold">Text #{i + 1}</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        Page {p.page_number}
-                      </span>
-                    </div>
-                  </Button>
-                ))
+                fileTextPlaceholders.map((p, i) => {
+                  const storedText = normalizeTextValue(p.text_value);
+                  const savedText = textValues[p.placeholder_id] || "";
+                  const hasSavedText = Boolean(
+                    normalizeTextValue(savedText || storedText)
+                  );
+
+                  return (
+                    <Button
+                      key={p.placeholder_id}
+                      variant="outline"
+                      size="sm"
+                      className="justify-start text-xs h-auto py-2 whitespace-normal text-left"
+                      disabled={hasSavedText}
+                      onClick={() => {
+                        if (hasSavedText) return;
+                        setSelectedTextPlaceholder(p);
+                        setIsTextModalOpen(true);
+                        if (p.page_number !== activePage) {
+                          setActivePage(p.page_number);
+                        }
+                      }}
+                    >
+                      <div className="flex flex-col gap-1">
+                        <span className="font-semibold">Text #{i + 1}</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          Page {p.page_number}
+                        </span>
+                        {hasSavedText && (
+                          <span className="text-[10px] text-emerald-600">
+                            Filled
+                          </span>
+                        )}
+                      </div>
+                    </Button>
+                  );
+                })
               )}
             </div>
           </div>
@@ -1218,7 +1239,7 @@ export function SigningPdfViewer({
                 <img
                   src={activePageData.imageUrl}
                   alt={`Page ${activePageData.pageNumber}`}
-                  className="h-full w-full object-contain rounded-md border border-border/50 bg-white"
+                  className="h-full w-full object-fill rounded-md border border-border/50 bg-white"
                 />
                 {filePlaceholders
                   .filter((p) => p.page_number === activePage)
@@ -1280,9 +1301,17 @@ export function SigningPdfViewer({
                 {fileTextPlaceholders
                   .filter((p) => p.page_number === activePage)
                   .map((placeholder) => {
+                    const storedText = normalizeTextValue(
+                      placeholder.text_value
+                    );
+                    const savedText =
+                      textValues[placeholder.placeholder_id] || "";
+                    const hasSavedText = Boolean(
+                      normalizeTextValue(savedText || storedText)
+                    );
                     const displayText =
-                      textValues[placeholder.placeholder_id] ||
-                      placeholder.text_value ||
+                      normalizeTextValue(savedText) ||
+                      normalizeTextValue(storedText) ||
                       "Text";
                     return (
                       <div
@@ -1295,11 +1324,18 @@ export function SigningPdfViewer({
                           height: placeholder.height * RENDER_SCALE,
                           zIndex: 8,
                         }}
-                        className="rounded-md border-2 border-dashed border-amber-500/70 bg-transparent flex items-center justify-center cursor-pointer hover:border-amber-500"
+                        className={cn(
+                          "rounded-md border-2 border-dashed bg-transparent flex items-center justify-center",
+                          hasSavedText
+                            ? "border-amber-500/50 cursor-not-allowed"
+                            : "border-amber-500/70 cursor-pointer hover:border-amber-500"
+                        )}
                         onClick={(event) => {
                           event.stopPropagation();
-                          setSelectedTextPlaceholder(placeholder);
-                          setIsTextModalOpen(true);
+                          if (!hasSavedText) {
+                            setSelectedTextPlaceholder(placeholder);
+                            setIsTextModalOpen(true);
+                          }
                         }}
                       >
                         <div
@@ -1406,7 +1442,10 @@ export function SigningPdfViewer({
           initialText={
             selectedTextPlaceholder
               ? textValues[selectedTextPlaceholder.placeholder_id] ||
-                selectedTextPlaceholder.text_value ||
+                (selectedTextPlaceholder.text_value || "").toLowerCase() ===
+                  "text"
+                  ? ""
+                  : selectedTextPlaceholder.text_value ||
                 ""
               : ""
           }

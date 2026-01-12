@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 
 interface TextPlaceholderModalProps {
@@ -72,11 +77,11 @@ export function TextPlaceholderModal({
             value={textValue}
             onChange={(event) => setTextValue(event.target.value)}
             placeholder="Enter text for this placeholder"
-            className="min-h-[120px]"
+            className="min-h-[80px]"
           />
 
           <div
-            className="rounded-md border bg-muted/20 px-3 py-2 text-center text-sm"
+            className="rounded-md border bg-muted/20 px-3 text-center text-sm"
             style={{
               fontFamily: fontFamily || "Arial",
               fontSize: fontSize || 14,
@@ -87,7 +92,11 @@ export function TextPlaceholderModal({
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
+            <Button
+              variant="outline"
+              onClick={handleCancel}
+              disabled={isSaving}
+            >
               Cancel
             </Button>
             <Button variant="outline" onClick={handleClear} disabled={isSaving}>

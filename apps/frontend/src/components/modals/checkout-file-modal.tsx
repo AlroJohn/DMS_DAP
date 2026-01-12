@@ -176,11 +176,10 @@ export function CheckoutFileModal({
     } catch (error) {
       console.error(error);
       toast.error("Could not load document files.");
-      onOpenChange(false);
     } finally {
       setIsLoading(false);
     }
-  }, [documentId, onOpenChange]);
+  }, [documentId]);
 
   useEffect(() => {
     if (open) {

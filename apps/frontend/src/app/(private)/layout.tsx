@@ -16,7 +16,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <AppSidebar />
             <SidebarInset>
               <Header />
-              <div className="p-4 max-w-dvw flex flex-1 flex-col">{children}</div>
+              <div className=" max-w-dvw flex flex-1 flex-col">{children}</div>
             </SidebarInset>
           </TooltipProvider>
         </SidebarProvider>
