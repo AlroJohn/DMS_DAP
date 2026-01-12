@@ -413,8 +413,8 @@ export default function DocumentTrailingPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
+    <div className="flex flex-col gap-6 ">
+      <div className="space-y-1">
         <h1 className="text-3xl font-bold tracking-tight">
           Document Trailing
         </h1>
@@ -483,78 +483,83 @@ export default function DocumentTrailingPage() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <CardTitle>Document Trails</CardTitle>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="relative">
+        <CardHeader>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <CardTitle>Document Trails</CardTitle>
+              <Button variant="outline" size="sm" onClick={handleExportPDF}>
+                <Download className="h-4 w-4 mr-2" />
+                Export All to PDF
+              </Button>
+            </div>
+            <div className="relative w-full sm:max-w-md">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search documents, users, or remarks..."
-                className="pl-9"
+                className="pl-9 w-full"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Button variant="outline" size="sm" onClick={handleExportPDF}>
-              <Download className="h-4 w-4 mr-2" />
-              Export All to PDF
-            </Button>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-2 mb-4">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Filters:</span>
+          <div className="space-y-4"> {/* This is line 507 */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Filters:</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Select
+                  value={departmentFilter}
+                  onValueChange={setDepartmentFilter}
+                >
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="Filter by department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Departments</SelectItem>
+                    <SelectItem value="Finance">Finance</SelectItem>
+                    <SelectItem value="HR">HR</SelectItem>
+                    <SelectItem value="IT">IT</SelectItem>
+                    <SelectItem value="Legal">Legal</SelectItem>
+                    <SelectItem value="Operations">Operations</SelectItem>
+                    <SelectItem value="Procurement">Procurement</SelectItem>
+                    <SelectItem value="Executive">Executive</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={ownershipFilter}
+                  onValueChange={setOwnershipFilter}
+                >
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="Filter by ownership" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Documents</SelectItem>
+                    <SelectItem value="owned">Owned Documents</SelectItem>
+                    <SelectItem value="shared">Shared Documents</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="dispatch">Dispatched</SelectItem>
+                    <SelectItem value="intransit">In Transit</SelectItem>
+                    <SelectItem value="received">Received</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="deleted">Deleted</SelectItem>
+                    <SelectItem value="archive">Archived</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <Select
-              value={departmentFilter}
-              onValueChange={setDepartmentFilter}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by department" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
-                <SelectItem value="Finance">Finance</SelectItem>
-                <SelectItem value="HR">HR</SelectItem>
-                <SelectItem value="IT">IT</SelectItem>
-                <SelectItem value="Legal">Legal</SelectItem>
-                <SelectItem value="Operations">Operations</SelectItem>
-                <SelectItem value="Procurement">Procurement</SelectItem>
-                <SelectItem value="Executive">Executive</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={ownershipFilter}
-              onValueChange={setOwnershipFilter}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by ownership" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Documents</SelectItem>
-                <SelectItem value="owned">Owned Documents</SelectItem>
-                <SelectItem value="shared">Shared Documents</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="dispatch">Dispatched</SelectItem>
-                <SelectItem value="intransit">In Transit</SelectItem>
-                <SelectItem value="received">Received</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="deleted">Deleted</SelectItem>
-                <SelectItem value="archive">Archived</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
 
-          <div className="space-y-4">
+            <div className="space-y-4">
             {filteredDocuments.length === 0 ? (
               <div className="text-center py-12">
                 {error ? (
@@ -616,47 +621,67 @@ export default function DocumentTrailingPage() {
               filteredDocuments.map((doc) => (
                 <div
                   key={doc.id}
-                  className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                  className="border rounded-lg p-4 hover:bg-muted/50 transition-colors hover:shadow-sm"
                 >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start gap-3">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
                         <FileText className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-medium truncate">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <h3 className="font-medium">
                               {doc.documentTitle}
                             </h3>
-                            <Badge variant="secondary">
+                            <Badge variant="secondary" className="text-xs">
                               {doc.documentCode}
                             </Badge>
+                            <Badge className={getStatusColor(doc.actionName, doc.status, doc.remarks)}>
+                              {getStatusText(doc.actionName, doc.status, doc.remarks)}
+                            </Badge>
                           </div>
-                          <p className="text-sm text-muted-foreground truncate">
-                            {doc.documentType} document
+                          <p className="text-sm text-muted-foreground">
+                            {doc.documentType}
                           </p>
                         </div>
                       </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewTrails(doc.documentId)}
+                        className="w-full sm:w-auto flex-shrink-0"
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Trails
+                      </Button>
+                    </div>
 
-                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                        <div className="flex items-center gap-2">
-                          <Building className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">From:</span>
-                          <span>{doc.fromDepartment}</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="text-muted-foreground flex-shrink-0">From:</span>
+                          <span className="truncate font-medium">{doc.fromDepartment}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">To:</span>
-                          <span>{doc.toDepartment}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="text-muted-foreground flex-shrink-0">To:</span>
+                          <span className="truncate font-medium">{doc.toDepartment}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">By:</span>
-                          <span>{doc.user}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="text-muted-foreground flex-shrink-0">By:</span>
+                          <span className="truncate font-medium">{doc.user}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">On:</span>
-                          <span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="text-muted-foreground flex-shrink-0">On:</span>
+                          <span className="truncate font-medium">
                             {format(
                               new Date(doc.actionDate),
                               "MMM d, yyyy h:mm a"
@@ -664,34 +689,21 @@ export default function DocumentTrailingPage() {
                           </span>
                         </div>
                       </div>
-
-                      {doc.remarks && (
-                        <div className="mt-2 text-sm">
-                          <span className="text-muted-foreground">
-                            Remarks:
-                          </span>{" "}
-                          {doc.remarks}
-                        </div>
-                      )}
                     </div>
 
-                    <div className="flex flex-col items-end gap-2">
-                      <Badge className={getStatusColor(doc.actionName, doc.status, doc.remarks)}>
-                        {getStatusText(doc.actionName, doc.status, doc.remarks)}
-                      </Badge>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewTrails(doc.documentId)}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Trails
-                      </Button>
-                    </div>
+                    {doc.remarks && (
+                      <div className="text-sm bg-muted/50 p-3 rounded-md">
+                        <span className="font-medium text-muted-foreground">
+                          Remarks:
+                        </span>{" "}
+                        <span className="text-foreground">{doc.remarks}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))
             )}
+            </div>
           </div>
         </CardContent>
       </Card>
