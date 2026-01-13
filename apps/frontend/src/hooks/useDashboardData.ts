@@ -44,6 +44,11 @@ interface WorkflowStats {
   inProgressWorkflows: number;
 }
 
+interface DocumentTypeDistribution {
+  type: string;
+  count: number;
+}
+
 interface RecentDocument {
   id: string;
   title: string;
@@ -66,6 +71,7 @@ interface DashboardStats {
   topDocuments: TopDocument[];
   departmentPerformance: DepartmentPerformance[];
   workflowStats: WorkflowStats;
+  documentTypes: DocumentTypeDistribution[];
   recentDocuments: RecentDocument[];
   documentTrends: Array<{
     month: string;
@@ -122,6 +128,7 @@ export const useDashboardData = () => {
             topDocuments: result.data.topDocuments,
             departmentPerformance: result.data.departmentPerformance,
             workflowStats: result.data.workflowStats,
+            documentTypes: result.data.documentTypes || [],
             recentDocuments: result.data.recentDocuments,
             documentTrends: result.data.documentTrends,
           };

@@ -17,7 +17,8 @@ import { ThemeToggle } from "./theme-toggle";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { NotificationSheet } from "./shared/notification/notification";
-import { useNotifications } from '@/context/notifications'
+import { useNotifications } from '@/context/notifications';
+import { useBreadcrumb } from '@/context/breadcrumb-context';
 
 interface HeaderProps {}
 
@@ -26,7 +27,8 @@ const Header = ({}: HeaderProps) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [mounted, setMounted] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
-  const { unreadCount } = useNotifications()
+  const { unreadCount } = useNotifications();
+  const { overrides } = useBreadcrumb();
 
   useEffect(() => {
     setMounted(true);
@@ -43,6 +45,17 @@ const Header = ({}: HeaderProps) => {
     
     // Capitalize and format path segments
     const formatSegment = (segment: string) => {
+      // Check if there's an override for this segment
+      if (overrides[segment]) {
+        return overrides[segment];
+      }
+      
+      // Check if segment looks like a UUID
+      const uuidPattern = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;
+      if (uuidPattern.test(segment)) {
+        return overrides[segment] || "...";
+      }
+      
       return segment
         .split("-")
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
