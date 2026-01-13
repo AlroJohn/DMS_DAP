@@ -229,77 +229,59 @@ export default function DocumentTrailsDetailPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-4">
-      <div className="flex flex-col gap-4">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => router.back()}
-          className="w-fit"
-        >
-          <ChevronLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
-        <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight">
-            Document Trail Details
-          </h1>
+    <div className="container mx-auto px-4 py-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Document Trail Details</h1>
           <p className="text-muted-foreground">
-            Complete history for document {documentId}
+            Complete history for {documentInfo?.title || `document ${documentId}`}
           </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => router.back()}>
+            <ChevronLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+          <Button onClick={handleExport}>
+            <Download className="h-4 w-4 mr-2" />
+            Export Trail
+          </Button>
         </div>
       </div>
 
       {documentInfo && (
-        <Card>
+        <Card className="mb-6">
           <CardHeader>
             <CardTitle>Document Information</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Title
-                </p>
-                <p className="text-base font-semibold">{documentInfo.title}</p>
+                <p className="text-sm text-muted-foreground">Title</p>
+                <p className="font-medium">{documentInfo.title}</p>
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Code
-                </p>
-                <p className="text-base font-semibold">{documentInfo.code}</p>
+                <p className="text-sm text-muted-foreground">Code</p>
+                <p className="font-medium">{documentInfo.code}</p>
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Type
-                </p>
-                <p className="text-base font-semibold">{documentInfo.type}</p>
+                <p className="text-sm text-muted-foreground">Type</p>
+                <p className="font-medium">{documentInfo.type}</p>
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Classification
-                </p>
-                <p className="text-base font-semibold capitalize">
-                  {documentInfo.classification}
-                </p>
+                <p className="text-sm text-muted-foreground">Classification</p>
+                <p className="font-medium capitalize">{documentInfo.classification}</p>
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Status
-                </p>
+                <p className="text-sm text-muted-foreground">Status</p>
                 <Badge className={getStatusColor(documentInfo.status)}>
                   {getStatusText(documentInfo.status)}
                 </Badge>
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Created
-                </p>
-                <p className="text-base font-semibold">
-                  {format(
-                    new Date(documentInfo.createdAt),
-                    "MMM d, yyyy h:mm a"
-                  )}
+                <p className="text-sm text-muted-foreground">Created</p>
+                <p className="font-medium">
+                  {format(new Date(documentInfo.createdAt), "MMM d, yyyy h:mm a")}
                 </p>
               </div>
             </div>
@@ -307,30 +289,24 @@ export default function DocumentTrailsDetailPage() {
         </Card>
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold">Trail History</h2>
-        <Button onClick={handleExport} className="w-full sm:w-auto">
-          <Download className="h-4 w-4 mr-2" />
-          Export Trail
-        </Button>
-      </div>
+      <h2 className="text-xl font-bold mb-4">Trail History</h2>
 
       <Card>
         <CardContent className="pt-6">
-          <div className="space-y-6">
+          <div className="space-y-8">
             {trails.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <FileText className="h-12 w-12 mx-auto text-muted" />
-                <p className="mt-2">No trail history found</p>
+              <div className="text-center py-12 text-muted-foreground">
+                <FileText className="h-12 w-12 mx-auto text-muted mb-4" />
+                <p className="text-lg font-medium">No trail history found</p>
                 <p className="text-sm">
                   This document has no recorded trail history
                 </p>
               </div>
             ) : (
               trails.map((trail, index) => (
-                <div key={trail.id} className="flex gap-4">
+                <div key={trail.id} className="flex gap-6">
                   {/* Timeline connector */}
-                  <div className="flex flex-col items-center">
+                  <div className="flex flex-col items-center flex-shrink-0">
                     <div className="rounded-full bg-primary p-2">
                       <FileText className="h-4 w-4 text-primary-foreground" />
                     </div>
@@ -340,73 +316,62 @@ export default function DocumentTrailsDetailPage() {
                   </div>
 
                   <div className="flex-1 pb-6">
-                    <div className="bg-muted/50 rounded-lg p-4 border">
-                      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <div className="bg-card rounded-lg p-6 border shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                         <Badge className={getStatusColor(trail.status)}>
                           {getStatusText(trail.status)}
                         </Badge>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Clock className="h-4 w-4" />
-                          <span>
-                            {format(
-                              new Date(trail.actionDate),
-                              "MMM d, yyyy h:mm a"
-                            )}
-                          </span>
+                          {format(new Date(trail.actionDate), "MMM d, yyyy h:mm a")}
                         </div>
                       </div>
 
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           <span className="text-sm">
                             {trail.status === 'signed' && (
-                              <span>
-                                <span className="font-medium text-emerald-700 dark:text-emerald-400">{trail.user}</span>{" "}
-                                signed this document
-                              </span>
+                              <>
+                                <span className="font-medium text-emerald-700 dark:text-emerald-400">{trail.user}</span>
+                                {' '}signed this document
+                              </>
                             )}
                             {trail.status === 'placeholder_added' && (
-                              <span>
-                                <span className="font-medium text-violet-700 dark:text-violet-400">{trail.user}</span>{" "}
-                                added signature placeholder(s)
-                              </span>
+                              <>
+                                <span className="font-medium text-violet-700 dark:text-violet-400">{trail.user}</span>
+                                {' '}added signature placeholder(s)
+                              </>
                             )}
                             {trail.status !== 'signed' && trail.status !== 'placeholder_added' && (
-                              <span>
-                                <span className="font-medium">{trail.user}</span>{" "}
-                                performed this action
-                              </span>
+                              <>
+                                <span className="font-medium">{trail.user}</span>
+                                {' '}performed this action
+                              </>
                             )}
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <Building className="h-4 w-4 text-muted-foreground" />
+                        <div className="flex items-center gap-3">
+                          <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           <span className="text-sm">
-                            From:{" "}
-                            <span className="font-medium">
-                              {trail.fromDepartment}
-                            </span>
-                            <ArrowRight className="h-3 w-3 mx-1 inline" />
-                            To:{" "}
-                            <span className="font-medium">
-                              {trail.toDepartment}
-                            </span>
+                            <span className="font-medium">{trail.fromDepartment}</span>
+                            <ArrowRight className="h-3 w-3 mx-2 inline" />
+                            <span className="font-medium">{trail.toDepartment}</span>
                           </span>
                         </div>
 
                         {trail.remarks && (
-                          <div className="mt-3 p-3 bg-background rounded border">
-                            <div className="flex items-start gap-2">
+                          <div className="mt-4 p-4 bg-muted/30 rounded-md border">
+                            <div className="flex items-start gap-3">
                               <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
                               <div className="flex-1">
-                                <p className="text-xs font-medium text-muted-foreground mb-1">
-                                  {trail.status === 'signed' ? 'Signature Details' : 
-                                   trail.status === 'placeholder_added' ? 'Placeholder Details' : 
-                                   'Remarks'}:
+                                <p className="text-xs text-muted-foreground mb-1">
+                                  {trail.status === 'signed' ? 'Signature Details' :
+                                   trail.status === 'placeholder_added' ? 'Placeholder Details' :
+                                   'Remarks'}
                                 </p>
-                                <p className="text-sm font-medium">{trail.remarks}</p>
+                                <p className="text-sm">{trail.remarks}</p>
                               </div>
                             </div>
                           </div>
