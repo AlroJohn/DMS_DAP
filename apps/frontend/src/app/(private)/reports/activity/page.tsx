@@ -2,7 +2,17 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Edit, Trash2, Download, ArrowRightLeft, CheckCircle, Archive, FileSignature, Loader2 } from "lucide-react";
+import {
+  FileText,
+  Edit,
+  Trash2,
+  Download,
+  ArrowRightLeft,
+  CheckCircle,
+  Archive,
+  FileSignature,
+  Loader2,
+} from "lucide-react";
 import { useActivityLogs } from "@/hooks/use-activity.log";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -12,21 +22,21 @@ export default function ActivityLogsPage() {
   // Get icon based on activity type
   const getActivityIcon = (type: string) => {
     switch (type) {
-      case 'create':
+      case "create":
         return <FileText className="h-4 w-4" />;
-      case 'update':
+      case "update":
         return <Edit className="h-4 w-4" />;
-      case 'delete':
+      case "delete":
         return <Trash2 className="h-4 w-4" />;
-      case 'download':
+      case "download":
         return <Download className="h-4 w-4" />;
-      case 'transfer':
+      case "transfer":
         return <ArrowRightLeft className="h-4 w-4" />;
-      case 'receive':
+      case "receive":
         return <CheckCircle className="h-4 w-4" />;
-      case 'archive':
+      case "archive":
         return <Archive className="h-4 w-4" />;
-      case 'sign':
+      case "sign":
         return <FileSignature className="h-4 w-4" />;
       default:
         return <FileText className="h-4 w-4" />;
@@ -34,17 +44,19 @@ export default function ActivityLogsPage() {
   };
 
   // Get badge variant based on activity type
-  const getBadgeVariant = (type: string): "default" | "secondary" | "destructive" | "outline" => {
+  const getBadgeVariant = (
+    type: string
+  ): "default" | "secondary" | "destructive" | "outline" => {
     switch (type) {
-      case 'create':
-        return 'default';
-      case 'delete':
-        return 'destructive';
-      case 'transfer':
-      case 'receive':
-        return 'outline';
+      case "create":
+        return "default";
+      case "delete":
+        return "destructive";
+      case "transfer":
+      case "receive":
+        return "outline";
       default:
-        return 'secondary';
+        return "secondary";
     }
   };
 
@@ -54,25 +66,30 @@ export default function ActivityLogsPage() {
     const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    if (diffInSeconds < 60) return 'Just now';
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
-    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
-    
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
-      hour: '2-digit',
-      minute: '2-digit',
+    if (diffInSeconds < 60) return "Just now";
+    if (diffInSeconds < 3600)
+      return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+    if (diffInSeconds < 86400)
+      return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+    if (diffInSeconds < 604800)
+      return `${Math.floor(diffInSeconds / 86400)} days ago`;
+
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 p-4">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Activity Logs</h1>
-        <p className="text-muted-foreground">User activity tracking and monitoring</p>
+        <p className="text-muted-foreground">
+          User activity tracking and monitoring
+        </p>
       </div>
 
       {error && (
@@ -91,7 +108,7 @@ export default function ActivityLogsPage() {
               {isLoading ? (
                 <Loader2 className="h-6 w-6 animate-spin" />
               ) : (
-                stats?.totalActions.toLocaleString() || '0'
+                stats?.totalActions.toLocaleString() || "0"
               )}
             </div>
           </CardContent>
@@ -106,7 +123,7 @@ export default function ActivityLogsPage() {
               {isLoading ? (
                 <Loader2 className="h-6 w-6 animate-spin" />
               ) : (
-                stats?.today.toLocaleString() || '0'
+                stats?.today.toLocaleString() || "0"
               )}
             </div>
           </CardContent>
@@ -121,7 +138,7 @@ export default function ActivityLogsPage() {
               {isLoading ? (
                 <Loader2 className="h-6 w-6 animate-spin" />
               ) : (
-                stats?.thisWeek.toLocaleString() || '0'
+                stats?.thisWeek.toLocaleString() || "0"
               )}
             </div>
           </CardContent>
@@ -136,7 +153,7 @@ export default function ActivityLogsPage() {
               {isLoading ? (
                 <Loader2 className="h-6 w-6 animate-spin" />
               ) : (
-                stats?.activeUsers.toLocaleString() || '0'
+                stats?.activeUsers.toLocaleString() || "0"
               )}
             </div>
           </CardContent>
@@ -159,7 +176,10 @@ export default function ActivityLogsPage() {
           ) : (
             <div className="space-y-3">
               {activities.map((activity) => (
-                <div key={activity.id} className="flex items-center justify-between border-b pb-3 last:border-0">
+                <div
+                  key={activity.id}
+                  className="flex items-center justify-between border-b pb-3 last:border-0"
+                >
                   <div className="flex items-center gap-3">
                     <div className="flex-shrink-0">
                       {getActivityIcon(activity.type)}
@@ -171,14 +191,20 @@ export default function ActivityLogsPage() {
                       <div className="text-xs text-muted-foreground">
                         {activity.user} • {formatTimestamp(activity.timestamp)}
                         {activity.documentCode && (
-                          <span className="ml-2">({activity.documentCode})</span>
+                          <span className="ml-2">
+                            ({activity.documentCode})
+                          </span>
                         )}
                       </div>
                       {(activity.fromDepartment || activity.toDepartment) && (
                         <div className="text-xs text-muted-foreground">
-                          {activity.fromDepartment && `From: ${activity.fromDepartment}`}
-                          {activity.fromDepartment && activity.toDepartment && ' → '}
-                          {activity.toDepartment && `To: ${activity.toDepartment}`}
+                          {activity.fromDepartment &&
+                            `From: ${activity.fromDepartment}`}
+                          {activity.fromDepartment &&
+                            activity.toDepartment &&
+                            " → "}
+                          {activity.toDepartment &&
+                            `To: ${activity.toDepartment}`}
                         </div>
                       )}
                       {activity.remarks && (
@@ -188,7 +214,10 @@ export default function ActivityLogsPage() {
                       )}
                     </div>
                   </div>
-                  <Badge variant={getBadgeVariant(activity.type)} className="flex-shrink-0">
+                  <Badge
+                    variant={getBadgeVariant(activity.type)}
+                    className="flex-shrink-0"
+                  >
                     {activity.type}
                   </Badge>
                 </div>

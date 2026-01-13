@@ -63,11 +63,15 @@ export default function DocumentTrailsDetailPage() {
         const result = await response.json();
 
         if (!response.ok || !result?.success) {
-          throw new Error(result?.message || "Failed to load document trail data");
+          throw new Error(
+            result?.message || "Failed to load document trail data"
+          );
         }
 
         setDocumentInfo(result?.data?.documentInfo ?? null);
-        setTrails(Array.isArray(result?.data?.trails) ? result.data.trails : []);
+        setTrails(
+          Array.isArray(result?.data?.trails) ? result.data.trails : []
+        );
       } catch (error) {
         console.error("Error fetching document trails:", error);
         toast.error("Failed to load document trail data");
@@ -139,7 +143,14 @@ export default function DocumentTrailsDetailPage() {
     doc.text(`Document Type: ${documentInfo.type}`, 14, 49);
     doc.text(`Classification: ${documentInfo.classification}`, 14, 56);
     doc.text(`Status: ${getStatusText(documentInfo.status)}`, 14, 63);
-    doc.text(`Created: ${format(new Date(documentInfo.createdAt), "MMM d, yyyy h:mm a")}`, 14, 70);
+    doc.text(
+      `Created: ${format(
+        new Date(documentInfo.createdAt),
+        "MMM d, yyyy h:mm a"
+      )}`,
+      14,
+      70
+    );
 
     // Add subtitle with date
     doc.setFontSize(11);
@@ -152,7 +163,7 @@ export default function DocumentTrailsDetailPage() {
       "From Department",
       "To Department",
       "Status",
-      "Remarks"
+      "Remarks",
     ];
 
     const tableRows = trails.map((trail) => [
@@ -161,7 +172,7 @@ export default function DocumentTrailsDetailPage() {
       trail.fromDepartment,
       trail.toDepartment,
       getStatusText(trail.status),
-      trail.remarks
+      trail.remarks,
     ]);
 
     // Add table
@@ -171,16 +182,16 @@ export default function DocumentTrailsDetailPage() {
       startY: 90,
       styles: {
         fontSize: 9,
-        cellPadding: 5
+        cellPadding: 5,
       },
       headStyles: {
         fillColor: [59, 130, 246], // blue-500
         textColor: [255, 255, 255],
-        fontStyle: 'bold'
+        fontStyle: "bold",
       },
       alternateRowStyles: {
-        fillColor: [249, 250, 251] // gray-50
-      }
+        fillColor: [249, 250, 251], // gray-50
+      },
     });
 
     // Save the PDF
@@ -201,11 +212,11 @@ export default function DocumentTrailsDetailPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 p-4">
       <div className="flex flex-col gap-4">
-        <Button 
-          variant="outline" 
-          size="sm" 
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => router.back()}
           className="w-fit"
         >
@@ -230,29 +241,43 @@ export default function DocumentTrailsDetailPage() {
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Title</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Title
+                </p>
                 <p className="text-base font-semibold">{documentInfo.title}</p>
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Code</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Code
+                </p>
                 <p className="text-base font-semibold">{documentInfo.code}</p>
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Type</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Type
+                </p>
                 <p className="text-base font-semibold">{documentInfo.type}</p>
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Classification</p>
-                <p className="text-base font-semibold capitalize">{documentInfo.classification}</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Classification
+                </p>
+                <p className="text-base font-semibold capitalize">
+                  {documentInfo.classification}
+                </p>
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Status</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Status
+                </p>
                 <Badge className={getStatusColor(documentInfo.status)}>
                   {getStatusText(documentInfo.status)}
                 </Badge>
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Created</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Created
+                </p>
                 <p className="text-base font-semibold">
                   {format(
                     new Date(documentInfo.createdAt),

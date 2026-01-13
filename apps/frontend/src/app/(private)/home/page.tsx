@@ -4,38 +4,40 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { 
-  Upload, 
-  FileText, 
-  Shield, 
-  Users, 
-  Building, 
-  Clock, 
-  TrendingUp, 
-  CheckCircle, 
+import {
+  Upload,
+  FileText,
+  Shield,
+  Users,
+  Building,
+  Clock,
+  TrendingUp,
+  CheckCircle,
   AlertCircle,
   BarChart3,
   Workflow,
   Database,
   Globe,
   Lock,
-  Zap
+  Zap,
 } from "lucide-react";
 import Link from "next/link";
 
 const Homepage = () => {
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 p-4">
       {/* Hero Section */}
       <div className="text-center space-y-4">
         <div className="flex items-center justify-center gap-3 mb-4">
           <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center">
             <FileText className="h-6 w-6 text-primary-foreground" />
           </div>
-          <h1 className="text-4xl font-bold tracking-tight">Document Management System</h1>
+          <h1 className="text-4xl font-bold tracking-tight">
+            Document Management System
+          </h1>
         </div>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          Enterprise-grade document management with blockchain verification, 
+          Enterprise-grade document management with blockchain verification,
           real-time collaboration, and advanced workflow automation.
         </p>
         <div className="flex items-center justify-center gap-2 mt-4">
@@ -43,9 +45,7 @@ const Homepage = () => {
             <CheckCircle className="h-3 w-3 mr-1" />
             System Online
           </Badge>
-          <Badge variant="outline">
-            Version 1.0.0
-          </Badge>
+          <Badge variant="outline">Version 1.0.0</Badge>
         </div>
       </div>
 
@@ -83,7 +83,9 @@ const Homepage = () => {
               <Shield className="h-8 w-8 text-secondary" />
               <div>
                 <p className="text-2xl font-bold">89</p>
-                <p className="text-sm text-muted-foreground">Blockchain Signed</p>
+                <p className="text-sm text-muted-foreground">
+                  Blockchain Signed
+                </p>
               </div>
             </div>
           </CardContent>
@@ -125,7 +127,8 @@ const Homepage = () => {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              DocOnChain integration for tamper-proof document signing and verification.
+              DocOnChain integration for tamper-proof document signing and
+              verification.
             </p>
             <div className="flex items-center justify-between">
               <span className="text-sm">Verification Rate</span>
@@ -150,7 +153,8 @@ const Homepage = () => {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Visual workflow builder with approval chains and blockchain signature requirements.
+              Visual workflow builder with approval chains and blockchain
+              signature requirements.
             </p>
             <div className="flex items-center justify-between">
               <span className="text-sm">Active Workflows</span>
@@ -175,7 +179,8 @@ const Homepage = () => {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Comprehensive reporting with compliance monitoring and audit trails.
+              Comprehensive reporting with compliance monitoring and audit
+              trails.
             </p>
             <div className="flex items-center justify-between">
               <span className="text-sm">Compliance Score</span>
@@ -206,28 +211,38 @@ const Homepage = () => {
               <div className="flex items-center gap-3">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium">Document "Annual Report 2024" blockchain signed</p>
+                  <p className="text-sm font-medium">
+                    Document "Annual Report 2024" blockchain signed
+                  </p>
                   <p className="text-xs text-muted-foreground">2 minutes ago</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium">New workflow "Contract Approval" activated</p>
-                  <p className="text-xs text-muted-foreground">15 minutes ago</p>
+                  <p className="text-sm font-medium">
+                    New workflow "Contract Approval" activated
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    15 minutes ago
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium">System backup completed successfully</p>
+                  <p className="text-sm font-medium">
+                    System backup completed successfully
+                  </p>
                   <p className="text-xs text-muted-foreground">1 hour ago</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium">5 new users added to Legal Department</p>
+                  <p className="text-sm font-medium">
+                    5 new users added to Legal Department
+                  </p>
                   <p className="text-xs text-muted-foreground">3 hours ago</p>
                 </div>
               </div>
@@ -249,31 +264,51 @@ const Homepage = () => {
                   <CheckCircle className="h-4 w-4 text-green-600" />
                   <span className="text-sm">Database</span>
                 </div>
-                <Badge variant="secondary" className="bg-green-100 text-green-800">Healthy</Badge>
+                <Badge
+                  variant="secondary"
+                  className="bg-green-100 text-green-800"
+                >
+                  Healthy
+                </Badge>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-4 w-4 text-green-600" />
                   <span className="text-sm">DocOnChain API</span>
                 </div>
-                <Badge variant="secondary" className="bg-green-100 text-green-800">Connected</Badge>
+                <Badge
+                  variant="secondary"
+                  className="bg-green-100 text-green-800"
+                >
+                  Connected
+                </Badge>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-4 w-4 text-green-600" />
                   <span className="text-sm">File Storage</span>
                 </div>
-                <Badge variant="secondary" className="bg-green-100 text-green-800">85% Available</Badge>
+                <Badge
+                  variant="secondary"
+                  className="bg-green-100 text-green-800"
+                >
+                  85% Available
+                </Badge>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 text-yellow-600" />
                   <span className="text-sm">Backup Status</span>
                 </div>
-                <Badge variant="outline" className="bg-yellow-100 text-yellow-800">Scheduled</Badge>
+                <Badge
+                  variant="outline"
+                  className="bg-yellow-100 text-yellow-800"
+                >
+                  Scheduled
+                </Badge>
               </div>
             </div>
-            
+
             <div className="pt-4 border-t">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">System Uptime</span>
@@ -300,7 +335,8 @@ const Homepage = () => {
               </div>
               <h3 className="font-semibold mb-2">Blockchain Verified</h3>
               <p className="text-sm text-muted-foreground">
-                All critical documents are cryptographically signed and verified on the blockchain
+                All critical documents are cryptographically signed and verified
+                on the blockchain
               </p>
             </div>
             <div className="text-center">
@@ -309,7 +345,8 @@ const Homepage = () => {
               </div>
               <h3 className="font-semibold mb-2">Enterprise Security</h3>
               <p className="text-sm text-muted-foreground">
-                Role-based access control, JWT authentication, and encrypted data transmission
+                Role-based access control, JWT authentication, and encrypted
+                data transmission
               </p>
             </div>
             <div className="text-center">
@@ -318,7 +355,8 @@ const Homepage = () => {
               </div>
               <h3 className="font-semibold mb-2">Audit Compliance</h3>
               <p className="text-sm text-muted-foreground">
-                Complete audit trails, compliance reporting, and regulatory adherence
+                Complete audit trails, compliance reporting, and regulatory
+                adherence
               </p>
             </div>
           </div>

@@ -176,7 +176,9 @@ export default function DocumentTrailingPage() {
           doc.fromDepartment
             .toLowerCase()
             .includes(departmentFilter.toLowerCase()) ||
-          doc.toDepartment.toLowerCase().includes(departmentFilter.toLowerCase())
+          doc.toDepartment
+            .toLowerCase()
+            .includes(departmentFilter.toLowerCase())
       );
     }
 
@@ -195,21 +197,37 @@ export default function DocumentTrailingPage() {
     setFilteredDocuments(result);
   }, [searchTerm, departmentFilter, statusFilter, ownershipFilter, documents]);
 
-  const getStatusColor = (actionName: string, status: string, remarks?: string) => {
+  const getStatusColor = (
+    actionName: string,
+    status: string,
+    remarks?: string
+  ) => {
     // Prioritize action name for more specific colors
     const action = actionName?.toLowerCase().trim() || "";
     const remarksLower = remarks?.toLowerCase().trim() || "";
-    
+
     // Check for checkout/checkin in action name or remarks
-    if (action.includes("checkout") || action.includes("check out") || action === "checkout" ||
-        remarksLower.includes("checkout") || remarksLower.includes("check out") || remarksLower.includes("checked out")) {
+    if (
+      action.includes("checkout") ||
+      action.includes("check out") ||
+      action === "checkout" ||
+      remarksLower.includes("checkout") ||
+      remarksLower.includes("check out") ||
+      remarksLower.includes("checked out")
+    ) {
       return "bg-orange-100 text-orange-800";
     }
-    if (action.includes("checkin") || action.includes("check in") || action === "checkin" ||
-        remarksLower.includes("checkin") || remarksLower.includes("check in") || remarksLower.includes("checked in")) {
+    if (
+      action.includes("checkin") ||
+      action.includes("check in") ||
+      action === "checkin" ||
+      remarksLower.includes("checkin") ||
+      remarksLower.includes("check in") ||
+      remarksLower.includes("checked in")
+    ) {
       return "bg-teal-100 text-teal-800";
     }
-    
+
     // Check status field directly for checkout/checkin
     if (status === "checkout") {
       return "bg-orange-100 text-orange-800";
@@ -217,12 +235,12 @@ export default function DocumentTrailingPage() {
     if (status === "checkin") {
       return "bg-teal-100 text-teal-800";
     }
-    
+
     // If action name exists and is not empty, use a default color
     if (action && action !== "dispatch" && action !== "dispatched") {
       return "bg-indigo-100 text-indigo-800";
     }
-    
+
     // Fall back to status-based colors
     switch (status) {
       case "dispatch":
@@ -242,16 +260,28 @@ export default function DocumentTrailingPage() {
     }
   };
 
-  const getStatusText = (actionName: string, status: string, remarks?: string) => {
+  const getStatusText = (
+    actionName: string,
+    status: string,
+    remarks?: string
+  ) => {
     // Check remarks first for checkout/checkin keywords
     const remarksLower = remarks?.toLowerCase().trim() || "";
-    if (remarksLower.includes("checkout") || remarksLower.includes("check out") || remarksLower.includes("checked out")) {
+    if (
+      remarksLower.includes("checkout") ||
+      remarksLower.includes("check out") ||
+      remarksLower.includes("checked out")
+    ) {
       return "Check Out";
     }
-    if (remarksLower.includes("checkin") || remarksLower.includes("check in") || remarksLower.includes("checked in")) {
+    if (
+      remarksLower.includes("checkin") ||
+      remarksLower.includes("check in") ||
+      remarksLower.includes("checked in")
+    ) {
       return "Check In";
     }
-    
+
     // Check status field directly for checkout/checkin
     if (status === "checkout") {
       return "Check Out";
@@ -259,15 +289,18 @@ export default function DocumentTrailingPage() {
     if (status === "checkin") {
       return "Check In";
     }
-    
+
     // Prioritize action name for more specific display
     const action = actionName?.trim();
-    
+
     // If action name exists and is not empty, use it
     if (action && action !== "") {
       // Ensure checkout/checkin are properly capitalized
       const lowerAction = action.toLowerCase();
-      if (lowerAction.includes("checkout") || lowerAction.includes("check out")) {
+      if (
+        lowerAction.includes("checkout") ||
+        lowerAction.includes("check out")
+      ) {
         return "Check Out";
       }
       if (lowerAction.includes("checkin") || lowerAction.includes("check in")) {
@@ -276,7 +309,7 @@ export default function DocumentTrailingPage() {
       // Return the action name as-is for other actions
       return action;
     }
-    
+
     // Fall back to status-based text only if no action name
     switch (status) {
       case "dispatch":
@@ -321,14 +354,14 @@ export default function DocumentTrailingPage() {
     doc.setFontSize(12);
     doc.text(`Total Documents: ${documents.length}`, 14, 40);
     doc.text(
-      `In Transit: ${
-        documents.filter((d) => d.status === "intransit").length
-      }`,
+      `In Transit: ${documents.filter((d) => d.status === "intransit").length}`,
       14,
       48
     );
     doc.text(
-      `Departments: ${[...new Set(documents.map((d) => d.fromDepartment))].length}`,
+      `Departments: ${
+        [...new Set(documents.map((d) => d.fromDepartment))].length
+      }`,
       14,
       56
     );
@@ -413,11 +446,9 @@ export default function DocumentTrailingPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 ">
+    <div className="flex flex-col gap-6 p-4">
       <div className="space-y-1">
-        <h1 className="text-3xl font-bold tracking-tight">
-          Document Trailing
-        </h1>
+        <h1 className="text-3xl font-bold tracking-tight">Document Trailing</h1>
         <p className="text-muted-foreground">
           Track documents created by departments and shared documents
         </p>
@@ -504,11 +535,15 @@ export default function DocumentTrailingPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4"> {/* This is line 507 */}
+          <div className="space-y-4">
+            {" "}
+            {/* This is line 507 */}
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex items-center gap-2 flex-shrink-0">
                 <Filter className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Filters:</span>
+                <span className="text-sm font-medium text-muted-foreground">
+                  Filters:
+                </span>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Select
@@ -558,151 +593,174 @@ export default function DocumentTrailingPage() {
                 </Select>
               </div>
             </div>
-
             <div className="space-y-4">
-            {filteredDocuments.length === 0 ? (
-              <div className="text-center py-12">
-                {error ? (
-                  <div className="space-y-4">
-                    <AlertCircle className="h-16 w-16 mx-auto text-destructive" />
-                    <div className="space-y-2">
-                      <h3 className="text-xl font-semibold">
-                        Failed to load documents
-                      </h3>
-                      <p className="text-muted-foreground max-w-md mx-auto">
-                        {error}
-                      </p>
-                      <Button onClick={fetchDocuments}>Retry</Button>
-                    </div>
-                  </div>
-                ) : documents.length === 0 ? (
-                  // No documents at all (empty state)
-                  <div className="space-y-4">
-                    <FileText className="h-16 w-16 mx-auto text-muted" />
-                    <div className="space-y-2">
-                      <h3 className="text-xl font-semibold">
-                        No Document Trails Yet
-                      </h3>
-                      <p className="text-muted-foreground max-w-md mx-auto">
-                        There are no document trails to display. Documents will
-                        appear here once they are created or shared with your
-                        department.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  // Documents exist but none match the current filters
-                  <div className="space-y-4">
-                    <FileText className="h-16 w-16 mx-auto text-muted" />
-                    <div className="space-y-2">
-                      <h3 className="text-xl font-semibold">
-                        No Matching Documents
-                      </h3>
-                      <p className="text-muted-foreground max-w-md mx-auto">
-                        No documents match your current filter criteria. Try
-                        adjusting your search or filter settings.
-                      </p>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setSearchTerm("");
-                          setDepartmentFilter("all");
-                          setStatusFilter("all");
-                          setOwnershipFilter("all");
-                        }}
-                      >
-                        Clear Filters
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              filteredDocuments.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="border rounded-lg p-4 hover:bg-muted/50 transition-colors hover:shadow-sm"
-                >
-                  <div className="flex flex-col gap-4">
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <FileText className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2 mb-1">
-                            <h3 className="font-medium">
-                              {doc.documentTitle}
-                            </h3>
-                            <Badge variant="secondary" className="text-xs">
-                              {doc.documentCode}
-                            </Badge>
-                            <Badge className={getStatusColor(doc.actionName, doc.status, doc.remarks)}>
-                              {getStatusText(doc.actionName, doc.status, doc.remarks)}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            {doc.documentType}
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewTrails(doc.documentId)}
-                        className="w-full sm:w-auto flex-shrink-0"
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Trails
-                      </Button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <div className="flex items-center gap-1 min-w-0">
-                          <span className="text-muted-foreground flex-shrink-0">From:</span>
-                          <span className="truncate font-medium">{doc.fromDepartment}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <div className="flex items-center gap-1 min-w-0">
-                          <span className="text-muted-foreground flex-shrink-0">To:</span>
-                          <span className="truncate font-medium">{doc.toDepartment}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <div className="flex items-center gap-1 min-w-0">
-                          <span className="text-muted-foreground flex-shrink-0">By:</span>
-                          <span className="truncate font-medium">{doc.user}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <div className="flex items-center gap-1 min-w-0">
-                          <span className="text-muted-foreground flex-shrink-0">On:</span>
-                          <span className="truncate font-medium">
-                            {format(
-                              new Date(doc.actionDate),
-                              "MMM d, yyyy h:mm a"
-                            )}
-                          </span>
-                        </div>
+              {filteredDocuments.length === 0 ? (
+                <div className="text-center py-12">
+                  {error ? (
+                    <div className="space-y-4">
+                      <AlertCircle className="h-16 w-16 mx-auto text-destructive" />
+                      <div className="space-y-2">
+                        <h3 className="text-xl font-semibold">
+                          Failed to load documents
+                        </h3>
+                        <p className="text-muted-foreground max-w-md mx-auto">
+                          {error}
+                        </p>
+                        <Button onClick={fetchDocuments}>Retry</Button>
                       </div>
                     </div>
-
-                    {doc.remarks && (
-                      <div className="text-sm bg-muted/50 p-3 rounded-md">
-                        <span className="font-medium text-muted-foreground">
-                          Remarks:
-                        </span>{" "}
-                        <span className="text-foreground">{doc.remarks}</span>
+                  ) : documents.length === 0 ? (
+                    // No documents at all (empty state)
+                    <div className="space-y-4">
+                      <FileText className="h-16 w-16 mx-auto text-muted" />
+                      <div className="space-y-2">
+                        <h3 className="text-xl font-semibold">
+                          No Document Trails Yet
+                        </h3>
+                        <p className="text-muted-foreground max-w-md mx-auto">
+                          There are no document trails to display. Documents
+                          will appear here once they are created or shared with
+                          your department.
+                        </p>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    // Documents exist but none match the current filters
+                    <div className="space-y-4">
+                      <FileText className="h-16 w-16 mx-auto text-muted" />
+                      <div className="space-y-2">
+                        <h3 className="text-xl font-semibold">
+                          No Matching Documents
+                        </h3>
+                        <p className="text-muted-foreground max-w-md mx-auto">
+                          No documents match your current filter criteria. Try
+                          adjusting your search or filter settings.
+                        </p>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setSearchTerm("");
+                            setDepartmentFilter("all");
+                            setStatusFilter("all");
+                            setOwnershipFilter("all");
+                          }}
+                        >
+                          Clear Filters
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))
-            )}
+              ) : (
+                filteredDocuments.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="border rounded-lg p-4 hover:bg-muted/50 transition-colors hover:shadow-sm"
+                  >
+                    <div className="flex flex-col gap-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <FileText className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                              <h3 className="font-medium">
+                                {doc.documentTitle}
+                              </h3>
+                              <Badge variant="secondary" className="text-xs">
+                                {doc.documentCode}
+                              </Badge>
+                              <Badge
+                                className={getStatusColor(
+                                  doc.actionName,
+                                  doc.status,
+                                  doc.remarks
+                                )}
+                              >
+                                {getStatusText(
+                                  doc.actionName,
+                                  doc.status,
+                                  doc.remarks
+                                )}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              {doc.documentType}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewTrails(doc.documentId)}
+                          className="w-full sm:w-auto flex-shrink-0"
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          View Trails
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                        <div className="flex items-center gap-2">
+                          <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className="text-muted-foreground flex-shrink-0">
+                              From:
+                            </span>
+                            <span className="truncate font-medium">
+                              {doc.fromDepartment}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className="text-muted-foreground flex-shrink-0">
+                              To:
+                            </span>
+                            <span className="truncate font-medium">
+                              {doc.toDepartment}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className="text-muted-foreground flex-shrink-0">
+                              By:
+                            </span>
+                            <span className="truncate font-medium">
+                              {doc.user}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className="text-muted-foreground flex-shrink-0">
+                              On:
+                            </span>
+                            <span className="truncate font-medium">
+                              {format(
+                                new Date(doc.actionDate),
+                                "MMM d, yyyy h:mm a"
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {doc.remarks && (
+                        <div className="text-sm bg-muted/50 p-3 rounded-md">
+                          <span className="font-medium text-muted-foreground">
+                            Remarks:
+                          </span>{" "}
+                          <span className="text-foreground">{doc.remarks}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </CardContent>
