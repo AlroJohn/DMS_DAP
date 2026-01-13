@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useRouter, useSearchParams, useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
 import { DocumentPreviewModal } from "@/components/modals/document-preview-modal";
 import { useDocumentDetail } from "@/hooks/use-document-detail";
 import { useDocumentFiles } from "@/hooks/use-document-files";
+import { useBreadcrumb } from "@/context/breadcrumb-context";
 import {
   AlertCircle,
   ArrowLeft,
@@ -37,6 +38,7 @@ export default function ViewDocumentPage() {
     isLoading: filesLoading,
     error: filesError,
   } = useDocumentFiles(documentId);
+  const { setOverride, clearOverride } = useBreadcrumb();
 
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
@@ -50,6 +52,28 @@ export default function ViewDocumentPage() {
       "Document"
     );
   }, [document]);
+
+  // Update page title for better UX
+  useEffect(() => {
+    if (title && title !== "Document") {
+      document.title = `${title} - View Document`;
+    }
+  }, [title]);
+
+  // Update breadcrumb with document name
+  useEffect(() => {
+    if (document && documentId) {
+      const displayName = document?.detail?.document_code || document?.title || document?.detail?.document_name || "Document";
+      setOverride(documentId, displayName);
+    }
+    
+    return () => {
+      if (documentId) {
+        clearOverride(documentId);
+      }
+    };
+  }, [document, documentId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
 
   const previewFile = useMemo(() => {
     if (!files || files.length === 0) return null;
@@ -153,191 +177,231 @@ export default function ViewDocumentPage() {
   }
 
   return (
-    <div className="flex flex-col gap-2 p-4 mx-auto w-full h-[calc(100vh-100px)] flex-1">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-lg font-bold tracking-tight">{title}</h1>
-          {/* <p className="text-muted-foreground">
-            Document ID: {document.document_id || documentId}
-          </p> */}
+    <div className="flex flex-col gap-4 p-4 w-full max-w-full overflow-x-hidden">
+      {/* Header Section */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl font-bold tracking-tight truncate">{title}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Document Code: {document?.detail?.document_code || documentId}
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2 mt-4 md:mt-0 items-center">
-          {files && files.length > 0 && (
-            <div className="flex items-center gap-2 mr-2">
-              <span className="text-xs text-muted-foreground">
-                File version:
-              </span>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 rounded border bg-background px-2 text-xs flex justify-between items-center w-48"
-                  >
-                    <span className="truncate max-w-[100px]">
-                      {previewFile?.name ||
-                        `File ${
-                          files.findIndex((f) => f.id === previewFile?.id) + 1
-                        }`}
-                      {previewFile?.isPrimary && " (Primary)"}
-                    </span>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="w-56 max-h-64 overflow-y-auto"
-                >
-                  {files.map((file, index) => (
-                    <DropdownMenuItem
-                      key={file.id}
-                      onSelect={() => setActiveFileId(file.id)}
-                      className="cursor-pointer"
-                    >
-                      <div className="flex flex-col">
-                        <span className="font-medium truncate max-w-[160px]">
-                          {file.name || `File ${index + 1}`}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          {file.isPrimary && (
-                            <Badge variant="secondary" className="h-4 text-xs">
-                              Primary
-                            </Badge>
-                          )}
-                          <span className="text-xs text-muted-foreground">
-                            ({file.type || "Unknown type"})
-                          </span>
-                        </div>
-                      </div>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )}
+        <div className="flex items-center gap-2 flex-shrink-0">
           <Button
             variant="outline"
             size="sm"
             onClick={() => router.back()}
             aria-label="Go back"
           >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleDownloadClick}
-            disabled={!previewBaseUrl || filesLoading}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Download
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handlePreviewClick}
-            disabled={!isPreviewSupported || filesLoading}
-            className="max-w-[150px] md:max-w-[200px] truncate"
-          >
-            <Eye className="mr-2 h-4 w-4" />
-            <span className="truncate">Open Preview</span>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
           </Button>
         </div>
       </div>
 
-      <Card className="h-full w-full flex flex-col flex-1 min-h-[calc(100vh-200px)]">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-1">
-            <FileText className="h-5 w-5" />
-            Document Preview
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 flex flex-col overflow-hidden">
-          {filesLoading ? (
-            <div className="flex flex-1 items-center justify-center rounded-lg border border-muted bg-muted/10">
-              <Skeleton className="h-8 w-8" />
-            </div>
-          ) : previewFile && isPreviewSupported && previewBaseUrl ? (
-            <div
-              className="flex-1 flex items-center justify-center overflow-hidden rounded-lg border bg-background cursor-pointer"
-              onClick={handlePreviewClick}
-            >
-              {previewMime.startsWith("image/") ? (
-                <img
-                  src={previewBaseUrl}
-                  alt={previewFile.name}
-                  className="max-h-full max-w-full object-contain"
-                />
-              ) : (
-                <div className="w-full max-w-3xl aspect-[8.5/11]">
+      {/* Action Bar */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 bg-muted/50 rounded-lg">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {files && files.length > 0 && (
+            <>
+              <span className="text-sm font-medium whitespace-nowrap">File version:</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 min-w-[180px] max-w-[250px]"
+                  >
+                    <span className="truncate flex-1 text-left">
+                      {previewFile?.name || `File ${files.findIndex((f) => f.id === previewFile?.id) + 1}`}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50 flex-shrink-0" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-64 max-h-80 overflow-y-auto">
+                  {files.map((file, index) => (
+                    <DropdownMenuItem
+                      key={file.id}
+                      onSelect={() => setActiveFileId(file.id)}
+                      className="cursor-pointer"
+                    >
+                      <div className="flex flex-col gap-1 w-full">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm truncate flex-1">
+                            {file.name || `File ${index + 1}`}
+                          </span>
+                          {file.isPrimary && (
+                            <Badge variant="default" className="h-5 text-xs">Primary</Badge>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {file.type || "Unknown"} • {formatFileSize(file.size)}
+                        </span>
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownloadClick}
+            disabled={!previewBaseUrl || filesLoading}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Download
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handlePreviewClick}
+            disabled={!isPreviewSupported || filesLoading}
+          >
+            <Eye className="h-4 w-4 mr-2" />
+            Open Preview
+          </Button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Preview Section */}
+        <Card className="lg:col-span-2 flex flex-col">
+          <CardHeader className="pb-3 flex-shrink-0">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FileText className="h-5 w-5" />
+              Document Preview
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 flex flex-col">
+            {filesLoading ? (
+              <div className="flex items-center justify-center flex-1 min-h-[700px] rounded-lg border bg-muted/10">
+                <Skeleton className="h-8 w-8" />
+              </div>
+            ) : previewFile && isPreviewSupported && previewBaseUrl ? (
+              <div
+                className="relative w-full flex-1 min-h-[700px] rounded-lg border bg-muted/5 overflow-hidden cursor-pointer"
+                onClick={handlePreviewClick}
+              >
+                {previewMime.startsWith("image/") ? (
+                  <div className="w-full h-full flex items-center justify-center p-4">
+                    <img
+                      src={previewBaseUrl}
+                      alt={previewFile.name}
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  </div>
+                ) : (
                   <iframe
-                    src={`${previewBaseUrl}#toolbar=0&status=0&view=Fit&pagemode=none&zoom=140`}
+                    src={`${previewBaseUrl}#toolbar=0&navpanes=0&scrollbar=0&view=Fit`}
                     title={previewFile.name}
                     className="w-full h-full"
                     style={{ border: 0 }}
                   />
+                )}
+              </div>
+            ) : (
+              <div
+                className="flex flex-col items-center justify-center gap-4 flex-1 min-h-[700px] rounded-lg border-2 border-dashed bg-muted/10 p-8 text-center cursor-pointer hover:bg-muted/20 transition-colors"
+                onClick={handlePreviewClick}
+              >
+                <FileText className="h-16 w-16 text-muted-foreground" />
+                {previewFile ? (
+                  <>
+                    <div>
+                      <p className="font-medium text-muted-foreground">
+                        {isPlaceholderPreview
+                          ? "Placeholder Document"
+                          : "Preview Not Available"}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        {isPlaceholderPreview
+                          ? "Upload the original file to enable preview"
+                          : "This file type cannot be previewed in the browser"}
+                      </p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Click download to open the file locally
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <p className="font-medium text-muted-foreground">No Files Available</p>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Upload a file to enable preview and signing
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {filesError && (
+              <Alert variant="destructive" className="mt-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{filesError}</AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Files Sidebar */}
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Attached Files</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {filesLoading ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
                 </div>
-              )}
-            </div>
-          ) : (
-            <div
-              className="flex-1 flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/10 p-6 text-center cursor-pointer"
-              onClick={handlePreviewClick}
-            >
-              <FileText className="h-12 w-12 text-muted-foreground" />
-              {previewFile ? (
-                <>
-                  <p className="text-muted-foreground text-center">
-                    {isPlaceholderPreview
-                      ? "A placeholder document is currently attached. Upload the original file to enable preview."
-                      : "Preview is not available for this file type."}
-                  </p>
-                  <p className="text-sm text-muted-foreground text-center mt-2">
-                    Use the download action to open the file locally.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-muted-foreground">
-                    No files uploaded for this document yet.
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Upload a file to enable previews and DocOnChain signing.
-                  </p>
-                </>
-              )}
-            </div>
-          )}
-
-          {filesError && (
-            <p className="mt-3 text-sm text-destructive">{filesError}</p>
-          )}
-
-          <div className="overflow-y-auto max-h-40 mt-4 space-y-2 flex-shrink-0">
-            {!filesLoading && files.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Files</p>
-                <div className="space-y-1">
+              ) : files && files.length > 0 ? (
+                <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
                   {files.map((file) => {
                     const isPlaceholder = /placeholder/i.test(file.name);
+                    const isActive = file.id === previewFile?.id;
                     return (
                       <div
                         key={file.id}
-                        className="flex flex-col gap-2 rounded-lg border p-2"
+                        className={`flex flex-col gap-2 rounded-lg border p-3 transition-colors cursor-pointer hover:bg-muted/50 ${
+                          isActive ? "bg-muted border-primary" : ""
+                        }`}
+                        onClick={() => setActiveFileId(file.id)}
                       >
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium">{file.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {file.type || "Unknown type"} •{" "}
-                            {formatFileSize(file.size)}
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-medium line-clamp-2 flex-1">
+                            {file.name}
                           </p>
-                          <div className="flex flex-wrap gap-2">
-                            {file.isPrimary && (
-                              <Badge variant="default">Primary</Badge>
-                            )}
+                          {file.isPrimary && (
+                            <Badge variant="default" className="flex-shrink-0 h-5">
+                              Primary
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {file.type || "Unknown type"}
+                        </p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">
+                            {formatFileSize(file.size)}
+                          </span>
+                          <div className="flex gap-1">
                             {isPlaceholder && (
-                              <Badge variant="secondary">Placeholder</Badge>
+                              <Badge variant="secondary" className="h-5 text-xs">
+                                Placeholder
+                              </Badge>
                             )}
                             {file.version && (
-                              <Badge variant="outline">v{file.version}</Badge>
+                              <Badge variant="outline" className="h-5 text-xs">
+                                v{file.version}
+                              </Badge>
                             )}
                           </div>
                         </div>
@@ -345,11 +409,18 @@ export default function ViewDocumentPage() {
                     );
                   })}
                 </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <FileText className="h-10 w-10 text-muted-foreground mb-3" />
+                  <p className="text-sm text-muted-foreground">
+                    No files attached yet
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       <DocumentPreviewModal
         isOpen={isPreviewModalOpen}
