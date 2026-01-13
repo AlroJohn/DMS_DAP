@@ -139,7 +139,13 @@ export function DataTableRowActions<TData>({
   };
 
   const toggleModal = (modalType: keyof typeof modalState, value: boolean) => {
-    setModalState((prev) => ({ ...prev, [modalType]: value }));
+    setModalState((prev) => {
+      // Only update if the value is actually changing
+      if (prev[modalType] === value) {
+        return prev;
+      }
+      return { ...prev, [modalType]: value };
+    });
     if (!value) {
       setSelectedDocument(null);
     }

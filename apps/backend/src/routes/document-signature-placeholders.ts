@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { DocumentSignatureWorkflowService } from '../services/DocumentSignatureWorkflowService.service';
+import { auditService } from '../services/audit.service';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -28,7 +29,7 @@ router.get('/documents/:documentId/signature-placeholders', async (req: Request,
 router.post('/documents/:documentId/signature-placeholders', async (req: Request, res: Response) => {
   try {
     const { documentId } = req.params;
-    const { document_file_id, page_number, x_position, y_position, width, height } = req.body;
+    const { document_file_id, page_number, x_position, y_position, width, height, user_id } = req.body;
 
     // Verify document and file exist
     const document = await prisma.document.findUnique({
@@ -58,6 +59,13 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
         height
       }
     });
+
+    // Log signature placeholder addition to document trail if user_id is provided
+    if (user_id) {
+      await auditService.logSignaturePlaceholderAdded(user_id, documentId, {
+        description: `Signature placeholder added for document`
+      });
+    }
 
     res.status(201).json(placeholder);
   } catch (error) {
@@ -112,6 +120,11 @@ router.post('/documents/:documentId/place-signature', async (req: Request, res: 
         height,
         signature_data: signatureToUse
       }
+    });
+
+    // Log signature to document trail
+    await auditService.logDocumentSigned(signee_id, documentId, {
+      description: `Document signed by ${user.first_name} ${user.last_name}`
     });
 
     // Update document status to reflect signing

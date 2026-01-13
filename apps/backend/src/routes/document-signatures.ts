@@ -4,6 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { promises as fsPromises } from 'fs';
+import { auditService } from '../services/audit.service';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -65,7 +66,7 @@ router.get('/documents/:documentId/signatures', async (req: Request, res: Respon
 router.post('/documents/:documentId/signatures', upload.none(), async (req: Request, res: Response) => {
   try {
     const { documentId } = req.params;
-    const { page_number, x_position, y_position, width, height, document_file_id } = req.body;
+    const { page_number, x_position, y_position, width, height, document_file_id, user_id } = req.body;
 
     // Verify document exists
     const document = await prisma.document.findUnique({
@@ -97,6 +98,13 @@ router.post('/documents/:documentId/signatures', upload.none(), async (req: Requ
         height: parseFloat(height)
       }
     });
+
+    // Log signature placeholder addition to document trail
+    if (user_id) {
+      await auditService.logSignaturePlaceholderAdded(user_id, documentId, {
+        description: `Signature placeholder added at page ${page_number}`,
+      });
+    }
 
     res.status(201).json(signaturePlaceholder);
   } catch (error) {
@@ -205,6 +213,11 @@ router.post('/documents/:documentId/sign', upload.single('signature_image'), asy
         signature_data: signatureData,
         documentFileFile_id: document_file_id
       }
+    });
+
+    // Log signature to document trail
+    await auditService.logDocumentSigned(signee_id, documentId, {
+      description: `Document signed by ${user.first_name} ${user.last_name}`
     });
 
     // Update document status to reflect that it has been signed

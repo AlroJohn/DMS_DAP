@@ -55,10 +55,10 @@ export default function ViewDocumentPage() {
 
   // Update page title for better UX
   useEffect(() => {
-    if (title && title !== "Document") {
+    if (title && title !== "Document" && document) {
       document.title = `${title} - View Document`;
     }
-  }, [title]);
+  }, [title, document]);
 
   // Update breadcrumb with document name
   useEffect(() => {
