@@ -53,8 +53,10 @@ export class DashboardService {
     const recentActivity = await this.getRecentActivityCount(departmentId);
     const pendingApprovals = await this.getPendingApprovalsCount(departmentId);
     const activeWorkflows = await this.getActiveWorkflowsCount(departmentId);
+    const documentTypes = await this.getDocumentTypeDistribution(departmentId);
+    const departmentPerformance = await this.getDepartmentPerformance();
+    const workflowStats = await this.getWorkflowStats(departmentId);
 
-    // Mock data for other stats until they are implemented
     const stats = {
         documentStats: documentStats,
         recentActivity,
@@ -65,17 +67,9 @@ export class DashboardService {
         complianceStatus: 98,
         systemActivity: [],
         topDocuments: [],
-        departmentPerformance: [
-            { name: 'Human Resources', documentsProcessed: 120, efficiency: 95 },
-            { name: 'Finance', documentsProcessed: 90, efficiency: 88 },
-            { name: 'IT', documentsProcessed: 150, efficiency: 98 },
-        ],
-        workflowStats: {
-            totalWorkflows: 20,
-            completedWorkflows: 15,
-            pendingWorkflows: 3,
-            inProgressWorkflows: 2,
-        },
+        departmentPerformance,
+        workflowStats,
+        documentTypes,
         recentDocuments: recentDocuments,
         documentTrends: documentTrends,
     };
@@ -235,5 +229,215 @@ export class DashboardService {
             return Math.floor(interval) + " minutes ago";
         }
         return Math.floor(seconds) + " seconds ago";
+    }
+
+    private async getDocumentTypeDistribution(departmentId: string) {
+        // Get all documents with their workflow
+        const documents = await prisma.document.findMany({
+            where: {
+                status: { notIn: ['deleted'] },
+            },
+            select: {
+                document_id: true,
+                document_type: true,
+                DocumentAdditionalDetails: {
+                    select: {
+                        work_flow_id: true,
+                    },
+                },
+            },
+        });
+
+        // Filter documents where this department is in the workflow
+        const relevantDocuments = documents.filter((doc) => {
+            const detail = doc.DocumentAdditionalDetails[0];
+            if (!detail?.work_flow_id) return false;
+
+            try {
+                let workflowDepartments: string[] = [];
+                const workflow = detail.work_flow_id;
+
+                if (typeof workflow === 'object' && workflow !== null) {
+                    workflowDepartments = Object.values(workflow)
+                        .map((val: any) => String(val || ''))
+                        .filter(Boolean);
+                }
+
+                return workflowDepartments.includes(departmentId);
+            } catch (e) {
+                return false;
+            }
+        });
+
+        // Group by document type
+        const typeCounts = relevantDocuments.reduce((acc: any, doc) => {
+            const type = doc.document_type || 'Other';
+            acc[type] = (acc[type] || 0) + 1;
+            return acc;
+        }, {});
+
+        return Object.entries(typeCounts).map(([type, count]) => ({
+            type,
+            count: count as number,
+        }));
+    }
+
+    private async getDepartmentPerformance() {
+        const departments = await prisma.department.findMany({
+            where: { active: true },
+            select: {
+                department_id: true,
+                name: true,
+            },
+        });
+
+        const performanceData = await Promise.all(
+            departments.map(async (dept) => {
+                // Count all trails where this department sent or received documents
+                const documentsProcessed = await prisma.documentTrail.count({
+                    where: {
+                        OR: [
+                            { from_department: dept.department_id },
+                            { to_department: dept.department_id },
+                        ],
+                    },
+                });
+
+                // Count completed documents where this department is in workflow
+                const documents = await prisma.document.findMany({
+                    where: {
+                        status: { notIn: ['deleted'] },
+                    },
+                    select: {
+                        document_id: true,
+                        status: true,
+                        DocumentAdditionalDetails: {
+                            select: {
+                                work_flow_id: true,
+                            },
+                        },
+                    },
+                });
+
+                let documentsInWorkflow = 0;
+                let completedInWorkflow = 0;
+
+                documents.forEach((doc) => {
+                    const detail = doc.DocumentAdditionalDetails[0];
+                    if (!detail?.work_flow_id) return;
+
+                    try {
+                        let workflowDepartments: string[] = [];
+                        const workflow = detail.work_flow_id;
+
+                        if (typeof workflow === 'object' && workflow !== null) {
+                            workflowDepartments = Object.values(workflow)
+                                .map((val: any) => String(val || ''))
+                                .filter(Boolean);
+                        }
+
+                        if (workflowDepartments.includes(dept.department_id)) {
+                            documentsInWorkflow++;
+                            if (doc.status === 'completed') {
+                                completedInWorkflow++;
+                            }
+                        }
+                    } catch (e) {
+                        // Skip on error
+                    }
+                });
+
+                const efficiency = documentsInWorkflow > 0 
+                    ? Math.round((completedInWorkflow / documentsInWorkflow) * 100)
+                    : 0;
+
+                return {
+                    name: dept.name,
+                    documentsProcessed,
+                    efficiency,
+                };
+            })
+        );
+
+        // Sort by documents processed and return top 5
+        return performanceData
+            .filter(d => d.documentsProcessed > 0)
+            .sort((a, b) => b.documentsProcessed - a.documentsProcessed)
+            .slice(0, 5);
+    }
+
+    private async getWorkflowStats(departmentId: string) {
+        // Get all documents with their workflow and trails
+        const documents = await prisma.document.findMany({
+            where: {
+                status: { notIn: ['deleted'] },
+            },
+            select: {
+                document_id: true,
+                status: true,
+                DocumentAdditionalDetails: {
+                    select: {
+                        work_flow_id: true,
+                    },
+                },
+                document_trails: {
+                    orderBy: { created_at: 'desc' },
+                    take: 1,
+                    select: {
+                        status: true,
+                        to_department: true,
+                        from_department: true,
+                    },
+                },
+            },
+        });
+
+        // Filter documents where this department is in the workflow
+        const documentsInWorkflow = documents.filter((doc) => {
+            const detail = doc.DocumentAdditionalDetails[0];
+            if (!detail?.work_flow_id) return false;
+
+            try {
+                let workflowDepartments: string[] = [];
+                const workflow = detail.work_flow_id;
+
+                if (typeof workflow === 'object' && workflow !== null) {
+                    workflowDepartments = Object.values(workflow)
+                        .map((val: any) => String(val || ''))
+                        .filter(Boolean);
+                }
+
+                return workflowDepartments.includes(departmentId);
+            } catch (e) {
+                return false;
+            }
+        });
+
+        let completedWorkflows = 0;
+        let pendingWorkflows = 0;
+        let inProgressWorkflows = 0;
+
+        documentsInWorkflow.forEach((doc) => {
+            const status = doc.status;
+
+            if (status === 'completed') {
+                completedWorkflows++;
+            } else if (status === 'intransit' || status === 'intransit_signature') {
+                inProgressWorkflows++;
+            } else if (status === 'dispatch' || status === 'received') {
+                pendingWorkflows++;
+            } else {
+                pendingWorkflows++;
+            }
+        });
+
+        const totalWorkflows = documentsInWorkflow.length;
+
+        return {
+            totalWorkflows,
+            completedWorkflows,
+            pendingWorkflows,
+            inProgressWorkflows,
+        };
     }
 }

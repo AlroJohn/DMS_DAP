@@ -69,7 +69,7 @@ export default function Page() {
   }
 
   return (
-    <div className="flex flex-col gap-4 max-w-dvw">
+    <div className="flex flex-col gap-4 p-2 max-w-dvw">
       {/* Document Statistics Cards */}
       <DocumentStatsCards stats={data.documentStats} />
 
@@ -203,22 +203,18 @@ export default function Page() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Contracts</span>
-              <span className="font-semibold">285</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Reports</span>
-              <span className="font-semibold">412</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Policies</span>
-              <span className="font-semibold">156</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Other</span>
-              <span className="font-semibold">248</span>
-            </div>
+            {data.documentTypes && data.documentTypes.length > 0 ? (
+              data.documentTypes.map((docType, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <span className="text-sm capitalize">{docType.type}</span>
+                  <span className="font-semibold">{docType.count}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No document types available
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
