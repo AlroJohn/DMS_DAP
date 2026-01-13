@@ -235,6 +235,15 @@ export default function DocumentTrailingPage() {
     if (status === "checkin") {
       return "bg-teal-100 text-teal-800";
     }
+    
+    // Check for signature-related statuses
+    if (status === "placeholder_added") {
+      return "bg-violet-100 text-violet-800";
+    }
+    if (status === "signed") {
+      return "bg-emerald-100 text-emerald-800";
+    }
+    
 
     // If action name exists and is not empty, use a default color
     if (action && action !== "dispatch" && action !== "dispatched") {
@@ -281,6 +290,8 @@ export default function DocumentTrailingPage() {
     ) {
       return "Check In";
     }
+    
+    // Check status field directly for checkout/checkin and signature statuses
 
     // Check status field directly for checkout/checkin
     if (status === "checkout") {
@@ -289,6 +300,13 @@ export default function DocumentTrailingPage() {
     if (status === "checkin") {
       return "Check In";
     }
+    if (status === "placeholder_added") {
+      return "Signature Placeholder Added";
+    }
+    if (status === "signed") {
+      return "Document Signed";
+    }
+    
 
     // Prioritize action name for more specific display
     const action = actionName?.trim();
@@ -536,8 +554,6 @@ export default function DocumentTrailingPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {" "}
-            {/* This is line 507 */}
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex items-center gap-2 flex-shrink-0">
                 <Filter className="h-4 w-4 text-muted-foreground" />
@@ -587,12 +603,15 @@ export default function DocumentTrailingPage() {
                     <SelectItem value="intransit">In Transit</SelectItem>
                     <SelectItem value="received">Received</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="placeholder_added">Placeholder Added</SelectItem>
+                    <SelectItem value="signed">Signed</SelectItem>
                     <SelectItem value="deleted">Deleted</SelectItem>
                     <SelectItem value="archive">Archived</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
+
             <div className="space-y-4">
               {filteredDocuments.length === 0 ? (
                 <div className="text-center py-12">
@@ -699,68 +718,63 @@ export default function DocumentTrailingPage() {
                         </Button>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-                        <div className="flex items-center gap-2">
-                          <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <div className="flex items-center gap-1 min-w-0">
-                            <span className="text-muted-foreground flex-shrink-0">
-                              From:
-                            </span>
-                            <span className="truncate font-medium">
-                              {doc.fromDepartment}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <div className="flex items-center gap-1 min-w-0">
-                            <span className="text-muted-foreground flex-shrink-0">
-                              To:
-                            </span>
-                            <span className="truncate font-medium">
-                              {doc.toDepartment}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <div className="flex items-center gap-1 min-w-0">
-                            <span className="text-muted-foreground flex-shrink-0">
-                              By:
-                            </span>
-                            <span className="truncate font-medium">
-                              {doc.user}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <div className="flex items-center gap-1 min-w-0">
-                            <span className="text-muted-foreground flex-shrink-0">
-                              On:
-                            </span>
-                            <span className="truncate font-medium">
-                              {format(
-                                new Date(doc.actionDate),
-                                "MMM d, yyyy h:mm a"
-                              )}
-                            </span>
-                          </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="text-muted-foreground flex-shrink-0">From:</span>
+                          <span className="truncate font-medium">{doc.fromDepartment}</span>
                         </div>
                       </div>
-
-                      {doc.remarks && (
-                        <div className="text-sm bg-muted/50 p-3 rounded-md">
-                          <span className="font-medium text-muted-foreground">
-                            Remarks:
-                          </span>{" "}
-                          <span className="text-foreground">{doc.remarks}</span>
+                      <div className="flex items-center gap-2">
+                        <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="text-muted-foreground flex-shrink-0">To:</span>
+                          <span className="truncate font-medium">{doc.toDepartment}</span>
                         </div>
-                      )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="text-muted-foreground flex-shrink-0">
+                            {doc.status === 'signed' ? 'Signed by:' :
+                             doc.status === 'placeholder_added' ? 'Added by:' : 'By:'}
+                          </span>
+                          <span className="truncate font-medium">{doc.user}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="text-muted-foreground flex-shrink-0">On:</span>
+                          <span className="truncate font-medium">
+                            {format(
+                              new Date(doc.actionDate),
+                              "MMM d, yyyy h:mm a"
+                            )}
+                          </span>
+                        </div>
+                      </div>
                     </div>
+
+                    {doc.remarks && (
+                      <div className={`text-sm p-3 rounded-md border ${
+                        doc.status === 'signed' ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800' :
+                        doc.status === 'placeholder_added' ? 'bg-violet-50 dark:bg-violet-950/20 border-violet-200 dark:border-violet-800' :
+                        'bg-muted/50'
+                      }`}>
+                        <span className="font-medium text-muted-foreground">
+                          {doc.status === 'signed' ? 'Signature Details:' :
+                           doc.status === 'placeholder_added' ? 'Placeholder Details:' :
+                           'Remarks:'}
+                        </span>{" "}
+                        <span className="text-foreground font-medium">{doc.remarks}</span>
+                      </div>
+                    )}
                   </div>
-                ))
-              )}
+                </div>
+              ))
+            )}
             </div>
           </div>
         </CardContent>

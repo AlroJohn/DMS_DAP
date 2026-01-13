@@ -34,7 +34,16 @@ class AuditService {
       const fromDepartment = details.fromDepartmentId ?? userDepartmentId ?? undefined;
       const toDepartment = details.toDepartmentId ?? userDepartmentId ?? undefined;
 
-      await prisma.documentTrail.create({
+      console.log('🔷 [AuditService] Creating document trail:', {
+        document_id: documentId,
+        user_id: userId,
+        from_department: fromDepartment,
+        to_department: toDepartment,
+        status,
+        remarks: details.description
+      });
+
+      const trail = await prisma.documentTrail.create({
         data: {
           document_id: documentId,
           user_id: userId,
@@ -44,8 +53,10 @@ class AuditService {
           remarks: details.description,
         },
       });
+
+      console.log('✅ [AuditService] Document trail created successfully:', trail.trail_id);
     } catch (error) {
-      console.error('Failed to create document trail:', error);
+      console.error('❌ [AuditService] Failed to create document trail:', error);
     }
   }
 
@@ -91,7 +102,83 @@ class AuditService {
     });
   }
 
+  async logSignaturePlaceholderAdded(userId: string, documentId: string, details: TrailLogDetails = {}) {
+    // Get user information for detailed logging
+    let userName = 'Unknown User';
+    try {
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { first_name: true, last_name: true }
+      });
+      if (user) {
+        userName = `${user.first_name} ${user.last_name}`.trim();
+      }
+    } catch (error) {
+      console.error('Failed to fetch user for signature placeholder log:', error);
+    }
+
+    console.log('🔷 [AuditService] logSignaturePlaceholderAdded called:', {
+      userId,
+      documentId,
+      userName,
+      description: details.description ?? `Signature placeholder added by ${userName}`
+    });
+
+    return this.createDocumentTrail(userId, documentId, details.status ?? 'placeholder_added', {
+      description: details.description ?? `Signature placeholder added by ${userName}`,
+      ...details,
+    });
+  }
+
   async logDocumentSigned(userId: string, documentId: string, details: TrailLogDetails = {}) {
+    // Get user information for detailed logging
+    let userName = 'Unknown User';
+    let deptName = 'Unknown Department';
+    try {
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { 
+          first_name: true, 
+          last_name: true, 
+          department_id: true
+        }
+      });
+      if (user) {
+        userName = `${user.first_name} ${user.last_name}`.trim();
+        
+        // Fetch department name separately
+        if (user.department_id) {
+          const department = await prisma.department.findUnique({
+            where: { department_id: user.department_id },
+            select: { name: true }
+          });
+          deptName = department?.name || 'Unknown Department';
+        }
+        
+        console.log('🔷 [AuditService] logDocumentSigned called:', {
+          userId,
+          documentId,
+          userName,
+          deptName,
+          description: details.description ?? `Document signed by ${userName} from ${deptName}`
+        });
+
+        const defaultDescription = `Document signed by ${userName} from ${deptName}`;
+        return this.createDocumentTrail(userId, documentId, details.status ?? 'signed', {
+          description: details.description ?? defaultDescription,
+          ...details,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch user for document signing log:', error);
+    }
+
+    console.log('🔷 [AuditService] logDocumentSigned called (fallback):', {
+      userId,
+      documentId,
+      description: details.description ?? 'Document signed'
+    });
+
     return this.createDocumentTrail(userId, documentId, details.status ?? 'signed', {
       description: details.description ?? 'Document signed',
       ...details,

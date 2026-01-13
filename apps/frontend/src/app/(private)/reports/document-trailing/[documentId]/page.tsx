@@ -13,6 +13,7 @@ import {
   Clock,
   Download,
   ChevronLeft,
+  MessageSquare,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -99,6 +100,14 @@ export default function DocumentTrailsDetailPage() {
         return "bg-red-100 text-red-800";
       case "archive":
         return "bg-gray-100 text-gray-800";
+      case "placeholder_added":
+        return "bg-violet-100 text-violet-800";
+      case "signed":
+        return "bg-emerald-100 text-emerald-800";
+      case "checkout":
+        return "bg-orange-100 text-orange-800";
+      case "checkin":
+        return "bg-teal-100 text-teal-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -118,6 +127,14 @@ export default function DocumentTrailsDetailPage() {
         return "Deleted";
       case "archive":
         return "Archived";
+      case "placeholder_added":
+        return "Signature Placeholder Added";
+      case "signed":
+        return "Document Signed";
+      case "checkout":
+        return "Check Out";
+      case "checkin":
+        return "Check In";
       default:
         return status;
     }
@@ -343,8 +360,24 @@ export default function DocumentTrailsDetailPage() {
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4 text-muted-foreground" />
                           <span className="text-sm">
-                            <span className="font-medium">{trail.user}</span>{" "}
-                            performed this action
+                            {trail.status === 'signed' && (
+                              <span>
+                                <span className="font-medium text-emerald-700 dark:text-emerald-400">{trail.user}</span>{" "}
+                                signed this document
+                              </span>
+                            )}
+                            {trail.status === 'placeholder_added' && (
+                              <span>
+                                <span className="font-medium text-violet-700 dark:text-violet-400">{trail.user}</span>{" "}
+                                added signature placeholder(s)
+                              </span>
+                            )}
+                            {trail.status !== 'signed' && trail.status !== 'placeholder_added' && (
+                              <span>
+                                <span className="font-medium">{trail.user}</span>{" "}
+                                performed this action
+                              </span>
+                            )}
                           </span>
                         </div>
 
@@ -364,11 +397,18 @@ export default function DocumentTrailsDetailPage() {
                         </div>
 
                         {trail.remarks && (
-                          <div className="mt-2">
-                            <p className="text-sm text-muted-foreground">
-                              Remarks:
-                            </p>
-                            <p className="text-sm">{trail.remarks}</p>
+                          <div className="mt-3 p-3 bg-background rounded border">
+                            <div className="flex items-start gap-2">
+                              <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                              <div className="flex-1">
+                                <p className="text-xs font-medium text-muted-foreground mb-1">
+                                  {trail.status === 'signed' ? 'Signature Details' : 
+                                   trail.status === 'placeholder_added' ? 'Placeholder Details' : 
+                                   'Remarks'}:
+                                </p>
+                                <p className="text-sm font-medium">{trail.remarks}</p>
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>

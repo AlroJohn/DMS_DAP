@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -144,6 +144,7 @@ export function CheckoutFileModal({
   const [currentPath, setCurrentPath] = useState<
     { id: string; name: string }[]
   >([]);
+  const prevSelectedFileIdsRef = useRef<string[]>([]);
 
   const isSignatureAction = action === "signature";
 
@@ -194,7 +195,21 @@ export function CheckoutFileModal({
       }
       return;
     }
+
+    // Check if selectedFileIds actually changed
+    const idsChanged =
+      prevSelectedFileIdsRef.current.length !== selectedFileIds.length ||
+      prevSelectedFileIdsRef.current.some((id, i) => id !== selectedFileIds[i]);
+
+    if (!idsChanged) return;
+
+    prevSelectedFileIdsRef.current = selectedFileIds;
+
+    // Only update selectedFileId if needed to avoid infinite loop
     if (!selectedFileIds.length) {
+      if (selectedFileId !== null) {
+        setSelectedFileId(null);
+      }
       if (selectedFileId !== null) {
         setSelectedFileId(null);
       }
@@ -618,10 +633,9 @@ export function CheckoutFileModal({
               onClick={handleConfirm}
               disabled={buttonDisabled || isProcessing}
             >
-              {isProcessing &&
-                selectedFileId === files.find((f) => f.id === selectedFileId)?.id && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
+              {isProcessing && selectedFileId && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
               {buttonText}
             </Button>
           </DialogFooter>

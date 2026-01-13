@@ -76,6 +76,17 @@ export class DocumentReleaseService {
                 });
                 console.log('📍 [DocumentReleaseService.releaseDocument] Signature placeholders saved to SignaturePlaceholder table.');
 
+                // Log signature placeholder addition to document trail
+                const placeholderDesc = signatures.length === 1 
+                    ? `1 signature placeholder added by ${releasingUser.first_name} ${releasingUser.last_name} for signing` 
+                    : `${signatures.length} signature placeholders added by ${releasingUser.first_name} ${releasingUser.last_name} for signing`;
+                
+                await auditService.logSignaturePlaceholderAdded(userId, documentId, {
+                    description: placeholderDesc,
+                    fromDepartmentId: releasingUser.department_id ?? undefined,
+                    toDepartmentId: departmentId,
+                });
+
                 // We do NOT process the document signature workflow here anymore.
                 // The document is released with placeholders, waiting for the recipient to sign.
             } else {
