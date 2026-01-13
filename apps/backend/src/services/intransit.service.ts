@@ -56,7 +56,8 @@ export class IntransitService {
         select: {
           document_id: true,
           work_flow_id: true,
-          received_by_departments: true
+          received_by_departments: true,
+          work_flow_status: true
         }
       });
       const documentDetailsMap = new Map<string, any>();
@@ -325,6 +326,14 @@ export class IntransitService {
             console.error('Barcode generation error:', err);
           }
 
+          const workflowStatus = detail
+            ? this.parseWorkflowStatus(detail.work_flow_status)
+            : {};
+          const releaseInfo = this.getLatestReleaseInfo(
+            workflowStatus,
+            user.department_id
+          );
+
           return {
             id: doc.document_id,
             qrCode,
@@ -337,7 +346,9 @@ export class IntransitService {
             classification: doc.classification,
             status: doc.status, // Use actual document status instead of hardcoded 'incoming'
             activity: 'incoming',
-            activityTime: doc.created_at.toISOString()
+            activityTime: doc.created_at.toISOString(),
+            requestAction: releaseInfo?.requestAction || null,
+            releaseRemarks: releaseInfo?.remarks || null
           };
         })
       );
@@ -820,6 +831,64 @@ export class IntransitService {
     }
 
     return [];
+  }
+
+  private parseWorkflowStatus(workflowStatus: any): Record<string, any> {
+    if (!workflowStatus) return {};
+
+    if (typeof workflowStatus === 'string') {
+      try {
+        return this.parseWorkflowStatus(JSON.parse(workflowStatus));
+      } catch {
+        return {};
+      }
+    }
+
+    if (Array.isArray(workflowStatus)) {
+      return workflowStatus.reduce((acc, entry, index) => {
+        if (typeof entry === 'object' && entry) {
+          acc[`entry_${index + 1}`] = { ...(entry as any) };
+        }
+        return acc;
+      }, {} as Record<string, any>);
+    }
+
+    if (typeof workflowStatus === 'object') {
+      return Object.keys(workflowStatus).reduce((acc, key) => {
+        const entry = (workflowStatus as Record<string, any>)[key];
+        if (typeof entry === 'object' && entry) {
+          acc[key] = { ...entry };
+        }
+        return acc;
+      }, {} as Record<string, any>);
+    }
+
+    return {};
+  }
+
+  private getLatestReleaseInfo(
+    workflowStatus: Record<string, any>,
+    departmentId: string
+  ): { requestAction?: string; remarks?: string } | null {
+    const releaseEntries = Object.entries(workflowStatus)
+      .filter(([key]) => key.startsWith('released_'))
+      .sort(([keyA], [keyB]) =>
+        keyA.localeCompare(keyB, undefined, { numeric: true })
+      );
+
+    for (let index = releaseEntries.length - 1; index >= 0; index -= 1) {
+      const entry = releaseEntries[index][1] || {};
+      const targetDepartment =
+        entry.to_department_id || entry.toDepartmentId || entry.toDepartment;
+      if (targetDepartment === departmentId) {
+        return {
+          requestAction: entry.request_action || entry.requestAction,
+          remarks: entry.remarks
+        };
+      }
+    }
+
+    return null;
   }
 
   /**

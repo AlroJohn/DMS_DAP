@@ -13,6 +13,8 @@ export interface InTransitDocument {
   status: string;
   activity: string;
   activityTime: string;
+  requestAction?: string | null;
+  releaseRemarks?: string | null;
 }
 
 export interface Pagination {
@@ -159,4 +161,3 @@ export function useOutgoingDocuments(
     refetch: fetchDocuments,
   };
 }
-

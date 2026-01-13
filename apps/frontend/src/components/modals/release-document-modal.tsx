@@ -173,6 +173,7 @@ export function ReleaseDocumentModal({
       // Prepare the payload to send the array of action names
       const payload = {
         ...data,
+        release_action: data.requestActions,
         // Map the action names to action IDs if needed
         // For now, keeping the action names as selected by the user
       };

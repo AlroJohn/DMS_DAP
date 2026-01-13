@@ -122,6 +122,12 @@ export class DocumentReleaseService {
 
             console.log('📍 [DocumentReleaseService.releaseDocument] Current workflow object:', currentWorkflow);
 
+            const releaseActions = Array.isArray(requestAction)
+                ? requestAction
+                : requestAction
+                  ? [requestAction]
+                  : [];
+
             // Check if the department is already in the workflow by looking at all values
             const workflowDepartments = Object.values(currentWorkflow);
             if (!workflowDepartments.includes(departmentId)) {
@@ -197,6 +203,7 @@ export class DocumentReleaseService {
                     data: {
                         work_flow_id: currentWorkflow as any,
                         remarks: remarks || currentDetail.remarks,
+                        release_action: releaseActions,
                         updated_at: new Date()
                     }
                 });
@@ -227,6 +234,7 @@ export class DocumentReleaseService {
                             document_id: documentId,
                             work_flow_id: newWorkflow as any,
                             remarks: remarks || null,
+                            release_action: releaseActions,
                             account_id: user.account.account_id // Store the releasing user's account ID
                         }
                     });
@@ -242,6 +250,7 @@ export class DocumentReleaseService {
                             document_id: documentId,
                             work_flow_id: newWorkflow as any,
                             remarks: remarks || null,
+                            release_action: releaseActions,
                             account_id: user?.account?.account_id || null // Try to store account_id if available
                         }
                     });
@@ -563,7 +572,7 @@ export class DocumentReleaseService {
           },
           data: {
             status: 'received',
-            user_id: userId, // Track who received it
+            user_id: userId,
             updated_at: new Date()
           }
         });

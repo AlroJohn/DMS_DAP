@@ -36,6 +36,8 @@ export type IncomingDocument = {
   status: string;
   activity: string;
   activityTime: string;
+  requestAction?: string | null;
+  releaseRemarks?: string | null;
 };
 
 const formatText = (text: string): string => {
@@ -47,9 +49,13 @@ const formatText = (text: string): string => {
 
 function ReceiveButton({
   documentId,
+  requestAction,
+  releaseRemarks,
   onReceived,
 }: {
   documentId: string;
+  requestAction?: string | null;
+  releaseRemarks?: string | null;
   onReceived?: () => void;
 }) {
   const { mutateAsync: receiveDocument, isPending: isLoading } =
@@ -79,6 +85,9 @@ function ReceiveButton({
     );
   }
 
+  const actionLabel = requestAction?.trim() || "Not specified";
+  const remarksLabel = releaseRemarks?.trim() || "None";
+
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger asChild>
@@ -106,6 +115,14 @@ function ReceiveButton({
             be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
+        <div className="space-y-2 text-sm">
+          <div>
+            <span className="font-medium">Requested action:</span> {actionLabel}
+          </div>
+          <div>
+            <span className="font-medium">Remarks:</span> {remarksLabel}
+          </div>
+        </div>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction onClick={handleReceive}>
@@ -402,11 +419,20 @@ export const incomingColumns: ColumnDef<IncomingDocument>[] = [
     header: "Action",
     cell: ({ row, table }) => {
       const documentId = row.original.id;
+      const requestAction = row.original.requestAction;
+      const releaseRemarks = row.original.releaseRemarks;
 
       // Get onReceived function from table meta if available
       const onReceived = (table.options.meta as any)?.onReceived;
 
-      return <ReceiveButton documentId={documentId} onReceived={onReceived} />;
+      return (
+        <ReceiveButton
+          documentId={documentId}
+          requestAction={requestAction}
+          releaseRemarks={releaseRemarks}
+          onReceived={onReceived}
+        />
+      );
     },
     enableSorting: false,
     enableHiding: false,

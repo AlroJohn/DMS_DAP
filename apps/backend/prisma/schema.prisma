@@ -129,6 +129,7 @@ model DocumentAdditionalDetails {
   signed_at               DateTime?
   signed_by               String?   @db.Uuid
   remarks                 String?
+  release_action          String[]
   deleted_by              String?   @db.Uuid
   restored_by             String?   @db.Uuid
   created_at              DateTime  @default(now())
@@ -418,28 +419,28 @@ model NotificationSubscription {
 }
 
 model NotificationPreference {
-  preference_id      String   @id @default(uuid()) @db.Uuid
-  user_id            String   @db.Uuid
-  category           String // Documents, Approvals, Blockchain, Security, System, Collaboration
-  notification_name  String // Document Upload, Approval Request, etc.
-  email_enabled      Boolean  @default(true)
-  in_app_enabled     Boolean  @default(true)
-  created_at         DateTime @default(now())
-  updated_at         DateTime @default(now()) @updatedAt
-  user               User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  preference_id     String   @id @default(uuid()) @db.Uuid
+  user_id           String   @db.Uuid
+  category          String // Documents, Approvals, Blockchain, Security, System, Collaboration
+  notification_name String // Document Upload, Approval Request, etc.
+  email_enabled     Boolean  @default(true)
+  in_app_enabled    Boolean  @default(true)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @default(now()) @updatedAt
+  user              User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@unique([user_id, category, notification_name])
   @@index([user_id])
 }
 
 model NotificationSettings {
-  settings_id              String   @id @default(uuid()) @db.Uuid
-  user_id                  String   @unique @db.Uuid
-  global_notifications     Boolean  @default(true)
-  email_notifications      Boolean  @default(true)
-  created_at               DateTime @default(now())
-  updated_at               DateTime @default(now()) @updatedAt
-  user                     User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  settings_id          String   @id @default(uuid()) @db.Uuid
+  user_id              String   @unique @db.Uuid
+  global_notifications Boolean  @default(true)
+  email_notifications  Boolean  @default(true)
+  created_at           DateTime @default(now())
+  updated_at           DateTime @default(now()) @updatedAt
+  user                 User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }
 
 model UserFeedback {
