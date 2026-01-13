@@ -10,7 +10,10 @@ import { useEffect, useRef } from "react";
 import { useRecycleBin } from "@/context/recycle-bin-context";
 
 export default function RecycleBinPage() {
-  const { documents, isLoading, error, refetch } = useRecycleBinDocuments(1, 100); // Use page 1 with high limit
+  const { documents, isLoading, error, refetch } = useRecycleBinDocuments(
+    1,
+    100
+  ); // Use page 1 with high limit
   const { socket } = useSocket();
   const mountedRef = useRef(false);
   const { showWarning } = useRecycleBin(); // Get showWarning from context
@@ -47,8 +50,8 @@ export default function RecycleBinPage() {
     };
 
     // Listen for document-related events
-    socket.on('documentDeleted', handleDocumentDeleted);
-    socket.on('documentRestored', handleDocumentRestored);
+    socket.on("documentDeleted", handleDocumentDeleted);
+    socket.on("documentRestored", handleDocumentRestored);
 
     // Cleanup listeners on unmount
     return () => {
@@ -58,10 +61,10 @@ export default function RecycleBinPage() {
   }, [socket, safeRefetch]);
 
   // Check if the error is authentication-related
-  const isAuthError = error && error.includes('Authentication required');
+  const isAuthError = error && error.includes("Authentication required");
 
   return (
-    <div className="w-full flex h-full flex-col bg-background gap-2">
+    <div className="w-full p-4 flex h-full flex-col bg-background gap-2">
       {/* Warning Alert */}
       {showWarning && (
         <Alert className="border-orange-200 bg-orange-50">
@@ -91,7 +94,9 @@ export default function RecycleBinPage() {
           <Alert variant="destructive" className="max-w-md">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Authentication Required</AlertTitle>
-            <AlertDescription>You must be logged in to view documents.</AlertDescription>
+            <AlertDescription>
+              You must be logged in to view documents.
+            </AlertDescription>
           </Alert>
         </div>
       )}
@@ -107,6 +112,7 @@ export default function RecycleBinPage() {
         initialState={{
           columnVisibility: {
             dates: false,
+            status: false,
           },
         }}
         isLoading={isLoading}

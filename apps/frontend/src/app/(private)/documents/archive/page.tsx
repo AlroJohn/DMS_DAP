@@ -10,7 +10,12 @@ import { useEffect, useMemo, useRef } from "react";
 import { useDocumentTypes } from "@/hooks/use-document-types";
 
 export default function ArchivePage() {
-  const { archivedDocuments: rawArchivedDocuments, loading, error, fetchArchivedDocuments } = useArchive();
+  const {
+    archivedDocuments: rawArchivedDocuments,
+    loading,
+    error,
+    fetchArchivedDocuments,
+  } = useArchive();
   const { socket } = useSocket();
   const { documentTypes } = useDocumentTypes();
   const mountedRef = useRef(false);
@@ -103,11 +108,11 @@ export default function ArchivePage() {
     };
 
     // Listen for document-related events
-    socket.on('documentAdded', handleDocumentAdded);
-    socket.on('documentUpdated', handleDocumentUpdated);
-    socket.on('documentDeleted', handleDocumentDeleted);
-    socket.on('documentArchived', handleDocumentAdded); // Refetch when documents are archived
-    socket.on('documentRestored', handleDocumentAdded); // Refetch when documents are restored
+    socket.on("documentAdded", handleDocumentAdded);
+    socket.on("documentUpdated", handleDocumentUpdated);
+    socket.on("documentDeleted", handleDocumentDeleted);
+    socket.on("documentArchived", handleDocumentAdded); // Refetch when documents are archived
+    socket.on("documentRestored", handleDocumentAdded); // Refetch when documents are restored
 
     // Cleanup listeners on unmount
     return () => {
@@ -120,10 +125,10 @@ export default function ArchivePage() {
   }, [socket, fetchArchivedDocuments]);
 
   // Check if the error is authentication-related
-  const isAuthError = error && error.includes('Authentication required');
+  const isAuthError = error && error.includes("Authentication required");
 
   return (
-    <div className="w-full flex h-full flex-col bg-background">
+    <div className="w-full p-4 flex h-full flex-col bg-background">
       {error && !isAuthError && (
         <div className="mb-4">
           <Alert variant="destructive" className="max-w-md">
@@ -138,7 +143,9 @@ export default function ArchivePage() {
           <Alert variant="destructive" className="max-w-md">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Authentication Required</AlertTitle>
-            <AlertDescription>You must be logged in to view documents.</AlertDescription>
+            <AlertDescription>
+              You must be logged in to view documents.
+            </AlertDescription>
           </Alert>
         </div>
       )}

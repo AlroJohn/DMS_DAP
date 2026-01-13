@@ -156,7 +156,7 @@ export default function SharedDocumentsPage() {
 
   return (
     <>
-      <div className="flex h-full flex-col gap-4 bg-background">
+      <div className="flex h-full flex-col p-4 gap-4 bg-background">
         <div className="flex flex-col gap-1.5"></div>
         {error && !isAuthError && (
           <div className="mb-4">

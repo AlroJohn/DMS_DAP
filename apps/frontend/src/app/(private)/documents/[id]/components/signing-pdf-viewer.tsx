@@ -112,7 +112,7 @@ const hexToRgb = (value?: string) => {
 const normalizeTextValue = (value?: string | null) => {
   const trimmed = (value || "").trim();
   if (!trimmed) return "";
-  return trimmed.toLowerCase() === "text" ? "" : trimmed;
+  return trimmed;
 };
 
 const isPdfLikeFile = (file?: DocumentFileMetadata | null) => {
@@ -302,7 +302,7 @@ export function SigningPdfViewer({
       enabled: !!documentId,
     });
 
-  const { data: textPlaceholders = [], isLoading: isLoadingTextPlaceholders } =
+  const { data: textPlaceholders = [], isLoading: isLoadingTextPlaceholders, refetch: refetchTextPlaceholders } =
     useQuery({
       queryKey: ["text-placeholders", documentId],
       queryFn: async () => {
@@ -454,10 +454,15 @@ export function SigningPdfViewer({
     setTextValues((prev) => {
       const next = { ...prev };
       textPlaceholders.forEach((placeholder) => {
-        const storedText = normalizeTextValue(placeholder.text_value);
-        if (storedText && !next[placeholder.placeholder_id]) {
-          next[placeholder.placeholder_id] = storedText;
-        }
+        // Update the text value from the API to reflect what's in the database
+        // This ensures that when the component re-renders after saving, it shows the saved values
+        const rawText = placeholder.text_value || "";
+        const isPlaceholder = rawText.trim().toLowerCase() === "text";
+        const storedText = isPlaceholder ? "" : rawText;
+
+        // Update the value in state with the value from the API
+        // This will override any temporary values with the saved values from the database
+        next[placeholder.placeholder_id] = storedText;
       });
       return next;
     });
@@ -777,15 +782,15 @@ export function SigningPdfViewer({
 
         const textEntries = fileTextPlaceholdersForTarget
           .map((placeholder) => {
-            const baseText =
-              pendingTextEntries[placeholder.placeholder_id] ??
-              normalizeTextValue(placeholder.text_value);
+            const pendingText = pendingTextEntries[placeholder.placeholder_id];
+            // If there's pending text, use it; otherwise use the stored text value from the API
+            const baseText = pendingText ?? placeholder.text_value ?? "";
             return {
               placeholder,
               text: baseText.trim(),
             };
           })
-          .filter((entry) => entry.text.length > 0);
+          .filter((entry) => entry.text.trim().length > 0);
 
         const pdfResponse = await fetch(
           `/api/documents/${documentId}/files/${
@@ -959,14 +964,55 @@ export function SigningPdfViewer({
         )
       );
 
-      toast.success("All signature drafts saved to the selected files.");
+      // Save text placeholders to the database
+      const textPlaceholderUpdates = Object.entries(pendingTextEntries).map(
+        async ([placeholderId, textValue]) => {
+          // Find the placeholder to get its details
+          const placeholder = [...textPlaceholders].find(
+            p => p.placeholder_id === placeholderId
+          );
+
+          if (!placeholder) return null;
+
+          const response = await fetch(
+            `/api/document-texts/documents/${documentId}/update-text-placeholder`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({
+                placeholder_id: placeholderId,
+                text_value: textValue,
+              }),
+            }
+          );
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(
+              errorData.error || "Failed to update text placeholder."
+            );
+          }
+
+          return response.json().catch(() => null);
+        }
+      );
+
+      await Promise.all(textPlaceholderUpdates);
+
+      toast.success("All signature and text drafts saved to the selected files.");
 
       setPlacedSignatures({});
       setSignatureData(null);
       setSelectedPlaceholder(null);
       setIsSignatureModalOpen(false);
 
-      refetchSignatures();
+      // Refetch both signatures and text placeholders to update the UI
+      await Promise.all([
+        refetchSignatures(),
+        refetchTextPlaceholders(),
+      ]);
+
       setIsSuccessModalOpen(true); // Show success modal instead of calling onSigned immediately
     } catch (error: any) {
       console.error("Failed to save signed PDF", error);
@@ -1182,11 +1228,11 @@ export function SigningPdfViewer({
                 </div>
               ) : (
                 fileTextPlaceholders.map((p, i) => {
-                  const storedText = normalizeTextValue(p.text_value);
+                  const storedText = p.text_value || "";
                   const savedText = textValues[p.placeholder_id] || "";
-                  const hasSavedText = Boolean(
-                    normalizeTextValue(savedText || storedText)
-                  );
+                  // Use the saved text from state if available, otherwise use stored text from API
+                  const displayText = savedText || storedText;
+                  const hasSavedText = Boolean(displayText && displayText.toLowerCase() !== "text");
 
                   return (
                     <Button
@@ -1239,7 +1285,8 @@ export function SigningPdfViewer({
                 <img
                   src={activePageData.imageUrl}
                   alt={`Page ${activePageData.pageNumber}`}
-                  className="h-full w-full object-fill rounded-md border border-border/50 bg-white"
+                  className="h-full w-full object-contain rounded-md border border-border/50 bg-white"
+                  style={{ width: activePageData.width, height: activePageData.height }}
                 />
                 {filePlaceholders
                   .filter((p) => p.page_number === activePage)
@@ -1301,18 +1348,13 @@ export function SigningPdfViewer({
                 {fileTextPlaceholders
                   .filter((p) => p.page_number === activePage)
                   .map((placeholder) => {
-                    const storedText = normalizeTextValue(
-                      placeholder.text_value
-                    );
+                    const storedText = placeholder.text_value || "";
                     const savedText =
                       textValues[placeholder.placeholder_id] || "";
-                    const hasSavedText = Boolean(
-                      normalizeTextValue(savedText || storedText)
-                    );
-                    const displayText =
-                      normalizeTextValue(savedText) ||
-                      normalizeTextValue(storedText) ||
-                      "Text";
+                    // Use the saved text from state if available, otherwise use stored text from API
+                    // Only show "Text" as placeholder if both are empty
+                    const displayText = savedText || storedText || "Text";
+                    const hasSavedText = Boolean(displayText && displayText.toLowerCase() !== "text");
                     return (
                       <div
                         key={placeholder.placeholder_id}
@@ -1442,11 +1484,10 @@ export function SigningPdfViewer({
           initialText={
             selectedTextPlaceholder
               ? textValues[selectedTextPlaceholder.placeholder_id] ||
-                (selectedTextPlaceholder.text_value || "").toLowerCase() ===
-                  "text"
-                  ? ""
-                  : selectedTextPlaceholder.text_value ||
-                ""
+                (selectedTextPlaceholder.text_value &&
+                 selectedTextPlaceholder.text_value.toLowerCase() !== "text"
+                   ? selectedTextPlaceholder.text_value
+                   : "")
               : ""
           }
           title="Add Text"

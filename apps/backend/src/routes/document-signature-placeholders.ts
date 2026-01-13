@@ -177,4 +177,36 @@ router.get('/documents/:documentId/signatures', async (req: Request, res: Respon
   }
 });
 
+// Endpoint to delete a signature placeholder
+router.delete('/documents/:documentId/delete-signature-placeholder', async (req: Request, res: Response) => {
+  try {
+    const { documentId } = req.params;
+    const { placeholder_id } = req.body;
+
+    // Verify the placeholder belongs to the document
+    const placeholder = await prisma.signaturePlaceholder.findFirst({
+      where: {
+        placeholder_id,
+        document_id: documentId
+      }
+    });
+
+    if (!placeholder) {
+      return res.status(404).json({ error: 'Signature placeholder not found for this document' });
+    }
+
+    // Delete the signature placeholder
+    await prisma.signaturePlaceholder.delete({
+      where: {
+        placeholder_id
+      }
+    });
+
+    res.json({ message: 'Signature placeholder deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting signature placeholder:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

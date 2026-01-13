@@ -18,6 +18,7 @@ import type { DocumentFileMetadata } from "@/hooks/use-document-files";
 import { cn } from "@/lib/utils";
 import { ChevronsUpDown, Loader2, Move, X } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 
 const PDFJS_WORKER_CDN =
   process.env.NEXT_PUBLIC_PDFJS_WORKER_URL ||
@@ -99,10 +100,15 @@ export function SignaturePdfViewer({
   onExit,
   onConfirm,
 }: SignaturePdfViewerProps) {
+  const { user } = useAuth();
   const pdfFiles = useMemo(
     () => files.filter((file) => isPdfLikeFile(file)),
     [files]
   );
+
+  // For now, assume all users have department permission
+  // In a real implementation, you would fetch document details to check department
+  const hasDepartmentPermission = true; // Simplified for now to avoid infinite loop
 
   const normalizedTargetFileIds = useMemo(() => {
     if (!targetFileIds?.length) return [];
@@ -281,8 +287,7 @@ export function SignaturePdfViewer({
         );
 
       if (!hasExistingBoxesChanged) {
-        // Only return new boxes if existing ones haven't changed
-        return [...newExistingBoxes, ...prevNewBoxes];
+        return prevBoxes;
       }
 
       return [...newExistingBoxes, ...prevNewBoxes];
@@ -333,7 +338,7 @@ export function SignaturePdfViewer({
         );
 
       if (!hasExistingBoxesChanged) {
-        return [...newExistingTextBoxes, ...prevNewBoxes];
+        return prevBoxes;
       }
 
       return [...newExistingTextBoxes, ...prevNewBoxes];
@@ -571,10 +576,32 @@ export function SignaturePdfViewer({
   };
 
   const handleRemove = (id: string) => {
+    const boxToRemove = boxes.find(b => b.id === id);
+
+    if (!boxToRemove) return;
+
+    // Check if it's an existing placeholder and if user has permission to delete
+    if (boxToRemove.isExisting && !hasDepartmentPermission) {
+      toast.error("Only members of the document's department can delete existing placeholders.");
+      return;
+    }
+
+    // Remove from UI
     setBoxes((prev) => prev.filter((box) => box.id !== id));
   };
 
   const handleRemoveText = (id: string) => {
+    const textboxToRemove = textBoxes.find(b => b.id === id);
+
+    if (!textboxToRemove) return;
+
+    // Check if it's an existing placeholder and if user has permission to delete
+    if (textboxToRemove.isExisting && !hasDepartmentPermission) {
+      toast.error("Only members of the document's department can delete existing placeholders.");
+      return;
+    }
+
+    // Remove from UI
     setTextBoxes((prev) => prev.filter((box) => box.id !== id));
   };
 
@@ -758,7 +785,7 @@ export function SignaturePdfViewer({
                 <span>Loading PDF page...</span>
               </div>
             ) : (
-              <div className="flex items-center object-fill justify-center min-h-full min-w-full">
+              <div className="flex items-center justify-center min-w-full">
                 <div
                   className={cn(
                     "relative",
@@ -773,7 +800,11 @@ export function SignaturePdfViewer({
                   <img
                     src={activePageData.imageUrl}
                     alt={`Page ${activePageData.pageNumber}`}
-                    className="h-full w-full object-fill rounded-md border bg-white"
+                    className="h-full w-full object-fill rounded-md border  border-red-500 bg-black"
+                    style={{
+                      width: activePageData.width,
+                      height: activePageData.height,
+                    }}
                   />
 
                   {boxesWithIndices
@@ -786,9 +817,9 @@ export function SignaturePdfViewer({
                         bounds="parent"
                         minWidth={50}
                         minHeight={30}
-                        disableDragging={box.isExisting}
+                        disableDragging={!hasDepartmentPermission && box.isExisting}
                         enableResizing={
-                          box.isExisting
+                          !hasDepartmentPermission && box.isExisting
                             ? false
                             : {
                                 top: true,
@@ -863,9 +894,9 @@ export function SignaturePdfViewer({
                         bounds="parent"
                         minWidth={60}
                         minHeight={30}
-                        disableDragging={box.isExisting}
+                        disableDragging={!hasDepartmentPermission && box.isExisting}
                         enableResizing={
-                          box.isExisting
+                          !hasDepartmentPermission && box.isExisting
                             ? false
                             : {
                                 top: true,
@@ -1021,6 +1052,8 @@ export function SignaturePdfViewer({
                           variant="ghost"
                           className="h-6 w-6 text-destructive"
                           onClick={() => handleRemove(box.id)}
+                          disabled={box.isExisting && !hasDepartmentPermission}
+                          title={box.isExisting && !hasDepartmentPermission ? "Only department members can delete existing placeholders" : undefined}
                         >
                           <X className="h-3 w-3" />
                         </Button>
@@ -1129,6 +1162,8 @@ export function SignaturePdfViewer({
                           variant="ghost"
                           className="h-6 w-6 text-destructive"
                           onClick={() => handleRemoveText(box.id)}
+                          disabled={box.isExisting && !hasDepartmentPermission}
+                          title={box.isExisting && !hasDepartmentPermission ? "Only department members can delete existing placeholders" : undefined}
                         >
                           <X className="h-3 w-3" />
                         </Button>

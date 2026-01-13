@@ -99,7 +99,7 @@ export default function InTransitDocumentsPage() {
     outgoingError && outgoingError.includes("Authentication required");
 
   return (
-    <div className="flex h-full flex-col gap-4 bg-background">
+    <div className="flex h-full flex-col gap-4 p-4 bg-background">
       <Tabs
         defaultValue="incoming"
         className="w-full"

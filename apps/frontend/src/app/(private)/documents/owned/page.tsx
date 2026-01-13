@@ -59,34 +59,36 @@ export default function OwnedDocumentsPage() {
     const handleDocumentDeleted = safeRefetch;
 
     // Listen for document-related events
-    socket.on('documentAdded', handleDocumentAdded);
-    socket.on('documentUpdated', handleDocumentUpdated);
-    socket.on('documentDeleted', handleDocumentDeleted);
-    socket.on('documentShared', handleDocumentAdded); // Refetch when documents are shared
-    socket.on('documentAddedToUser', handleDocumentAdded); // Refetch when a document is specifically shared to this user
-    socket.on('documentUploadCompleted', handleDocumentAdded); // Also refetch on upload completion
+    socket.on("documentAdded", handleDocumentAdded);
+    socket.on("documentUpdated", handleDocumentUpdated);
+    socket.on("documentDeleted", handleDocumentDeleted);
+    socket.on("documentShared", handleDocumentAdded); // Refetch when documents are shared
+    socket.on("documentAddedToUser", handleDocumentAdded); // Refetch when a document is specifically shared to this user
+    socket.on("documentUploadCompleted", handleDocumentAdded); // Also refetch on upload completion
 
     // Cleanup listeners on unmount
     return () => {
-      socket.off('documentAdded', handleDocumentAdded);
-      socket.off('documentUpdated', handleDocumentUpdated);
-      socket.off('documentDeleted', handleDocumentDeleted);
-      socket.off('documentShared', handleDocumentAdded);
-      socket.off('documentAddedToUser', handleDocumentAdded);
-      socket.off('documentUploadCompleted', handleDocumentAdded);
+      socket.off("documentAdded", handleDocumentAdded);
+      socket.off("documentUpdated", handleDocumentUpdated);
+      socket.off("documentDeleted", handleDocumentDeleted);
+      socket.off("documentShared", handleDocumentAdded);
+      socket.off("documentAddedToUser", handleDocumentAdded);
+      socket.off("documentUploadCompleted", handleDocumentAdded);
     };
   }, [socket, refetch]);
 
   // Check if the error is authentication-related
-  const isAuthError = error && error.includes('Authentication required');
+  const isAuthError = error && error.includes("Authentication required");
 
   // Filter out documents with 'deleted' or 'archive' status
   const filteredDocuments = useMemo(() => {
-    return documents.filter(doc => doc.status !== 'deleted' && doc.status !== 'archive');
+    return documents.filter(
+      (doc) => doc.status !== "deleted" && doc.status !== "archive"
+    );
   }, [documents]);
 
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex p-4 h-full flex-col bg-background">
       {error && !isAuthError && (
         <div className="p-6">
           <Alert variant="destructive">
@@ -109,7 +111,9 @@ export default function OwnedDocumentsPage() {
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Authentication Required</AlertTitle>
-            <AlertDescription>You must be logged in to view documents.</AlertDescription>
+            <AlertDescription>
+              You must be logged in to view documents.
+            </AlertDescription>
           </Alert>
         </div>
       )}

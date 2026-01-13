@@ -79,4 +79,116 @@ router.post('/documents/:documentId/text-placeholders', async (req: Request, res
   }
 });
 
+// Endpoint to update a text placeholder
+router.put('/documents/:documentId/update-text-placeholder', async (req: Request, res: Response) => {
+  try {
+    const { documentId } = req.params;
+    const { placeholder_id, text_value } = req.body;
+
+    // Validate input
+    if (!placeholder_id) {
+      return res.status(400).json({ error: 'Placeholder ID is required' });
+    }
+
+    // Verify the placeholder belongs to the document
+    const placeholder = await prisma.textPlaceholder.findFirst({
+      where: {
+        placeholder_id,
+        document_id: documentId
+      }
+    });
+
+    if (!placeholder) {
+      return res.status(404).json({ error: 'Text placeholder not found for this document' });
+    }
+
+    // Update the text value - allow empty strings but not undefined/null
+    const updatedPlaceholder = await prisma.textPlaceholder.update({
+      where: {
+        placeholder_id
+      },
+      data: {
+        text_value: text_value ?? ''  // Use empty string if null/undefined
+      }
+    });
+
+    res.json(updatedPlaceholder);
+  } catch (error) {
+    console.error('Error updating text placeholder:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Endpoint to update a text placeholder
+router.put('/documents/:documentId/update-text-placeholder', async (req: Request, res: Response) => {
+  try {
+    const { documentId } = req.params;
+    const { placeholder_id, text_value } = req.body;
+
+    // Validate input
+    if (!placeholder_id) {
+      return res.status(400).json({ error: 'Placeholder ID is required' });
+    }
+
+    // Verify the placeholder belongs to the document
+    const placeholder = await prisma.textPlaceholder.findFirst({
+      where: {
+        placeholder_id,
+        document_id: documentId
+      }
+    });
+
+    if (!placeholder) {
+      return res.status(404).json({ error: 'Text placeholder not found for this document' });
+    }
+
+    // Update the text value - allow empty strings but not undefined/null
+    const updatedPlaceholder = await prisma.textPlaceholder.update({
+      where: {
+        placeholder_id
+      },
+      data: {
+        text_value: text_value ?? ''  // Use empty string if null/undefined
+      }
+    });
+
+    res.json(updatedPlaceholder);
+  } catch (error) {
+    console.error('Error updating text placeholder:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Endpoint to delete a text placeholder
+router.delete('/documents/:documentId/delete-text-placeholder', async (req: Request, res: Response) => {
+  try {
+    const { documentId } = req.params;
+    const { placeholder_id } = req.body;
+
+    // Verify the placeholder belongs to the document
+    const placeholder = await prisma.textPlaceholder.findFirst({
+      where: {
+        placeholder_id,
+        document_id: documentId
+      }
+    });
+
+    if (!placeholder) {
+      return res.status(404).json({ error: 'Text placeholder not found for this document' });
+    }
+
+    // Delete the text placeholder
+    await prisma.textPlaceholder.delete({
+      where: {
+        placeholder_id
+      }
+    });
+
+    res.json({ message: 'Text placeholder deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting text placeholder:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;
