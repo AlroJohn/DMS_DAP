@@ -464,17 +464,17 @@ export default function DocumentTrailingPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-4">
-      <div className="space-y-1">
-        <h1 className="text-3xl font-bold tracking-tight">Document Trailing</h1>
+    <div className="container mx-auto p-4">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">Document Trailing</h1>
         <p className="text-muted-foreground">
           Track documents created by departments and shared documents
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <FileText className="h-4 w-4" />
               Total Documents
@@ -482,11 +482,11 @@ export default function DocumentTrailingPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{documents.length}</div>
-            <p className="text-xs text-muted-foreground">+5 from last week</p>
+            <p className="text-xs text-muted-foreground">All tracked documents</p>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Clock className="h-4 w-4" />
               In Transit
@@ -496,13 +496,11 @@ export default function DocumentTrailingPage() {
             <div className="text-2xl font-bold">
               {documents.filter((d) => d.status === "intransit").length}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Documents in transit
-            </p>
+            <p className="text-xs text-muted-foreground">Currently moving</p>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Building className="h-4 w-4" />
               Departments
@@ -516,7 +514,7 @@ export default function DocumentTrailingPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <User className="h-4 w-4" />
               Active Users
@@ -541,76 +539,78 @@ export default function DocumentTrailingPage() {
                 Export All to PDF
               </Button>
             </div>
-            <div className="relative w-full sm:max-w-md">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search documents, users, or remarks..."
-                className="pl-9 w-full"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="relative w-full lg:max-w-md">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search documents, users, or remarks..."
+                  className="pl-9 w-full"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2 mb-2 sm:mb-0">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Filters:
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Select
+                    value={departmentFilter}
+                    onValueChange={setDepartmentFilter}
+                  >
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                      <SelectValue placeholder="Filter by department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Departments</SelectItem>
+                      <SelectItem value="Finance">Finance</SelectItem>
+                      <SelectItem value="HR">HR</SelectItem>
+                      <SelectItem value="IT">IT</SelectItem>
+                      <SelectItem value="Legal">Legal</SelectItem>
+                      <SelectItem value="Operations">Operations</SelectItem>
+                      <SelectItem value="Procurement">Procurement</SelectItem>
+                      <SelectItem value="Executive">Executive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={ownershipFilter}
+                    onValueChange={setOwnershipFilter}
+                  >
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                      <SelectValue placeholder="Filter by ownership" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Documents</SelectItem>
+                      <SelectItem value="owned">Owned Documents</SelectItem>
+                      <SelectItem value="shared">Shared Documents</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                      <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="dispatch">Dispatched</SelectItem>
+                      <SelectItem value="intransit">In Transit</SelectItem>
+                      <SelectItem value="received">Received</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="placeholder_added">Placeholder Added</SelectItem>
+                      <SelectItem value="signed">Signed</SelectItem>
+                      <SelectItem value="deleted">Deleted</SelectItem>
+                      <SelectItem value="archive">Archived</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">
-                  Filters:
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Select
-                  value={departmentFilter}
-                  onValueChange={setDepartmentFilter}
-                >
-                  <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="Filter by department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Departments</SelectItem>
-                    <SelectItem value="Finance">Finance</SelectItem>
-                    <SelectItem value="HR">HR</SelectItem>
-                    <SelectItem value="IT">IT</SelectItem>
-                    <SelectItem value="Legal">Legal</SelectItem>
-                    <SelectItem value="Operations">Operations</SelectItem>
-                    <SelectItem value="Procurement">Procurement</SelectItem>
-                    <SelectItem value="Executive">Executive</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select
-                  value={ownershipFilter}
-                  onValueChange={setOwnershipFilter}
-                >
-                  <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="Filter by ownership" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Documents</SelectItem>
-                    <SelectItem value="owned">Owned Documents</SelectItem>
-                    <SelectItem value="shared">Shared Documents</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="dispatch">Dispatched</SelectItem>
-                    <SelectItem value="intransit">In Transit</SelectItem>
-                    <SelectItem value="received">Received</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="placeholder_added">Placeholder Added</SelectItem>
-                    <SelectItem value="signed">Signed</SelectItem>
-                    <SelectItem value="deleted">Deleted</SelectItem>
-                    <SelectItem value="archive">Archived</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
 
             <div className="space-y-4">
               {filteredDocuments.length === 0 ? (
@@ -674,7 +674,7 @@ export default function DocumentTrailingPage() {
                 filteredDocuments.map((doc) => (
                   <div
                     key={doc.id}
-                    className="border rounded-lg p-4 hover:bg-muted/50 transition-colors hover:shadow-sm"
+                    className="border rounded-lg p-5 hover:bg-muted/30 transition-all hover:shadow-md bg-card"
                   >
                     <div className="flex flex-col gap-4">
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
