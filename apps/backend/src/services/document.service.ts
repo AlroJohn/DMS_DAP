@@ -1613,19 +1613,30 @@ export class DocumentService {
 
       // ---- OCR Processing ----
       if (enableOcr && file.mimetype === 'application/pdf') {
-        console.log(`[DocumentService] OCR enabled for ${file.originalname}. Starting process.`);
-        const ocrResult = await ocrService.extractTextFromPdf(fileMetadata.path, file.mimetype);
-        if (ocrResult) {
-          await prisma.oCR_Json.create({
-            data: {
-              documentDocument_id: document.document_id,
-              file_url: fileMetadata.path,
-              ocr_json: ocrResult as any, // Cast to any to match Prisma Json type
-            },
-          });
-          console.log(`[DocumentService] OCR data saved for document ${document.document_id} and file ${fileMetadata.path}`);
-        } else {
-          console.warn(`[DocumentService] OCR processing failed or returned no result for ${file.originalname}. Continuing without saving OCR data.`);
+        try {
+          console.log(`[DocumentService] OCR enabled for ${file.originalname}. Starting process.`);
+          const ocrResult = await ocrService.extractTextFromPdf(fileMetadata.path, file.mimetype);
+          if (ocrResult) {
+            await prisma.oCR_Json.create({
+              data: {
+                documentDocument_id: document.document_id,
+                file_url: fileMetadata.path,
+                ocr_json: ocrResult as any, // Cast to any to match Prisma Json type
+              },
+            });
+            console.log(
+              `[DocumentService] OCR data saved for document ${document.document_id} and file ${fileMetadata.path}`
+            );
+          } else {
+            console.warn(
+              `[DocumentService] OCR processing failed or returned no result for ${file.originalname}. Continuing without saving OCR data.`
+            );
+          }
+        } catch (ocrError) {
+          console.error(
+            `[DocumentService] OCR processing failed for ${file.originalname}, but continuing with upload.`,
+            ocrError
+          );
         }
       }
       // ---- End OCR Processing ----

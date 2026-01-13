@@ -44,7 +44,7 @@ export class OcrService {
         },
       },
       {
-        text: `Perform OCR on this single-page document. Extract all text content and return it as a raw string. Do not include any formatting, markdown, or explanations.`,
+        text: `Perform OCR on this single-page document. Preserve line breaks and spacing as closely as possible, using \\n for new lines. Return only the extracted text (no formatting, no markdown, no explanations).`,
       },
     ];
 
@@ -52,7 +52,8 @@ export class OcrService {
       contents: [{ role: "user", parts }],
     });
 
-    return result.response.text();
+    const rawText = result.response.text();
+    return rawText.replace(/\r\n/g, "\n");
   }
 
   async extractTextFromPdf(

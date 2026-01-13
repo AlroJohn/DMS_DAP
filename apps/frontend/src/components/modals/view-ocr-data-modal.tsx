@@ -24,6 +24,11 @@ interface OcrData {
   updated_at: string;
 }
 
+interface OcrPageView {
+  pageNumber: number;
+  text: string;
+}
+
 interface ViewOcrDataModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -64,7 +69,7 @@ export function ViewOcrDataModal({
       }
 
       const result = await response.json();
-      
+
       if (result.success) {
         setOcrData(result.data?.ocrData || []);
       } else {
@@ -90,31 +95,76 @@ export function ViewOcrDataModal({
     return new Date(dateString).toLocaleString();
   };
 
+  const normalizeOcrPages = (ocrJson: unknown): OcrPageView[] => {
+    if (!ocrJson) return [];
+
+    if (typeof ocrJson === "string") {
+      return [{ pageNumber: 1, text: ocrJson }];
+    }
+
+    if (Array.isArray(ocrJson)) {
+      return ocrJson
+        .map((entry, index) => {
+          if (typeof entry === "string") {
+            return { pageNumber: index + 1, text: entry };
+          }
+          if (entry && typeof entry === "object") {
+            const pageValue = (entry as { page?: number }).page;
+            const textValue = (entry as { text?: string }).text;
+            return {
+              pageNumber: typeof pageValue === "number" ? pageValue : index + 1,
+              text: typeof textValue === "string" ? textValue : "",
+            };
+          }
+          return { pageNumber: index + 1, text: "" };
+        })
+        .filter((page) => page.text.trim().length > 0);
+    }
+
+    if (typeof ocrJson === "object") {
+      const record = ocrJson as { pages?: unknown; text?: unknown };
+      if (Array.isArray(record.pages)) {
+        return normalizeOcrPages(record.pages);
+      }
+      if (typeof record.text === "string") {
+        return [{ pageNumber: 1, text: record.text }];
+      }
+    }
+
+    return [];
+  };
+
+  const buildAllPagesText = (pages: OcrPageView[]) =>
+    pages.map((page) => `Page ${page.pageNumber}:\n${page.text}`).join("\n\n");
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
             Document OCR Data
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden">
+        {/* ✅ add min-h-0 so the scroll area can take remaining space */}
+        <div className="overflow-y-auto h-full">
           {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <div className="h-full flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
             </div>
           ) : error ? (
-            <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+            <div className="h-full flex flex-col items-center justify-center p-4 text-center">
               <div className="text-red-500 mb-2">
                 <Eye className="h-12 w-12 mx-auto" />
               </div>
-              <h3 className="font-semibold text-lg mb-1">Error Loading OCR Data</h3>
+              <h3 className="font-semibold text-lg mb-1">
+                Error Loading OCR Data
+              </h3>
               <p className="text-sm text-muted-foreground">{error}</p>
             </div>
           ) : ocrData.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+            <div className="h-full flex flex-col items-center justify-center p-4 text-center">
               <div className="text-muted-foreground mb-2">
                 <FileText className="h-12 w-12 mx-auto" />
               </div>
@@ -127,35 +177,68 @@ export function ViewOcrDataModal({
             <ScrollArea className="h-full pr-4">
               <div className="space-y-4">
                 {ocrData.map((ocrItem) => (
-                  <Card key={ocrItem.ocr_id} className="overflow-hidden">
+                  <Card key={ocrItem.ocr_id}>
                     <CardContent className="p-4">
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="text-xs">
-                            <Clock className="h-3 w-3 mr-1" />
-                            {formatDate(ocrItem.created_at)}
-                          </Badge>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleCopyToClipboard(JSON.stringify(ocrItem.ocr_json, null, 2))}
-                        >
-                          <Copy className="h-4 w-4 mr-2" />
-                          Copy JSON
-                        </Button>
-                      </div>
-                      
-                      <Separator className="mb-3" />
-                      
-                      <div className="text-sm font-medium mb-2">OCR Result:</div>
-                      <pre className="whitespace-pre-wrap break-words bg-muted p-3 rounded-md text-sm max-h-60 overflow-y-auto">
-                        {JSON.stringify(ocrItem.ocr_json, null, 2)}
-                      </pre>
-                      
-                      <div className="mt-3 text-xs text-muted-foreground">
-                        File: {ocrItem.file_url.split('/').pop() || ocrItem.file_url}
-                      </div>
+                      {(() => {
+                        const pages = normalizeOcrPages(ocrItem.ocr_json);
+                        const pageText = buildAllPagesText(pages);
+
+                        return (
+                          <>
+                            <div className="flex justify-between items-start mb-3">
+                              <Badge variant="secondary" className="text-xs">
+                                <Clock className="h-3 w-3 mr-1" />
+                                {formatDate(ocrItem.created_at)}
+                              </Badge>
+
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleCopyToClipboard(pageText)}
+                                disabled={!pageText}
+                              >
+                                <Copy className="h-4 w-4 mr-2" />
+                                Copy OCR Text
+                              </Button>
+                            </div>
+
+                            <Separator className="mb-3" />
+
+                            <div className="text-sm font-medium mb-2">
+                              OCR Result:
+                            </div>
+
+                            {pages.length > 0 ? (
+                              <div className="space-y-3">
+                                {pages.map((page) => (
+                                  <div
+                                    key={`${ocrItem.ocr_id}-page-${page.pageNumber}`}
+                                    className="rounded-md border bg-muted/20 p-3"
+                                  >
+                                    <div className="text-xs font-semibold mb-2">
+                                      Page {page.pageNumber}
+                                    </div>
+                                    <p className="whitespace-pre-wrap break-words text-sm">
+                                      {page.text ||
+                                        "No text detected on this page."}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">
+                                No OCR text available for this file.
+                              </p>
+                            )}
+
+                            <div className="mt-3 text-xs text-muted-foreground">
+                              File:{" "}
+                              {ocrItem.file_url.split("/").pop() ||
+                                ocrItem.file_url}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </CardContent>
                   </Card>
                 ))}
@@ -164,7 +247,7 @@ export function ViewOcrDataModal({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           <Button onClick={() => onOpenChange(false)}>Close</Button>
         </DialogFooter>
       </DialogContent>
