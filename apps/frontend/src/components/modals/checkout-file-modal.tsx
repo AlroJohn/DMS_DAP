@@ -189,11 +189,15 @@ export function CheckoutFileModal({
 
   useEffect(() => {
     if (!isSignatureAction) {
-      setSelectedFileIds([]);
+      if (selectedFileIds.length) {
+        setSelectedFileIds([]);
+      }
       return;
     }
     if (!selectedFileIds.length) {
-      setSelectedFileId(null);
+      if (selectedFileId !== null) {
+        setSelectedFileId(null);
+      }
       return;
     }
     if (!selectedFileId || !selectedFileIds.includes(selectedFileId)) {
