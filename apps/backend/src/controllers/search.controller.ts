@@ -14,6 +14,23 @@ export class SearchController {
    */
   static async searchDocuments(req: Request, res: Response): Promise<void> {
     try {
+      // Extract user info from request (added by authentication middleware)
+      const authReq = req as AuthRequest;
+      const userId = authReq.user?.id;
+      const userRoles = authReq.user?.roles || [];
+      const userDepartmentId = authReq.user?.department_id;
+
+      // Debug: Log user roles
+      console.log('User roles:', userRoles);
+      console.log('User department ID:', userDepartmentId);
+
+      // Check if user is ADMIN or SUPER_ADMIN (note: role codes in DB use underscore)
+      const isAdmin = userRoles.some(role => 
+        role === 'ADMIN' || role === 'SUPER_ADMIN'
+      );
+
+      console.log('Is admin:', isAdmin);
+
       const searchParams: SearchParams = {
         query: req.query.query as string,
         documentType: req.query.documentType as string,
@@ -25,8 +42,12 @@ export class SearchController {
         dateFrom: req.query.dateFrom as string,
         dateTo: req.query.dateTo as string,
         sortBy: req.query.sortBy as string,
+        searchType: (req.query.searchType as 'document' | 'ocr') || 'document',
         page: req.query.page ? parseInt(req.query.page as string) : 1,
-        limit: req.query.limit ? parseInt(req.query.limit as string) : 20
+        limit: req.query.limit ? parseInt(req.query.limit as string) : 20,
+        // Add user context for role-based filtering
+        userDepartmentId,
+        isAdmin
       };
 
       // Ensure page and limit are properly defined with defaults

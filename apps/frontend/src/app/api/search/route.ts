@@ -225,6 +225,7 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get('dateFrom');
     const dateTo = searchParams.get('dateTo');
     const sortBy = searchParams.get('sortBy');
+    const searchType = searchParams.get('searchType');
     const page = searchParams.get('page');
     const limit = searchParams.get('limit');
     
@@ -243,6 +244,7 @@ export async function GET(request: NextRequest) {
     if (dateFrom) backendUrl.searchParams.append('dateFrom', dateFrom);
     if (dateTo) backendUrl.searchParams.append('dateTo', dateTo);
     if (sortBy) backendUrl.searchParams.append('sortBy', sortBy);
+    if (searchType) backendUrl.searchParams.append('searchType', searchType);
     if (page) backendUrl.searchParams.append('page', page);
     if (limit) backendUrl.searchParams.append('limit', limit);
     

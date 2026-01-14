@@ -30,6 +30,7 @@ export interface SearchParams {
   sortBy?: string;
   page?: number;
   limit?: number;
+  searchType?: 'document' | 'ocr';
 }
 
 export interface SearchResult {
@@ -88,6 +89,7 @@ export const useSearch = () => {
         ...(params?.dateFrom ? { dateFrom: params.dateFrom } : { dateFrom }),
         ...(params?.dateTo ? { dateTo: params.dateTo } : { dateTo }),
         ...(params?.sortBy ? { sortBy: params.sortBy } : { sortBy }),
+        ...(params?.searchType ? { searchType: params.searchType } : { searchType: 'document' }),
         page: params?.page?.toString() || '1',
         limit: params?.limit?.toString() || '20',
       });

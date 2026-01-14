@@ -1,6 +1,8 @@
 "use client";
 
 import { useSearch } from "@/hooks/use-search";
+import { useAuth } from "@/hooks/use-auth";
+import { hasAnyRole } from "@/lib/document-permissions";
 import {
   Search,
   Filter,
@@ -28,6 +30,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -85,11 +88,20 @@ export default function SearchPageClient() {
     resetSavedSearchExecutionFlag,
   } = useSearch();
 
+  const { user } = useAuth();
   const searchParams = useSearchParams();
+
+  // Check if user is admin or superadmin (note: role codes in DB use underscore)
+  const isAdmin = user ? hasAnyRole(user, ['ADMIN', 'SUPER_ADMIN']) : false;
+
+  // Debug: Log user and admin status
+  console.log('Current user:', user);
+  console.log('Is admin:', isAdmin);
 
   const [departments, setDepartments] = useState<Department[]>([]);
   const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
+  const [searchType, setSearchType] = useState<'document' | 'ocr'>('document');
 
   // Fetch departments and document types on component mount
   useEffect(() => {
@@ -160,6 +172,7 @@ export default function SearchPageClient() {
       dateFrom,
       dateTo,
       sortBy,
+      searchType, // Add search type to params
     };
 
     await performSearch(mappedParams);
@@ -399,18 +412,18 @@ export default function SearchPageClient() {
   const totalResults = searchResults?.total || 0;
 
   return (
-    <div className="flex h-full flex-col gap-6 bg-background">
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1">
+    <div className="flex flex-col bg-background overflow-hidden" style={{ height: 'calc(95vh - 4rem)' }}>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-full overflow-hidden">
         {/* Filters Sidebar */}
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader>
+        <div className="lg:col-span-1 flex flex-col overflow-hidden">
+          <Card className="flex flex-col overflow-hidden">
+            <CardHeader className="flex-shrink-0">
               <CardTitle className="flex items-center gap-2">
                 <Filter className="h-4 w-4" />
                 Advanced Filters
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 flex-1 overflow-y-auto">
               <div className="space-y-2">
                 <Label htmlFor="document-type">Document Type</Label>
                 <Select value={documentType} onValueChange={setDocumentType}>
@@ -431,25 +444,28 @@ export default function SearchPageClient() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="department">Department</Label>
-                <Select value={department} onValueChange={setDepartment}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="All Departments" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Departments</SelectItem>
-                    {departments.map((dept) => (
-                      <SelectItem
-                        key={dept.department_id}
-                        value={dept.code.toLowerCase()}
-                      >
-                        {dept.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Department filter - only show for admin users */}
+              {isAdmin && (
+                <div className="space-y-2">
+                  <Label htmlFor="department">Department</Label>
+                  <Select value={department} onValueChange={setDepartment}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="All Departments" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Departments</SelectItem>
+                      {departments.map((dept) => (
+                        <SelectItem
+                          key={dept.department_id}
+                          value={dept.code.toLowerCase()}
+                        >
+                          {dept.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
@@ -566,15 +582,23 @@ export default function SearchPageClient() {
         </div>
 
         {/* Search Results */}
-        <div className="lg:col-span-3">
-          <Card className="h-full">
-            <CardHeader>
+        <div className="lg:col-span-3 flex flex-col gap-4 overflow-hidden min-h-0">
+          {/* Search Type Tabs - Outside the card */}
+          <Tabs value={searchType} onValueChange={(value) => setSearchType(value as 'document' | 'ocr')} className="flex-shrink-0">
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="document">Document Code</TabsTrigger>
+              <TabsTrigger value="ocr">OCR Content</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <Card className="flex flex-col flex-1 overflow-hidden min-h-0">
+            <CardHeader className="flex-shrink-0">
               <div className="flex items-center gap-4">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="text"
-                    placeholder="Search documents by keyword, content, or metadata..."
+                    placeholder={searchType === 'document' ? "Search documents by code, title, or description..." : "Search by OCR extracted text content..."}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10"
@@ -592,8 +616,8 @@ export default function SearchPageClient() {
               </div>
             </CardHeader>
 
-            <CardContent>
-              <div className="flex items-center justify-between mb-6">
+            <CardContent className="flex-1 overflow-y-auto flex flex-col min-h-0">
+              <div className="flex items-center justify-between mb-6 flex-shrink-0">
                 <p className="text-sm text-muted-foreground">
                   Found <span className="font-medium">{totalResults}</span>{" "}
                   documents
@@ -746,7 +770,7 @@ export default function SearchPageClient() {
                 !isLoading &&
                 !error &&
                 searchQuery && (
-                  <div className="text-center py-8 text-muted-foreground">
+                  <div className="text-center py-8 text-muted-foreground flex-1 flex items-center justify-center">
                     <p>No documents found matching your search criteria.</p>
                   </div>
                 )}
@@ -755,7 +779,7 @@ export default function SearchPageClient() {
                 !isLoading &&
                 !error &&
                 !searchQuery && (
-                  <div className="text-center py-8 text-muted-foreground">
+                  <div className="text-center py-8 text-muted-foreground flex-1 flex items-center justify-center">
                     <p>Enter a search query to find documents.</p>
                   </div>
                 )}
