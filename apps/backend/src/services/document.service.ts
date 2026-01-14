@@ -180,49 +180,52 @@ export class DocumentService {
     });
   }
 
-  private async createPlaceholderDocumentFile(documentId: string, document: any, detail: any, user: any) {
-    try {
-      const buffer = await this.generatePlaceholderPdf(document, detail, {
-        first_name: user?.first_name,
-        last_name: user?.last_name,
-      });
+  // private async createPlaceholderDocumentFile(documentId: string, document: any, detail: any, user: any) {
+  //   try {
+  //     const buffer = await this.generatePlaceholderPdf(document, detail, {
+  //       first_name: user?.first_name,
+  //       last_name: user?.last_name,
+  //     });
 
-      const uploadsDir = path.join(process.cwd(), 'uploads', 'generated');
-      await fs.promises.mkdir(uploadsDir, { recursive: true });
+  //     const uploadsDir = path.join(process.cwd(), 'uploads', 'generated');
+  //     await fs.promises.mkdir(uploadsDir, { recursive: true });
 
-      const storedName = `${documentId}-placeholder-${Date.now()}.pdf`;
-      const storagePath = path.join(uploadsDir, storedName);
-      await fs.promises.writeFile(storagePath, buffer);
+  //     const storedName = `${documentId}-placeholder-${Date.now()}.pdf`;
+  //     const storagePath = path.join(uploadsDir, storedName);
+  //     await fs.promises.writeFile(storagePath, buffer);
 
-      const checksum = await this.calculateChecksum(storagePath);
+  //     const checksum = await this.calculateChecksum(storagePath);
 
-      const uploadedBy = user?.account_id ?? detail?.account_id;
-      if (!uploadedBy) {
-        throw new Error('Missing account reference for placeholder upload');
-      }
+  //     const uploadedBy = user?.account_id ?? detail?.account_id;
+  //     if (!uploadedBy) {
+  //       throw new Error('Missing account reference for placeholder upload');
+  //     }
 
-      const created = await this.prismaAny.documentFile.create({
-        data: {
-          document_id: documentId,
-          original_name: `${document?.document_code || documentId}-placeholder.pdf`,
-          stored_name: storedName,
-          storage_path: storagePath,
-          file_size: BigInt(buffer.length),
-          mime_type: 'application/pdf',
-          checksum,
-          is_primary: false,
-          uploaded_by: uploadedBy,
-        },
-      });
+  //     const created = await this.prismaAny.documentFile.create({
+  //       data: {
+  //         document_id: documentId,
+  //         original_name: `${document?.document_code || documentId}-placeholder.pdf`,
+  //         stored_name: storedName,
+  //         storage_path: storagePath,
+  //         file_size: BigInt(buffer.length),
+  //         mime_type: 'application/pdf',
+  //         checksum,
+  //         is_primary: false,
+  //         uploaded_by: uploadedBy,
+  //       },
+  //     });
 
-      return created;
-    } catch (error) {
-      console.error('📍 [createPlaceholderDocumentFile] Failed to create placeholder document:', error);
-      return null;
-    }
-  }
+  //     return created;
+  //   } catch (error) {
+  //     console.error('📍 [createPlaceholderDocumentFile] Failed to create placeholder document:', error);
+  //     return null;
+  //   }
+  // }
 
-  private async generateDocumentCode(departmentId: string): Promise<string> {
+  private async generateDocumentCode(
+    departmentId: string,
+    createdAt: Date = new Date()
+  ): Promise<string> {
     const department = await prisma.department.findUnique({
       where: { department_id: departmentId },
       select: { code: true }
@@ -234,15 +237,33 @@ export class DocumentService {
     }
 
     const prefix = rawCode.toUpperCase();
-    const year = new Date().getFullYear();
-    const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    const maxAttempts = 5;
+    const month = String(createdAt.getMonth() + 1).padStart(2, '0');
+    const day = String(createdAt.getDate()).padStart(2, '0');
+    const year = String(createdAt.getFullYear()).slice(-2);
+    const dateSegment = `${month}${day}${year}`;
+    const codePrefix = `${prefix}-${dateSegment}-A`;
+    const maxAttempts = 10;
+
+    const latest = await prisma.document.findFirst({
+      where: {
+        document_code: {
+          startsWith: codePrefix
+        }
+      },
+      orderBy: {
+        document_code: 'desc'
+      },
+      select: {
+        document_code: true
+      }
+    });
+
+    const match = latest?.document_code?.match(/-A(\d{4})$/);
+    const startingNumber = match ? Number(match[1]) + 1 : 1;
 
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-      const suffix = Array.from({ length: 4 }, () =>
-        charset[crypto.randomInt(0, charset.length)]
-      ).join('');
-      const candidate = `${prefix}-${year}-${suffix}`;
+      const sequence = String(startingNumber + attempt).padStart(4, '0');
+      const candidate = `${codePrefix}${sequence}`;
 
       const existing = await prisma.document.findUnique({
         where: { document_code: candidate },
@@ -251,6 +272,41 @@ export class DocumentService {
 
       if (!existing) {
         return candidate;
+      }
+    }
+
+    throw new Error('Unable to generate unique document code');
+  }
+
+  private async createDocumentRecord(
+    data: Omit<PrismaDocument, 'document_id' | 'document_code' | 'created_at' | 'updated_at'>,
+    departmentId: string
+  ) {
+    const maxAttempts = 5;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const createdAt = new Date();
+      const documentCode = await this.generateDocumentCode(departmentId, createdAt);
+
+      try {
+        return await prisma.document.create({
+          data: {
+            ...data,
+            document_code: documentCode,
+            created_at: createdAt
+          } as any
+        });
+      } catch (error: any) {
+        const isDuplicate =
+          error?.code === 'P2002' &&
+          Array.isArray(error?.meta?.target) &&
+          error.meta.target.includes('document_code');
+
+        if (isDuplicate) {
+          continue;
+        }
+
+        throw error;
       }
     }
 
@@ -1536,8 +1592,6 @@ export class DocumentService {
     }
 
     // Generate unique document code (department-based)
-    const documentCode = await this.generateDocumentCode(user.department_id);
-
     // Get document type name if type_id is provided
     let documentTypeName = documentData.document_type || 'General';
     if (documentData.type_id) {
@@ -1551,17 +1605,17 @@ export class DocumentService {
     }
 
     // Create the document
-    const document = await prisma.document.create({
-      data: {
+    const document = await this.createDocumentRecord(
+      {
         title: documentData.document_name || documentData.title,
         description: documentData.description || null,
-        document_code: documentCode,
         document_type: documentTypeName,
         classification: documentData.classification,
         origin: documentData.origin,
         status: 'dispatch'
-      } as any
-    });
+      } as any,
+      user.department_id
+    );
 
     // Create DocumentAdditionalDetails with work_flow_id in the format {"first": "departmentId"}
     const workflowObject = {
@@ -2216,8 +2270,6 @@ export class DocumentService {
     }
 
     // Create the document
-    const documentCode = await this.generateDocumentCode(user.department_id);
-
     // Get document type name if type_id is provided
     let documentTypeName = documentData.document_type || 'General';
     if (documentData.type_id) {
@@ -2230,17 +2282,17 @@ export class DocumentService {
       }
     }
 
-    const document = await prisma.document.create({
-      data: {
+    const document = await this.createDocumentRecord(
+      {
         title: documentData.document_name,
         description: documentData.description || null,
-        document_code: documentCode,
         document_type: documentTypeName,
         classification: documentData.classification,
         origin: documentData.origin,
         status: 'dispatch'
-      } as any
-    });
+      } as any,
+      user.department_id
+    );
 
     // Create DocumentAdditionalDetails with work_flow_id in the format {"first": "departmentId"}
     const workflowObject = {
