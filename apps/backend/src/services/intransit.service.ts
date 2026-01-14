@@ -154,23 +154,31 @@ export class IntransitService {
         }
       }
 
-      // Remove documents that the user has already received
+      // Remove documents that the user has already received IN THE CURRENT TRANSIT CYCLE
+      // We need to check if the latest trail for this document to this department is 'received'
       const documentsToCheck = Array.from(incomingDocumentIds);
       for (const docId of documentsToCheck) {
-        const detail = documentDetailsMap.get(docId);
-        if (detail?.received_by_departments) {
-          try {
-            const receivedByUsers = Array.isArray(detail.received_by_departments)
-              ? detail.received_by_departments
-              : JSON.parse(detail.received_by_departments as any);
-            
-            // If this user has already received the document, remove from incoming
-            if (receivedByUsers.includes(userId)) {
-              incomingDocumentIds.delete(docId);
-            }
-          } catch (e) {
-            console.error('📍 [getIncomingDocuments] Error checking received status:', e);
+        // Check the latest trail for this document coming to this department
+        const latestTrailToThisDept = await prisma.documentTrail.findFirst({
+          where: {
+            document_id: docId,
+            to_department: user.department_id,
+          },
+          orderBy: {
+            created_at: 'desc'
+          },
+          select: {
+            status: true,
+            trail_id: true,
+            created_at: true
           }
+        });
+
+        // Only remove from incoming if the latest trail shows it was already received
+        // This allows documents to appear again if they're sent back to this department
+        if (latestTrailToThisDept && latestTrailToThisDept.status === 'received') {
+          console.log('📍 [getIncomingDocuments] Document already received in current cycle:', docId);
+          incomingDocumentIds.delete(docId);
         }
       }
 

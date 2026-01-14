@@ -305,6 +305,42 @@ export function CheckoutFileModal({
     }
   };
 
+  const handleUnlockFile = async (fileId: string, event?: React.MouseEvent) => {
+    if (event) {
+      event.stopPropagation();
+    }
+    
+    if (!documentId) return;
+
+    const file = files.find((f) => f.id === fileId);
+    if (!file) return;
+
+    // Verify the file is locked by the current user
+    if (!file.checkout || file.checkedOutBy?.accountId !== user?.accountId) {
+      toast.error("You can only unlock files that you have checked out.");
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const response = await fetch(`/api/files/${fileId}/checkin`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to unlock file.");
+      }
+
+      toast.success("File unlocked successfully!");
+      fetchFiles();
+    } catch (error: any) {
+      toast.error("Unlock failed", { description: error.message });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleFileClick = (file: DocumentFile) => {
     setSelectedFileId(file.id);
   };
@@ -549,13 +585,26 @@ export function CheckoutFileModal({
                           </div>
                           <div className="flex items-center gap-1 pl-2">
                             {isLockedByMe ? (
-                              <Badge
-                                variant="default"
-                                className="flex items-center gap-1 bg-green-600"
-                              >
-                                <UserCheck className="h-3 w-3" />
-                                Locked by you
-                              </Badge>
+                              <div className="flex items-center gap-1">
+                                <Badge
+                                  variant="default"
+                                  className="flex items-center gap-1 bg-green-600"
+                                >
+                                  <UserCheck className="h-3 w-3" />
+                                  Locked by you
+                                </Badge>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2"
+                                  onClick={(event) => handleUnlockFile(file.id, event)}
+                                  disabled={isProcessing}
+                                  title="Unlock file"
+                                >
+                                  <Lock className="h-3 w-3 mr-1" />
+                                  Unlock
+                                </Button>
+                              </div>
                             ) : isLockedByOther ? (
                               <Badge
                                 variant="destructive"
