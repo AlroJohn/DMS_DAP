@@ -67,6 +67,7 @@ interface SignaturePdfViewerProps {
   initialFileId?: string | null;
   targetFileIds?: string[];
   isLoadingFiles: boolean;
+  isConfirming?: boolean;
   onExit: () => void;
   onConfirm: (payload: {
     fileId: string;
@@ -97,6 +98,7 @@ export function SignaturePdfViewer({
   initialFileId,
   targetFileIds,
   isLoadingFiles,
+  isConfirming = false,
   onExit,
   onConfirm,
 }: SignaturePdfViewerProps) {
@@ -250,7 +252,7 @@ export function SignaturePdfViewer({
 
   useEffect(() => {
     if (!selectedFileId) {
-      setBoxes([]);
+      setBoxes((prevBoxes) => (prevBoxes.length ? [] : prevBoxes));
       return;
     }
 
@@ -296,7 +298,7 @@ export function SignaturePdfViewer({
 
   useEffect(() => {
     if (!selectedFileId) {
-      setTextBoxes([]);
+      setTextBoxes((prevBoxes) => (prevBoxes.length ? [] : prevBoxes));
       return;
     }
 
@@ -693,10 +695,17 @@ export function SignaturePdfViewer({
             size="sm"
             onClick={handleConfirm}
             disabled={
-              (boxes.length === 0 && textBoxes.length === 0) || isRendering
+              (boxes.length === 0 && textBoxes.length === 0) ||
+              isRendering ||
+              isConfirming
             }
           >
-            {isRendering ? (
+            {isConfirming ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Confirming...
+              </>
+            ) : isRendering ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Rendering PDF...

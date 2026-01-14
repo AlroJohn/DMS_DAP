@@ -399,7 +399,7 @@ export default function SearchPageClient() {
   const totalResults = searchResults?.total || 0;
 
   return (
-    <div className="flex h-full flex-col gap-6 px-4 pb-4 bg-background">
+    <div className="flex h-full flex-col gap-6 bg-background">
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1">
         {/* Filters Sidebar */}
         <div className="lg:col-span-1">

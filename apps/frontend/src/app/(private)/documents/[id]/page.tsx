@@ -125,6 +125,7 @@ export default function DocumentDetailPage() {
     modeParam === "sign"
   );
   const [isRedirectingToView, setIsRedirectingToView] = useState(false);
+  const [isConfirmingRelease, setIsConfirmingRelease] = useState(false);
 
   useEffect(() => {
     setIsEditorOpen(modeParam === "edit");
@@ -413,11 +414,13 @@ export default function DocumentDetailPage() {
     textBoxes: TextBox[];
     targetFileIds?: string[];
   }) => {
+    if (isConfirmingRelease) return;
     const params = new URLSearchParams(searchParams?.toString() || "");
     const departmentId = params.get("releaseDepartmentId");
     const requestActionsRaw = params.get("releaseActions");
     const remarks = params.get("releaseRemarks") || undefined;
 
+    setIsConfirmingRelease(true);
     const RENDER_SCALE = 1.4;
     const normalizedTargetIds = Array.from(
       new Set([...(targetFileIds || []), fileId].filter(Boolean))
@@ -525,13 +528,13 @@ export default function DocumentDetailPage() {
     const hasAnyPlaceholders =
       signaturePlaceholders.length > 0 || textPlaceholders.length > 0;
 
-    if (!departmentId || !requestActionsRaw) {
-      if (!hasAnyPlaceholders) {
-        toast.error("Add at least one signature or text placeholder.");
-        return;
-      }
+    try {
+      if (!departmentId || !requestActionsRaw) {
+        if (!hasAnyPlaceholders) {
+          toast.error("Add at least one signature or text placeholder.");
+          return;
+        }
 
-      try {
         await Promise.all([
           signaturePlaceholders.length
             ? saveSignaturePlaceholders(signaturePlaceholders)
@@ -551,15 +554,11 @@ export default function DocumentDetailPage() {
         refetch();
         // Redirect to owned documents page instead of back to document detail
         router.push("/documents");
-      } catch (error: any) {
-        toast.error(error.message || "Failed to save placeholders.");
+        return;
       }
-      return;
-    }
 
-    const requestActions = requestActionsRaw.split(",");
+      const requestActions = requestActionsRaw.split(",");
 
-    try {
       await releaseWithSignaturesMutation.mutateAsync({
         departmentId,
         requestActions,
@@ -579,6 +578,8 @@ export default function DocumentDetailPage() {
       toast.error(
         error.message || "Failed to release document with signatures."
       );
+    } finally {
+      setIsConfirmingRelease(false);
     }
   };
 
@@ -701,6 +702,7 @@ export default function DocumentDetailPage() {
           initialFileId={defaultEditableFileId}
           targetFileIds={signatureFileIdsFromUrl}
           isLoadingFiles={filesLoading}
+          isConfirming={isConfirmingRelease}
           onExit={() => router.back()}
           onConfirm={handleConfirmSignatures}
         />
@@ -776,12 +778,21 @@ export default function DocumentDetailPage() {
       {isSignatureModeOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/90 p-2 md:p-4">
           <div className="w-full max-h-[95vh] flex flex-col gap-2">
+            {isConfirmingRelease && (
+              <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+                <div className="flex items-center gap-2 rounded-md border bg-white/90 px-4 py-3 text-sm text-muted-foreground shadow-lg">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Confirming placeholders...</span>
+                </div>
+              </div>
+            )}
             <SignaturePdfViewer
               documentId={documentIdForRoutes}
               files={files}
               initialFileId={defaultEditableFileId}
               targetFileIds={signatureFileIdsFromUrl}
               isLoadingFiles={filesLoading}
+              isConfirming={isConfirmingRelease}
               onExit={() => {
                 // Redirect to owned documents page instead of back to document detail
                 router.push("/documents");

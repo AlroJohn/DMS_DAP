@@ -249,7 +249,7 @@ const detectFontFromPdf = async (
   pageNumber: number
 ) => {
   try {
-    const url = `/api/documents/${documentId}/files/${fileId}/stream?download=1`;
+    const url = `/api/documents/${documentId}/files/${fileId}/stream?download=1&v=${Date.now()}`;
     const pdf = await getDocument({ url }).promise;
     const page = await pdf.getPage(pageNumber);
 
@@ -435,7 +435,7 @@ export function EditablePdfViewer({
 
       setIsRendering(true);
       try {
-        const url = `/api/documents/${documentId}/files/${selectedFile.id}/stream?download=1`;
+        const url = `/api/documents/${documentId}/files/${selectedFile.id}/stream?download=1&v=${Date.now()}`;
         const task = getDocument({
           url,
           withCredentials: true,
@@ -836,7 +836,7 @@ export function EditablePdfViewer({
       }
 
       const response = await fetch(
-        `/api/documents/${documentId}/files/${sourceFile.id}/stream?download=1`,
+        `/api/documents/${documentId}/files/${sourceFile.id}/stream?download=1&v=${Date.now()}`,
         {
           method: "GET",
           credentials: "include",
