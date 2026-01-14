@@ -51,6 +51,10 @@ export function useDocumentLock({
         setLock(lockData);
         onLockChange?.(lockData);
         return lockData;
+      } else if (response.status === 403) {
+        const { showPermissionErrorToast } = await import('@/utils/permission-errors');
+        showPermissionErrorToast('document_read', "You don't have permission to check the lock status of this document.");
+        return null;
       }
     } catch (error) {
       console.error("Failed to check lock status:", error);
@@ -78,6 +82,10 @@ export function useDocumentLock({
         onLockChange?.(lockData);
         toast.success("Document checked out successfully");
         return true;
+      } else if (response.status === 403) {
+        const { showPermissionErrorToast } = await import('@/utils/permission-errors');
+        showPermissionErrorToast('document_checkout', "You don't have permission to checkout this document.");
+        return false;
       } else {
         const error = await response.json();
         toast.error(error.message || "Failed to checkout document");
@@ -112,6 +120,10 @@ export function useDocumentLock({
         onLockChange?.(lockData);
         toast.success("Document checked in successfully");
         return true;
+      } else if (response.status === 403) {
+        const { showPermissionErrorToast } = await import('@/utils/permission-errors');
+        showPermissionErrorToast('document_checkin', "You don't have permission to checkin this document.");
+        return false;
       } else {
         const error = await response.json();
         toast.error(error.message || "Failed to checkin document");
@@ -146,6 +158,10 @@ export function useDocumentLock({
         onLockChange?.(lockData);
         toast.success("Lock overridden successfully");
         return true;
+      } else if (response.status === 403) {
+        const { showPermissionErrorToast } = await import('@/utils/permission-errors');
+        showPermissionErrorToast('document_override_lock', "You don't have permission to override this lock.");
+        return false;
       } else {
         const error = await response.json();
         toast.error(error.message || "Failed to override lock");

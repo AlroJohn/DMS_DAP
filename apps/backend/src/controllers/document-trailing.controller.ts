@@ -8,12 +8,24 @@ export class DocumentTrailingController {
       const departmentId = req.params.departmentId;
       const userId = req.user?.id; // Assuming user info is attached by auth middleware
       
-      const { status, ownership, searchTerm } = req.query;
+      const { 
+        status, 
+        ownership, 
+        searchTerm, 
+        fromDate, 
+        toDate, 
+        classification, 
+        documentType 
+      } = req.query;
 
       const filters = {
         status: status as string,
         ownership: ownership as 'owned' | 'shared' | 'all',
         searchTerm: searchTerm as string,
+        fromDate: fromDate as string,
+        toDate: toDate as string,
+        classification: classification as string,
+        documentType: documentType as string,
       };
 
       const trails = await auditService.getDocumentTrailsForDepartment(

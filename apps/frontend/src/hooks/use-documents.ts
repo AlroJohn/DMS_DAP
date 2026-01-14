@@ -87,6 +87,13 @@ export function useDocuments(page: number = 1, limit: number = 10): UseDocuments
       );
 
       if (!response.ok) {
+        // Handle permission errors specifically
+        if (response.status === 403) {
+          const { handleApiError } = await import('@/utils/permission-errors');
+          await handleApiError(response, 'document_read');
+          return; // Early return to prevent further processing
+        }
+
         const errorData = await response.json();
         throw new Error(errorData.error?.message || 'Failed to fetch documents');
       }

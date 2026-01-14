@@ -6,7 +6,121 @@ const notificationService = new NotificationService();
 
 export class DocumentTrailsService {
   /**
+   * Helper function to resolve department names from IDs in remarks
+   */
+  private async resolveRemarksWithNames(
+    remarks: string | undefined,
+    fromDepartmentId?: string,
+    toDepartmentId?: string,
+    userId?: string
+  ): Promise<string> {
+    if (!remarks) return '';
+
+    let processedRemarks = remarks;
+
+    try {
+      // Replace from_department ID with name
+      if (fromDepartmentId) {
+        const fromDept = await prisma.department.findUnique({
+          where: { department_id: fromDepartmentId },
+          select: { name: true }
+        });
+        if (fromDept) {
+          processedRemarks = processedRemarks.replace(
+            new RegExp(fromDepartmentId, 'g'),
+            fromDept.name
+          );
+        }
+      }
+
+      // Replace to_department ID with name
+      if (toDepartmentId) {
+        const toDept = await prisma.department.findUnique({
+          where: { department_id: toDepartmentId },
+          select: { name: true }
+        });
+        if (toDept) {
+          processedRemarks = processedRemarks.replace(
+            new RegExp(toDepartmentId, 'g'),
+            toDept.name
+          );
+        }
+      }
+
+      // Replace user ID with name
+      if (userId) {
+        const user = await prisma.user.findUnique({
+          where: { user_id: userId },
+          select: { first_name: true, last_name: true }
+        });
+        if (user) {
+          const userName = `${user.first_name} ${user.last_name}`.trim();
+          processedRemarks = processedRemarks.replace(
+            new RegExp(userId, 'g'),
+            userName
+          );
+        }
+      }
+
+      // Look for any remaining UUID patterns and try to resolve them
+      const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+      const uuids = processedRemarks.match(uuidPattern);
+      
+      if (uuids) {
+        for (const uuid of [...new Set(uuids)]) {
+          // Try to find if it's a department
+          const dept = await prisma.department.findUnique({
+            where: { department_id: uuid },
+            select: { name: true }
+          });
+          if (dept) {
+            processedRemarks = processedRemarks.replace(
+              new RegExp(uuid, 'g'),
+              dept.name
+            );
+            continue;
+          }
+
+          // Try to find if it's a user
+          const user = await prisma.user.findUnique({
+            where: { user_id: uuid },
+            select: { first_name: true, last_name: true }
+          });
+          if (user) {
+            const userName = `${user.first_name} ${user.last_name}`.trim();
+            processedRemarks = processedRemarks.replace(
+              new RegExp(uuid, 'g'),
+              userName
+            );
+            continue;
+          }
+
+          // Try to find if it's a document type
+          const docType = await prisma.documentType.findUnique({
+            where: { type_id: uuid },
+            select: { name: true }
+          });
+          if (docType) {
+            processedRemarks = processedRemarks.replace(
+              new RegExp(uuid, 'g'),
+              docType.name
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error resolving names in remarks:', error);
+    }
+
+    return processedRemarks;
+  }
+
+  /**
    * Get all document trails for a specific document
+   * Returns trails with date/time information:
+   * - action_date: When the action was performed
+   * - created_at: When the trail record was created
+   * - updated_at: When the trail record was last updated
    */
   async getDocumentTrails(documentId: string) {
     try {
@@ -14,7 +128,18 @@ export class DocumentTrailsService {
         where: {
           document_id: documentId,
         },
-        include: {
+        select: {
+          trail_id: true,
+          document_id: true,
+          action_id: true,
+          from_department: true,
+          to_department: true,
+          user_id: true,
+          status: true,
+          remarks: true,
+          action_date: true,
+          created_at: true,
+          updated_at: true,
           documentAction: true,
           fromDept: {
             select: {
@@ -61,6 +186,14 @@ export class DocumentTrailsService {
     remarks?: string;
   }) {
     try {
+      // Resolve UUIDs in remarks to human-readable names
+      const processedRemarks = await this.resolveRemarksWithNames(
+        data.remarks,
+        data.from_department,
+        data.to_department,
+        data.user_id
+      );
+
       const trail = await prisma.documentTrail.create({
         data: {
           document_id: data.document_id,
@@ -69,9 +202,21 @@ export class DocumentTrailsService {
           to_department: data.to_department,
           user_id: data.user_id,
           status: data.status,
-          remarks: data.remarks,
+          remarks: processedRemarks,
+          action_date: new Date(), // Explicitly set action date to current time
         },
-        include: {
+        select: {
+          trail_id: true,
+          document_id: true,
+          action_id: true,
+          from_department: true,
+          to_department: true,
+          user_id: true,
+          status: true,
+          remarks: true,
+          action_date: true,
+          created_at: true,
+          updated_at: true,
           documentAction: true,
           fromDept: {
             select: {
@@ -107,6 +252,11 @@ export class DocumentTrailsService {
 
   /**
    * Update an existing document trail
+   * Updates:
+   * - updated_at: Automatically set to current timestamp
+   * Preserves:
+   * - action_date: Original action date (not modified)
+   * - created_at: Original creation date (not modified)
    */
   async updateDocumentTrail(trailId: string, data: {
     action_id?: string;
@@ -117,6 +267,16 @@ export class DocumentTrailsService {
     remarks?: string;
   }) {
     try {
+      // Resolve UUIDs in remarks to human-readable names
+      const processedRemarks = data.remarks 
+        ? await this.resolveRemarksWithNames(
+            data.remarks,
+            data.from_department,
+            data.to_department,
+            data.user_id
+          )
+        : undefined;
+
       const trail = await prisma.documentTrail.update({
         where: {
           trail_id: trailId,
@@ -127,10 +287,21 @@ export class DocumentTrailsService {
           to_department: data.to_department,
           user_id: data.user_id,
           status: data.status,
-          remarks: data.remarks,
+          remarks: processedRemarks,
           updated_at: new Date(),
         },
-        include: {
+        select: {
+          trail_id: true,
+          document_id: true,
+          action_id: true,
+          from_department: true,
+          to_department: true,
+          user_id: true,
+          status: true,
+          remarks: true,
+          action_date: true,
+          created_at: true,
+          updated_at: true,
           document: {
             include: {
               DocumentAdditionalDetails: true,
@@ -171,6 +342,10 @@ export class DocumentTrailsService {
 
   /**
    * Get document trail by ID
+   * Returns trail with complete date/time information:
+   * - action_date: When the action was performed
+   * - created_at: When the trail record was created
+   * - updated_at: When the trail record was last updated
    */
   async getDocumentTrailById(trailId: string) {
     try {
@@ -178,7 +353,18 @@ export class DocumentTrailsService {
         where: {
           trail_id: trailId,
         },
-        include: {
+        select: {
+          trail_id: true,
+          document_id: true,
+          action_id: true,
+          from_department: true,
+          to_department: true,
+          user_id: true,
+          status: true,
+          remarks: true,
+          action_date: true,
+          created_at: true,
+          updated_at: true,
           documentAction: true,
           fromDept: {
             select: {
@@ -229,13 +415,19 @@ export class DocumentTrailsService {
 
   /**
    * Get all document trails with optional filters
+   * Supports filtering by date range using fromDate and toDate parameters
+   * Returns trails ordered by action_date (most recent first)
+   * Each trail includes:
+   * - action_date: When the action was performed
+   * - created_at: When the trail record was created
+   * - updated_at: When the trail record was last updated
    */
   async getAllDocumentTrails(filters?: {
     userId?: string;
     departmentId?: string;
     status?: string;
-    fromDate?: string;
-    toDate?: string;
+    fromDate?: string; // Filter by action_date >= fromDate
+    toDate?: string; // Filter by action_date <= toDate
   }) {
     try {
       const whereClause: any = {};
@@ -267,7 +459,18 @@ export class DocumentTrailsService {
 
       const trails = await prisma.documentTrail.findMany({
         where: whereClause,
-        include: {
+        select: {
+          trail_id: true,
+          document_id: true,
+          action_id: true,
+          from_department: true,
+          to_department: true,
+          user_id: true,
+          status: true,
+          remarks: true,
+          action_date: true,
+          created_at: true,
+          updated_at: true,
           document: true,
           documentAction: true,
           fromDept: {

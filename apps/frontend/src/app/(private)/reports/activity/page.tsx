@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,9 +16,63 @@ import {
 } from "lucide-react";
 import { useActivityLogs } from "@/hooks/use-activity.log";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ReportFilters, type ReportFilters as ReportFiltersType } from "@/components/reports/report-filters";
 
 export default function ActivityLogsPage() {
-  const { activities, stats, isLoading, error, refetch } = useActivityLogs();
+  const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
+  const [documentTypes, setDocumentTypes] = useState<Array<{ id: string; name: string }>>([]);
+  const [reportFilters, setReportFilters] = useState<ReportFiltersType>({
+    dateRange: { from: undefined, to: undefined },
+    dateRangePreset: "all",
+    department: "all",
+    classification: "all",
+    documentType: "all",
+  });
+
+  const { activities, stats, isLoading, error, refetch } = useActivityLogs({
+    startDate: reportFilters.dateRange.from,
+    endDate: reportFilters.dateRange.to,
+  });
+
+  // Fetch departments and document types for filters
+  useEffect(() => {
+    const fetchFilterOptions = async () => {
+      try {
+        const [deptsRes, typesRes] = await Promise.all([
+          fetch("/api/departments", { credentials: "include" }),
+          fetch("/api/document-types", { credentials: "include" }),
+        ]);
+
+        if (deptsRes.ok) {
+          const deptsData = await deptsRes.json();
+          if (deptsData.success && Array.isArray(deptsData.data)) {
+            setDepartments(
+              deptsData.data.map((d: any) => ({
+                id: d.department_id,
+                name: d.name,
+              }))
+            );
+          }
+        }
+
+        if (typesRes.ok) {
+          const typesData = await typesRes.json();
+          if (typesData.success && Array.isArray(typesData.data)) {
+            setDocumentTypes(
+              typesData.data.map((t: any) => ({
+                id: t.type_id,
+                name: t.type_name,
+              }))
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching filter options:", error);
+      }
+    };
+
+    fetchFilterOptions();
+  }, []);
 
   // Get icon based on activity type
   const getActivityIcon = (type: string) => {
@@ -165,7 +220,18 @@ export default function ActivityLogsPage() {
           <CardTitle>Recent Activity</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          <div className="space-y-4">
+            <ReportFilters
+              filters={reportFilters}
+              onFiltersChange={setReportFilters}
+              departments={departments}
+              documentTypes={documentTypes}
+              showDepartmentFilter={true}
+              showClassificationFilter={true}
+              showDocumentTypeFilter={true}
+            />
+
+              {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
@@ -224,6 +290,7 @@ export default function ActivityLogsPage() {
               ))}
             </div>
           )}
+          </div>
         </CardContent>
       </Card>
     </div>

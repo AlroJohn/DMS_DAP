@@ -17,6 +17,9 @@ export const getUsageReport = async (dateRange: string = '30days') => {
     if (response.status === 401) {
       throw new Error('Authentication required. Please log in.');
     } else if (response.status === 403) {
+      // Show permission error toast and throw error
+      const { showPermissionErrorToast } = await import('@/utils/permission-errors');
+      showPermissionErrorToast('report_view', 'You do not have permission to access this resource.');
       throw new Error('Access forbidden. You do not have permission to access this resource.');
     } else if (response.status === 404) {
       throw new Error('Usage report endpoint not found. Please check if the backend server is running.');
@@ -41,7 +44,14 @@ export const getVersionHistoryReport = async (accessToken: string) => {
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch version history report: ${response.status} ${response.statusText}`);
+    if (response.status === 403) {
+      // Show permission error toast and throw error
+      const { showPermissionErrorToast } = await import('@/utils/permission-errors');
+      showPermissionErrorToast('report_view', 'You do not have permission to access this resource.');
+      throw new Error('Access forbidden. You do not have permission to access this resource.');
+    } else {
+      throw new Error(`Failed to fetch version history report: ${response.status} ${response.statusText}`);
+    }
   }
 
   return response.json();
@@ -60,7 +70,14 @@ export const getDocumentVersionHistory = async (accessToken: string, documentId:
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch document version history: ${response.status} ${response.statusText}`);
+    if (response.status === 403) {
+      // Show permission error toast and throw error
+      const { showPermissionErrorToast } = await import('@/utils/permission-errors');
+      showPermissionErrorToast('report_view', 'You do not have permission to access this resource.');
+      throw new Error('Access forbidden. You do not have permission to access this resource.');
+    } else {
+      throw new Error(`Failed to fetch document version history: ${response.status} ${response.statusText}`);
+    }
   }
 
   return response.json();
