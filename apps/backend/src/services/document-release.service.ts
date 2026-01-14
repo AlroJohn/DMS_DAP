@@ -457,18 +457,25 @@ export class DocumentReleaseService {
         return { success: false, error: 'Document is not assigned to your department' };
       }
 
-      // Check if this document has already been received by this department
-      const existingReceivedTrail = await prisma.documentTrail.findFirst({
+      // Check if this document has already been received by this department IN THE CURRENT TRANSIT CYCLE
+      // We check the latest trail - if it's already 'received', then we can't receive it again
+      const latestTrailToThisDept = await prisma.documentTrail.findFirst({
         where: {
           document_id: documentId,
           to_department: user.department_id,
-          status: 'received'
+        },
+        orderBy: {
+          created_at: 'desc'
+        },
+        select: {
+          status: true,
+          trail_id: true
         }
       });
 
-      if (existingReceivedTrail) {
-        console.warn('📍 [DocumentReleaseService.receiveDocument] Warning: Document already received by this department.');
-        return { success: false, error: 'Document has already been received by your department' };
+      if (latestTrailToThisDept && latestTrailToThisDept.status === 'received') {
+        console.warn('📍 [DocumentReleaseService.receiveDocument] Warning: Document already received in current transit cycle.');
+        return { success: false, error: 'Document has already been received by your department in the current transit cycle' };
       }
 
       const currentDetail = document.DocumentAdditionalDetails?.[0];
@@ -536,21 +543,41 @@ export class DocumentReleaseService {
         return { success: false, error: 'Department not in document workflow' };
       }
 
-      const existingReceiveTrail = await prisma.documentTrail.findFirst({
+      // Check if this specific user has already received the document in the CURRENT TRANSIT CYCLE
+      // We need to check if there's a received trail AFTER the latest intransit trail
+      const latestIntransitTrailTime = await prisma.documentTrail.findFirst({
         where: {
           document_id: documentId,
-          status: 'received',
-          user_id: userId
+          status: 'intransit',
+          to_department: user.department_id
+        },
+        orderBy: {
+          created_at: 'desc'
         },
         select: {
+          created_at: true,
           trail_id: true
         }
       });
 
-      // Check if already received by this user
-      if (existingReceiveTrail) {
-        console.warn('?? [DocumentReleaseService.receiveDocument] Warning: Document already received by this user.', { userId });
-        return { success: false, error: 'Document already received by this user' };
+      if (latestIntransitTrailTime) {
+        // Check if there's a received trail for this user AFTER the intransit trail
+        const receivedAfterIntransit = await prisma.documentTrail.findFirst({
+          where: {
+            document_id: documentId,
+            status: 'received',
+            user_id: userId,
+            to_department: user.department_id,
+            created_at: {
+              gte: latestIntransitTrailTime.created_at
+            }
+          }
+        });
+
+        if (receivedAfterIntransit) {
+          console.warn('?? [DocumentReleaseService.receiveDocument] Warning: Document already received by this user in current transit cycle.', { userId });
+          return { success: false, error: 'Document already received by this user in the current transit cycle' };
+        }
       }
 
       // Add user to received_by_departments array
