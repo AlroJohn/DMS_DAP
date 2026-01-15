@@ -24,7 +24,9 @@ import "jspdf-autotable";
 interface DocumentTrailDetail {
   id: string;
   documentId: string;
-  actionDate: string;
+  actionDate: string; // When the action was performed
+  createdAt?: string; // When the trail record was created
+  updatedAt?: string; // When the trail record was last updated
   user: string;
   fromDepartment: string;
   toDepartment: string;
@@ -321,9 +323,32 @@ export default function DocumentTrailsDetailPage() {
                         <Badge className={getStatusColor(trail.status)}>
                           {getStatusText(trail.status)}
                         </Badge>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Clock className="h-4 w-4" />
-                          {format(new Date(trail.actionDate), "MMM d, yyyy h:mm a")}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Clock className="h-4 w-4" />
+                            <span className="font-medium">Action Date:</span>
+                            <span title={format(new Date(trail.actionDate), "PPpp")}>
+                              {format(new Date(trail.actionDate), "MMM d, yyyy h:mm a")}
+                            </span>
+                          </div>
+                          {trail.createdAt && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Calendar className="h-3 w-3" />
+                              <span>Created:</span>
+                              <span title={format(new Date(trail.createdAt), "PPpp")}>
+                                {format(new Date(trail.createdAt), "MMM d, yyyy h:mm a")}
+                              </span>
+                            </div>
+                          )}
+                          {trail.updatedAt && trail.updatedAt !== trail.createdAt && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              <span>Updated:</span>
+                              <span title={format(new Date(trail.updatedAt), "PPpp")}>
+                                {format(new Date(trail.updatedAt), "MMM d, yyyy h:mm a")}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
 

@@ -581,6 +581,137 @@ async function main() {
     console.log('- Can view document types (document_type_read) for basic functionality');
     console.log('- Cannot edit, sign, delete, archive, or perform any other document operations');
 
+    // Step 15: Create roles for accounts that don't have roles
+    console.log('\n👥 Creating roles for accounts without roles...');
+
+    // Find all accounts that don't have any roles
+    const allAccounts = await prisma.account.findMany({
+      include: {
+        user: {
+          include: {
+            user_roles: {
+              include: {
+                role: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const accountsWithoutRoles = allAccounts.filter(account => {
+      // Check if the account has any user roles
+      if (!account.user || !account.user.user_roles || account.user.user_roles.length === 0) {
+        return true;
+      }
+
+      // Also check if all roles associated with the user are inactive
+      const activeRoles = account.user.user_roles.filter(ur => ur.is_active);
+      return activeRoles.length === 0;
+    });
+
+    if (accountsWithoutRoles.length > 0) {
+      console.log(`📝 Found ${accountsWithoutRoles.length} accounts without active roles`);
+
+      // Create a role with all permissions except user management
+      let defaultRole = await prisma.role.findUnique({
+        where: { code: 'DEFAULT_USER' }
+      });
+
+      if (!defaultRole) {
+        defaultRole = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+          const role = await tx.role.create({
+            data: {
+              name: 'Default User',
+              code: 'DEFAULT_USER',
+              description: 'Default role with all permissions except user management',
+              is_system_role: true,
+              is_active: true,
+              created_by: superAdminAccount.account_id
+            }
+          });
+          console.log('✅ Created Default User role');
+          return role;
+        });
+      } else {
+        console.log('✅ Using existing Default User role');
+      }
+
+      // Get all permissions except user management permissions
+      const allPermissions = await prisma.permissionDefinition.findMany({
+        where: { is_active: true }
+      });
+
+      // Filter out user management permissions
+      const nonUserManagementPermissions = allPermissions.filter(permission =>
+        !permission.permission.startsWith('user_')
+      );
+
+      console.log(`🔗 Assigning ${nonUserManagementPermissions.length} non-user-management permissions to Default User role...`);
+
+      // Assign non-user-management permissions to the default role
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        // Remove existing role permissions for this role if any
+        const existingRolePermissions = await tx.rolePermission.findMany({
+          where: { role_id: defaultRole.role_id }
+        });
+
+        if (existingRolePermissions.length > 0) {
+          await tx.rolePermission.deleteMany({
+            where: { role_id: defaultRole.role_id }
+          });
+          console.log(`✅ Removed ${existingRolePermissions.length} existing role permissions for Default User role`);
+        }
+
+        // Create new role permissions excluding user management
+        const rolePermissionsData = nonUserManagementPermissions.map(permission => ({
+          role_id: defaultRole!.role_id,
+          permission_id: permission.permission_id,
+          scope: 'global' as any,
+          granted_by: superAdminAccount.account_id,
+          is_active: true
+        }));
+
+        if (rolePermissionsData.length > 0) {
+          await tx.rolePermission.createMany({
+            data: rolePermissionsData
+          });
+          console.log(`✅ Assigned ${rolePermissionsData.length} non-user-management permissions to Default User role`);
+        }
+      });
+
+      // Assign the default role to accounts without roles
+      for (const account of accountsWithoutRoles) {
+        if (account.user) {
+          await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+            // Check if user role already exists for this user and role
+            const existingUserRole = await tx.userRole.findFirst({
+              where: {
+                user_id: account.user!.user_id,
+                role_id: defaultRole.role_id
+              }
+            });
+
+            if (!existingUserRole) {
+              await tx.userRole.create({
+                data: {
+                  user_id: account.user!.user_id,
+                  role_id: defaultRole.role_id,
+                  assigned_by: superAdminAccount.account_id,
+                  is_active: true
+                }
+              });
+              console.log(`✅ Assigned Default User role to account: ${account.email}`);
+            } else {
+              console.log(`✅ Default User role already assigned to account: ${account.email}`);
+            }
+          });
+        }
+      }
+    } else {
+      console.log('✅ All accounts already have roles assigned');
+    }
+
   } catch (error) {
     console.error('❌ Error during seeding:', error);
     throw error; // Re-throw to trigger rollback

@@ -17,6 +17,10 @@ export interface SearchParams {
   sortBy?: string;
   page?: number;
   limit?: number;
+  searchType?: 'document' | 'ocr';
+  // User context for role-based filtering
+  userDepartmentId?: string;
+  isAdmin?: boolean;
 }
 
 export interface SearchDocument {
@@ -74,7 +78,10 @@ export class SearchService {
       dateTo,
       sortBy = 'relevance',
       page = 1,
-      limit = 20
+      limit = 20,
+      searchType = 'document',
+      userDepartmentId,
+      isAdmin = false
     } = params;
 
     // Calculate offset for pagination
@@ -84,19 +91,57 @@ export class SearchService {
     const whereClause: any = {
       deleted_at: null // Only include documents that are not deleted
     };
-    
-    // Add search query condition if provided and not empty
-    if (query && query.trim() !== '') {
+
+    // Role-based filtering: If user is not ADMIN/SUPERADMIN, filter by their department
+    // This overrides any department filter they might have specified
+    if (!isAdmin && userDepartmentId) {
       whereClause.AND = [
         ...(whereClause.AND || []),
         {
-          OR: [
-            { title: { contains: query, mode: 'insensitive' } },
-            { description: { contains: query, mode: 'insensitive' } },
-            { document_code: { contains: query, mode: 'insensitive' } }
-          ]
+          files: {
+            some: {
+              uploaded_by_account: {
+                department_id: userDepartmentId,
+                department: {
+                  active: true
+                }
+              }
+            }
+          }
         }
       ];
+    }
+    
+    // Add search query condition based on search type
+    if (query && query.trim() !== '') {
+      if (searchType === 'ocr') {
+        // Search in OCR JSON content
+        whereClause.AND = [
+          ...(whereClause.AND || []),
+          {
+            ocr_json: {
+              some: {
+                ocr_json: {
+                  path: ['$'],
+                  string_contains: query
+                }
+              }
+            }
+          }
+        ];
+      } else {
+        // Default document search (title, description, code)
+        whereClause.AND = [
+          ...(whereClause.AND || []),
+          {
+            OR: [
+              { title: { contains: query, mode: 'insensitive' } },
+              { description: { contains: query, mode: 'insensitive' } },
+              { document_code: { contains: query, mode: 'insensitive' } }
+            ]
+          }
+        ];
+      }
     }
 
     // Add document type filter
@@ -109,8 +154,9 @@ export class SearchService {
       ];
     }
 
-    // Add department filter - Documents are connected to Accounts through DocumentFile
-    if (department && department !== 'all') {
+    // Add department filter - Only allow admin users to filter by specific department
+    // For non-admin users, their department is already enforced above
+    if (isAdmin && department && department !== 'all') {
       whereClause.AND = [
         ...(whereClause.AND || []),
         {

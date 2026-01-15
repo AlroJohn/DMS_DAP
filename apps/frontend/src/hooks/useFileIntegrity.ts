@@ -67,6 +67,15 @@ export function useFileIntegrity({
         }
 
         return integrityData;
+      } else if (response.status === 403) {
+        const { showPermissionErrorToast } = await import('@/utils/permission-errors');
+        showPermissionErrorToast('file_integrity_check', "You don't have permission to check the integrity of this file.");
+        const integrityData: FileIntegrity = {
+          status: "unknown",
+          error: "Permission denied to check file integrity",
+        };
+        setIntegrity(integrityData);
+        return integrityData;
       } else {
         const error = await response.json();
         const integrityData: FileIntegrity = {

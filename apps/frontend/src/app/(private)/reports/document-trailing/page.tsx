@@ -29,8 +29,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
-import jsPDF from "jspdf";
-import "jspdf-autotable";
+import { ReportFilters, type ReportFilters as ReportFiltersType } from "@/components/reports/report-filters";
 
 interface DocumentTrail {
   id: string;
@@ -43,7 +42,9 @@ interface DocumentTrail {
   fromDepartment: string;
   toDepartment: string;
   user: string;
-  actionDate: string;
+  actionDate: string; // When the action was performed
+  createdAt?: string; // When the trail record was created
+  updatedAt?: string; // When the trail record was last updated
   remarks: string;
   isOwned: boolean; // Whether the document was created by the current user's department
 }
@@ -56,11 +57,59 @@ export default function DocumentTrailingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [ownershipFilter, setOwnershipFilter] = useState("all"); // Added ownership filter
+  const [ownershipFilter, setOwnershipFilter] = useState("all");
+  const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
+  const [documentTypes, setDocumentTypes] = useState<Array<{ id: string; name: string }>>([]);
+  const [reportFilters, setReportFilters] = useState<ReportFiltersType>({
+    dateRange: { from: undefined, to: undefined },
+    dateRangePreset: "all",
+    department: "all",
+    classification: "all",
+    documentType: "all",
+  });
   const router = useRouter();
   const { user, isLoading: isAuthLoading } = useAuth();
+
+  // Fetch departments and document types for filters
+  useEffect(() => {
+    const fetchFilterOptions = async () => {
+      try {
+        const [deptsRes, typesRes] = await Promise.all([
+          fetch("/api/departments", { credentials: "include" }),
+          fetch("/api/document-types", { credentials: "include" }),
+        ]);
+
+        if (deptsRes.ok) {
+          const deptsData = await deptsRes.json();
+          if (deptsData.success && Array.isArray(deptsData.data)) {
+            setDepartments(
+              deptsData.data.map((d: any) => ({
+                id: d.department_id,
+                name: d.name,
+              }))
+            );
+          }
+        }
+
+        if (typesRes.ok) {
+          const typesData = await typesRes.json();
+          if (typesData.success && Array.isArray(typesData.data)) {
+            setDocumentTypes(
+              typesData.data.map((t: any) => ({
+                id: t.type_id,
+                name: t.type_name,
+              }))
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching filter options:", error);
+      }
+    };
+
+    fetchFilterOptions();
+  }, []);
 
   const collapseTrailsToDocuments = (trails: DocumentTrail[]) => {
     const byDocument = new Map<string, DocumentTrail>();
@@ -114,6 +163,24 @@ export default function DocumentTrailingPage() {
       if (ownershipFilter !== "all")
         params.append("ownership", ownershipFilter);
       if (searchTerm) params.append("searchTerm", searchTerm);
+      
+      // Add date range filters
+      if (reportFilters.dateRange.from) {
+        params.append("fromDate", reportFilters.dateRange.from.toISOString());
+      }
+      if (reportFilters.dateRange.to) {
+        params.append("toDate", reportFilters.dateRange.to.toISOString());
+      }
+      
+      // Add classification filter
+      if (reportFilters.classification !== "all") {
+        params.append("classification", reportFilters.classification);
+      }
+      
+      // Add document type filter
+      if (reportFilters.documentType !== "all") {
+        params.append("documentType", reportFilters.documentType);
+      }
 
       const query = params.toString();
       const url = query
@@ -146,7 +213,7 @@ export default function DocumentTrailingPage() {
     } finally {
       setLoading(false);
     }
-  }, [user?.department_id, statusFilter, ownershipFilter, searchTerm]);
+  }, [user?.department_id, statusFilter, ownershipFilter, searchTerm, reportFilters]);
 
   // Fetch data from API
   useEffect(() => {
@@ -170,18 +237,6 @@ export default function DocumentTrailingPage() {
       );
     }
 
-    if (departmentFilter && departmentFilter !== "all") {
-      result = result.filter(
-        (doc) =>
-          doc.fromDepartment
-            .toLowerCase()
-            .includes(departmentFilter.toLowerCase()) ||
-          doc.toDepartment
-            .toLowerCase()
-            .includes(departmentFilter.toLowerCase())
-      );
-    }
-
     if (statusFilter && statusFilter !== "all") {
       result = result.filter((doc) => doc.status === statusFilter);
     }
@@ -195,7 +250,7 @@ export default function DocumentTrailingPage() {
     }
 
     setFilteredDocuments(result);
-  }, [searchTerm, departmentFilter, statusFilter, ownershipFilter, documents]);
+  }, [searchTerm, statusFilter, ownershipFilter, documents]);
 
   const getStatusColor = (
     actionName: string,
@@ -351,106 +406,6 @@ export default function DocumentTrailingPage() {
     router.push(`/reports/document-trailing/${documentId}`);
   };
 
-  const handleExportPDF = () => {
-    if (filteredDocuments.length === 0) {
-      toast.error("No documents to export");
-      return;
-    }
-
-    // Create a new PDF instance
-    const doc = new jsPDF();
-
-    // Add title
-    doc.setFontSize(18);
-    doc.text("Document Trailing Report", 14, 20);
-
-    // Add subtitle with date
-    doc.setFontSize(11);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
-
-    // Add summary statistics
-    doc.setFontSize(12);
-    doc.text(`Total Documents: ${documents.length}`, 14, 40);
-    doc.text(
-      `In Transit: ${documents.filter((d) => d.status === "intransit").length}`,
-      14,
-      48
-    );
-    doc.text(
-      `Departments: ${
-        [...new Set(documents.map((d) => d.fromDepartment))].length
-      }`,
-      14,
-      56
-    );
-    doc.text(
-      `Active Users: ${[...new Set(documents.map((d) => d.user))].length}`,
-      14,
-      64
-    );
-
-    // Prepare table data
-    const tableColumn = [
-      "Document Title",
-      "Document Code",
-      "Type",
-      "Status",
-      "From Department",
-      "To Department",
-      "User",
-      "Action Date",
-      "Remarks",
-    ];
-
-    const tableRows = filteredDocuments.map((doc) => [
-      doc.documentTitle,
-      doc.documentCode,
-      doc.documentType,
-      getStatusText(doc.actionName, doc.status, doc.remarks),
-      doc.fromDepartment,
-      doc.toDepartment,
-      doc.user,
-      format(new Date(doc.actionDate), "MMM d, yyyy h:mm a"),
-      doc.remarks,
-    ]);
-
-    // Add table
-    (doc as any).autoTable({
-      head: [tableColumn],
-      body: tableRows,
-      startY: 75,
-      styles: {
-        fontSize: 8,
-        cellPadding: 4,
-      },
-      headStyles: {
-        fillColor: [59, 130, 246], // blue-500
-        textColor: [255, 255, 255],
-        fontStyle: "bold",
-      },
-      alternateRowStyles: {
-        fillColor: [249, 250, 251], // gray-50
-      },
-      columnStyles: {
-        0: { cellWidth: 40 }, // Document Title
-        1: { cellWidth: 25 }, // Document Code
-        2: { cellWidth: 20 }, // Type
-        3: { cellWidth: 20 }, // Status
-        4: { cellWidth: 30 }, // From Department
-        5: { cellWidth: 30 }, // To Department
-        6: { cellWidth: 30 }, // User
-        7: { cellWidth: 30 }, // Action Date
-        8: { cellWidth: 35 }, // Remarks
-      },
-    });
-
-    // Save the PDF
-    doc.save(
-      `document-trailing-report-${new Date().toISOString().split("T")[0]}.pdf`
-    );
-
-    toast.success("PDF exported successfully!");
-  };
 
   if (loading) {
     return (
@@ -531,66 +486,56 @@ export default function DocumentTrailingPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <CardTitle>Document Trails</CardTitle>
-              <Button variant="outline" size="sm" onClick={handleExportPDF}>
-                <Download className="h-4 w-4 mr-2" />
-                Export All to PDF
-              </Button>
-            </div>
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <div className="relative w-full lg:max-w-md">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search documents, users, or remarks..."
-                  className="pl-9 w-full"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
-                <div className="flex items-center gap-2 mb-2 sm:mb-0">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Filters:
-                  </span>
+          <CardTitle>Document Trails</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {/* Search Bar and Filters */}
+            <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-end justify-between">
+              {/* Search Bar - Left Side */}
+              <div className="w-full lg:w-80">
+                <label className="text-xs font-medium text-muted-foreground mb-2 block">
+                  Search
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search documents, users, or remarks..."
+                    className="pl-9 w-full"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Select
-                    value={departmentFilter}
-                    onValueChange={setDepartmentFilter}
-                  >
-                    <SelectTrigger className="w-full sm:w-[180px]">
-                      <SelectValue placeholder="Filter by department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Departments</SelectItem>
-                      <SelectItem value="Finance">Finance</SelectItem>
-                      <SelectItem value="HR">HR</SelectItem>
-                      <SelectItem value="IT">IT</SelectItem>
-                      <SelectItem value="Legal">Legal</SelectItem>
-                      <SelectItem value="Operations">Operations</SelectItem>
-                      <SelectItem value="Procurement">Procurement</SelectItem>
-                      <SelectItem value="Executive">Executive</SelectItem>
-                    </SelectContent>
-                  </Select>
+              </div>
+
+              {/* Filters - Right Side */}
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Ownership
+                  </label>
                   <Select
                     value={ownershipFilter}
                     onValueChange={setOwnershipFilter}
                   >
-                    <SelectTrigger className="w-full sm:w-[180px]">
-                      <SelectValue placeholder="Filter by ownership" />
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue placeholder="Ownership" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Documents</SelectItem>
-                      <SelectItem value="owned">Owned Documents</SelectItem>
-                      <SelectItem value="shared">Shared Documents</SelectItem>
+                      <SelectItem value="owned">Owned</SelectItem>
+                      <SelectItem value="shared">Shared</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Status
+                  </label>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-full sm:w-[180px]">
-                      <SelectValue placeholder="Filter by status" />
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Statuses</SelectItem>
@@ -605,14 +550,114 @@ export default function DocumentTrailingPage() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Date Range
+                  </label>
+                  <Select
+                    value={reportFilters.dateRangePreset}
+                    onValueChange={(preset) => {
+                      const today = new Date();
+                      let from: Date | undefined;
+                      let to: Date | undefined = new Date(today.setHours(23, 59, 59, 999));
+
+                      if (preset === "all") {
+                        from = undefined;
+                        to = undefined;
+                      } else if (preset === "today") {
+                        from = new Date(new Date().setHours(0, 0, 0, 0));
+                        to = new Date(new Date().setHours(23, 59, 59, 999));
+                      } else if (preset === "thismonth") {
+                        from = new Date(today.getFullYear(), today.getMonth(), 1);
+                      } else if (preset === "thisyear") {
+                        from = new Date(today.getFullYear(), 0, 1);
+                      } else {
+                        const days = parseInt(preset.replace("days", ""));
+                        if (!isNaN(days)) {
+                          from = new Date(new Date().setHours(0, 0, 0, 0));
+                          from.setDate(from.getDate() - days);
+                        }
+                      }
+
+                      setReportFilters({
+                        ...reportFilters,
+                        dateRangePreset: preset,
+                        dateRange: { from, to },
+                      });
+                    }}
+                  >
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue placeholder="Date range" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Time</SelectItem>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="7days">Last 7 Days</SelectItem>
+                      <SelectItem value="10days">Last 10 Days</SelectItem>
+                      <SelectItem value="20days">Last 20 Days</SelectItem>
+                      <SelectItem value="30days">Last 30 Days</SelectItem>
+                      <SelectItem value="60days">Last 60 Days</SelectItem>
+                      <SelectItem value="75days">Last 75 Days</SelectItem>
+                      <SelectItem value="90days">Last 90 Days</SelectItem>
+                      <SelectItem value="thismonth">This Month</SelectItem>
+                      <SelectItem value="thisyear">This Year</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Classification
+                  </label>
+                  <Select
+                    value={reportFilters.classification}
+                    onValueChange={(value) =>
+                      setReportFilters({ ...reportFilters, classification: value })
+                    }
+                  >
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue placeholder="Classification" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Classifications</SelectItem>
+                      <SelectItem value="simple">Simple</SelectItem>
+                      <SelectItem value="compound">Compound</SelectItem>
+                      <SelectItem value="complex">Complex</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {documentTypes.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Document Type
+                    </label>
+                    <Select
+                      value={reportFilters.documentType}
+                      onValueChange={(value) =>
+                        setReportFilters({ ...reportFilters, documentType: value })
+                      }
+                    >
+                      <SelectTrigger className="w-[160px]">
+                        <SelectValue placeholder="Document Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Types</SelectItem>
+                        {documentTypes.map((type) => (
+                          <SelectItem key={type.id} value={type.id}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
 
-            <div className="space-y-4">
+            {/* Document List */}
+            <div className="space-y-4 pt-4">
               {filteredDocuments.length === 0 ? (
                 <div className="text-center py-12">
                   {error ? (
@@ -659,9 +704,15 @@ export default function DocumentTrailingPage() {
                           variant="outline"
                           onClick={() => {
                             setSearchTerm("");
-                            setDepartmentFilter("all");
                             setStatusFilter("all");
                             setOwnershipFilter("all");
+                            setReportFilters({
+                              dateRange: { from: undefined, to: undefined },
+                              dateRangePreset: "all",
+                              department: "all",
+                              classification: "all",
+                              documentType: "all",
+                            });
                           }}
                         >
                           Clear Filters
@@ -744,10 +795,13 @@ export default function DocumentTrailingPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         <div className="flex items-center gap-1 min-w-0">
-                          <span className="text-muted-foreground flex-shrink-0">On:</span>
-                          <span className="truncate font-medium">
+                          <span className="text-muted-foreground flex-shrink-0">
+                            {doc.status === 'signed' ? 'Signed:' :
+                             doc.status === 'placeholder_added' ? 'Added:' : 'Action:'}
+                          </span>
+                          <span className="truncate font-medium" title={`Action Date: ${format(new Date(doc.actionDate), "PPpp")}`}>
                             {format(
                               new Date(doc.actionDate),
                               "MMM d, yyyy h:mm a"
@@ -757,18 +811,53 @@ export default function DocumentTrailingPage() {
                       </div>
                     </div>
 
+                    {/* Timestamp Details Section */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground bg-muted/30 p-3 rounded-md">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3 w-3 flex-shrink-0" />
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="flex-shrink-0">Action Date:</span>
+                          <span className="truncate" title={format(new Date(doc.actionDate), "PPpp")}>
+                            {format(new Date(doc.actionDate), "MMM d, yyyy h:mm a")}
+                          </span>
+                        </div>
+                      </div>
+                      {doc.createdAt && (
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-3 w-3 flex-shrink-0" />
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className="flex-shrink-0">Created:</span>
+                            <span className="truncate" title={format(new Date(doc.createdAt), "PPpp")}>
+                              {format(new Date(doc.createdAt), "MMM d, yyyy h:mm a")}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      {doc.updatedAt && doc.updatedAt !== doc.createdAt && (
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-3 w-3 flex-shrink-0" />
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className="flex-shrink-0">Last Updated:</span>
+                            <span className="truncate" title={format(new Date(doc.updatedAt), "PPpp")}>
+                              {format(new Date(doc.updatedAt), "MMM d, yyyy h:mm a")}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     {doc.remarks && (
-                      <div className={`text-sm p-3 rounded-md border ${
+                      <div className={`text-sm p-3 rounded-md border flex items-center gap-2 ${
                         doc.status === 'signed' ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800' :
                         doc.status === 'placeholder_added' ? 'bg-violet-50 dark:bg-violet-950/20 border-violet-200 dark:border-violet-800' :
                         'bg-muted/50'
                       }`}>
-                        <span className="font-medium text-muted-foreground">
+                        <span className="font-medium text-muted-foreground flex-shrink-0">
                           {doc.status === 'signed' ? 'Signature Details:' :
                            doc.status === 'placeholder_added' ? 'Placeholder Details:' :
                            'Remarks:'}
-                        </span>{" "}
-                        <span className="text-foreground font-medium">{doc.remarks}</span>
+                        </span>
+                        <span className="text-foreground font-medium truncate" title={doc.remarks}>{doc.remarks}</span>
                       </div>
                     )}
                   </div>

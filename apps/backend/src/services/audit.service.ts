@@ -192,6 +192,10 @@ class AuditService {
       status?: string;
       ownership?: 'owned' | 'shared' | 'all';
       searchTerm?: string;
+      fromDate?: string;
+      toDate?: string;
+      classification?: string;
+      documentType?: string;
     } = {}
   ) {
     try {
@@ -208,6 +212,17 @@ class AuditService {
         whereClause.status = filters.status;
       }
 
+      // Apply date range filters
+      if (filters.fromDate || filters.toDate) {
+        whereClause.action_date = {};
+        if (filters.fromDate) {
+          whereClause.action_date.gte = new Date(filters.fromDate);
+        }
+        if (filters.toDate) {
+          whereClause.action_date.lte = new Date(filters.toDate);
+        }
+      }
+
       // Apply search term filter if provided
       if (filters.searchTerm) {
         const searchTerm = filters.searchTerm.toLowerCase();
@@ -220,6 +235,16 @@ class AuditService {
           { user: { first_name: { contains: searchTerm, mode: 'insensitive' } } },
           { user: { last_name: { contains: searchTerm, mode: 'insensitive' } } },
         ];
+      }
+
+      // Build document filter for classification and document type
+      if (filters.classification && filters.classification !== 'all') {
+        if (!whereClause.document) whereClause.document = {};
+        whereClause.document.classification = filters.classification;
+      }
+      if (filters.documentType && filters.documentType !== 'all') {
+        if (!whereClause.document) whereClause.document = {};
+        whereClause.document.document_type = filters.documentType;
       }
 
       // Fetch document trails with related data
@@ -361,6 +386,8 @@ class AuditService {
           toDepartment: trail.toDept?.name || 'Unknown',
           user: `${trail.user?.first_name || ''} ${trail.user?.last_name || ''}`.trim() || 'Unknown User',
           actionDate: trail.action_date.toISOString(),
+          createdAt: trail.created_at.toISOString(),
+          updatedAt: trail.updated_at.toISOString(),
           remarks: trail.remarks || '',
           isOwned
         };
@@ -442,6 +469,8 @@ class AuditService {
         id: trail.trail_id,
         documentId: trail.document_id,
         actionDate: trail.action_date.toISOString(),
+        createdAt: trail.created_at.toISOString(),
+        updatedAt: trail.updated_at.toISOString(),
         actionName: trail.documentAction?.action_name || '',
         user: `${trail.user?.first_name || ''} ${trail.user?.last_name || ''}`.trim() || 'Unknown User',
         fromDepartment: trail.fromDept?.name || 'Unknown',

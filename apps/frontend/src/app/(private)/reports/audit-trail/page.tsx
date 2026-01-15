@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Activity, Filter, Download, Calendar, User, FileText, Eye, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,11 +9,61 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ReportFilters, type ReportFilters as ReportFiltersType } from "@/components/reports/report-filters";
 
 export default function AuditTrailPage() {
   const [actionType, setActionType] = useState("");
   const [userFilter, setUserFilter] = useState("");
-  const [dateRange, setDateRange] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
+  const [documentTypes, setDocumentTypes] = useState<Array<{ id: string; name: string }>>([]);
+  const [reportFilters, setReportFilters] = useState<ReportFiltersType>({
+    dateRange: { from: undefined, to: undefined },
+    dateRangePreset: "all",
+    department: "all",
+    classification: "all",
+    documentType: "all",
+  });
+
+  // Fetch departments and document types for filters
+  useEffect(() => {
+    const fetchFilterOptions = async () => {
+      try {
+        const [deptsRes, typesRes] = await Promise.all([
+          fetch("/api/departments", { credentials: "include" }),
+          fetch("/api/document-types", { credentials: "include" }),
+        ]);
+
+        if (deptsRes.ok) {
+          const deptsData = await deptsRes.json();
+          if (deptsData.success && Array.isArray(deptsData.data)) {
+            setDepartments(
+              deptsData.data.map((d: any) => ({
+                id: d.department_id,
+                name: d.name,
+              }))
+            );
+          }
+        }
+
+        if (typesRes.ok) {
+          const typesData = await typesRes.json();
+          if (typesData.success && Array.isArray(typesData.data)) {
+            setDocumentTypes(
+              typesData.data.map((t: any) => ({
+                id: t.type_id,
+                name: t.type_name,
+              }))
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching filter options:", error);
+      }
+    };
+
+    fetchFilterOptions();
+  }, []);
 
   const auditLogs = [
     {
@@ -114,63 +164,62 @@ export default function AuditTrailPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="search">Search</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="search"
-                  placeholder="Search logs..."
-                  className="pl-10"
-                />
+          <div className="space-y-4">
+            <ReportFilters
+              filters={reportFilters}
+              onFiltersChange={setReportFilters}
+              departments={departments}
+              documentTypes={documentTypes}
+              showDepartmentFilter={true}
+              showClassificationFilter={true}
+              showDocumentTypeFilter={true}
+            />
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="search">Search</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="search"
+                    placeholder="Search logs..."
+                    className="pl-10"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
               </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="action-type">Action Type</Label>
-              <Select value={actionType} onValueChange={setActionType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All Actions" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Actions</SelectItem>
-                  <SelectItem value="login">Login/Logout</SelectItem>
-                  <SelectItem value="document">Document Actions</SelectItem>
-                  <SelectItem value="user">User Management</SelectItem>
-                  <SelectItem value="system">System Changes</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="user-filter">User</Label>
-              <Select value={userFilter} onValueChange={setUserFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All Users" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Users</SelectItem>
-                  <SelectItem value="john">John Smith</SelectItem>
-                  <SelectItem value="sarah">Sarah Johnson</SelectItem>
-                  <SelectItem value="mike">Mike Davis</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="date-range">Date Range</Label>
-              <Select value={dateRange} onValueChange={setDateRange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Last 7 days" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="today">Today</SelectItem>
-                  <SelectItem value="week">Last 7 days</SelectItem>
-                  <SelectItem value="month">Last 30 days</SelectItem>
-                  <SelectItem value="custom">Custom Range</SelectItem>
-                </SelectContent>
-              </Select>
+              
+              <div className="space-y-2">
+                <Label htmlFor="action-type">Action Type</Label>
+                <Select value={actionType} onValueChange={setActionType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Actions" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Actions</SelectItem>
+                    <SelectItem value="login">Login/Logout</SelectItem>
+                    <SelectItem value="document">Document Actions</SelectItem>
+                    <SelectItem value="user">User Management</SelectItem>
+                    <SelectItem value="system">System Changes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="user-filter">User</Label>
+                <Select value={userFilter} onValueChange={setUserFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Users" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Users</SelectItem>
+                    <SelectItem value="john">John Smith</SelectItem>
+                    <SelectItem value="sarah">Sarah Johnson</SelectItem>
+                    <SelectItem value="mike">Mike Davis</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         </CardContent>

@@ -118,6 +118,12 @@ export const NotificationsProvider = ({
       console.log('Notifications response status:', response.status);
       
       if (!response.ok) {
+        if (response.status === 403) {
+          const { handleApiError } = await import('@/utils/permission-errors');
+          await handleApiError(response, 'notification_read');
+          return; // Early return to prevent further processing
+        }
+
         const errorText = await response.text();
         let errorData;
         try {
@@ -127,8 +133,8 @@ export const NotificationsProvider = ({
         }
         console.error('Notifications error response:', errorData);
         throw new Error(
-          typeof errorData.error === 'string' 
-            ? errorData.error 
+          typeof errorData.error === 'string'
+            ? errorData.error
             : errorData.error?.message || errorData.message || 'Failed to fetch notifications'
         );
       }
