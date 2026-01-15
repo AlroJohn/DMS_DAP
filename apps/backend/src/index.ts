@@ -50,6 +50,7 @@ import documentReportsRoutes from './routes/document-reports.routes'; // Import 
 import counterRoutes from './routes/counter.routes'; // Import counter routes
 import activityLogsRoutes from './routes/activity-logs.routes'; // Import activity logs routes
 import accessHistoryRoutes from './routes/access-history.routes'; // Import access history routes
+import homeCMSRoutes from './routes/home-cms.routes'; // Import home CMS routes
 
 // Import middleware
 import { requestLogger, errorLogger } from './middleware/logging';
@@ -189,6 +190,7 @@ app.use('/api/reports', documentReportsRoutes); // Add document reports routes
 app.use('/api', counterRoutes); // Add counter routes
 app.use('/api', activityLogsRoutes); // Add activity logs routes
 app.use('/api', accessHistoryRoutes); // Add access history routes
+app.use('/api/home-cms', homeCMSRoutes); // Add home CMS routes
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {

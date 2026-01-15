@@ -11,6 +11,20 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true
   },
 
+  // ✅ Configure external image domains
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'logoipsum.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '**', // Allow all HTTPS domains (use specific domains in production)
+      },
+    ],
+  },
+
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001",
     NEXT_PUBLIC_SOCKET_URL: process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001"

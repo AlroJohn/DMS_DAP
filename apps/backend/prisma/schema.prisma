@@ -1019,3 +1019,20 @@ enum InvitationStatus {
   expired
   cancelled
 }
+
+model HomeCMS {
+  cms_id         String   @id @default(uuid()) @db.Uuid
+  logo_url       String?
+  video_url      String?
+  vision         String?  @db.Text
+  mission        String?  @db.Text
+  welcome_title  String?
+  welcome_text   String?  @db.Text
+  is_active      Boolean  @default(true)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @default(now()) @updatedAt
+  created_by     String   @db.Uuid
+  updated_by     String   @db.Uuid
+
+  @@index([is_active])
+}
