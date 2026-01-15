@@ -435,7 +435,9 @@ export function EditablePdfViewer({
 
       setIsRendering(true);
       try {
-        const url = `/api/documents/${documentId}/files/${selectedFile.id}/stream?download=1&v=${Date.now()}`;
+        const url = `/api/documents/${documentId}/files/${
+          selectedFile.id
+        }/stream?download=1&v=${Date.now()}`;
         const task = getDocument({
           url,
           withCredentials: true,
@@ -836,7 +838,9 @@ export function EditablePdfViewer({
       }
 
       const response = await fetch(
-        `/api/documents/${documentId}/files/${sourceFile.id}/stream?download=1&v=${Date.now()}`,
+        `/api/documents/${documentId}/files/${
+          sourceFile.id
+        }/stream?download=1&v=${Date.now()}`,
         {
           method: "GET",
           credentials: "include",
@@ -1017,7 +1021,7 @@ export function EditablePdfViewer({
     );
     if (!annotation) return null;
     return (
-      <div className="rounded-md  bg-background p-4 shadow-none">
+      <div className="rounded-md bg-background p-4 shadow-none">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium capitalize">{annotation.type}</p>
@@ -1447,7 +1451,7 @@ export function EditablePdfViewer({
   };
 
   return (
-    <Card className="border-2 h-fit border-primary/40 bg-muted/30">
+    <Card className="border h-fit border-primary/40 bg-muted/30">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <FileText className="h-5 w-5" />

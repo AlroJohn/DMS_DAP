@@ -16,6 +16,7 @@ interface TextPlaceholderModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (text: string) => void;
+  onChange?: (text: string) => void;
   onCancel?: () => void;
   initialText?: string;
   title?: string;
@@ -28,6 +29,7 @@ export function TextPlaceholderModal({
   isOpen,
   onClose,
   onSave,
+  onChange,
   onCancel,
   initialText = "",
   title = "Add Text",
@@ -75,7 +77,11 @@ export function TextPlaceholderModal({
         <div className="py-4 space-y-3">
           <Textarea
             value={textValue}
-            onChange={(event) => setTextValue(event.target.value)}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              setTextValue(nextValue);
+              onChange?.(nextValue);
+            }}
             placeholder="Enter text for this placeholder"
             className="min-h-[80px]"
           />

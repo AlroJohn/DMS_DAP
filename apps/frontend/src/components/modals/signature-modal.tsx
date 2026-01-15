@@ -10,6 +10,7 @@ interface SignatureModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (signature: string) => void;
+  onChange?: (signature: string | null) => void;
   initialSignature?: string | null;
   title?: string;
 }
@@ -18,6 +19,7 @@ export function SignatureModal({
   isOpen,
   onClose,
   onSave,
+  onChange,
   onCancel,
   initialSignature,
   title = "Create Signature"
@@ -58,7 +60,10 @@ export function SignatureModal({
         <div className="py-4">
           <SignaturePad
             value={signatureData || undefined}
-            onChange={setSignatureData}
+            onChange={(value) => {
+              setSignatureData(value);
+              onChange?.(value);
+            }}
             width={600}
             height={200}
           />

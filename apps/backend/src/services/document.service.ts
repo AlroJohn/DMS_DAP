@@ -3828,6 +3828,7 @@ export class DocumentService {
       });
     }
 
+
     // Delete associated files from the filesystem before deleting from database
     for (const document of documentsToDelete) {
       for (const file of document.files) {

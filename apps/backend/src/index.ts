@@ -74,6 +74,34 @@ const io = new Server(server, {
 // Socket.IO middleware for authentication
 const authService = new AuthService();
 const userService = new UserService();
+const signatureRoomMembers = new Map<
+  string,
+  Map<string, { userId: string; name: string; departmentId?: string | null }>
+>();
+const signatureRoomCounts = new Map<string, Map<string, number>>();
+const socketSignatureRooms = new Map<string, Set<string>>();
+
+const getSignatureRoomKey = (documentId: string, fileId: string) =>
+  `document-${documentId}:file-${fileId}`;
+
+const getSocketUserInfo = (socket: any) => {
+  const user = socket.user;
+  if (!user) return null;
+  return {
+    userId: user.user_id,
+    name: `${user.first_name} ${user.last_name}`.trim(),
+    departmentId: user.department_id ?? null,
+  };
+};
+
+const emitSignaturePresence = (roomKey: string) => {
+  const members = signatureRoomMembers.get(roomKey);
+  const payload = {
+    room: roomKey,
+    members: members ? Array.from(members.values()) : [],
+  };
+  io.to(roomKey).emit('signature:presence', payload);
+};
 
 io.use(async (socket, next) => {
   const token = socket.handshake.auth.token;
@@ -218,8 +246,115 @@ io.on('connection', (socket) => {
     socket.to(`document-${data.documentId}`).emit('document-changed', data);
   });
 
+  socket.on('signature:join-room', (data: { documentId: string; fileId: string }) => {
+    const userInfo = getSocketUserInfo(socket as any);
+    if (!userInfo || !data?.documentId || !data?.fileId) {
+      return;
+    }
+    const roomKey = getSignatureRoomKey(data.documentId, data.fileId);
+    socket.join(roomKey);
+
+    if (!signatureRoomMembers.has(roomKey)) {
+      signatureRoomMembers.set(roomKey, new Map());
+    }
+    if (!signatureRoomCounts.has(roomKey)) {
+      signatureRoomCounts.set(roomKey, new Map());
+    }
+
+    const counts = signatureRoomCounts.get(roomKey)!;
+    const currentCount = counts.get(userInfo.userId) ?? 0;
+    counts.set(userInfo.userId, currentCount + 1);
+
+    const members = signatureRoomMembers.get(roomKey)!;
+    members.set(userInfo.userId, userInfo);
+
+    if (!socketSignatureRooms.has(socket.id)) {
+      socketSignatureRooms.set(socket.id, new Set());
+    }
+    socketSignatureRooms.get(socket.id)!.add(roomKey);
+
+    emitSignaturePresence(roomKey);
+  });
+
+  socket.on('signature:leave-room', (data: { documentId: string; fileId: string }) => {
+    const userInfo = getSocketUserInfo(socket as any);
+    if (!userInfo || !data?.documentId || !data?.fileId) {
+      return;
+    }
+    const roomKey = getSignatureRoomKey(data.documentId, data.fileId);
+    socket.leave(roomKey);
+
+    const counts = signatureRoomCounts.get(roomKey);
+    if (counts) {
+      const currentCount = counts.get(userInfo.userId) ?? 0;
+      const nextCount = Math.max(0, currentCount - 1);
+      if (nextCount === 0) {
+        counts.delete(userInfo.userId);
+        signatureRoomMembers.get(roomKey)?.delete(userInfo.userId);
+      } else {
+        counts.set(userInfo.userId, nextCount);
+      }
+      if (counts.size === 0) {
+        signatureRoomCounts.delete(roomKey);
+        signatureRoomMembers.delete(roomKey);
+      }
+    }
+
+    socketSignatureRooms.get(socket.id)?.delete(roomKey);
+    emitSignaturePresence(roomKey);
+  });
+
+  socket.on('signature:draft:update', (data) => {
+    if (!data?.documentId || !data?.fileId || !data?.placeholderId) return;
+    const roomKey = getSignatureRoomKey(data.documentId, data.fileId);
+    socket.to(roomKey).emit('signature:draft:update', {
+      room: roomKey,
+      ...data,
+    });
+  });
+
+  socket.on('text:draft:update', (data) => {
+    if (!data?.documentId || !data?.fileId || !data?.placeholderId) return;
+    const roomKey = getSignatureRoomKey(data.documentId, data.fileId);
+    socket.to(roomKey).emit('text:draft:update', {
+      room: roomKey,
+      ...data,
+    });
+  });
+
+  socket.on('signature:save', (data) => {
+    if (!data?.documentId || !data?.fileId) return;
+    const roomKey = getSignatureRoomKey(data.documentId, data.fileId);
+    socket.to(roomKey).emit('signature:save', {
+      room: roomKey,
+      ...data,
+    });
+  });
+
   socket.on('disconnect', () => {
     console.log(`[${new Date().toISOString()}] User disconnected: ${socket.id}`);
+    const userInfo = getSocketUserInfo(socket as any);
+    const rooms = socketSignatureRooms.get(socket.id);
+    if (userInfo && rooms) {
+      rooms.forEach((roomKey) => {
+        const counts = signatureRoomCounts.get(roomKey);
+        if (!counts) return;
+        const currentCount = counts.get(userInfo.userId) ?? 0;
+        const nextCount = Math.max(0, currentCount - 1);
+        if (nextCount === 0) {
+          counts.delete(userInfo.userId);
+          signatureRoomMembers.get(roomKey)?.delete(userInfo.userId);
+        } else {
+          counts.set(userInfo.userId, nextCount);
+        }
+        if (counts.size === 0) {
+          signatureRoomCounts.delete(roomKey);
+          signatureRoomMembers.delete(roomKey);
+        }
+        emitSignaturePresence(roomKey);
+      });
+    }
+    socketSignatureRooms.delete(socket.id);
   });
 });
 

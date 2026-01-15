@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf";
 import { useQuery } from "@tanstack/react-query";
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { SignatureModal } from "@/components/modals/signature-modal";
 import { TextPlaceholderModal } from "@/components/modals/text-placeholder-modal";
 import { useAuth } from "@/hooks/use-auth";
+import { useSocket } from "@/components/providers/providers";
 
 const PDFJS_WORKER_CDN =
   process.env.NEXT_PUBLIC_PDFJS_WORKER_URL ||
@@ -173,6 +174,18 @@ export function SigningPdfViewer({
 }: SigningPdfViewerProps) {
   const { user } = useAuth();
   const signeeId = user?.user_id || user?.id;
+  const { socket } = useSocket();
+  const [presence, setPresence] = useState<
+    Array<{ userId: string; name: string; departmentId?: string | null }>
+  >([]);
+  const [remoteSignatureDrafts, setRemoteSignatureDrafts] = useState<
+    Record<string, { dataUrl: string; userId: string }>
+  >({});
+  const [remoteTextDrafts, setRemoteTextDrafts] = useState<
+    Record<string, { text: string; userId: string }>
+  >({});
+  const signatureDraftTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const textDraftTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isAssignedToCurrentUser = useCallback(
     (assignedUserId?: string | null) =>
       !assignedUserId || assignedUserId === signeeId,
@@ -217,6 +230,9 @@ export function SigningPdfViewer({
       ? selectableFiles.find((file) => file.id === targetId)
       : null;
   }, [selectableFiles, selectedFileId]);
+  const roomKey = selectedFile?.id
+    ? `document-${documentId}:file-${selectedFile.id}`
+    : null;
 
   useEffect(() => {
     if (!selectableFiles.length) {
@@ -309,20 +325,23 @@ export function SigningPdfViewer({
       enabled: !!documentId,
     });
 
-  const { data: textPlaceholders = [], isLoading: isLoadingTextPlaceholders, refetch: refetchTextPlaceholders } =
-    useQuery({
-      queryKey: ["text-placeholders", documentId],
-      queryFn: async () => {
-        const response = await fetch(
-          `/api/document-texts/documents/${documentId}/text-placeholders`
-        );
-        if (!response.ok) {
-          throw new Error("Failed to fetch text placeholders");
-        }
-        return response.json() as Promise<TextPlaceholder[]>;
-      },
-      enabled: !!documentId,
-    });
+  const {
+    data: textPlaceholders = [],
+    isLoading: isLoadingTextPlaceholders,
+    refetch: refetchTextPlaceholders,
+  } = useQuery({
+    queryKey: ["text-placeholders", documentId],
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/document-texts/documents/${documentId}/text-placeholders`
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch text placeholders");
+      }
+      return response.json() as Promise<TextPlaceholder[]>;
+    },
+    enabled: !!documentId,
+  });
 
   const { data: signatures = [], refetch: refetchSignatures } = useQuery({
     queryKey: ["document-signatures", documentId],
@@ -349,6 +368,129 @@ export function SigningPdfViewer({
     },
     enabled: !!documentId,
   });
+
+  useEffect(() => {
+    if (!socket || !roomKey) return;
+    socket.emit("signature:join-room", {
+      documentId,
+      fileId: selectedFileId,
+    });
+    setRemoteSignatureDrafts({});
+    setRemoteTextDrafts({});
+    setPresence([]);
+
+    return () => {
+      socket.emit("signature:leave-room", {
+        documentId,
+        fileId: selectedFileId,
+      });
+    };
+  }, [documentId, roomKey, selectedFileId, socket]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handlePresence = (data: {
+      room: string;
+      members: Array<{
+        userId: string;
+        name: string;
+        departmentId?: string | null;
+      }>;
+    }) => {
+      if (data.room !== roomKey) return;
+      setPresence(data.members);
+    };
+
+    const handleSignatureDraft = (data: {
+      room: string;
+      documentId: string;
+      fileId: string;
+      placeholderId: string;
+      userId: string;
+      signatureData: string | null;
+    }) => {
+      if (data.room !== roomKey) return;
+      if (!data.placeholderId) return;
+      if (data.userId === signeeId) return;
+      setRemoteSignatureDrafts((prev) => {
+        const next = { ...prev };
+        if (!data.signatureData) {
+          delete next[data.placeholderId];
+          return next;
+        }
+        next[data.placeholderId] = {
+          dataUrl: data.signatureData,
+          userId: data.userId,
+        };
+        return next;
+      });
+    };
+
+    const handleTextDraft = (data: {
+      room: string;
+      documentId: string;
+      fileId: string;
+      placeholderId: string;
+      userId: string;
+      text: string | null;
+    }) => {
+      if (data.room !== roomKey) return;
+      if (!data.placeholderId) return;
+      if (data.userId === signeeId) return;
+      setRemoteTextDrafts((prev) => {
+        const next = { ...prev };
+        if (!data.text) {
+          delete next[data.placeholderId];
+          return next;
+        }
+        next[data.placeholderId] = {
+          text: data.text,
+          userId: data.userId,
+        };
+        return next;
+      });
+    };
+
+    const handleSaveEvent = (data: {
+      room: string;
+      documentId: string;
+      fileId: string;
+      userId: string;
+      placeholderIds?: string[];
+      textPlaceholderIds?: string[];
+    }) => {
+      if (data.room !== roomKey) return;
+      if (data.userId === signeeId) return;
+      if (data.placeholderIds?.length) {
+        setRemoteSignatureDrafts((prev) => {
+          const next = { ...prev };
+          data.placeholderIds?.forEach((id) => delete next[id]);
+          return next;
+        });
+      }
+      if (data.textPlaceholderIds?.length) {
+        setRemoteTextDrafts((prev) => {
+          const next = { ...prev };
+          data.textPlaceholderIds?.forEach((id) => delete next[id]);
+          return next;
+        });
+      }
+      void Promise.all([refetchSignatures(), refetchTextPlaceholders()]);
+    };
+
+    socket.on("signature:presence", handlePresence);
+    socket.on("signature:draft:update", handleSignatureDraft);
+    socket.on("text:draft:update", handleTextDraft);
+    socket.on("signature:save", handleSaveEvent);
+
+    return () => {
+      socket.off("signature:presence", handlePresence);
+      socket.off("signature:draft:update", handleSignatureDraft);
+      socket.off("text:draft:update", handleTextDraft);
+      socket.off("signature:save", handleSaveEvent);
+    };
+  }, [refetchSignatures, refetchTextPlaceholders, roomKey, signeeId, socket]);
 
   const findMatchingPlaceholders = useMemo(() => {
     const EPSILON = 0.5;
@@ -383,7 +525,9 @@ export function SigningPdfViewer({
 
   const fileTextPlaceholders = useMemo(() => {
     if (!selectedFileId) return [];
-    return textPlaceholders.filter((p) => p.document_file_id === selectedFileId);
+    return textPlaceholders.filter(
+      (p) => p.document_file_id === selectedFileId
+    );
   }, [textPlaceholders, selectedFileId]);
 
   const actionableFilePlaceholders = useMemo(
@@ -629,6 +773,48 @@ export function SigningPdfViewer({
     setIsSignatureModalOpen(true);
   };
 
+  const emitSignatureDraft = useCallback(
+    (signature: string | null) => {
+      if (!socket || !roomKey || !selectedPlaceholder || !signeeId) return;
+      socket.emit("signature:draft:update", {
+        documentId,
+        fileId: selectedFile?.id,
+        placeholderId: selectedPlaceholder.placeholder_id,
+        signatureData: signature,
+        userId: signeeId,
+      });
+    },
+    [
+      documentId,
+      roomKey,
+      selectedFile?.id,
+      selectedPlaceholder,
+      signeeId,
+      socket,
+    ]
+  );
+
+  const emitTextDraft = useCallback(
+    (text: string) => {
+      if (!socket || !roomKey || !selectedTextPlaceholder || !signeeId) return;
+      socket.emit("text:draft:update", {
+        documentId,
+        fileId: selectedFile?.id,
+        placeholderId: selectedTextPlaceholder.placeholder_id,
+        text,
+        userId: signeeId,
+      });
+    },
+    [
+      documentId,
+      roomKey,
+      selectedFile?.id,
+      selectedTextPlaceholder,
+      signeeId,
+      socket,
+    ]
+  );
+
   const handleSaveDraft = () => {
     if (!selectedPlaceholder || !signatureData) return;
     const placeholderId = selectedPlaceholder.placeholder_id;
@@ -669,7 +855,10 @@ export function SigningPdfViewer({
         const placeholder = textPlaceholders.find(
           (item) => item.placeholder_id === placeholderId
         );
-        if (!placeholder || !isAssignedToCurrentUser(placeholder.assigned_user_id)) {
+        if (
+          !placeholder ||
+          !isAssignedToCurrentUser(placeholder.assigned_user_id)
+        ) {
           return acc;
         }
         const trimmed = value.trim();
@@ -685,7 +874,9 @@ export function SigningPdfViewer({
       Object.keys(pendingSignatures).length === 0 &&
       Object.keys(pendingTextEntries).length === 0
     ) {
-      toast.error("Save at least one signature or text entry before confirming.");
+      toast.error(
+        "Save at least one signature or text entry before confirming."
+      );
       return;
     }
 
@@ -745,8 +936,8 @@ export function SigningPdfViewer({
         selectedFileIds.length > 0
           ? selectedFileIds
           : selectedFileId
-            ? [selectedFileId]
-            : [];
+          ? [selectedFileId]
+          : [];
 
       for (const fileId of targetFileIds) {
         const targetFile = sortedPdfFiles.find((file) => file.id === fileId);
@@ -867,9 +1058,7 @@ export function SigningPdfViewer({
           const y = pageHeight - signature.y - renderHeight;
 
           if (renderWidth > pageWidth || renderHeight > pageHeight) {
-            throw new Error(
-              "Signature placement is outside the page bounds."
-            );
+            throw new Error("Signature placement is outside the page bounds.");
           }
 
           let sigBytes: Uint8Array;
@@ -1008,7 +1197,7 @@ export function SigningPdfViewer({
         async ([placeholderId, textValue]) => {
           // Find the placeholder to get its details
           const placeholder = [...textPlaceholders].find(
-            p => p.placeholder_id === placeholderId
+            (p) => p.placeholder_id === placeholderId
           );
 
           if (!placeholder) return null;
@@ -1039,7 +1228,9 @@ export function SigningPdfViewer({
 
       await Promise.all(textPlaceholderUpdates);
 
-      toast.success("All signature and text drafts saved to the selected files.");
+      toast.success(
+        "All signature and text drafts saved to the selected files."
+      );
 
       setPlacedSignatures({});
       setSignatureData(null);
@@ -1047,10 +1238,27 @@ export function SigningPdfViewer({
       setIsSignatureModalOpen(false);
 
       // Refetch both signatures and text placeholders to update the UI
-      await Promise.all([
-        refetchSignatures(),
-        refetchTextPlaceholders(),
-      ]);
+      await Promise.all([refetchSignatures(), refetchTextPlaceholders()]);
+
+      if (socket && signeeId) {
+        const placeholderIds = Object.keys(pendingSignatures);
+        const textPlaceholderIds = Object.keys(pendingTextEntries);
+        const targetFileIdsForRooms =
+          selectedFileIds.length > 0
+            ? selectedFileIds
+            : selectedFileId
+            ? [selectedFileId]
+            : [];
+        targetFileIdsForRooms.forEach((fileId) => {
+          socket.emit("signature:save", {
+            documentId,
+            fileId,
+            userId: signeeId,
+            placeholderIds,
+            textPlaceholderIds,
+          });
+        });
+      }
 
       setIsSuccessModalOpen(true); // Show success modal instead of calling onSigned immediately
     } catch (error: any) {
@@ -1098,9 +1306,7 @@ export function SigningPdfViewer({
   const pendingCount = actionableFilePlaceholders.length;
   const hasDrafts = Object.keys(placedSignatures).length > 0;
   const hasCurrentSignature = Boolean(selectedPlaceholder && signatureData);
-  const hasTextDrafts = Object.values(textValues).some((value) =>
-    value.trim()
-  );
+  const hasTextDrafts = Object.values(textValues).some((value) => value.trim());
   const hasSelectedDraft = selectedPlaceholder
     ? Boolean(placedSignatures[selectedPlaceholder.placeholder_id])
     : false;
@@ -1188,8 +1394,7 @@ export function SigningPdfViewer({
             size="sm"
             onClick={handleConfirmSignature}
             disabled={
-              isSaving ||
-              (!hasDrafts && !hasCurrentSignature && !hasTextDrafts)
+              isSaving || (!hasDrafts && !hasCurrentSignature && !hasTextDrafts)
             }
           >
             {isSaving ? (
@@ -1209,6 +1414,25 @@ export function SigningPdfViewer({
           <div className="w-full md:w-56 flex flex-col gap-4 overflow-y-auto">
             <div className="flex flex-col gap-2">
               <h3 className="text-sm font-medium text-muted-foreground">
+                Active in File
+              </h3>
+              {presence.length === 0 ? (
+                <div className="text-xs text-muted-foreground italic">
+                  No active signers
+                </div>
+              ) : (
+                presence.map((member) => (
+                  <div
+                    key={member.userId}
+                    className="rounded border px-2 py-1 text-xs text-muted-foreground"
+                  >
+                    {member.name}
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-medium text-muted-foreground">
                 Signatures
               </h3>
               {filePlaceholders.length === 0 ? (
@@ -1222,12 +1446,11 @@ export function SigningPdfViewer({
               ) : (
                 filePlaceholders.map((p, i) =>
                   (() => {
-                    const isSigned = signedPlaceholderIds.has(
-                      p.placeholder_id
-                    );
+                    const isSigned = signedPlaceholderIds.has(p.placeholder_id);
                     const isLocked = !isAssignedToCurrentUser(
                       p.assigned_user_id
                     );
+                    const remoteDraft = remoteSignatureDrafts[p.placeholder_id];
                     return (
                       <Button
                         key={p.placeholder_id}
@@ -1254,6 +1477,11 @@ export function SigningPdfViewer({
                           {isLocked && (
                             <span className="text-[10px] text-muted-foreground">
                               Assigned to another user
+                            </span>
+                          )}
+                          {!isSigned && remoteDraft && (
+                            <span className="text-[10px] text-muted-foreground">
+                              In progress
                             </span>
                           )}
                           {isSigned && (
@@ -1287,8 +1515,11 @@ export function SigningPdfViewer({
                   const savedText = textValues[p.placeholder_id] || "";
                   // Use the saved text from state if available, otherwise use stored text from API
                   const displayText = savedText || storedText;
-                  const hasSavedText = Boolean(displayText && displayText.toLowerCase() !== "text");
+                  const hasSavedText = Boolean(
+                    displayText && displayText.toLowerCase() !== "text"
+                  );
                   const isLocked = !isAssignedToCurrentUser(p.assigned_user_id);
+                  const remoteDraft = remoteTextDrafts[p.placeholder_id];
 
                   return (
                     <Button
@@ -1314,6 +1545,11 @@ export function SigningPdfViewer({
                         {isLocked && (
                           <span className="text-[10px] text-muted-foreground">
                             Assigned to another user
+                          </span>
+                        )}
+                        {!hasSavedText && remoteDraft && (
+                          <span className="text-[10px] text-muted-foreground">
+                            In progress
                           </span>
                         )}
                         {hasSavedText && (
@@ -1347,7 +1583,10 @@ export function SigningPdfViewer({
                   src={activePageData.imageUrl}
                   alt={`Page ${activePageData.pageNumber}`}
                   className="h-full w-full object-contain rounded-md border border-border/50 bg-white"
-                  style={{ width: activePageData.width, height: activePageData.height }}
+                  style={{
+                    width: activePageData.width,
+                    height: activePageData.height,
+                  }}
                 />
                 {filePlaceholders
                   .filter((p) => p.page_number === activePage)
@@ -1362,13 +1601,17 @@ export function SigningPdfViewer({
                         selectedPlaceholder.placeholder_id ===
                           placeholder.placeholder_id &&
                         signatureData) ||
-                      placedSignatures[placeholder.placeholder_id];
+                      placedSignatures[placeholder.placeholder_id] ||
+                      remoteSignatureDrafts[placeholder.placeholder_id]
+                        ?.dataUrl;
                     const isSigned = signedPlaceholderIds.has(
                       placeholder.placeholder_id
                     );
                     const isLocked = !isAssignedToCurrentUser(
                       placeholder.assigned_user_id
                     );
+                    const remoteSignatureUser =
+                      remoteSignatureDrafts[placeholder.placeholder_id]?.userId;
 
                     return (
                       <div
@@ -1386,8 +1629,8 @@ export function SigningPdfViewer({
                           isSigned
                             ? "border-emerald-500 bg-emerald-500/15 cursor-not-allowed"
                             : isLocked
-                              ? "border-slate-300 bg-slate-100/60 cursor-not-allowed"
-                              : "border-yellow-500 bg-yellow-500/20 hover:bg-yellow-500/40 cursor-pointer"
+                            ? "border-slate-300 bg-slate-100/60 cursor-not-allowed"
+                            : "border-yellow-500 bg-yellow-500/20 hover:bg-yellow-500/40 cursor-pointer"
                         )}
                         onClick={(e) => {
                           e.stopPropagation(); // Prevent bubbling
@@ -1409,9 +1652,14 @@ export function SigningPdfViewer({
                               {isSigned
                                 ? "Signed"
                                 : isLocked
-                                  ? "Assigned"
-                                  : "Sign Here"}
+                                ? "Assigned"
+                                : "Sign Here"}
                             </span>
+                            {!isSigned && remoteSignatureUser && (
+                              <span className="text-[10px] text-muted-foreground">
+                                In progress
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1425,8 +1673,13 @@ export function SigningPdfViewer({
                       textValues[placeholder.placeholder_id] || "";
                     // Use the saved text from state if available, otherwise use stored text from API
                     // Only show "Text" as placeholder if both are empty
-                    const displayText = savedText || storedText || "Text";
-                    const hasSavedText = Boolean(displayText && displayText.toLowerCase() !== "text");
+                    const remoteText =
+                      remoteTextDrafts[placeholder.placeholder_id]?.text;
+                    const mergedText =
+                      savedText || storedText || remoteText || "Text";
+                    const hasMergedText = Boolean(
+                      mergedText && mergedText.toLowerCase() !== "text"
+                    );
                     const isLocked = !isAssignedToCurrentUser(
                       placeholder.assigned_user_id
                     );
@@ -1443,15 +1696,15 @@ export function SigningPdfViewer({
                         }}
                         className={cn(
                           "rounded-md border-2 border-dashed bg-transparent flex items-center justify-center",
-                          hasSavedText
+                          hasMergedText
                             ? "border-amber-500/50 cursor-not-allowed"
                             : isLocked
-                              ? "border-slate-300 bg-slate-100/60 cursor-not-allowed"
-                              : "border-amber-500/70 cursor-pointer hover:border-amber-500"
+                            ? "border-slate-300 bg-slate-100/60 cursor-not-allowed"
+                            : "border-amber-500/70 cursor-pointer hover:border-amber-500"
                         )}
                         onClick={(event) => {
                           event.stopPropagation();
-                          if (!hasSavedText && !isLocked) {
+                          if (!hasMergedText && !isLocked) {
                             setSelectedTextPlaceholder(placeholder);
                             setIsTextModalOpen(true);
                           }
@@ -1465,7 +1718,7 @@ export function SigningPdfViewer({
                             color: placeholder.font_color || "#111827",
                           }}
                         >
-                          {displayText}
+                          {mergedText}
                         </div>
                       </div>
                     );
@@ -1494,6 +1747,14 @@ export function SigningPdfViewer({
             setIsSignatureModalOpen(false);
             setSignatureData(null); // Clear signature data when closing
           }}
+          onChange={(signature) => {
+            if (signatureDraftTimerRef.current) {
+              clearTimeout(signatureDraftTimerRef.current);
+            }
+            signatureDraftTimerRef.current = setTimeout(() => {
+              emitSignatureDraft(signature);
+            }, 120);
+          }}
           onSave={(signature) => {
             setSignatureData(signature);
             // Save as draft immediately
@@ -1503,11 +1764,12 @@ export function SigningPdfViewer({
                 ...prev,
                 [placeholderId]: signature,
               }));
+              emitSignatureDraft(signature);
               const targetIds = selectedFileIds.length
                 ? selectedFileIds
                 : selectedFileId
-                  ? [selectedFileId]
-                  : [];
+                ? [selectedFileId]
+                : [];
               if (targetIds.length > 1) {
                 const matches = findMatchingPlaceholders(
                   selectedPlaceholder,
@@ -1531,6 +1793,7 @@ export function SigningPdfViewer({
             // When cancelling, clear any temporary signature data
             setSignatureData(null);
             setIsSignatureModalOpen(false);
+            emitSignatureDraft(null);
           }}
           initialSignature={signatureData || undefined}
           title="Create Your Signature"
@@ -1549,22 +1812,32 @@ export function SigningPdfViewer({
                 ...prev,
                 [placeholderId]: text,
               }));
+              emitTextDraft(text);
               toast.success("Text saved to placeholder.");
             }
             setIsTextModalOpen(false);
             setSelectedTextPlaceholder(null);
           }}
+          onChange={(text) => {
+            if (textDraftTimerRef.current) {
+              clearTimeout(textDraftTimerRef.current);
+            }
+            textDraftTimerRef.current = setTimeout(() => {
+              emitTextDraft(text);
+            }, 120);
+          }}
           onCancel={() => {
             setIsTextModalOpen(false);
             setSelectedTextPlaceholder(null);
+            emitTextDraft("");
           }}
           initialText={
             selectedTextPlaceholder
               ? textValues[selectedTextPlaceholder.placeholder_id] ||
                 (selectedTextPlaceholder.text_value &&
-                 selectedTextPlaceholder.text_value.toLowerCase() !== "text"
-                   ? selectedTextPlaceholder.text_value
-                   : "")
+                selectedTextPlaceholder.text_value.toLowerCase() !== "text"
+                  ? selectedTextPlaceholder.text_value
+                  : "")
               : ""
           }
           title="Add Text"

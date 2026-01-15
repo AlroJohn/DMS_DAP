@@ -114,7 +114,7 @@ model OCR_Json {
   ocr_json            Json?
   created_at          DateTime  @default(now())
   updated_at          DateTime  @default(now()) @updatedAt
-  document            Document? @relation(fields: [documentDocument_id], references: [document_id])
+  document            Document? @relation(fields: [documentDocument_id], references: [document_id], onDelete: Cascade)
   documentDocument_id String?   @db.Uuid
 }
 

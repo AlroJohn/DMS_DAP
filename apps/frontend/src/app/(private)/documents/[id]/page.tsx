@@ -759,7 +759,7 @@ export default function DocumentDetailPage() {
   }
 
   return (
-    <div className="flex flex-col gap-2 mx-auto w-full pb-2">
+    <div className="flex flex-col gap-2 mx-auto w-full p-4">
       {isRedirectingToView && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="flex items-center gap-2 rounded-md border bg-white/90 px-4 py-3 text-sm text-muted-foreground shadow-lg">

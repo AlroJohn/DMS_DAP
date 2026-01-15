@@ -727,6 +727,7 @@ export class RecycleBinService {
         }
       }
 
+
       // Now delete all documents from the database
       const result = await prisma.document.deleteMany({
         where: {
