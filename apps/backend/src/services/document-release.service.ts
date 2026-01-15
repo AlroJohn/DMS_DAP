@@ -69,6 +69,7 @@ export class DocumentReleaseService {
                     y_position: sig.y_position,
                     width: sig.width,
                     height: sig.height,
+                    assigned_user_id: sig.assigned_user_id || null,
                 }));
 
                 await prisma.signaturePlaceholder.createMany({

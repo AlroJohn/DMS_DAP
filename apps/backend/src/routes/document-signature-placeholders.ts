@@ -29,7 +29,16 @@ router.get('/documents/:documentId/signature-placeholders', async (req: Request,
 router.post('/documents/:documentId/signature-placeholders', async (req: Request, res: Response) => {
   try {
     const { documentId } = req.params;
-    const { document_file_id, page_number, x_position, y_position, width, height, user_id } = req.body;
+    const {
+      document_file_id,
+      page_number,
+      x_position,
+      y_position,
+      width,
+      height,
+      user_id,
+      assigned_user_id
+    } = req.body;
 
     // Verify document and file exist
     const document = await prisma.document.findUnique({
@@ -48,6 +57,16 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
       return res.status(404).json({ error: 'Document file not found' });
     }
 
+    if (assigned_user_id) {
+      const assignedUser = await prisma.user.findUnique({
+        where: { user_id: assigned_user_id }
+      });
+
+      if (!assignedUser) {
+        return res.status(404).json({ error: 'Assigned user not found' });
+      }
+    }
+
     const placeholder = await prisma.signaturePlaceholder.create({
       data: {
         document_id: documentId,
@@ -56,7 +75,8 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
         x_position,
         y_position,
         width,
-        height
+        height,
+        assigned_user_id: assigned_user_id || null
       }
     });
 

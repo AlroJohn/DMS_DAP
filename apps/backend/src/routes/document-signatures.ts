@@ -66,7 +66,16 @@ router.get('/documents/:documentId/signatures', async (req: Request, res: Respon
 router.post('/documents/:documentId/signatures', upload.none(), async (req: Request, res: Response) => {
   try {
     const { documentId } = req.params;
-    const { page_number, x_position, y_position, width, height, document_file_id, user_id } = req.body;
+    const {
+      page_number,
+      x_position,
+      y_position,
+      width,
+      height,
+      document_file_id,
+      user_id,
+      assigned_user_id
+    } = req.body;
 
     // Verify document exists
     const document = await prisma.document.findUnique({
@@ -86,6 +95,16 @@ router.post('/documents/:documentId/signatures', upload.none(), async (req: Requ
       return res.status(404).json({ error: 'Document file not found' });
     }
 
+    if (assigned_user_id) {
+      const assignedUser = await prisma.user.findUnique({
+        where: { user_id: assigned_user_id }
+      });
+
+      if (!assignedUser) {
+        return res.status(404).json({ error: 'Assigned user not found' });
+      }
+    }
+
     // Create signature placeholder
     const signaturePlaceholder = await prisma.signaturePlaceholder.create({
       data: {
@@ -95,7 +114,8 @@ router.post('/documents/:documentId/signatures', upload.none(), async (req: Requ
         x_position: parseFloat(x_position),
         y_position: parseFloat(y_position),
         width: parseFloat(width),
-        height: parseFloat(height)
+        height: parseFloat(height),
+        assigned_user_id: assigned_user_id || null
       }
     });
 

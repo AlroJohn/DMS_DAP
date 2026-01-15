@@ -62,6 +62,7 @@ export function UploadDocumentModal({
   const [selectedOrigin, setSelectedOrigin] = useState("external");
   const [enableOcr, setEnableOcr] = useState(false);
   const [enableEncryption, setEnableEncryption] = useState(true);
+  const maxInlineChecksumMB = 15;
 
   // Get socket instance for real-time updates
   const { socket } = useSocket();
@@ -70,59 +71,77 @@ export function UploadDocumentModal({
   const { documentTypes, isLoading: typesLoading } = useDocumentTypes();
 
   // File integrity checking
-  const { verifyFile } = useFileIntegrity({});
+  const { verifyFile } = useFileIntegrity({ maxInlineChecksumMB });
+
+  const validateAndAddFiles = async (incomingFiles: File[]) => {
+    if (incomingFiles.length === 0) return;
+
+    const validations = await Promise.all(
+      incomingFiles.map(async (file) => {
+        if (
+          !file.type.includes("pdf") &&
+          !file.name.toLowerCase().endsWith(".pdf")
+        ) {
+          toast.error(`File "${file.name}" is not a PDF file`);
+          return null;
+        }
+
+        const corruption = detectPotentialCorruption(file);
+        if (corruption.isCorrupted) {
+          toast.error(`File "${file.name}" rejected`, {
+            description: corruption.reason,
+          });
+          return null;
+        }
+
+        try {
+          const integrity = await verifyFile(file);
+          if (integrity.status === "corrupted") {
+            toast.error(`File "${file.name}" appears corrupted`, {
+              description: "File integrity check failed",
+            });
+            return null;
+          }
+
+          if (
+            integrity.status === "unknown" &&
+            integrity.error?.includes("Checksum skipped")
+          ) {
+            toast.info(`Skipped checksum for "${file.name}"`, {
+              description: `Large files over ${maxInlineChecksumMB}MB skip client-side checks.`,
+            });
+          } else {
+            toast.success(`File "${file.name}" validated`, {
+              description: "File passed integrity checks",
+            });
+          }
+
+          return file;
+        } catch (error) {
+          console.error("Error validating file:", error);
+          toast.warning(`Could not validate "${file.name}"`, {
+            description: "File will be uploaded without validation",
+          });
+          return file;
+        }
+      })
+    );
+
+    const validFiles = validations.filter(
+      (file): file is File => file !== null
+    );
+
+    if (validFiles.length > 0) {
+      setFiles((prev) => [...prev, ...validFiles]);
+    }
+  };
 
   const handleFileSelect = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const selectedFiles = Array.from(event.target.files || []);
-    const validFiles: File[] = [];
-
-    for (const file of selectedFiles) {
-      // Only accept PDF files
-      if (
-        !file.type.includes("pdf") &&
-        !file.name.toLowerCase().endsWith(".pdf")
-      ) {
-        toast.error(`File "${file.name}" is not a PDF file`);
-        continue;
-      }
-
-      // Check for potential corruption
-      const corruption = detectPotentialCorruption(file);
-      if (corruption.isCorrupted) {
-        toast.error(`File "${file.name}" rejected`, {
-          description: corruption.reason,
-        });
-        continue;
-      }
-
-      // Verify file integrity
-      try {
-        const integrity = await verifyFile(file);
-        if (integrity.status === "corrupted") {
-          toast.error(`File "${file.name}" appears corrupted`, {
-            description: "File integrity check failed",
-          });
-          continue;
-        }
-
-        // File is valid
-        validFiles.push(file);
-        toast.success(`File "${file.name}" validated`, {
-          description: "File passed integrity checks",
-        });
-      } catch (error) {
-        console.error("Error validating file:", error);
-        toast.warning(`Could not validate "${file.name}"`, {
-          description: "File will be uploaded without validation",
-        });
-        validFiles.push(file);
-      }
-    }
-
-    setFiles((prev) => [...prev, ...validFiles]);
-    event.target.value = ""; // Reset input to allow re-selecting same file
+    await validateAndAddFiles(selectedFiles);
+    event.target.value = "";
   };
 
   const removeFile = (index: number) => {
@@ -181,16 +200,17 @@ export function UploadDocumentModal({
       const createdDocument = result.data ?? result;
       const documentId = createdDocument.document_id;
 
-      // If there are additional files, upload them to the created document
       if (files.length > 1) {
-        for (let i = 1; i < files.length; i++) {
-          setUploadProgress(Math.floor(30 + (i / files.length) * 50)); // Distribute progress among additional files
+        const additionalFiles = files.slice(1);
+        let completed = 0;
+        const total = additionalFiles.length;
+        setUploadProgress(30);
 
+        const uploads = additionalFiles.map((file) => {
           const additionalFileForm = new FormData();
-          additionalFileForm.append("files", files[i]); // Use the 'files' field for additional uploads
+          additionalFileForm.append("files", file);
           additionalFileForm.append("enableOcr", String(enableOcr));
 
-          // Generate a unique versionGroupId for each file during bulk upload
           const versionGroupId = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
             /[xy]/g,
             function (c) {
@@ -201,25 +221,30 @@ export function UploadDocumentModal({
           );
           additionalFileForm.append("versionGroupId", versionGroupId);
 
-          const additionalResponse = await fetch(
-            `${apiBaseUrl}/api/documents/${documentId}/files`,
-            {
-              method: "POST",
-              credentials: "include",
-              body: additionalFileForm,
-            }
-          );
+          return fetch(`${apiBaseUrl}/api/documents/${documentId}/files`, {
+            method: "POST",
+            credentials: "include",
+            body: additionalFileForm,
+          })
+            .then(async (additionalResponse) => {
+              if (!additionalResponse.ok) {
+                const errorData = await additionalResponse.json().catch(() => ({
+                  error: { message: "Failed to upload additional file" },
+                }));
+                throw new Error(
+                  errorData.error?.message ||
+                    `Failed to upload additional file: ${file.name}`
+                );
+              }
+            })
+            .finally(() => {
+              completed += 1;
+              const progress = 30 + Math.floor((completed / total) * 60);
+              setUploadProgress(progress);
+            });
+        });
 
-          if (!additionalResponse.ok) {
-            const errorData = await additionalResponse.json().catch(() => ({
-              error: { message: "Failed to upload additional file" },
-            }));
-            throw new Error(
-              errorData.error?.message ||
-                `Failed to upload additional file: ${files[i].name}`
-            );
-          }
-        }
+        await Promise.all(uploads);
       }
 
       setUploadProgress(100);
@@ -228,6 +253,11 @@ export function UploadDocumentModal({
           files.length > 1 ? "s" : ""
         }!`
       );
+      if (enableOcr) {
+        toast.info("OCR processing started", {
+          description: "OCR runs in the background after upload.",
+        });
+      }
 
       // Emit document upload completed event via Socket.IO
       if (socket) {
@@ -308,7 +338,7 @@ export function UploadDocumentModal({
                         "bg-primary/10"
                       );
                     }}
-                    onDrop={(e) => {
+                    onDrop={async (e) => {
                       e.preventDefault();
                       e.currentTarget.classList.remove(
                         "border-primary",
@@ -316,20 +346,7 @@ export function UploadDocumentModal({
                       );
                       const dt = e.dataTransfer;
                       const newFiles = Array.from(dt.files || []);
-                      // Handle dropped files similar to input change
-                      const validFiles: File[] = [];
-                      for (const file of newFiles) {
-                        // Only accept PDF files
-                        if (
-                          file.type.includes("pdf") ||
-                          file.name.toLowerCase().endsWith(".pdf")
-                        ) {
-                          validFiles.push(file);
-                        } else {
-                          toast.error(`File "${file.name}" is not a PDF file`);
-                        }
-                      }
-                      setFiles((prev) => [...prev, ...validFiles]);
+                      await validateAndAddFiles(newFiles);
                     }}
                   >
                     <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
@@ -655,12 +672,12 @@ export function UploadDocumentModal({
                       htmlFor="enable-ocr"
                       className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                     >
-                      Enable OCR (Optical Character Recognition)
+                      Run OCR after upload (background)
                     </label>
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
-                    Extracts text from the PDF, making it searchable. This may
-                    increase processing time.
+                    Extracts text from the PDF after upload. OCR runs in the
+                    background and will not block document creation.
                   </p>
                 </CardContent>
               </Card>

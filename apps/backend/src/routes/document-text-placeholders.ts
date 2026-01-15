@@ -37,7 +37,8 @@ router.post('/documents/:documentId/text-placeholders', async (req: Request, res
       font_family,
       font_size,
       font_color,
-      text_value
+      text_value,
+      assigned_user_id
     } = req.body;
 
     const document = await prisma.document.findUnique({
@@ -56,6 +57,16 @@ router.post('/documents/:documentId/text-placeholders', async (req: Request, res
       return res.status(404).json({ error: 'Document file not found' });
     }
 
+    if (assigned_user_id) {
+      const assignedUser = await prisma.user.findUnique({
+        where: { user_id: assigned_user_id }
+      });
+
+      if (!assignedUser) {
+        return res.status(404).json({ error: 'Assigned user not found' });
+      }
+    }
+
     const placeholder = await prisma.textPlaceholder.create({
       data: {
         document_id: documentId,
@@ -68,7 +79,8 @@ router.post('/documents/:documentId/text-placeholders', async (req: Request, res
         font_family,
         font_size,
         font_color,
-        text_value
+        text_value,
+        assigned_user_id: assigned_user_id || null
       }
     });
 

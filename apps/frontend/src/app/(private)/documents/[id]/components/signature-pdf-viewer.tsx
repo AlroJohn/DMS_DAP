@@ -9,6 +9,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -19,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { ChevronsUpDown, Loader2, Move, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { useUsers } from "@/hooks/use-users";
 
 const PDFJS_WORKER_CDN =
   process.env.NEXT_PUBLIC_PDFJS_WORKER_URL ||
@@ -45,6 +53,7 @@ export interface SignatureBox {
   width: number;
   height: number;
   isExisting?: boolean;
+  assignedUserId?: string | null;
 }
 
 export interface TextBox {
@@ -59,6 +68,7 @@ export interface TextBox {
   fontColor: string;
   text?: string;
   isExisting?: boolean;
+  assignedUserId?: string | null;
 }
 
 interface SignaturePdfViewerProps {
@@ -103,6 +113,73 @@ export function SignaturePdfViewer({
   onConfirm,
 }: SignaturePdfViewerProps) {
   const { user } = useAuth();
+  const { users, isLoading: isLoadingUsers } = useUsers();
+  const currentDepartmentId =
+    (user as { department_id?: string })?.department_id ||
+    (user as { department?: { department_id?: string } })?.department
+      ?.department_id ||
+    null;
+
+  const departments = useMemo(() => {
+    if (!users?.length) return [];
+    const unique = new Map<string, string>();
+    users.forEach((u) => {
+      if (!u.department_id) return;
+      unique.set(u.department_id, u.department_name || "Unknown");
+    });
+    return Array.from(unique.entries()).map(([id, name]) => ({
+      id,
+      name,
+    }));
+  }, [users]);
+
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<
+    string | null
+  >(currentDepartmentId);
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState<string | null>(
+    user?.user_id || null
+  );
+
+  const usersForDepartment = useMemo(() => {
+    if (!users?.length || !selectedDepartmentId) return [];
+    return users.filter((u) => u.department_id === selectedDepartmentId);
+  }, [users, selectedDepartmentId]);
+
+  const userNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    users?.forEach((u) => {
+      const fullName = `${u.first_name} ${u.last_name}`.trim();
+      map.set(u.user_id, fullName || u.email);
+    });
+    return map;
+  }, [users]);
+
+  useEffect(() => {
+    if (!departments.length) return;
+    setSelectedDepartmentId((prev) => {
+      if (prev) return prev;
+      return currentDepartmentId || departments[0]?.id || null;
+    });
+  }, [currentDepartmentId, departments]);
+
+  useEffect(() => {
+    if (!usersForDepartment.length) {
+      setSelectedAssigneeId(null);
+      return;
+    }
+    setSelectedAssigneeId((prev) => {
+      if (prev && usersForDepartment.some((u) => u.user_id === prev)) {
+        return prev;
+      }
+      if (
+        user?.user_id &&
+        usersForDepartment.some((u) => u.user_id === user.user_id)
+      ) {
+        return user.user_id;
+      }
+      return usersForDepartment[0]?.user_id || null;
+    });
+  }, [usersForDepartment, user?.user_id]);
   const pdfFiles = useMemo(
     () => files.filter((file) => isPdfLikeFile(file)),
     [files]
@@ -189,6 +266,7 @@ export function SignaturePdfViewer({
           y_position: number;
           width: number;
           height: number;
+          assigned_user_id?: string | null;
         }>
       >;
     },
@@ -217,6 +295,7 @@ export function SignaturePdfViewer({
           font_size: number;
           font_color: string;
           text_value?: string | null;
+          assigned_user_id?: string | null;
         }>
       >;
     },
@@ -267,6 +346,7 @@ export function SignaturePdfViewer({
         width: placeholder.width * RENDER_SCALE,
         height: placeholder.height * RENDER_SCALE,
         isExisting: true,
+        assignedUserId: placeholder.assigned_user_id || null,
       }));
 
     setBoxes((prevBoxes) => {
@@ -316,6 +396,7 @@ export function SignaturePdfViewer({
         fontColor: placeholder.font_color || DEFAULT_TEXT_COLOR,
         text: placeholder.text_value || "",
         isExisting: true,
+        assignedUserId: placeholder.assigned_user_id || null,
       }));
 
     setTextBoxes((prevBoxes) => {
@@ -485,6 +566,10 @@ export function SignaturePdfViewer({
     if (!placementMode || !pages.length) return;
     const targetPage = pages.find((p) => p.pageNumber === activePage);
     if (!targetPage) return;
+    if (!selectedAssigneeId) {
+      toast.error("Select a user to assign this placeholder.");
+      return;
+    }
 
     const rect = event.currentTarget.getBoundingClientRect();
     const clickX = event.clientX - rect.left;
@@ -508,6 +593,7 @@ export function SignaturePdfViewer({
         width: defaultWidth,
         height: defaultHeight,
         isExisting: false,
+        assignedUserId: selectedAssigneeId,
       };
 
       setBoxes((prev) => [...prev, newBox]);
@@ -524,6 +610,7 @@ export function SignaturePdfViewer({
         fontColor: DEFAULT_TEXT_COLOR,
         text: "",
         isExisting: false,
+        assignedUserId: selectedAssigneeId,
       };
 
       setTextBoxes((prev) => [...prev, newTextBox]);
@@ -618,6 +705,13 @@ export function SignaturePdfViewer({
 
     const newBoxes = boxes.filter((box) => !box.isExisting);
     const newTextBoxes = textBoxes.filter((box) => !box.isExisting);
+    const hasUnassigned = [...newBoxes, ...newTextBoxes].some(
+      (box) => !box.assignedUserId
+    );
+    if (hasUnassigned) {
+      toast.error("Assign a user to each new placeholder before confirming.");
+      return;
+    }
     if (newBoxes.length === 0 && newTextBoxes.length === 0) {
       toast.error(
         "No new placeholders added. Please add at least one signature or text placeholder before confirming."
@@ -984,6 +1078,85 @@ export function SignaturePdfViewer({
           <div className="w-full md:w-72 flex flex-col gap-3">
             <div className="rounded-md border bg-background p-3 text-sm space-y-2">
               <div className="flex items-center justify-between">
+                <span className="font-medium">Assignee</span>
+                {isLoadingUsers && (
+                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                )}
+              </div>
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <span className="text-[11px] uppercase text-muted-foreground">
+                    Department
+                  </span>
+                  <Select
+                    value={selectedDepartmentId || ""}
+                    onValueChange={(value) => {
+                      setSelectedDepartmentId(value);
+                      setSelectedAssigneeId(null);
+                    }}
+                    disabled={isLoadingUsers || departments.length === 0}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue
+                        placeholder={
+                          isLoadingUsers
+                            ? "Loading departments..."
+                            : "Select department"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map((department) => (
+                        <SelectItem
+                          key={department.id}
+                          value={department.id}
+                          className="text-xs"
+                        >
+                          {department.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[11px] uppercase text-muted-foreground">
+                    User
+                  </span>
+                  <Select
+                    value={selectedAssigneeId || ""}
+                    onValueChange={(value) => setSelectedAssigneeId(value)}
+                    disabled={!selectedDepartmentId || !usersForDepartment.length}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue
+                        placeholder={
+                          selectedDepartmentId
+                            ? "Select user"
+                            : "Select department first"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {usersForDepartment.map((deptUser) => (
+                        <SelectItem
+                          key={deptUser.user_id}
+                          value={deptUser.user_id}
+                          className="text-xs"
+                        >
+                          {`${deptUser.first_name} ${deptUser.last_name}`.trim()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                New placeholders will be assigned to this user.
+              </p>
+            </div>
+
+            <div className="rounded-md border bg-background p-3 text-sm space-y-2">
+              <div className="flex items-center justify-between">
                 <span className="font-medium">Signature Boxes</span>
                 <Badge variant="outline">{boxes.length}</Badge>
               </div>
@@ -1002,7 +1175,7 @@ export function SignaturePdfViewer({
                 className="mt-1 w-full"
                 variant="outline"
                 onClick={handleAddBox}
-                disabled={isRendering || !pages.length}
+                disabled={isRendering || !pages.length || !selectedAssigneeId}
               >
                 {placementMode === "signature"
                   ? "Cancel Placement"
@@ -1030,7 +1203,7 @@ export function SignaturePdfViewer({
                 className="mt-1 w-full"
                 variant="outline"
                 onClick={handleAddTextBox}
-                disabled={isRendering || !pages.length}
+                disabled={isRendering || !pages.length || !selectedAssigneeId}
               >
                 {placementMode === "text" ? "Cancel Placement" : "Add Text Box"}
               </Button>
@@ -1067,6 +1240,12 @@ export function SignaturePdfViewer({
                           <X className="h-3 w-3" />
                         </Button>
                       </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Assigned to:{" "}
+                        {box.assignedUserId
+                          ? userNameById.get(box.assignedUserId) || "Unknown"
+                          : "Unassigned"}
+                      </p>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="text-xs text-muted-foreground">
@@ -1177,6 +1356,12 @@ export function SignaturePdfViewer({
                           <X className="h-3 w-3" />
                         </Button>
                       </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Assigned to:{" "}
+                        {box.assignedUserId
+                          ? userNameById.get(box.assignedUserId) || "Unknown"
+                          : "Unassigned"}
+                      </p>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="text-xs text-muted-foreground">

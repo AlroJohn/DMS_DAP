@@ -61,6 +61,8 @@ model User {
   notification_settings      NotificationSettings?
   permission_audit_target    PermissionAuditLog[]       @relation("PermissionAuditTargetUser")
   signed_documents           SignedDocument[]
+  assigned_signature_placeholders SignaturePlaceholder[] @relation("SignaturePlaceholderAssignee")
+  assigned_text_placeholders TextPlaceholder[] @relation("TextPlaceholderAssignee")
   account                    Account                    @relation(fields: [account_id], references: [account_id], onDelete: Cascade)
   user_permissions           UserPermission[]
   user_roles                 UserRole[]
@@ -274,6 +276,7 @@ model SignaturePlaceholder {
   placeholder_id   String       @id @default(uuid()) @db.Uuid
   document_id      String       @db.Uuid
   document_file_id String       @db.Uuid
+  assigned_user_id String?      @db.Uuid
   x_position       Float
   y_position       Float
   width            Float
@@ -282,15 +285,18 @@ model SignaturePlaceholder {
   created_at       DateTime     @default(now())
   documentFile     DocumentFile @relation(fields: [document_file_id], references: [file_id], onDelete: Cascade)
   document         Document     @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
+  assigned_user    User?        @relation("SignaturePlaceholderAssignee", fields: [assigned_user_id], references: [user_id], onDelete: SetNull)
 
   @@index([document_id])
   @@index([document_file_id])
+  @@index([assigned_user_id])
 }
 
 model TextPlaceholder {
   placeholder_id   String       @id @default(uuid()) @db.Uuid
   document_id      String       @db.Uuid
   document_file_id String       @db.Uuid
+  assigned_user_id String?      @db.Uuid
   x_position       Float
   y_position       Float
   width            Float
@@ -303,9 +309,11 @@ model TextPlaceholder {
   created_at       DateTime     @default(now())
   documentFile     DocumentFile @relation(fields: [document_file_id], references: [file_id], onDelete: Cascade)
   document         Document     @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
+  assigned_user    User?        @relation("TextPlaceholderAssignee", fields: [assigned_user_id], references: [user_id], onDelete: SetNull)
 
   @@index([document_id])
   @@index([document_file_id])
+  @@index([assigned_user_id])
 }
 
 enum AuditActionType {

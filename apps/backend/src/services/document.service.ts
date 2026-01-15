@@ -118,6 +118,59 @@ export class DocumentService {
     });
   }
 
+  private queueOcrProcessing(params: {
+    documentId: string;
+    filePath: string;
+    mimeType: string;
+    originalName: string;
+  }): void {
+    if (params.mimeType !== 'application/pdf') {
+      return;
+    }
+
+    setImmediate(() => {
+      void this.runOcrProcessing(params);
+    });
+  }
+
+  private async runOcrProcessing(params: {
+    documentId: string;
+    filePath: string;
+    mimeType: string;
+    originalName: string;
+  }): Promise<void> {
+    try {
+      console.log(
+        `[DocumentService] OCR enabled for ${params.originalName}. Starting process.`
+      );
+      const ocrResult = await ocrService.extractTextFromPdf(
+        params.filePath,
+        params.mimeType
+      );
+      if (ocrResult) {
+        await prisma.oCR_Json.create({
+          data: {
+            documentDocument_id: params.documentId,
+            file_url: params.filePath,
+            ocr_json: ocrResult as any,
+          },
+        });
+        console.log(
+          `[DocumentService] OCR data saved for document ${params.documentId} and file ${params.filePath}`
+        );
+      } else {
+        console.warn(
+          `[DocumentService] OCR processing failed or returned no result for ${params.originalName}. Continuing without saving OCR data.`
+        );
+      }
+    } catch (ocrError) {
+      console.error(
+        `[DocumentService] OCR processing failed for ${params.originalName}, but continuing with upload.`,
+        ocrError
+      );
+    }
+  }
+
   private isPlaceholderFile(file: any): boolean {
     if (!file) return false;
     const originalName = (file.original_name || '').toString().toLowerCase();
@@ -1665,35 +1718,14 @@ export class DocumentService {
         }
       });
 
-      // ---- OCR Processing ----
-      if (enableOcr && file.mimetype === 'application/pdf') {
-        try {
-          console.log(`[DocumentService] OCR enabled for ${file.originalname}. Starting process.`);
-          const ocrResult = await ocrService.extractTextFromPdf(fileMetadata.path, file.mimetype);
-          if (ocrResult) {
-            await prisma.oCR_Json.create({
-              data: {
-                documentDocument_id: document.document_id,
-                file_url: fileMetadata.path,
-                ocr_json: ocrResult as any, // Cast to any to match Prisma Json type
-              },
-            });
-            console.log(
-              `[DocumentService] OCR data saved for document ${document.document_id} and file ${fileMetadata.path}`
-            );
-          } else {
-            console.warn(
-              `[DocumentService] OCR processing failed or returned no result for ${file.originalname}. Continuing without saving OCR data.`
-            );
-          }
-        } catch (ocrError) {
-          console.error(
-            `[DocumentService] OCR processing failed for ${file.originalname}, but continuing with upload.`,
-            ocrError
-          );
-        }
+      if (enableOcr) {
+        this.queueOcrProcessing({
+          documentId: document.document_id,
+          filePath: fileMetadata.path,
+          mimeType: file.mimetype,
+          originalName: file.originalname,
+        });
       }
-      // ---- End OCR Processing ----
 
       // Extract and save document metadata
       try {
@@ -1876,26 +1908,14 @@ export class DocumentService {
         }
       });
 
-      // ---- OCR Processing ----
-      if (enableOcr && file.mimetype === 'application/pdf') {
-        try {
-          console.log(`[DocumentService] OCR enabled for ${file.originalname}. Starting process.`);
-          const ocrResult = await ocrService.extractTextFromPdf(fileMetadata.path, file.mimetype);
-          if (ocrResult) {
-            await prisma.oCR_Json.create({
-              data: {
-                documentDocument_id: documentId,
-                file_url: fileMetadata.path,
-                ocr_json: ocrResult as any,
-              }
-            });
-            console.log(`[DocumentService] OCR data saved for document ${documentId} and file ${fileMetadata.path}`);
-          }
-        } catch (ocrError) {
-          console.error(`[DocumentService] OCR processing failed for ${file.originalname}, but continuing with upload. Error:`, ocrError);
-        }
+      if (enableOcr) {
+        this.queueOcrProcessing({
+          documentId,
+          filePath: fileMetadata.path,
+          mimeType: file.mimetype,
+          originalName: file.originalname,
+        });
       }
-      // ---- End OCR Processing ----
 
       if (shouldBePrimary) {
         hasRealFile = true;

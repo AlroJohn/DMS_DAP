@@ -380,6 +380,7 @@ export default function DocumentDetailPage() {
         y_position: number;
         width: number;
         height: number;
+        assigned_user_id?: string | null;
       }[];
     }) => {
       const response = await fetch(`/api/documents/${documentId}/release`, {
@@ -435,6 +436,7 @@ export default function DocumentDetailPage() {
         y_position: box.y / RENDER_SCALE,
         width: box.width / RENDER_SCALE,
         height: box.height / RENDER_SCALE,
+        assigned_user_id: box.assignedUserId || null,
       }))
     );
 
@@ -450,6 +452,7 @@ export default function DocumentDetailPage() {
         font_size: box.fontSize,
         font_color: box.fontColor,
         text_value: box.text?.trim() || "",
+        assigned_user_id: box.assignedUserId || null,
       }))
     );
 
@@ -461,6 +464,7 @@ export default function DocumentDetailPage() {
         y_position: number;
         width: number;
         height: number;
+        assigned_user_id?: string | null;
       }>
     ) => {
       await Promise.all(
@@ -499,6 +503,7 @@ export default function DocumentDetailPage() {
         font_size: number;
         font_color: string;
         text_value: string;
+        assigned_user_id?: string | null;
       }>
     ) => {
       await Promise.all(

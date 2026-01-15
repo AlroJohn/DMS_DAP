@@ -15,6 +15,7 @@ interface UseFileIntegrityOptions {
   fileId?: string;
   documentId?: string;
   autoCheck?: boolean;
+  maxInlineChecksumMB?: number;
   onIntegrityChange?: (integrity: FileIntegrity) => void;
 }
 
@@ -22,6 +23,7 @@ export function useFileIntegrity({
   fileId,
   documentId,
   autoCheck = false,
+  maxInlineChecksumMB = 15,
   onIntegrityChange,
 }: UseFileIntegrityOptions) {
   const [integrity, setIntegrity] = useState<FileIntegrity>({
@@ -93,6 +95,18 @@ export function useFileIntegrity({
     setIntegrity((prev) => ({ ...prev, status: "checking" }));
 
     try {
+      const maxInlineBytes = maxInlineChecksumMB * 1024 * 1024;
+      if (file.size > maxInlineBytes) {
+        const integrityData: FileIntegrity = {
+          status: "unknown",
+          error: "Checksum skipped due to file size",
+          checkedAt: new Date(),
+        };
+        setIntegrity(integrityData);
+        onIntegrityChange?.(integrityData);
+        return integrityData;
+      }
+
       // Calculate checksum on client side
       const checksum = await calculateFileChecksum(file);
 
@@ -119,7 +133,7 @@ export function useFileIntegrity({
     } finally {
       setIsChecking(false);
     }
-  }, [onIntegrityChange]);
+  }, [maxInlineChecksumMB, onIntegrityChange]);
 
   // Auto-check on mount if enabled
   useEffect(() => {

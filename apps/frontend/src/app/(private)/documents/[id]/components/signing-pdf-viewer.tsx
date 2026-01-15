@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf";
 import { useQuery } from "@tanstack/react-query";
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
@@ -43,6 +43,7 @@ export interface SignaturePlaceholder {
   width: number;
   height: number;
   page_number: number;
+  assigned_user_id?: string | null;
 }
 
 export interface TextPlaceholder {
@@ -58,6 +59,7 @@ export interface TextPlaceholder {
   font_size: number;
   font_color: string;
   text_value?: string | null;
+  assigned_user_id?: string | null;
 }
 
 interface SigningPdfViewerProps {
@@ -171,6 +173,11 @@ export function SigningPdfViewer({
 }: SigningPdfViewerProps) {
   const { user } = useAuth();
   const signeeId = user?.user_id || user?.id;
+  const isAssignedToCurrentUser = useCallback(
+    (assignedUserId?: string | null) =>
+      !assignedUserId || assignedUserId === signeeId,
+    [signeeId]
+  );
   const pdfFiles = useMemo(
     () => files.filter((file) => isPdfLikeFile(file)),
     [files]
@@ -352,6 +359,12 @@ export function SigningPdfViewer({
       return placeholders.filter((placeholder) => {
         if (!targetFileIds.includes(placeholder.document_file_id)) return false;
         if (placeholder.page_number !== source.page_number) return false;
+        if (
+          placeholder.assigned_user_id !== source.assigned_user_id ||
+          !isAssignedToCurrentUser(placeholder.assigned_user_id)
+        ) {
+          return false;
+        }
         return (
           Math.abs(placeholder.x_position - source.x_position) <= EPSILON &&
           Math.abs(placeholder.y_position - source.y_position) <= EPSILON &&
@@ -360,7 +373,7 @@ export function SigningPdfViewer({
         );
       });
     };
-  }, [placeholders]);
+  }, [isAssignedToCurrentUser, placeholders]);
 
   // Filter placeholders for the selected file
   const filePlaceholders = useMemo(() => {
@@ -372,6 +385,22 @@ export function SigningPdfViewer({
     if (!selectedFileId) return [];
     return textPlaceholders.filter((p) => p.document_file_id === selectedFileId);
   }, [textPlaceholders, selectedFileId]);
+
+  const actionableFilePlaceholders = useMemo(
+    () =>
+      filePlaceholders.filter((placeholder) =>
+        isAssignedToCurrentUser(placeholder.assigned_user_id)
+      ),
+    [filePlaceholders, isAssignedToCurrentUser]
+  );
+
+  const actionableTextPlaceholders = useMemo(
+    () =>
+      fileTextPlaceholders.filter((placeholder) =>
+        isAssignedToCurrentUser(placeholder.assigned_user_id)
+      ),
+    [fileTextPlaceholders, isAssignedToCurrentUser]
+  );
 
   const normalizedSignatures = useMemo(() => {
     return signatures.map((signature) => ({
@@ -579,15 +608,19 @@ export function SigningPdfViewer({
 
   // Auto-navigate to first page with pending signature
   useEffect(() => {
-    if (filePlaceholders.length > 0 && pages.length > 0) {
-      const firstPlaceholder = filePlaceholders[0];
+    if (actionableFilePlaceholders.length > 0 && pages.length > 0) {
+      const firstPlaceholder = actionableFilePlaceholders[0];
       if (firstPlaceholder.page_number !== activePage) {
         setActivePage(firstPlaceholder.page_number);
       }
     }
-  }, [filePlaceholders, pages.length]); // Run when placeholders or pages load
+  }, [actionableFilePlaceholders, pages.length]); // Run when placeholders or pages load
 
   const handlePlaceholderClick = (placeholder: SignaturePlaceholder) => {
+    if (!isAssignedToCurrentUser(placeholder.assigned_user_id)) {
+      toast.error("This placeholder is assigned to another user.");
+      return;
+    }
     if (signedPlaceholderIds.has(placeholder.placeholder_id)) {
       toast.info("This placeholder already has a signature.");
       return;
@@ -633,6 +666,12 @@ export function SigningPdfViewer({
 
     const pendingTextEntries = Object.entries(textValues).reduce(
       (acc, [placeholderId, value]) => {
+        const placeholder = textPlaceholders.find(
+          (item) => item.placeholder_id === placeholderId
+        );
+        if (!placeholder || !isAssignedToCurrentUser(placeholder.assigned_user_id)) {
+          return acc;
+        }
         const trimmed = value.trim();
         if (trimmed) {
           acc[placeholderId] = trimmed;
@@ -1056,7 +1095,7 @@ export function SigningPdfViewer({
   }
 
   const activePageData = pages.find((p) => p.pageNumber === activePage);
-  const pendingCount = filePlaceholders.length;
+  const pendingCount = actionableFilePlaceholders.length;
   const hasDrafts = Object.keys(placedSignatures).length > 0;
   const hasCurrentSignature = Boolean(selectedPlaceholder && signatureData);
   const hasTextDrafts = Object.values(textValues).some((value) =>
@@ -1176,11 +1215,18 @@ export function SigningPdfViewer({
                 <div className="text-xs text-muted-foreground italic">
                   No pending signatures
                 </div>
+              ) : actionableFilePlaceholders.length === 0 ? (
+                <div className="text-xs text-muted-foreground italic">
+                  No signatures assigned to you
+                </div>
               ) : (
                 filePlaceholders.map((p, i) =>
                   (() => {
                     const isSigned = signedPlaceholderIds.has(
                       p.placeholder_id
+                    );
+                    const isLocked = !isAssignedToCurrentUser(
+                      p.assigned_user_id
                     );
                     return (
                       <Button
@@ -1188,9 +1234,9 @@ export function SigningPdfViewer({
                         variant="outline"
                         size="sm"
                         className="justify-start text-xs h-auto py-2 whitespace-normal text-left"
-                        disabled={isSigned}
+                        disabled={isSigned || isLocked}
                         onClick={() => {
-                          if (!isSigned) {
+                          if (!isSigned && !isLocked) {
                             setSelectedPlaceholder(p);
                             if (p.page_number !== activePage) {
                               setActivePage(p.page_number);
@@ -1205,6 +1251,11 @@ export function SigningPdfViewer({
                           <span className="text-[10px] text-muted-foreground">
                             Page {p.page_number}
                           </span>
+                          {isLocked && (
+                            <span className="text-[10px] text-muted-foreground">
+                              Assigned to another user
+                            </span>
+                          )}
                           {isSigned && (
                             <span className="text-[10px] text-emerald-600">
                               Signed
@@ -1226,6 +1277,10 @@ export function SigningPdfViewer({
                 <div className="text-xs text-muted-foreground italic">
                   No text placeholders
                 </div>
+              ) : actionableTextPlaceholders.length === 0 ? (
+                <div className="text-xs text-muted-foreground italic">
+                  No text placeholders assigned to you
+                </div>
               ) : (
                 fileTextPlaceholders.map((p, i) => {
                   const storedText = p.text_value || "";
@@ -1233,6 +1288,7 @@ export function SigningPdfViewer({
                   // Use the saved text from state if available, otherwise use stored text from API
                   const displayText = savedText || storedText;
                   const hasSavedText = Boolean(displayText && displayText.toLowerCase() !== "text");
+                  const isLocked = !isAssignedToCurrentUser(p.assigned_user_id);
 
                   return (
                     <Button
@@ -1240,9 +1296,9 @@ export function SigningPdfViewer({
                       variant="outline"
                       size="sm"
                       className="justify-start text-xs h-auto py-2 whitespace-normal text-left"
-                      disabled={hasSavedText}
+                      disabled={hasSavedText || isLocked}
                       onClick={() => {
-                        if (hasSavedText) return;
+                        if (hasSavedText || isLocked) return;
                         setSelectedTextPlaceholder(p);
                         setIsTextModalOpen(true);
                         if (p.page_number !== activePage) {
@@ -1255,6 +1311,11 @@ export function SigningPdfViewer({
                         <span className="text-[10px] text-muted-foreground">
                           Page {p.page_number}
                         </span>
+                        {isLocked && (
+                          <span className="text-[10px] text-muted-foreground">
+                            Assigned to another user
+                          </span>
+                        )}
                         {hasSavedText && (
                           <span className="text-[10px] text-emerald-600">
                             Filled
@@ -1305,6 +1366,9 @@ export function SigningPdfViewer({
                     const isSigned = signedPlaceholderIds.has(
                       placeholder.placeholder_id
                     );
+                    const isLocked = !isAssignedToCurrentUser(
+                      placeholder.assigned_user_id
+                    );
 
                     return (
                       <div
@@ -1321,11 +1385,15 @@ export function SigningPdfViewer({
                           "group rounded-md border-2 border-dashed transition-all flex items-center justify-center",
                           isSigned
                             ? "border-emerald-500 bg-emerald-500/15 cursor-not-allowed"
-                            : "border-yellow-500 bg-yellow-500/20 hover:bg-yellow-500/40 cursor-pointer"
+                            : isLocked
+                              ? "border-slate-300 bg-slate-100/60 cursor-not-allowed"
+                              : "border-yellow-500 bg-yellow-500/20 hover:bg-yellow-500/40 cursor-pointer"
                         )}
                         onClick={(e) => {
                           e.stopPropagation(); // Prevent bubbling
-                          handlePlaceholderClick(placeholder);
+                          if (!isLocked) {
+                            handlePlaceholderClick(placeholder);
+                          }
                         }}
                       >
                         {overlaySignature ? (
@@ -1338,7 +1406,11 @@ export function SigningPdfViewer({
                           <div className="flex flex-col items-center gap-1 text-yellow-700 font-bold bg-white/80 px-2 py-1 rounded shadow-sm animate-pulse pointer-events-none">
                             <PenLine className="h-4 w-4" />
                             <span className="text-[10px]">
-                              {isSigned ? "Signed" : "Sign Here"}
+                              {isSigned
+                                ? "Signed"
+                                : isLocked
+                                  ? "Assigned"
+                                  : "Sign Here"}
                             </span>
                           </div>
                         )}
@@ -1355,6 +1427,9 @@ export function SigningPdfViewer({
                     // Only show "Text" as placeholder if both are empty
                     const displayText = savedText || storedText || "Text";
                     const hasSavedText = Boolean(displayText && displayText.toLowerCase() !== "text");
+                    const isLocked = !isAssignedToCurrentUser(
+                      placeholder.assigned_user_id
+                    );
                     return (
                       <div
                         key={placeholder.placeholder_id}
@@ -1370,11 +1445,13 @@ export function SigningPdfViewer({
                           "rounded-md border-2 border-dashed bg-transparent flex items-center justify-center",
                           hasSavedText
                             ? "border-amber-500/50 cursor-not-allowed"
-                            : "border-amber-500/70 cursor-pointer hover:border-amber-500"
+                            : isLocked
+                              ? "border-slate-300 bg-slate-100/60 cursor-not-allowed"
+                              : "border-amber-500/70 cursor-pointer hover:border-amber-500"
                         )}
                         onClick={(event) => {
                           event.stopPropagation();
-                          if (!hasSavedText) {
+                          if (!hasSavedText && !isLocked) {
                             setSelectedTextPlaceholder(placeholder);
                             setIsTextModalOpen(true);
                           }
