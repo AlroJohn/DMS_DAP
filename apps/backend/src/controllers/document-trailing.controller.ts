@@ -1,9 +1,10 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
+import { AuthRequest } from '../middleware/auth-middleware';
 import { auditService } from '../services/audit.service';
 
 export class DocumentTrailingController {
   // Get document trails for a specific department
-  async getDocumentTrailsForDepartment(req: Request, res: Response) {
+  async getDocumentTrailsForDepartment(req: AuthRequest, res: Response) {
     try {
       const departmentId = req.params.departmentId;
       const userId = req.user?.id; // Assuming user info is attached by auth middleware
@@ -50,7 +51,7 @@ export class DocumentTrailingController {
   }
 
   // Get detailed trail history for a specific document
-  async getDocumentTrailDetails(req: Request, res: Response) {
+  async getDocumentTrailDetails(req: AuthRequest, res: Response) {
     try {
       const { documentId } = req.params;
       const departmentId = req.user?.department_id; // Assuming department info is attached by auth middleware

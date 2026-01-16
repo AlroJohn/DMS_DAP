@@ -475,11 +475,11 @@ export class RecycleBinService {
         throw new Error('Document not found');
       }
 
-      // Update document status to canceled
+      // Update document status to dispatch (canceled workflow)
       await prisma.document.update({
         where: { document_id: documentId },
         data: {
-          status: 'canceled',
+          status: 'dispatch',
           updated_at: new Date()
         }
       });
@@ -941,4 +941,3 @@ export class RecycleBinService {
     }
   }
 }
-

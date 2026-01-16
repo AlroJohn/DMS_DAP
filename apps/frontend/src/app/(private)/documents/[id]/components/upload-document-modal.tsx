@@ -49,8 +49,6 @@ export function UploadDocumentModal({
   open,
   onOpenChange,
 }: UploadDocumentModalProps) {
-  const apiBaseUrl =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -181,7 +179,7 @@ export function UploadDocumentModal({
 
       setUploadProgress(20);
 
-      const response = await fetch(`${apiBaseUrl}/api/documents/upload`, {
+      const response = await fetch(`/api/documents/upload`, {
         method: "POST",
         credentials: "include",
         body: formData,
@@ -221,7 +219,7 @@ export function UploadDocumentModal({
           );
           additionalFileForm.append("versionGroupId", versionGroupId);
 
-          return fetch(`${apiBaseUrl}/api/documents/${documentId}/files`, {
+          return fetch(`/api/documents/${documentId}/files`, {
             method: "POST",
             credentials: "include",
             body: additionalFileForm,
@@ -243,7 +241,6 @@ export function UploadDocumentModal({
               setUploadProgress(progress);
             });
         });
-
         await Promise.all(uploads);
       }
 

@@ -102,7 +102,7 @@ export class DocumentService {
           .filter((value) => value.length > 0);
       }
     } catch (error) {
-      console.error(`📍 [${context}] Error parsing work_flow_id:`, error);
+      console.error(`≡ƒôì [${context}] Error parsing work_flow_id:`, error);
     }
 
     return [];
@@ -233,47 +233,47 @@ export class DocumentService {
     });
   }
 
-  // private async createPlaceholderDocumentFile(documentId: string, document: any, detail: any, user: any) {
-  //   try {
-  //     const buffer = await this.generatePlaceholderPdf(document, detail, {
-  //       first_name: user?.first_name,
-  //       last_name: user?.last_name,
-  //     });
+  private async createPlaceholderDocumentFile(documentId: string, document: any, detail: any, user: any) {
+    try {
+      const buffer = await this.generatePlaceholderPdf(document, detail, {
+        first_name: user?.first_name,
+        last_name: user?.last_name,
+      });
 
-  //     const uploadsDir = path.join(process.cwd(), 'uploads', 'generated');
-  //     await fs.promises.mkdir(uploadsDir, { recursive: true });
+      const uploadsDir = path.join(process.cwd(), 'uploads', 'generated');
+      await fs.promises.mkdir(uploadsDir, { recursive: true });
 
-  //     const storedName = `${documentId}-placeholder-${Date.now()}.pdf`;
-  //     const storagePath = path.join(uploadsDir, storedName);
-  //     await fs.promises.writeFile(storagePath, buffer);
+      const storedName = `${documentId}-placeholder-${Date.now()}.pdf`;
+      const storagePath = path.join(uploadsDir, storedName);
+      await fs.promises.writeFile(storagePath, buffer);
 
-  //     const checksum = await this.calculateChecksum(storagePath);
+      const checksum = await this.calculateChecksum(storagePath);
 
-  //     const uploadedBy = user?.account_id ?? detail?.account_id;
-  //     if (!uploadedBy) {
-  //       throw new Error('Missing account reference for placeholder upload');
-  //     }
+      const uploadedBy = user?.account_id ?? detail?.account_id;
+      if (!uploadedBy) {
+        throw new Error('Missing account reference for placeholder upload');
+      }
 
-  //     const created = await this.prismaAny.documentFile.create({
-  //       data: {
-  //         document_id: documentId,
-  //         original_name: `${document?.document_code || documentId}-placeholder.pdf`,
-  //         stored_name: storedName,
-  //         storage_path: storagePath,
-  //         file_size: BigInt(buffer.length),
-  //         mime_type: 'application/pdf',
-  //         checksum,
-  //         is_primary: false,
-  //         uploaded_by: uploadedBy,
-  //       },
-  //     });
+      const created = await this.prismaAny.documentFile.create({
+        data: {
+          document_id: documentId,
+          original_name: `${document?.document_code || documentId}-placeholder.pdf`,
+          stored_name: storedName,
+          storage_path: storagePath,
+          file_size: BigInt(buffer.length),
+          mime_type: 'application/pdf',
+          checksum,
+          is_primary: false,
+          uploaded_by: uploadedBy,
+        },
+      });
 
-  //     return created;
-  //   } catch (error) {
-  //     console.error('📍 [createPlaceholderDocumentFile] Failed to create placeholder document:', error);
-  //     return null;
-  //   }
-  // }
+      return created;
+    } catch (error) {
+      console.error('≡ƒôì [createPlaceholderDocumentFile] Failed to create placeholder document:', error);
+      return null;
+    }
+  }
 
   private async generateDocumentCode(
     departmentId: string,
@@ -402,13 +402,13 @@ export class DocumentService {
         }
       });
 
-      console.log('📍 [getOwnedDocuments] Total document details found:', documentDetails.length);
+      console.log('≡ƒôì [getOwnedDocuments] Total document details found:', documentDetails.length);
 
       // Filter documents where user's department is the FIRST in work_flow_id (owned/uploaded documents)
       const relevantDocumentIds = documentDetails
         .filter((detail: any) => {
           if (!detail.work_flow_id) {
-            console.log('📍 [getOwnedDocuments] Document has no workflow, skipping:', detail.document_id);
+            console.log('≡ƒôì [getOwnedDocuments] Document has no workflow, skipping:', detail.document_id);
             return false; // Exclude documents without workflow
           }
 
@@ -444,17 +444,17 @@ export class DocumentService {
             // In the new format, the "first" key corresponds to the first element
             const isOwned = workflowDepartments.length > 0 && workflowDepartments[0] === user.department_id;
             if (isOwned) {
-              console.log('📍 [getOwnedDocuments] Document owned by department:', detail.document_id);
+              console.log('≡ƒôì [getOwnedDocuments] Document owned by department:', detail.document_id);
             }
             return isOwned;
           } catch (e) {
-            console.error('📍 [getOwnedDocuments] Error parsing work_flow_id:', e);
+            console.error('≡ƒôì [getOwnedDocuments] Error parsing work_flow_id:', e);
             return false;
           }
         })
         .map((detail: any) => detail.document_id);
 
-      console.log('📍 [getOwnedDocuments] Relevant document IDs:', relevantDocumentIds.length);
+      console.log('≡ƒôì [getOwnedDocuments] Relevant document IDs:', relevantDocumentIds.length);
 
       // If no relevant documents, return empty result
       if (relevantDocumentIds.length === 0) {
@@ -496,12 +496,12 @@ export class DocumentService {
         })
       ]);
 
-      console.log('📍 [getOwnedDocuments] Documents fetched:', documents.length, 'Total:', total);
+      console.log('≡ƒôì [getOwnedDocuments] Documents fetched:', documents.length, 'Total:', total);
 
       // Extract document type IDs and fetch type names
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       const documentTypeIds = [...new Set(documents.map(doc => doc.document_type).filter(id => id && uuidRegex.test(id)))];
-      console.log('📍 [getOwnedDocuments] Filtered documentTypeIds:', documentTypeIds);
+      console.log('≡ƒôì [getOwnedDocuments] Filtered documentTypeIds:', documentTypeIds);
       const documentTypes = await prisma.documentType.findMany({
         where: { type_id: { in: documentTypeIds } },
         select: { type_id: true, name: true }
@@ -567,7 +567,7 @@ export class DocumentService {
         }
       };
     } catch (error) {
-      console.error('📍 [getOwnedDocuments] Error:', error);
+      console.error('≡ƒôì [getOwnedDocuments] Error:', error);
       throw error;
     }
   }
@@ -625,7 +625,7 @@ export class DocumentService {
         }
       });
 
-      console.log('📍 [getAllDocuments] Total document details found:', documentDetails.length);
+      console.log('≡ƒôì [getAllDocuments] Total document details found:', documentDetails.length);
 
       // Create maps to store workflow and blockchain info for each document
       const documentWorkflowMap = new Map<string, any[]>();
@@ -675,7 +675,7 @@ export class DocumentService {
               // Check if user's department is the FIRST entry in workflow (originated from this department)
               hasDepartmentAccess = workflowDepartments.length > 0 && workflowDepartments[0] === user.department_id;
             } catch (e) {
-              console.error('📍 [getAllDocuments] Error parsing work_flow_id:', e);
+              console.error('≡ƒôì [getAllDocuments] Error parsing work_flow_id:', e);
             }
           } else {
             // Include unassigned documents for department access
@@ -695,7 +695,7 @@ export class DocumentService {
               // Store received_by_users for later use
               documentReceivedByUsersMap.set(detail.document_id, receivedByUsers);
             } catch (e) {
-              console.error('📍 [getAllDocuments] Error parsing received_by_departments:', e);
+              console.error('≡ƒôì [getAllDocuments] Error parsing received_by_departments:', e);
             }
           }
 
@@ -713,7 +713,7 @@ export class DocumentService {
         })
         .map((detail: any) => detail.document_id);
 
-      console.log('📍 [getAllDocuments] Relevant document IDs:', relevantDocumentIds.length);
+      console.log('≡ƒôì [getAllDocuments] Relevant document IDs:', relevantDocumentIds.length);
 
       // If no relevant documents, return empty result
       if (relevantDocumentIds.length === 0) {
@@ -763,7 +763,7 @@ export class DocumentService {
 
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       const documentTypeIds = [...new Set(documents.map(doc => doc.document_type).filter(id => id && uuidRegex.test(id)))];
-      console.log('📍 [getAllDocuments] Filtered documentTypeIds:', documentTypeIds);
+      console.log('≡ƒôì [getAllDocuments] Filtered documentTypeIds:', documentTypeIds);
       const documentTypes = await prisma.documentType.findMany({
         where: { type_id: { in: documentTypeIds } },
         select: { type_id: true, name: true }
@@ -843,7 +843,7 @@ export class DocumentService {
         }
       };
     } catch (error) {
-      console.error('📍 [getAllDocuments] Error:', error);
+      console.error('≡ƒôì [getAllDocuments] Error:', error);
       throw error;
     }
   }
@@ -1076,7 +1076,7 @@ export class DocumentService {
     try {
       const skip = (page - 1) * limit;
 
-      console.log('📍 [getCompletedDocuments] Request:', { userId, page, limit });
+      console.log('≡ƒôì [getCompletedDocuments] Request:', { userId, page, limit });
 
       // Get the user's department
       const user = await prisma.user.findUnique({
@@ -1131,13 +1131,13 @@ export class DocumentService {
             // Check if user's department is in the workflow
             return workflowDepartments.includes(user.department_id);
           } catch (e) {
-            console.error('📍 [getCompletedDocuments] Error parsing work_flow_id:', e);
+            console.error('≡ƒôì [getCompletedDocuments] Error parsing work_flow_id:', e);
             return false;
           }
         })
         .map((detail: any) => detail.document_id);
 
-      console.log('📍 [getCompletedDocuments] Completed document IDs in workflow:', completedDocumentIds.length);
+      console.log('≡ƒôì [getCompletedDocuments] Completed document IDs in workflow:', completedDocumentIds.length);
 
       if (completedDocumentIds.length === 0) {
         return {
@@ -1180,7 +1180,7 @@ export class DocumentService {
         })
       ]);
 
-      console.log('📍 [getCompletedDocuments] Documents fetched:', documents.length, 'Total:', total);
+      console.log('≡ƒôì [getCompletedDocuments] Documents fetched:', documents.length, 'Total:', total);
 
       // Transform documents to frontend format with QR codes and barcodes
       const transformedDocuments = await Promise.all(
@@ -1240,7 +1240,7 @@ export class DocumentService {
         }
       };
     } catch (error) {
-      console.error('📍 [getCompletedDocuments] Error:', error);
+      console.error('≡ƒôì [getCompletedDocuments] Error:', error);
       throw error;
     }
   }
@@ -1422,7 +1422,7 @@ export class DocumentService {
     try {
       const skip = (page - 1) * limit;
 
-      console.log('📍 [getReceivedDocuments] Request:', { userId, page, limit });
+      console.log('≡ƒôì [getReceivedDocuments] Request:', { userId, page, limit });
 
       // Get the user's department
       const user = await prisma.user.findUnique({
@@ -1488,7 +1488,7 @@ export class DocumentService {
                   ? detail.received_by_departments
                   : JSON.parse(detail.received_by_departments as any);
               } catch (e) {
-                console.error('📍 [getReceivedDocuments] Error parsing received_by_departments:', e);
+                console.error('≡ƒôì [getReceivedDocuments] Error parsing received_by_departments:', e);
               }
             }
 
@@ -1496,13 +1496,13 @@ export class DocumentService {
 
             return isInWorkflow && isNotOriginator && hasBeenReceived;
           } catch (e) {
-            console.error('📍 [getReceivedDocuments] Error parsing work_flow_id:', e);
+            console.error('≡ƒôì [getReceivedDocuments] Error parsing work_flow_id:', e);
             return false;
           }
         })
         .map((detail: any) => detail.document_id);
 
-      console.log('📍 [getReceivedDocuments] Received document IDs:', receivedDocumentIds.length);
+      console.log('≡ƒôì [getReceivedDocuments] Received document IDs:', receivedDocumentIds.length);
 
       if (receivedDocumentIds.length === 0) {
         return {
@@ -1550,7 +1550,7 @@ export class DocumentService {
         })
       ]);
 
-      console.log('📍 [getReceivedDocuments] Documents fetched:', documents.length, 'Total:', total);
+      console.log('≡ƒôì [getReceivedDocuments] Documents fetched:', documents.length, 'Total:', total);
 
       // Transform to frontend format
       const transformedDocuments = await Promise.all(
@@ -1610,7 +1610,7 @@ export class DocumentService {
         }
       };
     } catch (error) {
-      console.error('📍 [getReceivedDocuments] Error:', error);
+      console.error('≡ƒôì [getReceivedDocuments] Error:', error);
       throw error;
     }
   }
@@ -2574,7 +2574,7 @@ export class DocumentService {
       status: 'signed',
     });
 
-    console.log(`📍 [signDocumentFromPlaceholders] Successfully signed ${signedDocumentsData.length} placeholders for document ${documentId}`);
+    console.log(`≡ƒôì [signDocumentFromPlaceholders] Successfully signed ${signedDocumentsData.length} placeholders for document ${documentId}`);
 
     return { signedCount: signedDocumentsData.length };
   }
@@ -2582,134 +2582,134 @@ export class DocumentService {
   /**
    * Manually signs a document by creating a SignedDocument record with specified coordinates.
    */
-  // async createSignedDocument(
-  //   documentId: string,
-  //   userId: string,
-  //   signatureData: string,
-  //   x_position: number,
-  //   y_position: number,
-  //   width: number,
-  //   height: number,
-  //   page_number: number
-  // ) {
-  //   // 1. Validate UUID format
-  //   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  //   if (!uuidRegex.test(documentId)) {
-  //     return { success: false, error: 'Invalid document ID format' };
-  //   }
-  //   if (!uuidRegex.test(userId)) {
-  //     return { success: false, error: 'Invalid user ID format' };
-  //   }
+  async createSignedDocument(
+    documentId: string,
+    userId: string,
+    signatureData: string,
+    x_position: number,
+    y_position: number,
+    width: number,
+    height: number,
+    page_number: number
+  ) {
+    // 1. Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(documentId)) {
+      return { success: false, error: 'Invalid document ID format' };
+    }
+    if (!uuidRegex.test(userId)) {
+      return { success: false, error: 'Invalid user ID format' };
+    }
 
-  //   try {
-  //     // 2. Verify user exists
-  //     const user = await prisma.user.findUnique({
-  //       where: { user_id: userId },
-  //       select: {
-  //         user_id: true,
-  //         department_id: true,
-  //         first_name: true,
-  //         last_name: true,
-  //         account: { select: { email: true } },
-  //       },
-  //     });
+    try {
+      // 2. Verify user exists
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: {
+          user_id: true,
+          department_id: true,
+          first_name: true,
+          last_name: true,
+          account: { select: { email: true } },
+        },
+      });
 
-  //     if (!user) {
-  //       return { success: false, error: 'User not found' };
-  //     }
+      if (!user) {
+        return { success: false, error: 'User not found' };
+      }
 
-  //     // 3. Verify document exists
-  //     const document = await prisma.document.findUnique({
-  //       where: { document_id: documentId },
-  //       include: {
-  //         DocumentAdditionalDetails: true,
-  //         files: {
-  //           orderBy: [{ is_primary: 'desc' }, { uploaded_at: 'desc' }],
-  //         },
-  //       },
-  //     });
+      // 3. Verify document exists
+      const document = await prisma.document.findUnique({
+        where: { document_id: documentId },
+        include: {
+          DocumentAdditionalDetails: true,
+          files: {
+            orderBy: [{ is_primary: 'desc' }, { uploaded_at: 'desc' }],
+          },
+        },
+      });
 
-  //     if (!document) {
-  //       return { success: false, error: 'Document not found' };
-  //     }
+      if (!document) {
+        return { success: false, error: 'Document not found' };
+      }
 
-  //     // 4. Determine which document file the signature is being applied to
-  //     const targetDocumentFile = document.files.find(file => file.is_primary) || document.files[0];
+      // 4. Determine which document file the signature is being applied to
+      const targetDocumentFile = document.files.find(file => file.is_primary) || document.files[0];
 
-  //     if (!targetDocumentFile) {
-  //       return { success: false, error: 'Document has no files to sign' };
-  //     }
+      if (!targetDocumentFile) {
+        return { success: false, error: 'Document has no files to sign' };
+      }
 
-  //     // 5. Create SignedDocument record
-  //     const createdSignedDocument = await prisma.signedDocument.create({
-  //       data: {
-  //         document_id: documentId,
-  //         documentFileFile_id: targetDocumentFile.file_id,
-  //         signee_id: userId,
-  //         x_position: x_position,
-  //         y_position: y_position,
-  //         width: width,
-  //         height: height,
-  //         page_number: page_number,
-  //         signature_data: signatureData,
-  //         // signed_at: new Date() // Automatically set by @default(now())
-  //       },
-  //     });
+      // 5. Create SignedDocument record
+      const createdSignedDocument = await prisma.signedDocument.create({
+        data: {
+          document_id: documentId,
+          documentFileFile_id: targetDocumentFile.file_id,
+          signee_id: userId,
+          x_position: x_position,
+          y_position: y_position,
+          width: width,
+          height: height,
+          page_number: page_number,
+          signature_data: signatureData,
+          // signed_at: new Date() // Automatically set by @default(now())
+        },
+      });
 
-  //     // 6. Update document status to 'signed' and relevant details in DocumentAdditionalDetails
-  //     // Ensure DocumentAdditionalDetails exists or create it
-  //     let docAdditionalDetails = document.DocumentAdditionalDetails?.[0];
+      // 6. Update document status to 'signed' and relevant details in DocumentAdditionalDetails
+      // Ensure DocumentAdditionalDetails exists or create it
+      let docAdditionalDetails = document.DocumentAdditionalDetails?.[0];
 
-  //     if (docAdditionalDetails) {
-  //       await prisma.documentAdditionalDetails.update({
-  //         where: { detail_id: docAdditionalDetails.detail_id },
-  //         data: {
-  //           // Only update if not already signed via blockchain or other methods
-  //           blockchain_status: docAdditionalDetails.blockchain_status || 'signed_manual',
-  //           signed_at: new Date(),
-  //           signed_by: userId,
-  //           updated_at: new Date(),
-  //         },
-  //       });
-  //     } else {
-  //       // If no additional details exist, create a new one
-  //       await prisma.documentAdditionalDetails.create({
-  //         data: {
-  //           document_id: documentId,
-  //           blockchain_status: 'signed_manual',
-  //           signed_at: new Date(),
-  //           signed_by: userId,
-  //           // You might want to initialize work_flow_id etc. here if necessary
-  //         },
-  //       });
-  //     }
+      if (docAdditionalDetails) {
+        await prisma.documentAdditionalDetails.update({
+          where: { detail_id: docAdditionalDetails.detail_id },
+          data: {
+            // Only update if not already signed via blockchain or other methods
+            blockchain_status: docAdditionalDetails.blockchain_status || 'signed_manual',
+            signed_at: new Date(),
+            signed_by: userId,
+            updated_at: new Date(),
+          },
+        });
+      } else {
+        // If no additional details exist, create a new one
+        await prisma.documentAdditionalDetails.create({
+          data: {
+            document_id: documentId,
+            blockchain_status: 'signed_manual',
+            signed_at: new Date(),
+            signed_by: userId,
+            // You might want to initialize work_flow_id etc. here if necessary
+          },
+        });
+      }
 
-  //     // 7. Create a document trail entry for this action
-  //     const documentTrailsService = new DocumentTrailsService();
-  //     await documentTrailsService.createDocumentTrail({
-  //       document_id: documentId,
-  //       user_id: userId,
-  //       from_department: user.department_id,
-  //       to_department: user.department_id, // Assuming signed within the same department context
-  //       status: 'signed',
-  //       remarks: `Document manually signed by ${user.first_name} ${user.last_name} on page ${page_number}.`,
-  //     });
+      // 7. Create a document trail entry for this action
+      const documentTrailsService = new DocumentTrailsService();
+      await documentTrailsService.createDocumentTrail({
+        document_id: documentId,
+        user_id: userId,
+        from_department: user.department_id,
+        to_department: user.department_id, // Assuming signed within the same department context
+        status: 'signed',
+        remarks: `Document manually signed by ${user.first_name} ${user.last_name} on page ${page_number}.`,
+      });
 
-  //     // 8. Emit socket event to notify frontends of document update (optional, but good for real-time UIs)
-  //     const io = getSocketInstance();
-  //     io.emit('documentUpdated', {
-  //       documentId: documentId,
-  //       status: 'signed',
-  //       updatedBy: userId,
-  //       timestamp: new Date().toISOString(),
-  //     });
+      // 8. Emit socket event to notify frontends of document update (optional, but good for real-time UIs)
+      const io = getSocketInstance();
+      io.emit('documentUpdated', {
+        documentId: documentId,
+        status: 'signed',
+        updatedBy: userId,
+        timestamp: new Date().toISOString(),
+      });
 
-  //     return { success: true, data: createdSignedDocument };
-  //   } catch (error: any) {
-  //     console.error('📍 [createSignedDocument] Error:', error);
-  //     return { success: false, error: error.message || 'Failed to manually sign document' };
-  //   }
-  // }
+      return { success: true, data: createdSignedDocument };
+    } catch (error: any) {
+      console.error('≡ƒôì [createSignedDocument] Error:', error);
+      return { success: false, error: error.message || 'Failed to manually sign document' };
+    }
+  }
 
   /**
    * Delete a document (soft delete by changing status)
@@ -2723,7 +2723,7 @@ export class DocumentService {
 
 
     try {
-      console.log('📍 [deleteDocument] Attempting to delete document:', id, 'by user:', userId);
+      console.log('≡ƒôì [deleteDocument] Attempting to delete document:', id, 'by user:', userId);
 
       const user = await prisma.user.findUnique({
         where: { user_id: userId },
@@ -2773,15 +2773,15 @@ export class DocumentService {
         deleted_at: new Date()
       });
 
-      console.log('📍 [deleteDocument] Document successfully deleted:', id);
+      console.log('≡ƒôì [deleteDocument] Document successfully deleted:', id);
       return true;
     } catch (error: any) {
       // Handle case where document doesn't exist
       if (error.code === 'P2025') {
-        console.log('📍 [deleteDocument] Document not found:', id);
+        console.log('≡ƒôì [deleteDocument] Document not found:', id);
         throw new Error('Document not found');
       }
-      console.error('📍 [deleteDocument] Error:', error);
+      console.error('≡ƒôì [deleteDocument] Error:', error);
       throw error;
     }
   }
@@ -3042,447 +3042,447 @@ export class DocumentService {
   /**
    * Receive a document
    */
-  // async receiveDocument(documentId: string, userId: string) {
-  //   // Validate UUID format
-  //   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  //   if (!uuidRegex.test(documentId)) {
-  //     return { success: false, error: 'Invalid document ID format' };
-  //   }
+  async receiveDocument(documentId: string, userId: string) {
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(documentId)) {
+      return { success: false, error: 'Invalid document ID format' };
+    }
 
-  //   try {
-  //     const user = await prisma.user.findUnique({
-  //       where: { user_id: userId },
-  //       select: { department_id: true, first_name: true, last_name: true }
-  //     });
+    try {
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { department_id: true, first_name: true, last_name: true }
+      });
 
-  //     if (!user) {
-  //       return { success: false, error: 'User not found' };
-  //     }
+      if (!user) {
+        return { success: false, error: 'User not found' };
+      }
 
-  //     const document = await prisma.document.findUnique({
-  //       where: { document_id: documentId },
-  //       include: { DocumentAdditionalDetails: true },
-  //     });
+      const document = await prisma.document.findUnique({
+        where: { document_id: documentId },
+        include: { DocumentAdditionalDetails: true },
+      });
 
-  //     if (!document) {
-  //       return { success: false, error: 'Document not found' };
-  //     }
+      if (!document) {
+        return { success: false, error: 'Document not found' };
+      }
 
-  //     // Update status to 'received'
-  //     const updatedDocument = await prisma.document.update({
-  //       where: { document_id: documentId },
-  //       data: {
-  //         status: 'received',
-  //         updated_at: new Date(),
-  //       },
-  //     });
+      // Update status to 'received'
+      const updatedDocument = await prisma.document.update({
+        where: { document_id: documentId },
+        data: {
+          status: 'received',
+          updated_at: new Date(),
+        },
+      });
 
-  //     // Create a document trail entry for document received
-  //     const documentTrailsService = new DocumentTrailsService();
-  //     try {
-  //       // For receiving, we want to identify the department that sent the document
-  //       // This would typically be the last department in the workflow that was not the receiving department
-  //       let fromDepartmentId: string | undefined = undefined;
-  //       if (document.DocumentAdditionalDetails?.[0]?.work_flow_id) {
-  //         const workflow = document.DocumentAdditionalDetails[0].work_flow_id as any;
-  //         if (typeof workflow === 'object' && workflow !== null) {
-  //           const workflowDepartments = Object.values(workflow) as string[];
-  //           // Find the department that sent this document (the one before the current receiver)
-  //           // For simplicity, if workflow has multiple departments, get the one that's not the receiver
-  //           const deptIndex = workflowDepartments.lastIndexOf(user.department_id);
-  //           if (deptIndex > 0 && workflowDepartments[deptIndex - 1]) {
-  //             fromDepartmentId = workflowDepartments[deptIndex - 1];
-  //           } else if (workflowDepartments.length > 1) {
-  //             // If the receiving dept is not in the workflow, take the last department
-  //             fromDepartmentId = workflowDepartments[workflowDepartments.length - 1];
-  //           }
-  //         }
-  //       }
+      // Create a document trail entry for document received
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        // For receiving, we want to identify the department that sent the document
+        // This would typically be the last department in the workflow that was not the receiving department
+        let fromDepartmentId: string | undefined = undefined;
+        if (document.DocumentAdditionalDetails?.[0]?.work_flow_id) {
+          const workflow = document.DocumentAdditionalDetails[0].work_flow_id as any;
+          if (typeof workflow === 'object' && workflow !== null) {
+            const workflowDepartments = Object.values(workflow) as string[];
+            // Find the department that sent this document (the one before the current receiver)
+            // For simplicity, if workflow has multiple departments, get the one that's not the receiver
+            const deptIndex = workflowDepartments.lastIndexOf(user.department_id);
+            if (deptIndex > 0 && workflowDepartments[deptIndex - 1]) {
+              fromDepartmentId = workflowDepartments[deptIndex - 1];
+            } else if (workflowDepartments.length > 1) {
+              // If the receiving dept is not in the workflow, take the last department
+              fromDepartmentId = workflowDepartments[workflowDepartments.length - 1];
+            }
+          }
+        }
 
-  //       await documentTrailsService.createDocumentTrail({
-  //         document_id: documentId,
-  //         from_department: fromDepartmentId,
-  //         to_department: user.department_id,
-  //         user_id: userId,
-  //         status: 'received',
-  //         remarks: `Document received by ${user.first_name} ${user.last_name} in ${user.department_id}`
-  //       });
-  //     } catch (error) {
-  //       console.error('Error creating document trail for document received:', error);
-  //     }
+        await documentTrailsService.createDocumentTrail({
+          document_id: documentId,
+          from_department: fromDepartmentId,
+          to_department: user.department_id,
+          user_id: userId,
+          status: 'received',
+          remarks: `Document received by ${user.first_name} ${user.last_name} in ${user.department_id}`
+        });
+      } catch (error) {
+        console.error('Error creating document trail for document received:', error);
+      }
 
-  //     const detail = document.DocumentAdditionalDetails[0];
-  //     if (detail) {
-  //       const receivedByUserIds = detail.received_by_departments ? (detail.received_by_departments as string[]) : [];
-  //       if (!receivedByUserIds.includes(userId)) {
-  //         receivedByUserIds.push(userId);
-  //       }
+      const detail = document.DocumentAdditionalDetails[0];
+      if (detail) {
+        const receivedByUserIds = detail.received_by_departments ? (detail.received_by_departments as string[]) : [];
+        if (!receivedByUserIds.includes(userId)) {
+          receivedByUserIds.push(userId);
+        }
 
-  //       await prisma.documentAdditionalDetails.update({
-  //         where: { detail_id: detail.detail_id },
-  //         data: {
-  //           received_by_departments: receivedByUserIds as any,
-  //         },
-  //       });
+        await prisma.documentAdditionalDetails.update({
+          where: { detail_id: detail.detail_id },
+          data: {
+            received_by_departments: receivedByUserIds as any,
+          },
+        });
 
-  //       if (user.department_id) {
-  //         await recordReceiveStatus(documentId, {
-  //           departmentId: user.department_id,
-  //           userId
-  //         });
-  //       }
-  //     }
+        if (user.department_id) {
+          await recordReceiveStatus(documentId, {
+            departmentId: user.department_id,
+            userId
+          });
+        }
+      }
 
-  //     // Emit socket event
-  //     const io = getSocketInstance();
-  //     io.emit('documentUpdated', {
-  //       documentId: documentId,
-  //       status: 'received',
-  //     });
-  //     io.to(`user-${userId}`).emit('documentAddedToUser', {
-  //       documentId,
-  //     });
+      // Emit socket event
+      const io = getSocketInstance();
+      io.emit('documentUpdated', {
+        documentId: documentId,
+        status: 'received',
+      });
+      io.to(`user-${userId}`).emit('documentAddedToUser', {
+        documentId,
+      });
 
-  //     // Send notification to the user who received the document
-  //     const notificationService = new NotificationService();
-  //     try {
-  //       await notificationService.createDocumentReceivedNotification(
-  //         userId,
-  //         documentId,
-  //         document.title
-  //       );
-  //     } catch (notificationError) {
-  //       console.error('Error creating notification for document received:', notificationError);
-  //     }
+      // Send notification to the user who received the document
+      const notificationService = new NotificationService();
+      try {
+        await notificationService.createDocumentReceivedNotification(
+          userId,
+          documentId,
+          document.title
+        );
+      } catch (notificationError) {
+        console.error('Error creating notification for document received:', notificationError);
+      }
 
-  //     return { success: true, data: updatedDocument };
-  //   } catch (error: any) {
-  //     return { success: false, error: error.message };
-  //   }
-  // }
+      return { success: true, data: updatedDocument };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
 
 
 
   /**
    * Sign document with blockchain using DOCONCHAIN
    */
-  // async signDocumentWithBlockchain(
-  //   documentId: string,
-  //   userId: string,
-  //   options: SignDocumentOptions | string | undefined = undefined
-  // ) {
-  //   // Validate UUID format
-  //   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  //   if (!uuidRegex.test(documentId)) {
-  //     return { success: false, error: 'Invalid document ID format' };
-  //   }
+  async signDocumentWithBlockchain(
+    documentId: string,
+    userId: string,
+    options: SignDocumentOptions | string | undefined = undefined
+  ) {
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(documentId)) {
+      return { success: false, error: 'Invalid document ID format' };
+    }
 
-  //   let documentDetailRecord: any = null;
+    let documentDetailRecord: any = null;
 
-  //   try {
-  //     const signOptions: SignDocumentOptions =
-  //       typeof options === 'string' ? { signature: options } : options ?? {};
+    try {
+      const signOptions: SignDocumentOptions =
+        typeof options === 'string' ? { signature: options } : options ?? {};
 
-  //     console.log('📍 [signDocumentWithBlockchain] Signing document:', documentId, 'by user:', userId);
+      console.log('≡ƒôì [signDocumentWithBlockchain] Signing document:', documentId, 'by user:', userId);
 
-  //     const user = await prisma.user.findUnique({
-  //       where: { user_id: userId },
-  //       select: {
-  //         user_id: true,
-  //         account_id: true,
-  //         first_name: true,
-  //         last_name: true,
-  //         department_id: true,
-  //         account: {
-  //           select: {
-  //             email: true
-  //           }
-  //         }
-  //       }
-  //     });
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: {
+          user_id: true,
+          account_id: true,
+          first_name: true,
+          last_name: true,
+          department_id: true,
+          account: {
+            select: {
+              email: true
+            }
+          }
+        }
+      });
 
-  //     if (!user) {
-  //       return { success: false, error: 'User not found' };
-  //     }
+      if (!user) {
+        return { success: false, error: 'User not found' };
+      }
 
-  //     const document = await prisma.document.findUnique({
-  //       where: { document_id: documentId },
-  //       include: {
-  //         DocumentAdditionalDetails: true
-  //       }
-  //     });
+      const document = await prisma.document.findUnique({
+        where: { document_id: documentId },
+        include: {
+          DocumentAdditionalDetails: true
+        }
+      });
 
-  //     if (!document) {
-  //       return { success: false, error: 'Document not found' };
-  //     }
+      if (!document) {
+        return { success: false, error: 'Document not found' };
+      }
 
-  //     documentDetailRecord = document.DocumentAdditionalDetails?.[0] || null;
+      documentDetailRecord = document.DocumentAdditionalDetails?.[0] || null;
 
-  //     if (!documentDetailRecord) {
-  //       return { success: false, error: 'Document details not found' };
-  //     }
+      if (!documentDetailRecord) {
+        return { success: false, error: 'Document details not found' };
+      }
 
-  //     if (documentDetailRecord.blockchain_status && ['processing', 'signed'].includes(documentDetailRecord.blockchain_status)) {
-  //       return { success: false, error: 'Document has already been submitted to DocOnChain' };
-  //     }
+      if (documentDetailRecord.blockchain_status && ['processing', 'signed'].includes(documentDetailRecord.blockchain_status)) {
+        return { success: false, error: 'Document has already been submitted to DocOnChain' };
+      }
 
-  //     const documentFiles = await this.prismaAny.documentFile.findMany({
-  //       where: { document_id: documentId },
-  //       orderBy: [
-  //         { is_primary: 'desc' },
-  //         { uploaded_at: 'desc' }
-  //       ]
-  //     });
+      const documentFiles = await this.prismaAny.documentFile.findMany({
+        where: { document_id: documentId },
+        orderBy: [
+          { is_primary: 'desc' },
+          { uploaded_at: 'desc' }
+        ]
+      });
 
-  //     let documentFile = documentFiles.find((file: any) => !this.isPlaceholderFile(file));
+      let documentFile = documentFiles.find((file: any) => !this.isPlaceholderFile(file));
 
-  //     if (!documentFile) {
-  //       const placeholder = documentFiles.find((file: any) => this.isPlaceholderFile(file));
-  //       if (placeholder) {
-  //         const primaryCandidate = documentFiles.find((file: any) => file.is_primary && file.file_id !== placeholder.file_id);
-  //         documentFile = primaryCandidate || (documentFiles.length > 0 ? documentFiles[0] : undefined);
-  //       } else if (documentFiles.length > 0) {
-  //         documentFile = documentFiles[0];
-  //       }
-  //     }
+      if (!documentFile) {
+        const placeholder = documentFiles.find((file: any) => this.isPlaceholderFile(file));
+        if (placeholder) {
+          const primaryCandidate = documentFiles.find((file: any) => file.is_primary && file.file_id !== placeholder.file_id);
+          documentFile = primaryCandidate || (documentFiles.length > 0 ? documentFiles[0] : undefined);
+        } else if (documentFiles.length > 0) {
+          documentFile = documentFiles[0];
+        }
+      }
 
-  //     if (!documentFile) {
-  //       documentFile = await this.createPlaceholderDocumentFile(documentId, document, documentDetailRecord, user);
-  //     }
+      if (!documentFile) {
+        documentFile = await this.createPlaceholderDocumentFile(documentId, document, documentDetailRecord, user);
+      }
 
-  //     if (!documentFile) {
-  //       return { success: false, error: 'Document has no file to send to DocOnChain' };
-  //     }
+      if (!documentFile) {
+        return { success: false, error: 'Document has no file to send to DocOnChain' };
+      }
 
-  //     if (!fs.existsSync(documentFile.storage_path)) {
-  //       return { success: false, error: 'Document file is missing from storage' };
-  //     }
+      if (!fs.existsSync(documentFile.storage_path)) {
+        return { success: false, error: 'Document file is missing from storage' };
+      }
 
-  //     const fileBuffer = await fs.promises.readFile(documentFile.storage_path);
-  //     const fileName = documentFile.original_name || path.basename(documentFile.storage_path);
+      const fileBuffer = await fs.promises.readFile(documentFile.storage_path);
+      const fileName = documentFile.original_name || path.basename(documentFile.storage_path);
 
-  //     await prisma.documentAdditionalDetails.update({
-  //       where: { detail_id: documentDetailRecord.detail_id },
-  //       data: {
-  //         blockchain_status: 'pending',
-  //         updated_at: new Date()
-  //       }
-  //     });
+      await prisma.documentAdditionalDetails.update({
+        where: { detail_id: documentDetailRecord.detail_id },
+        data: {
+          blockchain_status: 'pending',
+          updated_at: new Date()
+        }
+      });
 
-  //     const doconchainService = new DoconchainService();
+      const doconchainService = new DoconchainService();
 
-  //     const projectResult = await doconchainService.createProject(fileBuffer, fileName, {
-  //       projectName: document.title,
-  //       description: document.description || undefined
-  //     });
+      const projectResult = await doconchainService.createProject(fileBuffer, fileName, {
+        projectName: document.title,
+        description: document.description || undefined
+      });
 
-  //     const projectEnvelope = projectResult?.raw as Record<string, any> | undefined;
-  //     if (projectEnvelope && projectEnvelope.success === false) {
-  //       throw new Error(projectEnvelope.message || 'Failed to create DocOnChain project');
-  //     }
+      const projectEnvelope = projectResult?.raw as Record<string, any> | undefined;
+      if (projectEnvelope && projectEnvelope.success === false) {
+        throw new Error(projectEnvelope.message || 'Failed to create DocOnChain project');
+      }
 
-  //     const projectData = projectResult?.data;
-  //     if (!projectData) {
-  //       throw new Error('DocOnChain project creation returned no data');
-  //     }
+      const projectData = projectResult?.data;
+      if (!projectData) {
+        throw new Error('DocOnChain project creation returned no data');
+      }
 
-  //     const projectUuid = projectData.project_uuid || projectData.uuid;
-  //     const transactionHash = projectData.transaction_hash || null;
-  //     const redirectUrl = projectData.redirect_url || projectData.redirect_to || null;
+      const projectUuid = projectData.project_uuid || projectData.uuid;
+      const transactionHash = projectData.transaction_hash || null;
+      const redirectUrl = projectData.redirect_url || projectData.redirect_to || null;
 
-  //     if (!projectUuid) {
-  //       throw new Error('DocOnChain response did not include a project identifier');
-  //     }
+      if (!projectUuid) {
+        throw new Error('DocOnChain response did not include a project identifier');
+      }
 
-  //     await this.prismaAny.documentAdditionalDetails.update({
-  //       where: { detail_id: documentDetailRecord.detail_id },
-  //       data: {
-  //         blockchain_project_uuid: projectUuid,
-  //         blockchain_tx_hash: transactionHash,
-  //         blockchain_redirect_url: redirectUrl,
-  //         blockchain_status: 'draft',
-  //         signed_at: null,
-  //         signed_by: null,
-  //         updated_at: new Date()
-  //       }
-  //     });
+      await this.prismaAny.documentAdditionalDetails.update({
+        where: { detail_id: documentDetailRecord.detail_id },
+        data: {
+          blockchain_project_uuid: projectUuid,
+          blockchain_tx_hash: transactionHash,
+          blockchain_redirect_url: redirectUrl,
+          blockchain_status: 'draft',
+          signed_at: null,
+          signed_by: null,
+          updated_at: new Date()
+        }
+      });
 
-  //     documentDetailRecord = {
-  //       ...documentDetailRecord,
-  //       blockchain_project_uuid: projectUuid,
-  //       blockchain_tx_hash: transactionHash,
-  //       blockchain_redirect_url: redirectUrl,
-  //       blockchain_status: 'draft'
-  //     };
+      documentDetailRecord = {
+        ...documentDetailRecord,
+        blockchain_project_uuid: projectUuid,
+        blockchain_tx_hash: transactionHash,
+        blockchain_redirect_url: redirectUrl,
+        blockchain_status: 'draft'
+      };
 
-  //     const normaliseSignerInput = (input: DoconchainSignerInput): DoconchainSignerInput => ({
-  //       email: input.email,
-  //       firstName: input.firstName,
-  //       lastName: input.lastName,
-  //       signerRole: input.signerRole ?? 'Signer',
-  //       type: input.type ?? 'GUEST',
-  //       sequence: input.sequence ?? 1,
-  //       company: input.company,
-  //       jobTitle: input.jobTitle,
-  //       country: input.country
-  //     });
+      const normaliseSignerInput = (input: DoconchainSignerInput): DoconchainSignerInput => ({
+        email: input.email,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        signerRole: input.signerRole ?? 'Signer',
+        type: input.type ?? 'GUEST',
+        sequence: input.sequence ?? 1,
+        company: input.company,
+        jobTitle: input.jobTitle,
+        country: input.country
+      });
 
-  //     const toSignerPayload = (input: DoconchainSignerInput): SignerPayload => ({
-  //       email: input.email,
-  //       first_name: input.firstName,
-  //       last_name: input.lastName,
-  //       signer_role: input.signerRole ?? 'Signer',
-  //       type: input.type ?? 'GUEST',
-  //       sequence: input.sequence ?? 1,
-  //       company: input.company,
-  //       job_title: input.jobTitle,
-  //       country: input.country
-  //     });
+      const toSignerPayload = (input: DoconchainSignerInput): SignerPayload => ({
+        email: input.email,
+        first_name: input.firstName,
+        last_name: input.lastName,
+        signer_role: input.signerRole ?? 'Signer',
+        type: input.type ?? 'GUEST',
+        sequence: input.sequence ?? 1,
+        company: input.company,
+        job_title: input.jobTitle,
+        country: input.country
+      });
 
-  //     const primarySignerInput: DoconchainSignerInput = normaliseSignerInput({
-  //       email: signOptions.primarySigner?.email ?? user.account?.email ?? '',
-  //       firstName: signOptions.primarySigner?.firstName ?? user.first_name,
-  //       lastName: signOptions.primarySigner?.lastName ?? user.last_name,
-  //       signerRole: signOptions.primarySigner?.signerRole ?? 'Signer',
-  //       type: signOptions.primarySigner?.type ?? 'GUEST',
-  //       sequence: signOptions.primarySigner?.sequence ?? 1,
-  //       company: signOptions.primarySigner?.company,
-  //       jobTitle: signOptions.primarySigner?.jobTitle,
-  //       country: signOptions.primarySigner?.country
-  //     });
+      const primarySignerInput: DoconchainSignerInput = normaliseSignerInput({
+        email: signOptions.primarySigner?.email ?? user.account?.email ?? '',
+        firstName: signOptions.primarySigner?.firstName ?? user.first_name,
+        lastName: signOptions.primarySigner?.lastName ?? user.last_name,
+        signerRole: signOptions.primarySigner?.signerRole ?? 'Signer',
+        type: signOptions.primarySigner?.type ?? 'GUEST',
+        sequence: signOptions.primarySigner?.sequence ?? 1,
+        company: signOptions.primarySigner?.company,
+        jobTitle: signOptions.primarySigner?.jobTitle,
+        country: signOptions.primarySigner?.country
+      });
 
-  //     if (!primarySignerInput.email) {
-  //       return { success: false, error: 'Primary signer email is required for DocOnChain' };
-  //     }
+      if (!primarySignerInput.email) {
+        return { success: false, error: 'Primary signer email is required for DocOnChain' };
+      }
 
-  //     const additionalSignersRaw = signOptions.additionalSigners || [];
-  //     for (const rawSigner of additionalSignersRaw) {
-  //       if (!rawSigner.email || !rawSigner.firstName || !rawSigner.lastName) {
-  //         return { success: false, error: 'Additional signers must include email, firstName, and lastName' };
-  //       }
-  //     }
+      const additionalSignersRaw = signOptions.additionalSigners || [];
+      for (const rawSigner of additionalSignersRaw) {
+        if (!rawSigner.email || !rawSigner.firstName || !rawSigner.lastName) {
+          return { success: false, error: 'Additional signers must include email, firstName, and lastName' };
+        }
+      }
 
-  //     const additionalSigners = additionalSignersRaw.map(normaliseSignerInput);
+      const additionalSigners = additionalSignersRaw.map(normaliseSignerInput);
 
-  //     const signerPayloads: SignerPayload[] = [
-  //       toSignerPayload(primarySignerInput),
-  //       ...additionalSigners.map(toSignerPayload)
-  //     ];
+      const signerPayloads: SignerPayload[] = [
+        toSignerPayload(primarySignerInput),
+        ...additionalSigners.map(toSignerPayload)
+      ];
 
-  //     const signerIdMap = new Map<string, number | string>();
-  //     const extractSignerRecords = (payload: any): any[] => {
-  //       if (!payload) return [];
-  //       if (Array.isArray(payload)) return payload;
-  //       if (Array.isArray(payload?.data)) return payload.data;
-  //       if (payload?.data && Array.isArray(payload.data?.data)) return payload.data.data;
-  //       if (payload?.data) return [payload.data];
-  //       return [];
-  //     };
+      const signerIdMap = new Map<string, number | string>();
+      const extractSignerRecords = (payload: any): any[] => {
+        if (!payload) return [];
+        if (Array.isArray(payload)) return payload;
+        if (Array.isArray(payload?.data)) return payload.data;
+        if (payload?.data && Array.isArray(payload.data?.data)) return payload.data.data;
+        if (payload?.data) return [payload.data];
+        return [];
+      };
 
-  //     for (const signerPayload of signerPayloads) {
-  //       const response = await doconchainService.addSigner(projectUuid, signerPayload);
-  //       const records = extractSignerRecords(response);
-  //       const matched = records.find((record: any) => record?.email?.toLowerCase?.() === signerPayload.email.toLowerCase());
-  //       if (matched?.id !== undefined) {
-  //         signerIdMap.set(signerPayload.email.toLowerCase(), matched.id);
-  //       }
-  //     }
+      for (const signerPayload of signerPayloads) {
+        const response = await doconchainService.addSigner(projectUuid, signerPayload);
+        const records = extractSignerRecords(response);
+        const matched = records.find((record: any) => record?.email?.toLowerCase?.() === signerPayload.email.toLowerCase());
+        if (matched?.id !== undefined) {
+          signerIdMap.set(signerPayload.email.toLowerCase(), matched.id);
+        }
+      }
 
-  //     if (signOptions.marks && signOptions.marks.length > 0) {
-  //       for (const mark of signOptions.marks) {
-  //         const resolvedSignerId =
-  //           mark.signerId ??
-  //           (mark.signerEmail ? signerIdMap.get(mark.signerEmail.toLowerCase()) : undefined);
+      if (signOptions.marks && signOptions.marks.length > 0) {
+        for (const mark of signOptions.marks) {
+          const resolvedSignerId =
+            mark.signerId ??
+            (mark.signerEmail ? signerIdMap.get(mark.signerEmail.toLowerCase()) : undefined);
 
-  //         if (resolvedSignerId === undefined) {
-  //           throw new Error(`Unable to resolve signer for DocOnChain mark (${mark.signerEmail ?? 'unknown'})`);
-  //         }
+          if (resolvedSignerId === undefined) {
+            throw new Error(`Unable to resolve signer for DocOnChain mark (${mark.signerEmail ?? 'unknown'})`);
+          }
 
-  //         const markPayload: SignerMarkPayload = {
-  //           type: mark.type,
-  //           position_x: mark.positionX,
-  //           position_y: mark.positionY,
-  //           width: mark.width,
-  //           height: mark.height,
-  //           page_no: mark.pageNo
-  //         };
+          const markPayload: SignerMarkPayload = {
+            type: mark.type,
+            position_x: mark.positionX,
+            position_y: mark.positionY,
+            width: mark.width,
+            height: mark.height,
+            page_no: mark.pageNo
+          };
 
-  //         if (mark.value !== undefined) markPayload.value = mark.value;
-  //         if (mark.fontStyle !== undefined) markPayload.font_style = mark.fontStyle;
-  //         if (mark.fontSize !== undefined) markPayload.font_size = mark.fontSize;
-  //         if (mark.attach !== undefined) markPayload.attach = mark.attach;
+          if (mark.value !== undefined) markPayload.value = mark.value;
+          if (mark.fontStyle !== undefined) markPayload.font_style = mark.fontStyle;
+          if (mark.fontSize !== undefined) markPayload.font_size = mark.fontSize;
+          if (mark.attach !== undefined) markPayload.attach = mark.attach;
 
-  //         await doconchainService.addSignerMark(projectUuid, resolvedSignerId, markPayload);
-  //       }
-  //     }
+          await doconchainService.addSignerMark(projectUuid, resolvedSignerId, markPayload);
+        }
+      }
 
-  //     let finalStatus = 'draft';
-  //     if (signOptions.sendEmail === true) {
-  //       await doconchainService.sendProject(projectUuid);
-  //       finalStatus = 'processing';
+      let finalStatus = 'draft';
+      if (signOptions.sendEmail === true) {
+        await doconchainService.sendProject(projectUuid);
+        finalStatus = 'processing';
 
-  //       await prisma.documentAdditionalDetails.update({
-  //         where: { detail_id: documentDetailRecord.detail_id },
-  //         data: {
-  //           blockchain_status: finalStatus,
-  //           updated_at: new Date()
-  //         }
-  //       });
+        await prisma.documentAdditionalDetails.update({
+          where: { detail_id: documentDetailRecord.detail_id },
+          data: {
+            blockchain_status: finalStatus,
+            updated_at: new Date()
+          }
+        });
 
-  //       documentDetailRecord = {
-  //         ...documentDetailRecord,
-  //         blockchain_status: finalStatus
-  //       };
-  //     }
+        documentDetailRecord = {
+          ...documentDetailRecord,
+          blockchain_status: finalStatus
+        };
+      }
 
-  //     const signerSummary = signerPayloads.map((payload) => ({
-  //       email: payload.email,
-  //       id: signerIdMap.get(payload.email.toLowerCase()) ?? null
-  //     }));
+      const signerSummary = signerPayloads.map((payload) => ({
+        email: payload.email,
+        id: signerIdMap.get(payload.email.toLowerCase()) ?? null
+      }));
 
-  //     console.log('📍 [signDocumentWithBlockchain] DocOnChain project initialised:', projectUuid);
+      console.log('≡ƒôì [signDocumentWithBlockchain] DocOnChain project initialised:', projectUuid);
 
-  //     return {
-  //       success: true,
-  //       data: {
-  //         message: finalStatus === 'processing'
-  //           ? 'DocOnChain signing request sent successfully'
-  //           : 'DocOnChain project created successfully',
-  //         projectUuid,
-  //         transactionHash,
-  //         redirectUrl,
-  //         status: finalStatus,
-  //         signers: signerSummary
-  //       }
-  //     };
-  //   } catch (error: any) {
-  //     console.error('📍 [signDocumentWithBlockchain] Error:', error);
+      return {
+        success: true,
+        data: {
+          message: finalStatus === 'processing'
+            ? 'DocOnChain signing request sent successfully'
+            : 'DocOnChain project created successfully',
+          projectUuid,
+          transactionHash,
+          redirectUrl,
+          status: finalStatus,
+          signers: signerSummary
+        }
+      };
+    } catch (error: any) {
+      console.error('≡ƒôì [signDocumentWithBlockchain] Error:', error);
 
-  //     try {
-  //       const fallbackDetail = documentDetailRecord
-  //         ? documentDetailRecord
-  //         : await prisma.documentAdditionalDetails.findFirst({ where: { document_id: documentId } });
+      try {
+        const fallbackDetail = documentDetailRecord
+          ? documentDetailRecord
+          : await prisma.documentAdditionalDetails.findFirst({ where: { document_id: documentId } });
 
-  //       if (fallbackDetail) {
-  //         await this.prismaAny.documentAdditionalDetails.update({
-  //           where: { detail_id: fallbackDetail.detail_id },
-  //           data: {
-  //             blockchain_status: 'failed',
-  //             blockchain_redirect_url: null,
-  //             updated_at: new Date()
-  //           }
-  //         });
-  //       }
-  //     } catch (updateError) {
-  //       console.error('📍 [signDocumentWithBlockchain] Failed to update error status:', updateError);
-  //     }
+        if (fallbackDetail) {
+          await this.prismaAny.documentAdditionalDetails.update({
+            where: { detail_id: fallbackDetail.detail_id },
+            data: {
+              blockchain_status: 'failed',
+              blockchain_redirect_url: null,
+              updated_at: new Date()
+            }
+          });
+        }
+      } catch (updateError) {
+        console.error('≡ƒôì [signDocumentWithBlockchain] Failed to update error status:', updateError);
+      }
 
-  //     return {
-  //       success: false,
-  //       error: error?.message || 'Failed to initialise DocOnChain signing'
-  //     };
-  //   }
-  // }
+      return {
+        success: false,
+        error: error?.message || 'Failed to initialise DocOnChain signing'
+      };
+    }
+  }
 
   /**
    * Get all documents accessible to a user (owned by department OR specifically shared to user)
@@ -3491,7 +3491,7 @@ export class DocumentService {
     try {
       const skip = (page - 1) * limit;
 
-      console.log('📍 [getAllAccessibleDocuments] Request:', { userId, page, limit });
+      console.log('≡ƒôì [getAllAccessibleDocuments] Request:', { userId, page, limit });
 
       // Get the user's information
       const user = await prisma.user.findUnique({
@@ -3519,7 +3519,7 @@ export class DocumentService {
         }
       });
 
-      console.log('📍 [getAllAccessibleDocuments] Total document details found:', allDocumentDetails.length);
+      console.log('≡ƒôì [getAllAccessibleDocuments] Total document details found:', allDocumentDetails.length);
 
       // Filter documents that the user can access:
       // 1. Documents originated by their department (first in workflow), OR
@@ -3527,7 +3527,7 @@ export class DocumentService {
       const accessibleDocumentDetails = allDocumentDetails.filter((detail: any) => {
         // Check if document is not deleted
         if (detail.Document?.status === 'deleted') {
-          console.log('📍 [getAllAccessibleDocuments] Document is deleted, skipping:', detail.document_id);
+          console.log('≡ƒôì [getAllAccessibleDocuments] Document is deleted, skipping:', detail.document_id);
           return false;
         }
 
@@ -3565,7 +3565,7 @@ export class DocumentService {
           // Check if user's department is the first (originator) in the workflow
           if (workflowDepartments.length > 0 && workflowDepartments[0] === user.department_id) {
             hasDepartmentAccess = true;
-            console.log('📍 [getAllAccessibleDocuments] Document owned by department:', detail.document_id);
+            console.log('≡ƒôì [getAllAccessibleDocuments] Document owned by department:', detail.document_id);
           }
         }
 
@@ -3576,21 +3576,21 @@ export class DocumentService {
           // Handle different possible formats of received_by_departments (which now stores user IDs)
           if (Array.isArray(detail.received_by_departments)) {
             receivedByUsers = detail.received_by_departments as string[];
-            console.log('📍 [getAllAccessibleDocuments] Document received_by_users (array):', detail.document_id, receivedByUsers);
+            console.log('≡ƒôì [getAllAccessibleDocuments] Document received_by_users (array):', detail.document_id, receivedByUsers);
           } else if (typeof detail.received_by_departments === 'string' && detail.received_by_departments) {
             try {
               receivedByUsers = JSON.parse(detail.received_by_departments);
-              console.log('📍 [getAllAccessibleDocuments] Document received_by_users (parsed):', detail.document_id, receivedByUsers);
+              console.log('≡ƒôì [getAllAccessibleDocuments] Document received_by_users (parsed):', detail.document_id, receivedByUsers);
             } catch (e) {
-              console.error('📍 [getAllAccessibleDocuments] Error parsing received_by_departments for doc', detail.document_id, e);
+              console.error('≡ƒôì [getAllAccessibleDocuments] Error parsing received_by_departments for doc', detail.document_id, e);
               return false;
             }
           } else if (detail.received_by_departments && typeof detail.received_by_departments === 'object') {
             // If it's already parsed as an object/array
             receivedByUsers = detail.received_by_departments as string[];
-            console.log('📍 [getAllAccessibleDocuments] Document received_by_users (object):', detail.document_id, receivedByUsers);
+            console.log('≡ƒôì [getAllAccessibleDocuments] Document received_by_users (object):', detail.document_id, receivedByUsers);
           } else {
-            console.log('📍 [getAllAccessibleDocuments] Document has no received_by_users, continuing:', detail.document_id);
+            console.log('≡ƒôì [getAllAccessibleDocuments] Document has no received_by_users, continuing:', detail.document_id);
           }
 
           // Check if the current user is in the received_by_users list
@@ -3604,10 +3604,10 @@ export class DocumentService {
 
       const accessibleDocumentIds = accessibleDocumentDetails.map((detail: any) => detail.document_id);
 
-      console.log('📍 [getAllAccessibleDocuments] Accessible document IDs:', accessibleDocumentIds.length, accessibleDocumentIds);
+      console.log('≡ƒôì [getAllAccessibleDocuments] Accessible document IDs:', accessibleDocumentIds.length, accessibleDocumentIds);
 
       if (accessibleDocumentIds.length === 0) {
-        console.log('📍 [getAllAccessibleDocuments] No accessible documents found for user');
+        console.log('≡ƒôì [getAllAccessibleDocuments] No accessible documents found for user');
         return {
           data: [],
           pagination: {
@@ -3652,7 +3652,7 @@ export class DocumentService {
         })
       ]);
 
-      console.log('📍 [getAllAccessibleDocuments] Documents found:', documents.length, 'Total count:', total);
+      console.log('≡ƒôì [getAllAccessibleDocuments] Documents found:', documents.length, 'Total count:', total);
 
       // Create a map of document details for quick lookup
       const documentDetailsMap = new Map();
@@ -3757,7 +3757,7 @@ export class DocumentService {
         })
       );
 
-      console.log('📍 [getAllAccessibleDocuments] Returning', transformedDocuments.length, 'documents');
+      console.log('≡ƒôì [getAllAccessibleDocuments] Returning', transformedDocuments.length, 'documents');
       return {
         data: transformedDocuments,
         pagination: {
@@ -3770,7 +3770,7 @@ export class DocumentService {
         }
       };
     } catch (error) {
-      console.error('📍 [getAllAccessibleDocuments] Error:', error);
+      console.error('≡ƒôì [getAllAccessibleDocuments] Error:', error);
       throw error;
     }
   }
@@ -3834,9 +3834,9 @@ export class DocumentService {
       for (const file of document.files) {
         try {
           await deleteFile(file.storage_path);
-          console.log(`📍 [bulkDeleteDocuments] File deleted from filesystem: ${file.storage_path}`);
+          console.log(`≡ƒôì [bulkDeleteDocuments] File deleted from filesystem: ${file.storage_path}`);
         } catch (error) {
-          console.error(`📍 [bulkDeleteDocuments] Error deleting file from filesystem: ${file.storage_path}`, error);
+          console.error(`≡ƒôì [bulkDeleteDocuments] Error deleting file from filesystem: ${file.storage_path}`, error);
           // Continue with deletion even if file deletion fails
         }
       }

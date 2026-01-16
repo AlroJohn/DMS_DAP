@@ -25,6 +25,7 @@ export class DocumentReleaseService {
             y_position: number;
             width: number;
             height: number;
+            assigned_user_id?: string | null;
         }[]
     ) {
         // Validate UUID format
