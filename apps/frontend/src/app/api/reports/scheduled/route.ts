@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const token = tokenCookie ? tokenCookie.value : null;
 
     if (!token) {
-      return Response.json({ 
+      return Response.json({
         success: false,
         error: 'Unauthorized',
         message: 'No authentication token found'
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       backendUrl = `${backendUrl}/api`;
     }
     const apiUrl = `${backendUrl}/reports/scheduled`;
-    
+
     console.log('Fetching scheduled reports from:', apiUrl);
 
     // Fetch scheduled reports from the backend API
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     }
 
     const result = await response.json();
-    console.log('Backend result success:', result.success);
+    // console.log('Backend result success:', result.success);
 
     if (!result.success) {
       throw new Error(result.message || 'Failed to fetch scheduled reports');

@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    console.log('Backend result success:', data.success);
+    // console.log('Backend result success:', data.success);
 
     return NextResponse.json({
       success: data.success || true,

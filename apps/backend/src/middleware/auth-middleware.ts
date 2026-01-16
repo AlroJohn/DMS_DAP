@@ -39,23 +39,23 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
   // Get token from either cookies or Authorization header
   let token = req.cookies.accessToken; // Get token from HttpOnly cookie
 
-  console.log('🔐 Auth Middleware - Token check:', {
-    hasCookieToken: !!token,
-    cookieTokenLength: token?.length,
-    hasAuthHeader: !!req.headers.authorization,
-    authHeaderValue: req.headers.authorization?.substring(0, 20) + '...',
-    allCookies: Object.keys(req.cookies || {}),
-  });
+  // console.log('🔐 Auth Middleware - Token check:', {
+  //   hasCookieToken: !!token,
+  //   cookieTokenLength: token?.length,
+  //   hasAuthHeader: !!req.headers.authorization,
+  //   authHeaderValue: req.headers.authorization?.substring(0, 20) + '...',
+  //   allCookies: Object.keys(req.cookies || {}),
+  // });
 
   // If no token in cookies, check Authorization header
   if (!token) {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.substring(7); // Remove 'Bearer ' prefix
-      console.log('✅ Token extracted from Authorization header, length:', token?.length);
+      // console.log('✅ Token extracted from Authorization header, length:', token?.length);
     }
   } else {
-    console.log('✅ Token found in cookies');
+    // console.log('✅ Token found in cookies');
   }
 
   if (!token) {
@@ -68,14 +68,14 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
 
   try {
     const authService = new AuthService();
-    console.log('🔓 Attempting to verify token...');
+    // console.log('🔓 Attempting to verify token...');
     const decoded = await authService.verifyToken(token);
-    console.log('✅ Token verified successfully:', {
-      userId: decoded.userId,
-      email: decoded.email,
-      roles: decoded.roles,
-    });
-    
+    // console.log('✅ Token verified successfully:', {
+    //   userId: decoded.userId,
+    //   email: decoded.email,
+    //   roles: decoded.roles,
+    // });
+
     const departmentId = await resolveDepartmentId(decoded);
 
     // Cast to our custom AuthRequest type
@@ -88,7 +88,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
       roles: decoded.roles
     };
 
-    console.log('✅ Auth middleware passed - user attached to request');
+    //// console.log('✅ Auth middleware passed - user attached to request');
     next();
   } catch (error: any) {
     console.log('❌ Token verification failed:', error.message);
@@ -174,11 +174,11 @@ export const requireRole = (roleCode: string) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const authReq = req as AuthRequest;
 
-    console.log('🔒 requireRole check:', {
-      requiredRole: roleCode,
-      hasUser: !!authReq.user,
-      userRoles: authReq.user?.roles || [],
-    });
+    // console.log('🔒 requireRole check:', {
+    //   requiredRole: roleCode,
+    //   hasUser: !!authReq.user,
+    //   userRoles: authReq.user?.roles || [],
+    // });
 
     if (!authReq.user) {
       console.log('❌ No user found in request');
@@ -199,7 +199,7 @@ export const requireRole = (roleCode: string) => {
       });
     }
 
-    console.log('✅ Role check passed');
+    // console.log('✅ Role check passed');
     next();
   };
 };
