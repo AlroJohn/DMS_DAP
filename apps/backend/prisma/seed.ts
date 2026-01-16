@@ -712,6 +712,34 @@ async function main() {
       console.log('✅ All accounts already have roles assigned');
     }
 
+    // Step: Seed Sidebar Settings
+    console.log('🎨 Seeding sidebar settings...');
+    const defaultSidebarSettings = [
+      { section_key: 'home', section_name: 'Home', is_enabled: true },
+      { section_key: 'dashboard', section_name: 'Dashboard', is_enabled: true },
+      { section_key: 'documents', section_name: 'Documents', is_enabled: true },
+      { section_key: 'management', section_name: 'Management', is_enabled: true },
+      { section_key: 'search', section_name: 'Search', is_enabled: true },
+      { section_key: 'notifications', section_name: 'Notifications', is_enabled: true },
+      { section_key: 'sidebar settings', section_name: 'Sidebar Settings', is_enabled: true },
+      { section_key: 'reports', section_name: 'Reports', is_enabled: true },
+    ];
+
+    for (const setting of defaultSidebarSettings) {
+      const existingSetting = await prisma.sidebarSettings.findUnique({
+        where: { section_key: setting.section_key }
+      });
+
+      if (!existingSetting) {
+        await prisma.sidebarSettings.create({
+          data: setting
+        });
+        console.log(`✅ Created sidebar setting: ${setting.section_name}`);
+      } else {
+        console.log(`✅ Sidebar setting already exists: ${setting.section_name}`);
+      }
+    }
+
   } catch (error) {
     console.error('❌ Error during seeding:', error);
     throw error; // Re-throw to trigger rollback

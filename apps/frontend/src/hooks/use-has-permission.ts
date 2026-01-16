@@ -1,8 +1,29 @@
 import { Permission } from "@dms/types";
+import { useAuth } from "./use-auth";
 
 export const useHasPermission = (permission: Permission): boolean => {
-  // TODO: Implement actual permission logic here.
-  // This hook should check the user's roles/permissions from a global state or context.
-  console.warn(`Using mocked permission check for: ${permission}`);
-  return true; // Always return true for now
+  const { user } = useAuth();
+  
+  if (!user) return false;
+  
+  // Check if user has the specific permission
+  return user.permissions?.includes(permission) || false;
+};
+
+export const useHasAnyPermission = (permissions: Permission[]): boolean => {
+  const { user } = useAuth();
+  
+  if (!user) return false;
+  
+  // Check if user has any of the specified permissions
+  return permissions.some(permission => user.permissions?.includes(permission));
+};
+
+export const useHasAllPermissions = (permissions: Permission[]): boolean => {
+  const { user } = useAuth();
+  
+  if (!user) return false;
+  
+  // Check if user has all of the specified permissions
+  return permissions.every(permission => user.permissions?.includes(permission));
 };
