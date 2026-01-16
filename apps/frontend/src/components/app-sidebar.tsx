@@ -32,6 +32,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { title } from "process";
 import { TeamSwitcher } from "./team-switcher";
+import { hasPermission, hasAnyPermission } from "@/lib/document-permissions";
 
 // Navigation and team data
 const data = {
@@ -362,13 +363,149 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     avatar: user?.avatar || "",
   };
 
+  // Filter navigation items based on user permissions
+  const getFilteredNavItems = () => {
+    if (!user || isLoading) return [];
+
+    return data.navMain.filter((item) => {
+      // Check permissions for each navigation item
+      switch (item.title) {
+        case "Home":
+          // Home is accessible to everyone
+          return true;
+
+        case "Dashboard":
+          // Dashboard requires dashboard_read permission
+          return hasPermission(user, "dashboard_read") || hasPermission(user, "dashboard_view");
+
+        case "Documents":
+          // Documents requires document_read permission
+          if (!hasPermission(user, "document_read")) return false;
+          
+          // Filter sub-items based on permissions
+          if (item.items) {
+            item.items = item.items.filter((subItem) => {
+              if (subItem.url?.includes("/owned")) {
+                return hasPermission(user, "document_read");
+              }
+              if (subItem.url?.includes("/in-transit")) {
+                return hasAnyPermission(user, ["document_read", "document_transfer_receive"]);
+              }
+              if (subItem.url?.includes("/shared")) {
+                return hasPermission(user, "document_read");
+              }
+              if (subItem.url?.includes("/archive")) {
+                return hasAnyPermission(user, ["document_archive", "document_read"]);
+              }
+              if (subItem.url?.includes("/recycle-bin")) {
+                return hasAnyPermission(user, ["document_delete", "document_restore"]);
+              }
+              return true;
+            });
+          }
+          return item.items && item.items.length > 0;
+
+        case "Management":
+          // Management requires any management permission
+          const managementPermissions = [
+            "document_type_read",
+            "document_action_read",
+            "department_read",
+            "user_read",
+            "role_read"
+          ];
+          if (!hasAnyPermission(user, managementPermissions)) return false;
+
+          // Filter sub-items based on permissions
+          if (item.items) {
+            item.items = item.items.filter((subItem) => {
+              if (subItem.url?.includes("/document-type")) {
+                return hasPermission(user, "document_type_read");
+              }
+              if (subItem.url?.includes("/document-action")) {
+                return hasPermission(user, "document_action_read");
+              }
+              if (subItem.url?.includes("/department")) {
+                return hasPermission(user, "department_read");
+              }
+              if (subItem.url?.includes("/user-management")) {
+                return hasPermission(user, "user_read");
+              }
+              if (subItem.url?.includes("/role-management")) {
+                return hasPermission(user, "role_read");
+              }
+              return true;
+            });
+          }
+          return item.items && item.items.length > 0;
+
+        case "Search":
+          // Search requires document_read permission
+          return hasPermission(user, "document_read");
+
+        case "Notifications":
+          // Notifications are accessible to everyone authenticated
+          return true;
+
+        case "Reports":
+          // Reports require any report permission
+          const reportPermissions = [
+            "report_read",
+            "report_audit",
+            "report_usage",
+            "report_compliance",
+            "document_read"
+          ];
+          if (!hasAnyPermission(user, reportPermissions)) return false;
+
+          // Filter sub-items based on permissions
+          if (item.items) {
+            item.items = item.items.filter((subItem) => {
+              if (subItem.url?.includes("/audit-trail")) {
+                return hasAnyPermission(user, ["report_audit", "report_read"]);
+              }
+              if (subItem.url?.includes("/document-trailing")) {
+                return hasAnyPermission(user, ["report_read", "document_read"]);
+              }
+              if (subItem.url?.includes("/usage")) {
+                return hasAnyPermission(user, ["report_usage", "report_read"]);
+              }
+              if (subItem.url?.includes("/compliance")) {
+                return hasAnyPermission(user, ["report_compliance", "report_read"]);
+              }
+              if (subItem.url?.includes("/signing-history")) {
+                return hasAnyPermission(user, ["report_read", "document_read"]);
+              }
+              if (subItem.url?.includes("/activity")) {
+                return hasAnyPermission(user, ["report_read", "report_audit"]);
+              }
+              if (subItem.url?.includes("/access-history")) {
+                return hasAnyPermission(user, ["report_read", "report_audit"]);
+              }
+              if (subItem.url?.includes("/versions")) {
+                return hasAnyPermission(user, ["report_read", "document_read"]);
+              }
+              return true;
+            });
+          }
+          return item.items && item.items.length > 0;
+
+        default:
+          // By default, hide items that don't have explicit permission checks
+          return false;
+      }
+    });
+  };
+
+  const filteredNavItems = getFilteredNavItems();
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <TeamSwitcher teams={data.teams} />
       </SidebarHeader>
       <SidebarContent className="scroll-none">
-        <NavMain items={data.navMain} />
+        <NavMain items={filteredNavItems} />
         {/* <NavProjects projects={data.projects} /> */}
       </SidebarContent>
       <SidebarFooter>
