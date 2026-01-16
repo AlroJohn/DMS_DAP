@@ -1,367 +1,803 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-  Upload,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
   FileText,
   Shield,
-  Users,
-  Building,
-  Clock,
-  TrendingUp,
   CheckCircle,
-  AlertCircle,
   BarChart3,
-  Workflow,
-  Database,
-  Globe,
-  Lock,
-  Zap,
+  Eye,
+  Edit,
+  Save,
+  Loader2,
+  Upload as UploadIcon,
+  Calendar as CalendarIcon,
 } from "lucide-react";
-import Link from "next/link";
+import { useAuth } from "@/hooks/use-auth";
+import { useHomeCMS } from "@/hooks/use-home.cms";
+import TiptapEditor from "@/components/tiptap-editor";
+import Image from "next/image";
+import { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
 
 const Homepage = () => {
+  const { user } = useAuth();
+  const { cmsData, loading: cmsLoading, saving, saveCMS } = useHomeCMS();
+  const [activeTab, setActiveTab] = useState("preview");
+  const [formData, setFormData] = useState({
+    logo_url: "",
+    video_url: "",
+    vision: "",
+    mission: "",
+    welcome_title: "",
+    welcome_text: "",
+  });
+  const [uploading, setUploading] = useState(false);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
+  // Check if user is superadmin
+  const isSuperAdmin = user?.roles?.some(
+    (role: any) => role.code === "SUPER_ADMIN"
+  );
+
+  // Debug logging
+  useEffect(() => {
+    console.log("User data:", user);
+    console.log("Is Super Admin:", isSuperAdmin);
+    console.log("User roles:", user?.roles);
+  }, [user, isSuperAdmin]);
+
+  // Update form data when CMS data is loaded
+  useEffect(() => {
+    if (cmsData) {
+      setFormData({
+        logo_url: cmsData.logo_url || "",
+        video_url: cmsData.video_url || "",
+        vision: cmsData.vision || "",
+        mission: cmsData.mission || "",
+        welcome_title: cmsData.welcome_title || "",
+        welcome_text: cmsData.welcome_text || "",
+      });
+      setLogoPreview(cmsData.logo_url || null);
+    }
+  }, [cmsData]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const result = await saveCMS(formData);
+    if (result.success) {
+      toast.success("Home page content updated successfully!");
+      setActiveTab("preview");
+    } else {
+      toast.error(result.message || "Failed to update content");
+    }
+  };
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  const handleEditorChange = (field: "vision" | "mission", content: string) => {
+    setFormData({
+      ...formData,
+      [field]: content,
+    });
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file');
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size must be less than 5MB');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+
+      // Upload to server
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', 'logo');
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setFormData(prev => ({
+          ...prev,
+          logo_url: result.url,
+        }));
+        toast.success('Logo uploaded successfully!');
+      } else {
+        toast.error(result.message || 'Upload failed');
+        setLogoPreview(null);
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload logo');
+      setLogoPreview(null);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('video/')) {
+      toast.error('Please upload a video file');
+      return;
+    }
+
+    // Validate file size (50MB max)
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error('Video size must be less than 50MB');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+      uploadFormData.append('type', 'video');
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: uploadFormData,
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setFormData(prev => ({
+          ...prev,
+          video_url: result.url,
+        }));
+        toast.success('Video uploaded successfully!');
+      } else {
+        toast.error(result.message || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload video');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Preview Content Component
+  const PreviewContent = ({ data }: { data: typeof cmsData }) => (
+    <div className="space-y-4 p-4">
+      {/* Company Logo & Welcome Section with Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 items-center">
+        {/* Combined Logo & Welcome Column */}
+        <div className="flex flex-col items-center justify-center pl-26 md:flex-row md:items-center md:justify-start gap-4 animate-in fade-in duration-700">
+          {/* Logo */}
+          <div className="flex-shrink-0">
+            {data?.logo_url ? (
+              <div className="w-20 h-20 md:w-24 md:h-24 relative hover:scale-105 transition-transform duration-300">
+                <Image
+                  src={data.logo_url}
+                  alt="Organization Logo"
+                  fill
+                  className="object-contain drop-shadow-2xl"
+                  priority
+                />
+              </div>
+            ) : (
+              <div className="w-20 h-20 md:w-24 md:h-24 bg-gradient-to-br from-primary via-primary/90 to-primary/80 rounded-2xl flex items-center justify-center shadow-xl hover:shadow-primary/50 transition-all duration-300 hover:scale-105">
+                <FileText className="h-10 w-10 md:h-12 md:w-12 text-primary-foreground" />
+              </div>
+            )}
+          </div>
+
+          {/* Welcome Content */}
+          <div className="space-y-2 text-center md:text-left">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-r from-primary via-blue-600 to-primary/70 bg-clip-text text-transparent drop-shadow-sm">
+              {data?.welcome_title || "Document Management System"}
+            </h1>
+            <p className="text-sm md:text-base text-muted-foreground/90">
+              {data?.welcome_text ||
+                "Welcome to our organization's document management platform"}
+            </p>
+            <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
+              <Badge variant="secondary" className="bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 text-xs hover:bg-green-100 transition-colors">
+                <CheckCircle className="h-2.5 w-2.5 mr-1" />
+                System Online
+              </Badge>
+              <Badge variant="outline" className="px-2 py-0.5 text-xs hover:bg-accent transition-colors">Version 1.0.0</Badge>
+            </div>
+          </div>
+        </div>
+
+        {/* Dashboard Stats Column */}
+        <div className="flex items-center justify-center md:justify-end">
+          <div className="grid grid-cols-2 gap-2 animate-in fade-in-50 duration-700 w-full max-w-xs sm:max-w-md">
+            <Card className="hover:shadow-md transition-shadow">
+              <CardContent className="p-3">
+                <div className="flex flex-col items-center text-center gap-2">
+                  <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                    <FileText className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">0</p>
+                    <p className="text-xs text-muted-foreground">Total Documents</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-md transition-shadow">
+              <CardContent className="p-3">
+                <div className="flex flex-col items-center text-center gap-2">
+                  <div className="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">0</p>
+                    <p className="text-xs text-muted-foreground">Approved</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-md transition-shadow">
+              <CardContent className="p-3">
+                <div className="flex flex-col items-center text-center gap-2">
+                  <div className="w-10 h-10 bg-orange-500/10 rounded-lg flex items-center justify-center">
+                    <Loader2 className="h-5 w-5 text-orange-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">0</p>
+                    <p className="text-xs text-muted-foreground">Pending</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-md transition-shadow">
+              <CardContent className="p-3">
+                <div className="flex flex-col items-center text-center gap-2">
+                  <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center">
+                    <BarChart3 className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">0</p>
+                    <p className="text-xs text-muted-foreground">This Month</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Grid: Video/Calendar and Vision/Mission */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Left Column: Video or Calendar */}
+        <div className="lg:col-span-2 space-y-4">
+          {/* Video Section */}
+          {data?.video_url ? (
+            <Card className="shadow-md border overflow-hidden hover:shadow-lg transition-all animate-in fade-in-50 duration-700 delay-100">
+              <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b py-3">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <FileText className="h-4 w-4 text-primary" />
+                  </div>
+                  Introduction Video
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="aspect-video bg-gradient-to-br from-black to-gray-900">
+                  {data.video_url.includes('youtube.com') || data.video_url.includes('youtu.be') ? (
+                    <iframe
+                      src={data.video_url.includes('watch?v=') 
+                        ? data.video_url.replace('watch?v=', 'embed/').split('&')[0]
+                        : data.video_url.includes('youtu.be/')
+                        ? data.video_url.replace('youtu.be/', 'youtube.com/embed/')
+                        : data.video_url
+                      }
+                      className="w-full h-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    ></iframe>
+                  ) : (
+                    <video
+                      src={data.video_url}
+                      controls
+                      className="w-full h-full"
+                    >
+                      Your browser does not support the video tag.
+                    </video>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="shadow-md border-2 border-dashed border-muted/30 animate-in fade-in-50 duration-700 delay-100">
+              <CardContent className="p-6 text-center">
+                <div className="space-y-2">
+                  <div className="w-12 h-12 bg-muted/20 rounded-lg flex items-center justify-center mx-auto">
+                    <FileText className="h-6 w-6 text-muted-foreground/60" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-muted-foreground/70">Video Coming Soon</h3>
+                    <p className="text-xs text-muted-foreground/50">An introduction video will be available shortly</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Vision & Mission in horizontal layout */}
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Vision */}
+            {data?.vision ? (
+              <Card className="shadow-md border hover:shadow-lg transition-all group hover:-translate-y-0.5 animate-in fade-in-50 duration-700 delay-200">
+                <CardHeader className="bg-gradient-to-br from-primary/8 via-primary/4 to-transparent border-b py-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <div className="w-8 h-8 bg-primary/15 rounded-lg flex items-center justify-center group-hover:bg-primary/25 transition-colors">
+                      <Shield className="h-4 w-4 text-primary" />
+                    </div>
+                    Our Vision
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <div 
+                    className="prose prose-sm max-w-none text-foreground/80 text-sm leading-relaxed [&>p]:mb-1.5 [&>h2]:text-base [&>h2]:font-semibold [&>h2]:mb-1.5 [&>ul]:my-1.5 [&>ol]:my-1.5 [&>ul]:text-sm [&>ol]:text-sm line-clamp-6"
+                    dangerouslySetInnerHTML={{ __html: data.vision }}
+                  />
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="shadow-md border-2 border-dashed border-muted/30 animate-in fade-in-50 duration-700 delay-200">
+                <CardContent className="p-6 text-center">
+                  <div className="space-y-2">
+                    <div className="w-12 h-12 bg-muted/20 rounded-lg flex items-center justify-center mx-auto">
+                      <Shield className="h-6 w-6 text-muted-foreground/60" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-muted-foreground/70">Vision Statement</h3>
+                      <p className="text-xs text-muted-foreground/50">Our vision will be shared soon</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Mission */}
+            {data?.mission ? (
+              <Card className="shadow-md border hover:shadow-lg transition-all group hover:-translate-y-0.5 animate-in fade-in-50 duration-700 delay-300">
+                <CardHeader className="bg-gradient-to-br from-blue-500/8 via-blue-500/4 to-transparent border-b py-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <div className="w-8 h-8 bg-blue-500/15 rounded-lg flex items-center justify-center group-hover:bg-blue-500/25 transition-colors">
+                      <BarChart3 className="h-4 w-4 text-blue-600" />
+                    </div>
+                    Our Mission
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <div 
+                    className="prose prose-sm max-w-none text-foreground/80 text-sm leading-relaxed [&>p]:mb-1.5 [&>h2]:text-base [&>h2]:font-semibold [&>h2]:mb-1.5 [&>ul]:my-1.5 [&>ol]:my-1.5 [&>ul]:text-sm [&>ol]:text-sm line-clamp-6"
+                    dangerouslySetInnerHTML={{ __html: data.mission }}
+                  />
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="shadow-md border-2 border-dashed border-muted/30 animate-in fade-in-50 duration-700 delay-300">
+                <CardContent className="p-6 text-center">
+                  <div className="space-y-2">
+                    <div className="w-12 h-12 bg-muted/20 rounded-lg flex items-center justify-center mx-auto">
+                      <BarChart3 className="h-6 w-6 text-muted-foreground/60" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-muted-foreground/70">Mission Statement</h3>
+                      <p className="text-xs text-muted-foreground/50">Our mission will be shared soon</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Calendar & Quick Actions */}
+        <div className="space-y-4">
+          {/* Calendar Card */}
+          <Card className="shadow-md border hover:shadow-lg transition-shadow animate-in fade-in-50 duration-700 delay-150">
+            <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b py-3">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <CalendarIcon className="h-4 w-4 text-primary" />
+                </div>
+                Calendar
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <div className="space-y-3">
+                {/* Month Header */}
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-sm">
+                    {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </h3>
+                  <Badge variant="outline" className="text-xs">
+                    {new Date().toLocaleDateString('en-US', { weekday: 'short' })}
+                  </Badge>
+                </div>
+                
+                {/* Calendar Grid */}
+                <div className="grid grid-cols-7 gap-1 text-center">
+                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+                    <div key={i} className="text-xs font-medium text-muted-foreground py-1">
+                      {day}
+                    </div>
+                  ))}
+                  {Array.from({ length: 35 }, (_, i) => {
+                    const today = new Date();
+                    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).getDay();
+                    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+                    const dayNumber = i - firstDay + 1;
+                    const isCurrentMonth = dayNumber > 0 && dayNumber <= daysInMonth;
+                    const isToday = isCurrentMonth && dayNumber === today.getDate();
+                    
+                    return (
+                      <div
+                        key={i}
+                        className={`text-xs py-1.5 rounded-md ${
+                          isToday
+                            ? 'bg-primary text-primary-foreground font-bold'
+                            : isCurrentMonth
+                            ? 'hover:bg-accent cursor-pointer'
+                            : 'text-muted-foreground/30'
+                        }`}
+                      >
+                        {isCurrentMonth ? dayNumber : ''}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quick Actions */}
+          <Card className="shadow-md border hover:shadow-lg transition-shadow animate-in fade-in-50 duration-700 delay-200">
+            <CardHeader className="bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border-b py-3">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <div className="w-7 h-7 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                  <Shield className="h-4 w-4 text-blue-600" />
+                </div>
+                Quick Actions
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <div className="space-y-2">
+                <Button variant="outline" size="sm" className="w-full justify-start text-xs h-8">
+                  <FileText className="h-3.5 w-3.5 mr-2" />
+                  Upload Document
+                </Button>
+                <Button variant="outline" size="sm" className="w-full justify-start text-xs h-8">
+                  <BarChart3 className="h-3.5 w-3.5 mr-2" />
+                  View Reports
+                </Button>
+                <Button variant="outline" size="sm" className="w-full justify-start text-xs h-8">
+                  <Shield className="h-3.5 w-3.5 mr-2" />
+                  Settings
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Empty state for non-superadmins when no content */}
+      {!isSuperAdmin && !data?.video_url && !data?.vision && !data?.mission && (
+        <Card className="shadow-md border-2 border-dashed border-muted/50 animate-in fade-in duration-700">
+          <CardContent className="p-6 text-center">
+            <div className="space-y-2">
+              <div className="w-12 h-12 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl flex items-center justify-center mx-auto">
+                <FileText className="h-6 w-6 text-primary/70" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold">Welcome!</h3>
+                <p className="text-muted-foreground text-xs">Your organization's content will appear here soon.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+
+  // If not superadmin, show only preview
+  if (!isSuperAdmin) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
+        <div className="max-w-8xl mx-auto p-2">
+          <div className="space-y-0">
+            <PreviewContent data={cmsData} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Superadmin view with tabs
   return (
-    <div className="space-y-8 p-4">
-      {/* Hero Section */}
-      <div className="text-center space-y-4">
-        <div className="flex items-center justify-center gap-3 mb-4">
-          <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center">
-            <FileText className="h-6 w-6 text-primary-foreground" />
-          </div>
-          <h1 className="text-4xl font-bold tracking-tight">
-            Document Management System
-          </h1>
-        </div>
-        <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          Enterprise-grade document management with blockchain verification,
-          real-time collaboration, and advanced workflow automation.
-        </p>
-        <div className="flex items-center justify-center gap-2 mt-4">
-          <Badge variant="secondary" className="bg-green-100 text-green-800">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            System Online
-          </Badge>
-          <Badge variant="outline">Version 1.0.0</Badge>
-        </div>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
+      <div className="max-w-8xl mx-auto p-2">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="bg-card border shadow-sm">
+            <TabsTrigger value="preview" className="flex items-center gap-2">
+              <Eye className="h-4 w-4" />
+              Preview Home Page
+            </TabsTrigger>
+            <TabsTrigger value="edit" className="flex items-center gap-2">
+              <Edit className="h-4 w-4" />
+              Edit Home Page
+            </TabsTrigger>
+          </TabsList>
 
-      {/* Quick Actions */}
-      <div className="flex justify-center gap-4">
-        <Link href="/documents/upload">
-          <Button size="lg">
-            <Upload className="mr-2 h-5 w-5" /> Upload Documents
-          </Button>
-        </Link>
-        <Link href="/workflows/builder">
-          <Button variant="outline" size="lg">
-            <Workflow className="mr-2 h-5 w-5" /> Create Workflow
-          </Button>
-        </Link>
-      </div>
+          <TabsContent value="preview" className="space-y-0">
+            <PreviewContent data={cmsData} />
+          </TabsContent>
 
-      {/* System Overview */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-2">
-              <FileText className="h-8 w-8 text-primary" />
-              <div>
-                <p className="text-2xl font-bold">1,247</p>
-                <p className="text-sm text-muted-foreground">Total Documents</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          <TabsContent value="edit" className="space-y-0">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Welcome Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Welcome Section</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="welcome_title">Page Title *</Label>
+                    <Input
+                      id="welcome_title"
+                      name="welcome_title"
+                      value={formData.welcome_title}
+                      onChange={handleChange}
+                      placeholder="e.g., Document Management System"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="welcome_text">Welcome Description</Label>
+                    <Input
+                      id="welcome_text"
+                      name="welcome_text"
+                      value={formData.welcome_text}
+                      onChange={handleChange}
+                      placeholder="Brief description of your organization"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-2">
-              <Shield className="h-8 w-8 text-secondary" />
-              <div>
-                <p className="text-2xl font-bold">89</p>
-                <p className="text-sm text-muted-foreground">
-                  Blockchain Signed
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              {/* Branding & Media */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <UploadIcon className="h-5 w-5" />
+                    Branding & Media
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Logo Upload */}
+                  <div className="space-y-3">
+                    <Label>Company Logo</Label>
+                    <div className="flex items-start gap-4">
+                      {/* Logo Preview */}
+                      <div className="w-24 h-24 border-2 border-dashed rounded-lg flex items-center justify-center bg-muted/30">
+                        {logoPreview ? (
+                          <div className="relative w-full h-full">
+                            <Image
+                              src={logoPreview}
+                              alt="Logo preview"
+                              fill
+                              className="object-contain rounded-lg"
+                            />
+                          </div>
+                        ) : (
+                          <FileText className="h-8 w-8 text-muted-foreground" />
+                        )}
+                      </div>
+                      {/* Upload Controls */}
+                      <div className="flex-1 space-y-2">
+                        <input
+                          ref={logoInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                          className="hidden"
+                          disabled={uploading}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => logoInputRef.current?.click()}
+                          disabled={uploading}
+                          className="w-full"
+                        >
+                          {uploading ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <UploadIcon className="mr-2 h-4 w-4" />
+                              Upload Logo
+                            </>
+                          )}
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          Upload an image file (PNG, JPG, max 5MB)
+                        </p>
+                        {formData.logo_url && (
+                          <Input
+                            placeholder="Or paste image URL"
+                            value={formData.logo_url}
+                            onChange={(e) => {
+                              setFormData(prev => ({ ...prev, logo_url: e.target.value }));
+                              setLogoPreview(e.target.value);
+                            }}
+                            className="text-xs"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-2">
-              <Users className="h-8 w-8 text-blue-600" />
-              <div>
-                <p className="text-2xl font-bold">156</p>
-                <p className="text-sm text-muted-foreground">Active Users</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                  {/* Video Upload/URL */}
+                  <div className="space-y-3">
+                    <Label>Introduction Video</Label>
+                    <div className="space-y-2">
+                      <Input
+                        placeholder="Paste YouTube URL (e.g., https://www.youtube.com/watch?v=...)"
+                        value={formData.video_url}
+                        onChange={handleChange}
+                        name="video_url"
+                        type="text"
+                      />
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 border-t" />
+                        <span className="text-xs text-muted-foreground">OR</span>
+                        <div className="flex-1 border-t" />
+                      </div>
+                      <input
+                        type="file"
+                        accept="video/*"
+                        onChange={handleVideoUpload}
+                        className="hidden"
+                        id="video-upload"
+                        disabled={uploading}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => document.getElementById('video-upload')?.click()}
+                        disabled={uploading}
+                        className="w-full"
+                      >
+                        {uploading ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <UploadIcon className="mr-2 h-4 w-4" />
+                            Upload Video File
+                          </>
+                        )}
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        Upload a video file (MP4, WebM, max 50MB) or paste a YouTube URL
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-2">
-              <Building className="h-8 w-8 text-green-600" />
-              <div>
-                <p className="text-2xl font-bold">12</p>
-                <p className="text-sm text-muted-foreground">Departments</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+              {/* Vision Statement */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Vision Statement
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <TiptapEditor
+                    content={formData.vision}
+                    onChange={(content) => handleEditorChange("vision", content)}
+                    placeholder="Enter your organization's vision statement..."
+                  />
+                </CardContent>
+              </Card>
 
-      {/* System Features */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" />
-              Blockchain Integration
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              DocOnChain integration for tamper-proof document signing and
-              verification.
-            </p>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Verification Rate</span>
-              <span className="text-sm font-medium">99.8%</span>
-            </div>
-            <Progress value={99.8} className="h-2" />
-            <Link href="/(public)/verify/sample-hash">
-              <Button variant="outline" size="sm" className="w-full">
-                <Globe className="h-4 w-4 mr-2" />
-                Public Verification Portal
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+              {/* Mission Statement */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5" />
+                    Mission Statement
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <TiptapEditor
+                    content={formData.mission}
+                    onChange={(content) => handleEditorChange("mission", content)}
+                    placeholder="Enter your organization's mission statement..."
+                  />
+                </CardContent>
+              </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Workflow className="h-5 w-5 text-secondary" />
-              Workflow Automation
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Visual workflow builder with approval chains and blockchain
-              signature requirements.
-            </p>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Active Workflows</span>
-              <span className="text-sm font-medium">23</span>
-            </div>
-            <Progress value={85} className="h-2" />
-            <Link href="/workflows/builder">
-              <Button variant="outline" size="sm" className="w-full">
-                <Zap className="h-4 w-4 mr-2" />
-                Build Workflow
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-green-600" />
-              Analytics & Reports
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Comprehensive reporting with compliance monitoring and audit
-              trails.
-            </p>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Compliance Score</span>
-              <span className="text-sm font-medium">94%</span>
-            </div>
-            <Progress value={94} className="h-2" />
-            <Link href="/reports">
-              <Button variant="outline" size="sm" className="w-full">
-                <TrendingUp className="h-4 w-4 mr-2" />
-                View Reports
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Activity & System Status */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Recent System Activity
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">
-                    Document "Annual Report 2024" blockchain signed
-                  </p>
-                  <p className="text-xs text-muted-foreground">2 minutes ago</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">
-                    New workflow "Contract Approval" activated
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    15 minutes ago
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">
-                    System backup completed successfully
-                  </p>
-                  <p className="text-xs text-muted-foreground">1 hour ago</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">
-                    5 new users added to Legal Department
-                  </p>
-                  <p className="text-xs text-muted-foreground">3 hours ago</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Database className="h-5 w-5" />
-              System Health
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="text-sm">Database</span>
-                </div>
-                <Badge
-                  variant="secondary"
-                  className="bg-green-100 text-green-800"
-                >
-                  Healthy
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="text-sm">DocOnChain API</span>
-                </div>
-                <Badge
-                  variant="secondary"
-                  className="bg-green-100 text-green-800"
-                >
-                  Connected
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="text-sm">File Storage</span>
-                </div>
-                <Badge
-                  variant="secondary"
-                  className="bg-green-100 text-green-800"
-                >
-                  85% Available
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-yellow-600" />
-                  <span className="text-sm">Backup Status</span>
-                </div>
-                <Badge
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 sticky bottom-0 bg-background/95 backdrop-blur py-4 border-t">
+                <Button
+                  type="button"
                   variant="outline"
-                  className="bg-yellow-100 text-yellow-800"
+                  onClick={() => setActiveTab("preview")}
                 >
-                  Scheduled
-                </Badge>
+                  <Eye className="mr-2 h-4 w-4" />
+                  Preview Changes
+                </Button>
+                <Button type="submit" disabled={saving}>
+                  {saving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Save Changes
+                    </>
+                  )}
+                </Button>
               </div>
-            </div>
-
-            <div className="pt-4 border-t">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">System Uptime</span>
-                <span className="font-medium">99.9% (30 days)</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </form>
+          </TabsContent>
+        </Tabs>
       </div>
-
-      {/* Security & Compliance */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Lock className="h-5 w-5" />
-            Security & Compliance Overview
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-6 md:grid-cols-3">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <Shield className="h-8 w-8 text-green-600" />
-              </div>
-              <h3 className="font-semibold mb-2">Blockchain Verified</h3>
-              <p className="text-sm text-muted-foreground">
-                All critical documents are cryptographically signed and verified
-                on the blockchain
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <Lock className="h-8 w-8 text-blue-600" />
-              </div>
-              <h3 className="font-semibold mb-2">Enterprise Security</h3>
-              <p className="text-sm text-muted-foreground">
-                Role-based access control, JWT authentication, and encrypted
-                data transmission
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <BarChart3 className="h-8 w-8 text-purple-600" />
-              </div>
-              <h3 className="font-semibold mb-2">Audit Compliance</h3>
-              <p className="text-sm text-muted-foreground">
-                Complete audit trails, compliance reporting, and regulatory
-                adherence
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };
