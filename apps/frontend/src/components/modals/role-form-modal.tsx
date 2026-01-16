@@ -187,10 +187,11 @@ const RoleFormModal: React.FC<RoleFormModalProps> = ({
         onSuccess();
         onClose();
       } else {
-        throw new Error(
-          result.message ||
-            `Failed to ${initialData ? "update" : "create"} role.`
-        );
+        // Handle error response from backend
+        const errorMessage = result?.error?.message ||
+                            result?.message ||
+                            `Failed to ${initialData ? "update" : "create"} role.`;
+        throw new Error(errorMessage);
       }
     } catch (error: any) {
       console.error("Error saving role:", error);

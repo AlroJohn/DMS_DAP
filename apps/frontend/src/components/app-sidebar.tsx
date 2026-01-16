@@ -182,6 +182,11 @@ const data = {
       icon: LogsIcon,
     },
     {
+      title: "Sidebar Settings",
+      url: "/admin/sidebar-settings",
+      icon: Settings,
+    },
+    {
       title: "Reports",
       url: "/reports",
       icon: LineChart,
@@ -349,6 +354,52 @@ const data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user, isLoading } = useAuth();
+  const [enabledSections, setEnabledSections] = React.useState<Set<string>>(new Set());
+  const [loadingSettings, setLoadingSettings] = React.useState(true);
+
+  // Fetch global sidebar settings
+  React.useEffect(() => {
+    const fetchSidebarSettings = async () => {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/sidebar-settings/enabled`,
+          {
+            credentials: "include",
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && Array.isArray(data.data)) {
+            const enabledKeys = new Set<string>(
+              data.data.map((item: { section_key: string }) => item.section_key)
+            );
+            setEnabledSections(enabledKeys);
+          } else {
+            // On error, enable all sections by default
+            setEnabledSections(
+              new Set(["home", "dashboard", "documents", "management", "search", "notifications", "sidebar settings", "reports"])
+            );
+          }
+        } else {
+          // On error, enable all sections by default
+          setEnabledSections(
+            new Set(["home", "dashboard", "documents", "management", "search", "notifications", "sidebar settings", "reports"])
+          );
+        }
+      } catch (error) {
+        console.error("Error fetching sidebar settings:", error);
+        // On error, enable all sections by default
+        setEnabledSections(
+          new Set(["home", "dashboard", "documents", "management", "search", "notifications", "sidebar settings", "reports"])
+        );
+      } finally {
+        setLoadingSettings(false);
+      }
+    };
+
+    fetchSidebarSettings();
+  }, []);
 
   // Construct user data from authenticated user
   const getUserName = () => {
@@ -368,6 +419,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     if (!user || isLoading) return [];
 
     return data.navMain.filter((item) => {
+      // If still loading settings, show all items (will be filtered once loaded)
+      // Otherwise, check if section is globally enabled
+      if (!loadingSettings) {
+        const sectionKey = item.title.toLowerCase();
+        if (!enabledSections.has(sectionKey)) {
+          return false;
+        }
+      }
+
       // Check permissions for each navigation item
       switch (item.title) {
         case "Home":
@@ -446,6 +506,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         case "Notifications":
           // Notifications are accessible to everyone authenticated
           return true;
+
+        case "Sidebar Settings":
+          // Sidebar Settings requires system_settings_write permission
+          return hasPermission(user, "system_settings_write");
 
         case "Reports":
           // Reports require any report permission

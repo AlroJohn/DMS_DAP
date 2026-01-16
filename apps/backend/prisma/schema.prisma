@@ -1036,3 +1036,15 @@ model HomeCMS {
 
   @@index([is_active])
 }
+
+model SidebarSettings {
+  setting_id   String   @id @default(uuid()) @db.Uuid
+  section_key  String   @unique // home, dashboard, documents, management, search, notifications, reports
+  section_name String
+  is_enabled   Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @default(now()) @updatedAt
+
+  @@index([section_key])
+  @@index([is_enabled])
+}
