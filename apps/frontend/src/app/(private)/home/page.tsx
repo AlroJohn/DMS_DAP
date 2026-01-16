@@ -204,14 +204,15 @@ const Homepage = () => {
 
   // Preview Content Component
   const PreviewContent = ({ data }: { data: typeof cmsData }) => (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4">
       {/* Company Logo & Welcome Section with Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-        {/* Logo Column - Reduced padding on right side */}
-        <div className="flex items-center justify-center md:justify-end pr-0 animate-in fade-in duration-700">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 items-center">
+        {/* Combined Logo & Welcome Column */}
+        <div className="flex flex-col items-center justify-center pl-26 md:flex-row md:items-center md:justify-start gap-4 animate-in fade-in duration-700">
+          {/* Logo */}
           <div className="flex-shrink-0">
             {data?.logo_url ? (
-              <div className="w-24 h-24 md:w-32 md:h-32 relative hover:scale-105 transition-transform duration-300">
+              <div className="w-20 h-20 md:w-24 md:h-24 relative hover:scale-105 transition-transform duration-300">
                 <Image
                   src={data.logo_url}
                   alt="Organization Logo"
@@ -221,36 +222,34 @@ const Homepage = () => {
                 />
               </div>
             ) : (
-              <div className="w-24 h-24 md:w-32 md:h-32 bg-gradient-to-br from-primary via-primary/90 to-primary/80 rounded-2xl flex items-center justify-center shadow-xl hover:shadow-primary/50 transition-all duration-300 hover:scale-105">
-                <FileText className="h-12 w-12 md:h-16 md:w-16 text-primary-foreground" />
+              <div className="w-20 h-20 md:w-24 md:h-24 bg-gradient-to-br from-primary via-primary/90 to-primary/80 rounded-2xl flex items-center justify-center shadow-xl hover:shadow-primary/50 transition-all duration-300 hover:scale-105">
+                <FileText className="h-10 w-10 md:h-12 md:w-12 text-primary-foreground" />
               </div>
             )}
           </div>
-        </div>
 
-        {/* Welcome Content Column - Centered */}
-        <div className="flex items-center justify-center md:justify-start animate-in slide-in-from-bottom-4 duration-700">
+          {/* Welcome Content */}
           <div className="space-y-2 text-center md:text-left">
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-r from-primary via-blue-600 to-primary/70 bg-clip-text text-transparent drop-shadow-sm">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-r from-primary via-blue-600 to-primary/70 bg-clip-text text-transparent drop-shadow-sm">
               {data?.welcome_title || "Document Management System"}
             </h1>
-            <p className="text-base md:text-lg text-muted-foreground/90">
+            <p className="text-sm md:text-base text-muted-foreground/90">
               {data?.welcome_text ||
                 "Welcome to our organization's document management platform"}
             </p>
-            <div className="flex items-center justify-center md:justify-start gap-2 mt-3">
-              <Badge variant="secondary" className="bg-green-50 text-green-700 border border-green-200 px-2.5 py-0.5 text-xs hover:bg-green-100 transition-colors">
-                <CheckCircle className="h-3 w-3 mr-1" />
+            <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
+              <Badge variant="secondary" className="bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 text-xs hover:bg-green-100 transition-colors">
+                <CheckCircle className="h-2.5 w-2.5 mr-1" />
                 System Online
               </Badge>
-              <Badge variant="outline" className="px-2.5 py-0.5 text-xs hover:bg-accent transition-colors">Version 1.0.0</Badge>
+              <Badge variant="outline" className="px-2 py-0.5 text-xs hover:bg-accent transition-colors">Version 1.0.0</Badge>
             </div>
           </div>
         </div>
 
-        {/* Dashboard Stats Column - 2x2 grid, centered in container */}
-        <div className="flex items-center justify-center">
-          <div className="grid grid-cols-2 gap-3 animate-in fade-in-50 duration-700 w-full max-w-md">
+        {/* Dashboard Stats Column */}
+        <div className="flex items-center justify-center md:justify-end">
+          <div className="grid grid-cols-2 gap-2 animate-in fade-in-50 duration-700 w-full max-w-xs sm:max-w-md">
             <Card className="hover:shadow-md transition-shadow">
               <CardContent className="p-3">
                 <div className="flex flex-col items-center text-center gap-2">
@@ -349,21 +348,19 @@ const Homepage = () => {
               </CardContent>
             </Card>
           ) : (
-            isSuperAdmin && (
-              <Card className="shadow-md border-2 border-dashed border-muted/50 hover:border-muted transition-colors animate-in fade-in-50 duration-700 delay-100">
-                <CardContent className="p-6 text-center">
-                  <div className="space-y-2">
-                    <div className="w-12 h-12 bg-muted/50 rounded-lg flex items-center justify-center mx-auto">
-                      <FileText className="h-6 w-6 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-semibold">No Video Added</h3>
-                      <p className="text-xs text-muted-foreground">Switch to Edit tab to add an introduction video</p>
-                    </div>
+            <Card className="shadow-md border-2 border-dashed border-muted/30 animate-in fade-in-50 duration-700 delay-100">
+              <CardContent className="p-6 text-center">
+                <div className="space-y-2">
+                  <div className="w-12 h-12 bg-muted/20 rounded-lg flex items-center justify-center mx-auto">
+                    <FileText className="h-6 w-6 text-muted-foreground/60" />
                   </div>
-                </CardContent>
-              </Card>
-            )
+                  <div>
+                    <h3 className="text-sm font-semibold text-muted-foreground/70">Video Coming Soon</h3>
+                    <p className="text-xs text-muted-foreground/50">An introduction video will be available shortly</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* Vision & Mission in horizontal layout */}
@@ -387,21 +384,19 @@ const Homepage = () => {
                 </CardContent>
               </Card>
             ) : (
-              isSuperAdmin && (
-                <Card className="shadow-md border-2 border-dashed border-muted/50 hover:border-muted transition-colors animate-in fade-in-50 duration-700 delay-200">
-                  <CardContent className="p-6 text-center">
-                    <div className="space-y-2">
-                      <div className="w-12 h-12 bg-muted/50 rounded-lg flex items-center justify-center mx-auto">
-                        <Shield className="h-6 w-6 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-semibold">No Vision Statement</h3>
-                        <p className="text-xs text-muted-foreground">Add your organization's vision</p>
-                      </div>
+              <Card className="shadow-md border-2 border-dashed border-muted/30 animate-in fade-in-50 duration-700 delay-200">
+                <CardContent className="p-6 text-center">
+                  <div className="space-y-2">
+                    <div className="w-12 h-12 bg-muted/20 rounded-lg flex items-center justify-center mx-auto">
+                      <Shield className="h-6 w-6 text-muted-foreground/60" />
                     </div>
-                  </CardContent>
-                </Card>
-              )
+                    <div>
+                      <h3 className="text-sm font-semibold text-muted-foreground/70">Vision Statement</h3>
+                      <p className="text-xs text-muted-foreground/50">Our vision will be shared soon</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
             {/* Mission */}
@@ -423,21 +418,19 @@ const Homepage = () => {
                 </CardContent>
               </Card>
             ) : (
-              isSuperAdmin && (
-                <Card className="shadow-md border-2 border-dashed border-muted/50 hover:border-muted transition-colors animate-in fade-in-50 duration-700 delay-300">
-                  <CardContent className="p-6 text-center">
-                    <div className="space-y-2">
-                      <div className="w-12 h-12 bg-muted/50 rounded-lg flex items-center justify-center mx-auto">
-                        <BarChart3 className="h-6 w-6 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-semibold">No Mission Statement</h3>
-                        <p className="text-xs text-muted-foreground">Add your organization's mission</p>
-                      </div>
+              <Card className="shadow-md border-2 border-dashed border-muted/30 animate-in fade-in-50 duration-700 delay-300">
+                <CardContent className="p-6 text-center">
+                  <div className="space-y-2">
+                    <div className="w-12 h-12 bg-muted/20 rounded-lg flex items-center justify-center mx-auto">
+                      <BarChart3 className="h-6 w-6 text-muted-foreground/60" />
                     </div>
-                  </CardContent>
-                </Card>
-              )
+                    <div>
+                      <h3 className="text-sm font-semibold text-muted-foreground/70">Mission Statement</h3>
+                      <p className="text-xs text-muted-foreground/50">Our mission will be shared soon</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </div>
         </div>
@@ -554,8 +547,10 @@ const Homepage = () => {
   if (!isSuperAdmin) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
-        <div className="max-w-7xl mx-auto">
-          <PreviewContent data={cmsData} />
+        <div className="max-w-8xl mx-auto p-2">
+          <div className="space-y-0">
+            <PreviewContent data={cmsData} />
+          </div>
         </div>
       </div>
     );
