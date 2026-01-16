@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -24,6 +30,10 @@ export default function SidebarSettingsPage() {
   const [usingDefaults, setUsingDefaults] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
+  const apiBaseUrl =
+    process.env.NODE_ENV === "development"
+      ? "http://localhost:3001"
+      : process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
   // Check if user is superadmin
   const isSuperAdmin = user && hasPermission(user, "system_settings_write");
@@ -32,7 +42,8 @@ export default function SidebarSettingsPage() {
     if (!isSuperAdmin) {
       toast({
         title: "Access Denied",
-        description: "Only users with system settings permissions can access this page",
+        description:
+          "Only users with system settings permissions can access this page",
         variant: "destructive",
       });
       return;
@@ -42,15 +53,18 @@ export default function SidebarSettingsPage() {
 
   const fetchSettings = async () => {
     try {
-      const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/sidebar-settings`;
+      const apiUrl = `${apiBaseUrl}/api/sidebar-settings`;
       console.log("Fetching sidebar settings from:", apiUrl);
-      
+
       const response = await fetch(apiUrl, {
         credentials: "include",
       });
 
       console.log("Response status:", response.status);
-      console.log("Response headers:", Object.fromEntries(response.headers.entries()));
+      console.log(
+        "Response headers:",
+        Object.fromEntries(response.headers.entries())
+      );
 
       if (!response.ok) {
         console.error("Failed to fetch settings, status:", response.status);
@@ -73,18 +87,58 @@ export default function SidebarSettingsPage() {
         description: "Failed to load sidebar settings. Using defaults.",
         variant: "destructive",
       });
-      
+
       // Set default settings if fetch fails
       setUsingDefaults(true);
       const defaultSettings = [
-        { setting_id: "default-1", section_key: "home", section_name: "Home", is_enabled: true },
-        { setting_id: "default-2", section_key: "dashboard", section_name: "Dashboard", is_enabled: true },
-        { setting_id: "default-3", section_key: "documents", section_name: "Documents", is_enabled: true },
-        { setting_id: "default-4", section_key: "management", section_name: "Management", is_enabled: true },
-        { setting_id: "default-5", section_key: "search", section_name: "Search", is_enabled: true },
-        { setting_id: "default-6", section_key: "notifications", section_name: "Notifications", is_enabled: true },
-        { setting_id: "default-7", section_key: "sidebar settings", section_name: "Sidebar Settings", is_enabled: true },
-        { setting_id: "default-8", section_key: "reports", section_name: "Reports", is_enabled: true },
+        {
+          setting_id: "default-1",
+          section_key: "home",
+          section_name: "Home",
+          is_enabled: true,
+        },
+        {
+          setting_id: "default-2",
+          section_key: "dashboard",
+          section_name: "Dashboard",
+          is_enabled: true,
+        },
+        {
+          setting_id: "default-3",
+          section_key: "documents",
+          section_name: "Documents",
+          is_enabled: true,
+        },
+        {
+          setting_id: "default-4",
+          section_key: "management",
+          section_name: "Management",
+          is_enabled: true,
+        },
+        {
+          setting_id: "default-5",
+          section_key: "search",
+          section_name: "Search",
+          is_enabled: true,
+        },
+        {
+          setting_id: "default-6",
+          section_key: "notifications",
+          section_name: "Notifications",
+          is_enabled: true,
+        },
+        {
+          setting_id: "default-7",
+          section_key: "sidebar settings",
+          section_name: "Sidebar Settings",
+          is_enabled: true,
+        },
+        {
+          setting_id: "default-8",
+          section_key: "reports",
+          section_name: "Reports",
+          is_enabled: true,
+        },
       ];
       setSettings(defaultSettings);
     } finally {
@@ -95,7 +149,9 @@ export default function SidebarSettingsPage() {
   const handleToggle = (settingId: string, isEnabled: boolean) => {
     setSettings((prev) =>
       prev.map((setting) =>
-        setting.setting_id === settingId ? { ...setting, is_enabled: isEnabled } : setting
+        setting.setting_id === settingId
+          ? { ...setting, is_enabled: isEnabled }
+          : setting
       )
     );
   };
@@ -103,10 +159,10 @@ export default function SidebarSettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/sidebar-settings/bulk`;
+      const apiUrl = `${apiBaseUrl}/api/sidebar-settings/bulk`;
       console.log("Saving settings to:", apiUrl);
       console.log("Settings payload:", settings);
-      
+
       const response = await fetch(apiUrl, {
         method: "PUT",
         headers: {
@@ -117,20 +173,26 @@ export default function SidebarSettingsPage() {
       });
 
       console.log("Save response status:", response.status);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Save failed. Status:", response.status, "Response:", errorText);
+        console.error(
+          "Save failed. Status:",
+          response.status,
+          "Response:",
+          errorText
+        );
         throw new Error(`Failed to save settings: ${response.status}`);
       }
 
       const data = await response.json();
       console.log("Save response data:", data);
-      
+
       if (data.success) {
         toast({
           title: "Success",
-          description: "Sidebar settings updated successfully. Users will see changes after refreshing their page.",
+          description:
+            "Sidebar settings updated successfully. Users will see changes after refreshing their page.",
         });
         setUsingDefaults(false); // Clear the defaults flag after successful save
       }
@@ -138,7 +200,10 @@ export default function SidebarSettingsPage() {
       console.error("Save error:", error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to save sidebar settings",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to save sidebar settings",
         variant: "destructive",
       });
     } finally {
@@ -153,7 +218,8 @@ export default function SidebarSettingsPage() {
           <CardHeader>
             <CardTitle>Access Denied</CardTitle>
             <CardDescription>
-              Only users with system settings permissions can access sidebar settings
+              Only users with system settings permissions can access sidebar
+              settings
             </CardDescription>
           </CardHeader>
         </Card>
@@ -178,8 +244,8 @@ export default function SidebarSettingsPage() {
             <CardTitle>Sidebar Settings</CardTitle>
           </div>
           <CardDescription>
-            Control which sidebar sections are visible to all users across all departments. 
-            Disabled sections will be hidden from everyone.
+            Control which sidebar sections are visible to all users across all
+            departments. Disabled sections will be hidden from everyone.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -190,7 +256,10 @@ export default function SidebarSettingsPage() {
                 className="flex items-center justify-between p-4 rounded-lg hover:bg-accent/50 transition-colors"
               >
                 <div className="space-y-1">
-                  <Label htmlFor={setting.section_key} className="text-base font-medium cursor-pointer">
+                  <Label
+                    htmlFor={setting.section_key}
+                    className="text-base font-medium cursor-pointer"
+                  >
                     {setting.section_name}
                   </Label>
                   <p className="text-sm text-muted-foreground">
@@ -200,7 +269,9 @@ export default function SidebarSettingsPage() {
                 <Switch
                   id={setting.section_key}
                   checked={setting.is_enabled}
-                  onCheckedChange={(checked) => handleToggle(setting.setting_id, checked)}
+                  onCheckedChange={(checked) =>
+                    handleToggle(setting.setting_id, checked)
+                  }
                   disabled={saving}
                 />
               </div>
@@ -233,8 +304,13 @@ export default function SidebarSettingsPage() {
           <ul className="list-disc list-inside space-y-1">
             <li>Changes apply globally to all users in all departments</li>
             <li>Users need to refresh their page to see the changes</li>
-            <li>Permission-based filtering still applies within enabled sections</li>
-            <li>Disabling a section only hides it from the sidebar, not the functionality</li>
+            <li>
+              Permission-based filtering still applies within enabled sections
+            </li>
+            <li>
+              Disabling a section only hides it from the sidebar, not the
+              functionality
+            </li>
           </ul>
         </CardContent>
       </Card>
@@ -246,8 +322,10 @@ function getSettingDescription(sectionKey: string): string {
   const descriptions: Record<string, string> = {
     home: "Main landing page with CMS content and overview",
     dashboard: "Analytics and statistics dashboard",
-    documents: "Document management including owned, shared, and archived documents",
-    management: "System management for document types, actions, departments, users, and roles",
+    documents:
+      "Document management including owned, shared, and archived documents",
+    management:
+      "System management for document types, actions, departments, users, and roles",
     search: "Document search and saved searches",
     notifications: "System notifications and alerts",
     "sidebar settings": "Control sidebar section visibility (superadmin only)",

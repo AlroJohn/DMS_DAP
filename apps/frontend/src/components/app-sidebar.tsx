@@ -356,13 +356,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user, isLoading } = useAuth();
   const [enabledSections, setEnabledSections] = React.useState<Set<string>>(new Set());
   const [loadingSettings, setLoadingSettings] = React.useState(true);
+  const apiBaseUrl =
+    process.env.NODE_ENV === 'development'
+      ? 'http://localhost:3001'
+      : process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
   // Fetch global sidebar settings
   React.useEffect(() => {
     const fetchSidebarSettings = async () => {
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/sidebar-settings/enabled`,
+          `${apiBaseUrl}/api/sidebar-settings/enabled`,
           {
             credentials: "include",
           }
