@@ -1,0 +1,25 @@
+{
+  "name": "@dms/printer",
+  "version": "1.0.0",
+  "description": "Thermal printer service for DMS application",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.7.5",
+    "node-thermal-printer": "^4.1.1",
+    "canvas": "^2.11.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.17"
+  },
+  "keywords": [
+    "thermal-printer",
+    "dms",
+    "socketio"
+  ],
+  "author": "DMS Team",
+  "license": "MIT"
+}

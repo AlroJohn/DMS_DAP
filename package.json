@@ -8,6 +8,7 @@
     "dev": "turbo run dev",
     "dev:backend": "turbo run dev --filter=backend",
     "dev:frontend": "turbo run dev --filter=frontend",
+    "dev:printer": "turbo run dev --filter=printer",
     "build": "turbo run build",
     "start": "turbo run start",
     "lint": "turbo run lint",
