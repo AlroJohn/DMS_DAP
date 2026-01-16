@@ -1,7 +1,4 @@
 const io = require('socket.io-client');
-const fs = require('fs');
-const path = require('path');
-const { createCanvas } = require('canvas'); // For image processing
 const { ThermalPrinter, PrinterTypes, CharacterSet, BreakLine } = require('node-thermal-printer');
 
 // Replace 'config.socket' with your Socket.IO URL
@@ -134,58 +131,38 @@ async function handleImagePrint(printer, type, title, imageUrl, timestamp) {
 
     if (imageUrl) {
         try {
-            // Convert data URL to buffer if it's a data URL
-            let imageBuffer;
-            if (imageUrl.startsWith('data:image')) {
-                // Extract base64 data from data URL
-                const base64Data = imageUrl.split(',')[1];
-                imageBuffer = Buffer.from(base64Data, 'base64');
+            // For now, we'll print a placeholder since we don't have canvas support
+            // In a production environment with canvas, we would decode the image and print it
+            console.log('Image URL detected, printing placeholder...');
 
-                // Import canvas here to avoid issues if not available
-                const { Image } = require('canvas');
-                const img = new Image();
+            // Print a representation of the QR code using ASCII characters
+            // This is a simplified approach for thermal printers
+            printer.alignCenter();
+            printer.println('');
+            printer.println('┌──────────────────────────────────────┐');
+            printer.println('│  ██████████████████████████████████  │');
+            printer.println('│  ██████████████████████████████████  │');
+            printer.println('│  ████  ██  ████  ████  ██  ████  ████  │');
+            printer.println('│  ████  ██  ████  ████  ██  ████  ████  │');
+            printer.println('│  ██████████████████████████████████  │');
+            printer.println('│  ██████████████████████████████████  │');
+            printer.println('│  ████  ████  ██  ██  ████  ████  ████  │');
+            printer.println('│  ████  ████  ██  ██  ████  ████  ████  │');
+            printer.println('│  ██████████████████████████████████  │');
+            printer.println('│  ██████████████████████████████████  │');
+            printer.println('│                                      │');
+            printer.println('│  ██████████████████████████████████  │');
+            printer.println('│  ████  ██  ████  ████  ██  ████  ████  │');
+            printer.println('│  ████  ██  ████  ████  ██  ████  ████  │');
+            printer.println('│  ██████████████████████████████████  │');
+            printer.println('│  ██████████████████████████████████  │');
+            printer.println('└──────────────────────────────────────┘');
+            printer.println('');
 
-                // Set up callback for when image loads
-                await new Promise((resolve, reject) => {
-                    img.onload = () => resolve();
-                    img.onerror = (err) => {
-                        console.error('Image load error:', err);
-                        reject(err);
-                    };
-                    img.src = imageBuffer;
-                });
-
-                // Align center and print the image
-                printer.alignCenter();
-                await printer.printImage(img);
-            } else {
-                // If it's a regular URL, we could download it, but for now print a placeholder
-                console.log('Image URL detected, printing placeholder...');
-
-                // Print a representation of the QR code using ASCII characters
-                // This is a simplified approach for thermal printers
-                printer.alignCenter();
-                printer.println('');
-                printer.println('┌──────────────────────────────────────┐');
-                printer.println('│  ██████████████████████████████████  │');
-                printer.println('│  ██████████████████████████████████  │');
-                printer.println('│  ████  ██  ████  ████  ██  ████  ████  │');
-                printer.println('│  ████  ██  ████  ████  ██  ████  ████  │');
-                printer.println('│  ██████████████████████████████████  │');
-                printer.println('│  ██████████████████████████████████  │');
-                printer.println('│  ████  ████  ██  ██  ████  ████  ████  │');
-                printer.println('│  ████  ████  ██  ██  ████  ████  ████  │');
-                printer.println('│  ██████████████████████████████████  │');
-                printer.println('│  ██████████████████████████████████  │');
-                printer.println('│                                      │');
-                printer.println('│  ██████████████████████████████████  │');
-                printer.println('│  ████  ██  ████  ████  ██  ████  ████  │');
-                printer.println('│  ████  ██  ████  ████  ██  ████  ████  │');
-                printer.println('│  ██████████████████████████████████  │');
-                printer.println('│  ██████████████████████████████████  │');
-                printer.println('└──────────────────────────────────────┘');
-                printer.println('');
-            }
+            // Print a note about the actual image
+            printer.alignCenter();
+            printer.println('(Actual QR/Barcode image)');
+            printer.println('(would be printed here)');
         } catch (error) {
             console.error('Error processing image:', error);
             printer.println('[IMAGE PRINT ERROR]');

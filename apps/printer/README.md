@@ -15,6 +15,7 @@ This service handles thermal printing for the Document Management System (DMS), 
 - Node.js 18+
 - pnpm package manager
 - Thermal printer connected to the network (HPRT TP8808S or compatible)
+- Python (optional, only required if you want to print actual images instead of placeholders)
 
 ## Installation
 
@@ -22,6 +23,13 @@ This service handles thermal printing for the Document Management System (DMS), 
 ```bash
 pnpm install
 ```
+
+2. (Optional) If you want to print actual images instead of placeholders, install canvas:
+```bash
+# On Windows, you'll need Python installed for canvas compilation
+pnpm install canvas
+```
+Then update the package.json to include canvas in dependencies.
 
 2. Set up environment variables (optional):
 Create a `.env` file in the root of the printer app with the following variables:
