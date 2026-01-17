@@ -40,33 +40,33 @@ model Account {
 }
 
 model User {
-  user_id                    String                     @id @default(uuid()) @db.Uuid
-  account_id                 String                     @unique @db.Uuid
-  department_id              String                     @db.Uuid
-  first_name                 String
-  last_name                  String
-  middle_name                String?
-  user_name                  String?                    @unique
-  title                      String?
-  type                       String?
-  avatar                     String?
-  signature                  String?
-  active                     Boolean                    @default(true)
-  created_at                 DateTime                   @default(now())
-  updated_at                 DateTime                   @default(now()) @updatedAt
-  document_trails            DocumentTrail[]
-  notifications              Notification[]
-  notification_subscriptions NotificationSubscription[]
-  notification_preferences   NotificationPreference[]
-  notification_settings      NotificationSettings?
-  permission_audit_target    PermissionAuditLog[]       @relation("PermissionAuditTargetUser")
-  signed_documents           SignedDocument[]
-  assigned_signature_placeholders SignaturePlaceholder[] @relation("SignaturePlaceholderAssignee")
-  assigned_text_placeholders TextPlaceholder[] @relation("TextPlaceholderAssignee")
-  account                    Account                    @relation(fields: [account_id], references: [account_id], onDelete: Cascade)
-  user_permissions           UserPermission[]
-  user_roles                 UserRole[]
-  scheduled_reports          ScheduledReport[]
+  user_id                         String                     @id @default(uuid()) @db.Uuid
+  account_id                      String                     @unique @db.Uuid
+  department_id                   String                     @db.Uuid
+  first_name                      String
+  last_name                       String
+  middle_name                     String?
+  user_name                       String?                    @unique
+  title                           String?
+  type                            String?
+  avatar                          String?
+  signature                       String?
+  active                          Boolean                    @default(true)
+  created_at                      DateTime                   @default(now())
+  updated_at                      DateTime                   @default(now()) @updatedAt
+  document_trails                 DocumentTrail[]
+  notifications                   Notification[]
+  notification_subscriptions      NotificationSubscription[]
+  notification_preferences        NotificationPreference[]
+  notification_settings           NotificationSettings?
+  permission_audit_target         PermissionAuditLog[]       @relation("PermissionAuditTargetUser")
+  signed_documents                SignedDocument[]
+  assigned_signature_placeholders SignaturePlaceholder[]     @relation("SignaturePlaceholderAssignee")
+  assigned_text_placeholders      TextPlaceholder[]          @relation("TextPlaceholderAssignee")
+  account                         Account                    @relation(fields: [account_id], references: [account_id], onDelete: Cascade)
+  user_permissions                UserPermission[]
+  user_roles                      UserRole[]
+  scheduled_reports               ScheduledReport[]
 }
 
 model Department {
@@ -91,7 +91,7 @@ model Document {
   document_type             String
   classification            DocClassification           @default(simple)
   origin                    DocOrigin                   @default(external)
-  status                    DocStatus                   @default(dispatch)
+  status                    DocStatus                   @default(pending)
   created_at                DateTime                    @default(now())
   updated_at                DateTime                    @default(now()) @updatedAt
   deleted_at                DateTime?
@@ -124,7 +124,7 @@ model DocumentAdditionalDetails {
   received_by             String?   @db.Uuid
   work_flow_id            Json? // Workflow route for department IDs (array or object); first entry is the originating/owner department.
   received_by_departments Json? // Array of user IDs that have received/acknowledged this document: [first:"user_id_1", second:"user_id_2"...]. first element is the originating department user.
-  work_flow_status        Json? // Object tracking the status of each document in the workflow: {created:("at:"datetime", status:"dispatch"), released_1:("at:"datetime", status:"intransit"), released_2:("at:"datetime", status:"intransit")..., received:("at:"datetime", status:"received"), completed:("at:"datetime", status:"completed")}
+  work_flow_status        Json? // Object tracking the status of each document in the workflow: {created:("at:"datetime", status:"pending"), released_1:("at:"datetime", status:"intransit"), released_2:("at:"datetime", status:"intransit")..., received:("at:"datetime", status:"received"), completed:("at:"datetime", status:"completed")}
   blockchain_project_uuid String?
   blockchain_tx_hash      String?
   blockchain_status       String?
@@ -681,7 +681,7 @@ enum DocOrigin {
 }
 
 enum DocStatus {
-  dispatch
+  pending
   received
   intransit
   intransit_signature
@@ -1021,18 +1021,18 @@ enum InvitationStatus {
 }
 
 model HomeCMS {
-  cms_id         String   @id @default(uuid()) @db.Uuid
-  logo_url       String?
-  video_url      String?
-  vision         String?  @db.Text
-  mission        String?  @db.Text
-  welcome_title  String?
-  welcome_text   String?  @db.Text
-  is_active      Boolean  @default(true)
-  created_at     DateTime @default(now())
-  updated_at     DateTime @default(now()) @updatedAt
-  created_by     String   @db.Uuid
-  updated_by     String   @db.Uuid
+  cms_id        String   @id @default(uuid()) @db.Uuid
+  logo_url      String?
+  video_url     String?
+  vision        String?  @db.Text
+  mission       String?  @db.Text
+  welcome_title String?
+  welcome_text  String?  @db.Text
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @default(now()) @updatedAt
+  created_by    String   @db.Uuid
+  updated_by    String   @db.Uuid
 
   @@index([is_active])
 }

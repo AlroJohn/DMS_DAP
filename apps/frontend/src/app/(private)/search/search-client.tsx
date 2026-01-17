@@ -92,16 +92,16 @@ export default function SearchPageClient() {
   const searchParams = useSearchParams();
 
   // Check if user is admin or superadmin (note: role codes in DB use underscore)
-  const isAdmin = user ? hasAnyRole(user, ['ADMIN', 'SUPER_ADMIN']) : false;
+  const isAdmin = user ? hasAnyRole(user, ["ADMIN", "SUPER_ADMIN"]) : false;
 
   // Debug: Log user and admin status
-  console.log('Current user:', user);
-  console.log('Is admin:', isAdmin);
+  console.log("Current user:", user);
+  console.log("Is admin:", isAdmin);
 
   const [departments, setDepartments] = useState<Department[]>([]);
   const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
-  const [searchType, setSearchType] = useState<'document' | 'ocr'>('document');
+  const [searchType, setSearchType] = useState<"document" | "ocr">("document");
 
   // Fetch departments and document types on component mount
   useEffect(() => {
@@ -412,7 +412,10 @@ export default function SearchPageClient() {
   const totalResults = searchResults?.total || 0;
 
   return (
-    <div className="flex flex-col bg-background overflow-hidden" style={{ height: 'calc(95vh - 4rem)' }}>
+    <div
+      className="flex flex-col bg-background overflow-hidden"
+      style={{ height: "calc(95vh - 4rem)" }}
+    >
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-full overflow-hidden">
         {/* Filters Sidebar */}
         <div className="lg:col-span-1 flex flex-col overflow-hidden">
@@ -475,7 +478,7 @@ export default function SearchPageClient() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="dispatch">Dispatch</SelectItem>
+                    <SelectItem value="pending">Dispatch</SelectItem>
                     <SelectItem value="intransit">In Transit</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                     <SelectItem value="canceled">Canceled</SelectItem>
@@ -584,7 +587,13 @@ export default function SearchPageClient() {
         {/* Search Results */}
         <div className="lg:col-span-3 flex flex-col gap-4 overflow-hidden min-h-0">
           {/* Search Type Tabs - Outside the card */}
-          <Tabs value={searchType} onValueChange={(value) => setSearchType(value as 'document' | 'ocr')} className="flex-shrink-0">
+          <Tabs
+            value={searchType}
+            onValueChange={(value) =>
+              setSearchType(value as "document" | "ocr")
+            }
+            className="flex-shrink-0"
+          >
             <TabsList className="grid w-full max-w-md grid-cols-2">
               <TabsTrigger value="document">Document Code</TabsTrigger>
               <TabsTrigger value="ocr">OCR Content</TabsTrigger>
@@ -598,7 +607,11 @@ export default function SearchPageClient() {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="text"
-                    placeholder={searchType === 'document' ? "Search documents by code, title, or description..." : "Search by OCR extracted text content..."}
+                    placeholder={
+                      searchType === "document"
+                        ? "Search documents by code, title, or description..."
+                        : "Search by OCR extracted text content..."
+                    }
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10"

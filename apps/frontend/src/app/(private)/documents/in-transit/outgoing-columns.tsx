@@ -247,7 +247,7 @@ export const outgoingColumns: ColumnDef<OutgoingDocument>[] = [
           bgColor: "bg-red-500",
           label: "Cancelled",
         },
-        dispatch: {
+        pending: {
           color: "text-cyan-600",
           bgColor: "bg-cyan-500",
           label: "Dispatch",

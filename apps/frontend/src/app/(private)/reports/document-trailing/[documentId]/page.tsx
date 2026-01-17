@@ -90,7 +90,7 @@ export default function DocumentTrailsDetailPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "dispatch":
+      case "pending":
         return "bg-blue-100 text-blue-800";
       case "intransit":
         return "bg-yellow-100 text-yellow-800";
@@ -117,8 +117,8 @@ export default function DocumentTrailsDetailPage() {
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case "dispatch":
-        return "Dispatched";
+      case "pending":
+        return "Pending";
       case "intransit":
         return "In Transit";
       case "received":
@@ -236,7 +236,8 @@ export default function DocumentTrailsDetailPage() {
         <div>
           <h1 className="text-2xl font-bold">Document Trail Details</h1>
           <p className="text-muted-foreground">
-            Complete history for {documentInfo?.title || `document ${documentId}`}
+            Complete history for{" "}
+            {documentInfo?.title || `document ${documentId}`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -272,7 +273,9 @@ export default function DocumentTrailsDetailPage() {
               </div>
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Classification</p>
-                <p className="font-medium capitalize">{documentInfo.classification}</p>
+                <p className="font-medium capitalize">
+                  {documentInfo.classification}
+                </p>
               </div>
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Status</p>
@@ -283,7 +286,10 @@ export default function DocumentTrailsDetailPage() {
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Created</p>
                 <p className="font-medium">
-                  {format(new Date(documentInfo.createdAt), "MMM d, yyyy h:mm a")}
+                  {format(
+                    new Date(documentInfo.createdAt),
+                    "MMM d, yyyy h:mm a"
+                  )}
                 </p>
               </div>
             </div>
@@ -327,28 +333,50 @@ export default function DocumentTrailsDetailPage() {
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Clock className="h-4 w-4" />
                             <span className="font-medium">Action Date:</span>
-                            <span title={format(new Date(trail.actionDate), "PPpp")}>
-                              {format(new Date(trail.actionDate), "MMM d, yyyy h:mm a")}
+                            <span
+                              title={format(new Date(trail.actionDate), "PPpp")}
+                            >
+                              {format(
+                                new Date(trail.actionDate),
+                                "MMM d, yyyy h:mm a"
+                              )}
                             </span>
                           </div>
                           {trail.createdAt && (
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                               <Calendar className="h-3 w-3" />
                               <span>Created:</span>
-                              <span title={format(new Date(trail.createdAt), "PPpp")}>
-                                {format(new Date(trail.createdAt), "MMM d, yyyy h:mm a")}
+                              <span
+                                title={format(
+                                  new Date(trail.createdAt),
+                                  "PPpp"
+                                )}
+                              >
+                                {format(
+                                  new Date(trail.createdAt),
+                                  "MMM d, yyyy h:mm a"
+                                )}
                               </span>
                             </div>
                           )}
-                          {trail.updatedAt && trail.updatedAt !== trail.createdAt && (
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <Clock className="h-3 w-3" />
-                              <span>Updated:</span>
-                              <span title={format(new Date(trail.updatedAt), "PPpp")}>
-                                {format(new Date(trail.updatedAt), "MMM d, yyyy h:mm a")}
-                              </span>
-                            </div>
-                          )}
+                          {trail.updatedAt &&
+                            trail.updatedAt !== trail.createdAt && (
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Clock className="h-3 w-3" />
+                                <span>Updated:</span>
+                                <span
+                                  title={format(
+                                    new Date(trail.updatedAt),
+                                    "PPpp"
+                                  )}
+                                >
+                                  {format(
+                                    new Date(trail.updatedAt),
+                                    "MMM d, yyyy h:mm a"
+                                  )}
+                                </span>
+                              </div>
+                            )}
                         </div>
                       </div>
 
@@ -356,33 +384,44 @@ export default function DocumentTrailsDetailPage() {
                         <div className="flex items-center gap-3">
                           <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           <span className="text-sm">
-                            {trail.status === 'signed' && (
+                            {trail.status === "signed" && (
                               <>
-                                <span className="font-medium text-emerald-700 dark:text-emerald-400">{trail.user}</span>
-                                {' '}signed this document
+                                <span className="font-medium text-emerald-700 dark:text-emerald-400">
+                                  {trail.user}
+                                </span>{" "}
+                                signed this document
                               </>
                             )}
-                            {trail.status === 'placeholder_added' && (
+                            {trail.status === "placeholder_added" && (
                               <>
-                                <span className="font-medium text-violet-700 dark:text-violet-400">{trail.user}</span>
-                                {' '}added signature placeholder(s)
+                                <span className="font-medium text-violet-700 dark:text-violet-400">
+                                  {trail.user}
+                                </span>{" "}
+                                added signature placeholder(s)
                               </>
                             )}
-                            {trail.status !== 'signed' && trail.status !== 'placeholder_added' && (
-                              <>
-                                <span className="font-medium">{trail.user}</span>
-                                {' '}performed this action
-                              </>
-                            )}
+                            {trail.status !== "signed" &&
+                              trail.status !== "placeholder_added" && (
+                                <>
+                                  <span className="font-medium">
+                                    {trail.user}
+                                  </span>{" "}
+                                  performed this action
+                                </>
+                              )}
                           </span>
                         </div>
 
                         <div className="flex items-center gap-3">
                           <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           <span className="text-sm">
-                            <span className="font-medium">{trail.fromDepartment}</span>
+                            <span className="font-medium">
+                              {trail.fromDepartment}
+                            </span>
                             <ArrowRight className="h-3 w-3 mx-2 inline" />
-                            <span className="font-medium">{trail.toDepartment}</span>
+                            <span className="font-medium">
+                              {trail.toDepartment}
+                            </span>
                           </span>
                         </div>
 
@@ -392,9 +431,11 @@ export default function DocumentTrailsDetailPage() {
                               <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
                               <div className="flex-1">
                                 <p className="text-xs text-muted-foreground mb-1">
-                                  {trail.status === 'signed' ? 'Signature Details' :
-                                   trail.status === 'placeholder_added' ? 'Placeholder Details' :
-                                   'Remarks'}
+                                  {trail.status === "signed"
+                                    ? "Signature Details"
+                                    : trail.status === "placeholder_added"
+                                    ? "Placeholder Details"
+                                    : "Remarks"}
                                 </p>
                                 <p className="text-sm">{trail.remarks}</p>
                               </div>

@@ -83,7 +83,7 @@ export async function recordCreationStatus(documentId: string, payload: { depart
     return {
       ...current,
       created: {
-        status: payload.status ?? 'dispatch',
+        status: payload.status ?? 'pending',
         at: timestamp,
         department_id: payload.departmentId,
         account_id: payload.accountId,

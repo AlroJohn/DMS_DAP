@@ -153,7 +153,9 @@ export function TransmitByCodeModal({
 
     // Check if the document is assigned to the user's department
     if (!document.isAssignedToUserDepartment) {
-      toast.error("You can only receive documents that are assigned to your department.");
+      toast.error(
+        "You can only receive documents that are assigned to your department."
+      );
       return;
     }
 
@@ -204,7 +206,9 @@ export function TransmitByCodeModal({
     const isFromSameDepartment = document.isFromSameDepartment;
 
     if (!isOwner && !isFromSameDepartment) {
-      toast.error("You can only release documents that you own or that were created in your department.");
+      toast.error(
+        "You can only release documents that you own or that were created in your department."
+      );
       return;
     }
 
@@ -219,7 +223,7 @@ export function TransmitByCodeModal({
       currentLocation: "N/A",
       type: document.document_type || "General",
       classification: document.classification || "simple",
-      status: document.status || "dispatch",
+      status: document.status || "pending",
       activity: "lookup",
       activityTime: document.created_at || new Date().toISOString(),
     };
@@ -275,12 +279,18 @@ export function TransmitByCodeModal({
                   {!document.isOwner && !document.isFromSameDepartment && (
                     <Badge variant="destructive">Not Authorized</Badge>
                   )}
-                  {document.status === 'intransit' && document.isAssignedToUserDepartment && (
-                    <Badge variant="default">Assigned to Your Department</Badge>
-                  )}
-                  {document.status === 'intransit' && !document.isAssignedToUserDepartment && (
-                    <Badge variant="destructive">Not Assigned to Your Department</Badge>
-                  )}
+                  {document.status === "intransit" &&
+                    document.isAssignedToUserDepartment && (
+                      <Badge variant="default">
+                        Assigned to Your Department
+                      </Badge>
+                    )}
+                  {document.status === "intransit" &&
+                    !document.isAssignedToUserDepartment && (
+                      <Badge variant="destructive">
+                        Not Assigned to Your Department
+                      </Badge>
+                    )}
                 </div>
               </div>
             )}
@@ -297,7 +307,9 @@ export function TransmitByCodeModal({
                 !document ||
                 isReceiving ||
                 !canReceive ||
-                (document && document.status === 'intransit' && !document.isAssignedToUserDepartment)
+                (document &&
+                  document.status === "intransit" &&
+                  !document.isAssignedToUserDepartment)
               }
             >
               {isReceiving ? "Receiving..." : "Receive"}
@@ -307,7 +319,9 @@ export function TransmitByCodeModal({
               disabled={
                 !document ||
                 !canRelease ||
-                (document && !document.isOwner && !document.isFromSameDepartment)
+                (document &&
+                  !document.isOwner &&
+                  !document.isFromSameDepartment)
               }
             >
               Release

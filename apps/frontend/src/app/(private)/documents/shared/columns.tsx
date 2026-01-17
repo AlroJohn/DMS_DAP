@@ -8,7 +8,7 @@ import { DataTableRowActions } from "@/components/reuseable/tables/data-table-ro
 import { toast } from "sonner";
 import { Copy, User, Building2, Calendar } from "lucide-react";
 import { CheckoutStatusCell } from "./checkout-status-cell";
-import { SharedDocument } from '@dms/types/document.types';
+import { SharedDocument } from "@dms/types/document.types";
 
 const formatText = (text: string | undefined): string => {
   if (!text) return "";
@@ -25,7 +25,11 @@ const getDocumentTitle = (document: SharedDocument): string => {
   return document.document || "";
 };
 
-export const getColumns = ({ onSign }: { onSign: (document: SharedDocument) => void }): ColumnDef<SharedDocument>[] => [
+export const getColumns = ({
+  onSign,
+}: {
+  onSign: (document: SharedDocument) => void;
+}): ColumnDef<SharedDocument>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -209,7 +213,7 @@ export const getColumns = ({ onSign }: { onSign: (document: SharedDocument) => v
           bgColor: "bg-emerald-500",
           label: "Completed",
         },
-        dispatch: {
+        pending: {
           color: "text-blue-600",
           bgColor: "bg-blue-500",
           label: "Dispatch",

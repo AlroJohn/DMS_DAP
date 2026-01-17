@@ -29,7 +29,10 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
-import { ReportFilters, type ReportFilters as ReportFiltersType } from "@/components/reports/report-filters";
+import {
+  ReportFilters,
+  type ReportFilters as ReportFiltersType,
+} from "@/components/reports/report-filters";
 
 interface DocumentTrail {
   id: string;
@@ -59,8 +62,12 @@ export default function DocumentTrailingPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [ownershipFilter, setOwnershipFilter] = useState("all");
-  const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
-  const [documentTypes, setDocumentTypes] = useState<Array<{ id: string; name: string }>>([]);
+  const [departments, setDepartments] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
+  const [documentTypes, setDocumentTypes] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
   const [reportFilters, setReportFilters] = useState<ReportFiltersType>({
     dateRange: { from: undefined, to: undefined },
     dateRangePreset: "all",
@@ -163,7 +170,7 @@ export default function DocumentTrailingPage() {
       if (ownershipFilter !== "all")
         params.append("ownership", ownershipFilter);
       if (searchTerm) params.append("searchTerm", searchTerm);
-      
+
       // Add date range filters
       if (reportFilters.dateRange.from) {
         params.append("fromDate", reportFilters.dateRange.from.toISOString());
@@ -171,12 +178,12 @@ export default function DocumentTrailingPage() {
       if (reportFilters.dateRange.to) {
         params.append("toDate", reportFilters.dateRange.to.toISOString());
       }
-      
+
       // Add classification filter
       if (reportFilters.classification !== "all") {
         params.append("classification", reportFilters.classification);
       }
-      
+
       // Add document type filter
       if (reportFilters.documentType !== "all") {
         params.append("documentType", reportFilters.documentType);
@@ -213,7 +220,13 @@ export default function DocumentTrailingPage() {
     } finally {
       setLoading(false);
     }
-  }, [user?.department_id, statusFilter, ownershipFilter, searchTerm, reportFilters]);
+  }, [
+    user?.department_id,
+    statusFilter,
+    ownershipFilter,
+    searchTerm,
+    reportFilters,
+  ]);
 
   // Fetch data from API
   useEffect(() => {
@@ -290,7 +303,7 @@ export default function DocumentTrailingPage() {
     if (status === "checkin") {
       return "bg-teal-100 text-teal-800";
     }
-    
+
     // Check for signature-related statuses
     if (status === "placeholder_added") {
       return "bg-violet-100 text-violet-800";
@@ -298,16 +311,15 @@ export default function DocumentTrailingPage() {
     if (status === "signed") {
       return "bg-emerald-100 text-emerald-800";
     }
-    
 
     // If action name exists and is not empty, use a default color
-    if (action && action !== "dispatch" && action !== "dispatched") {
+    if (action && action !== "pending" && action !== "pendinged") {
       return "bg-indigo-100 text-indigo-800";
     }
 
     // Fall back to status-based colors
     switch (status) {
-      case "dispatch":
+      case "pending":
         return "bg-blue-100 text-blue-800";
       case "intransit":
         return "bg-yellow-100 text-yellow-800";
@@ -345,7 +357,7 @@ export default function DocumentTrailingPage() {
     ) {
       return "Check In";
     }
-    
+
     // Check status field directly for checkout/checkin and signature statuses
 
     // Check status field directly for checkout/checkin
@@ -361,7 +373,6 @@ export default function DocumentTrailingPage() {
     if (status === "signed") {
       return "Document Signed";
     }
-    
 
     // Prioritize action name for more specific display
     const action = actionName?.trim();
@@ -385,8 +396,8 @@ export default function DocumentTrailingPage() {
 
     // Fall back to status-based text only if no action name
     switch (status) {
-      case "dispatch":
-        return "Dispatched";
+      case "pending":
+        return "Pending";
       case "intransit":
         return "In Transit";
       case "received":
@@ -405,7 +416,6 @@ export default function DocumentTrailingPage() {
   const handleViewTrails = (documentId: string) => {
     router.push(`/reports/document-trailing/${documentId}`);
   };
-
 
   if (loading) {
     return (
@@ -437,7 +447,9 @@ export default function DocumentTrailingPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{documents.length}</div>
-            <p className="text-xs text-muted-foreground">All tracked documents</p>
+            <p className="text-xs text-muted-foreground">
+              All tracked documents
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -539,11 +551,13 @@ export default function DocumentTrailingPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Statuses</SelectItem>
-                      <SelectItem value="dispatch">Dispatched</SelectItem>
+                      <SelectItem value="pending">Dispatched</SelectItem>
                       <SelectItem value="intransit">In Transit</SelectItem>
                       <SelectItem value="received">Received</SelectItem>
                       <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="placeholder_added">Placeholder Added</SelectItem>
+                      <SelectItem value="placeholder_added">
+                        Placeholder Added
+                      </SelectItem>
                       <SelectItem value="signed">Signed</SelectItem>
                       <SelectItem value="deleted">Deleted</SelectItem>
                       <SelectItem value="archive">Archived</SelectItem>
@@ -560,7 +574,9 @@ export default function DocumentTrailingPage() {
                     onValueChange={(preset) => {
                       const today = new Date();
                       let from: Date | undefined;
-                      let to: Date | undefined = new Date(today.setHours(23, 59, 59, 999));
+                      let to: Date | undefined = new Date(
+                        today.setHours(23, 59, 59, 999)
+                      );
 
                       if (preset === "all") {
                         from = undefined;
@@ -569,7 +585,11 @@ export default function DocumentTrailingPage() {
                         from = new Date(new Date().setHours(0, 0, 0, 0));
                         to = new Date(new Date().setHours(23, 59, 59, 999));
                       } else if (preset === "thismonth") {
-                        from = new Date(today.getFullYear(), today.getMonth(), 1);
+                        from = new Date(
+                          today.getFullYear(),
+                          today.getMonth(),
+                          1
+                        );
                       } else if (preset === "thisyear") {
                         from = new Date(today.getFullYear(), 0, 1);
                       } else {
@@ -613,7 +633,10 @@ export default function DocumentTrailingPage() {
                   <Select
                     value={reportFilters.classification}
                     onValueChange={(value) =>
-                      setReportFilters({ ...reportFilters, classification: value })
+                      setReportFilters({
+                        ...reportFilters,
+                        classification: value,
+                      })
                     }
                   >
                     <SelectTrigger className="w-[160px]">
@@ -636,7 +659,10 @@ export default function DocumentTrailingPage() {
                     <Select
                       value={reportFilters.documentType}
                       onValueChange={(value) =>
-                        setReportFilters({ ...reportFilters, documentType: value })
+                        setReportFilters({
+                          ...reportFilters,
+                          documentType: value,
+                        })
                       }
                     >
                       <SelectTrigger className="w-[160px]">
@@ -769,101 +795,154 @@ export default function DocumentTrailingPage() {
                         </Button>
                       </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <div className="flex items-center gap-1 min-w-0">
-                          <span className="text-muted-foreground flex-shrink-0">From:</span>
-                          <span className="truncate font-medium">{doc.fromDepartment}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <div className="flex items-center gap-1 min-w-0">
-                          <span className="text-muted-foreground flex-shrink-0">To:</span>
-                          <span className="truncate font-medium">{doc.toDepartment}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <div className="flex items-center gap-1 min-w-0">
-                          <span className="text-muted-foreground flex-shrink-0">
-                            {doc.status === 'signed' ? 'Signed by:' :
-                             doc.status === 'placeholder_added' ? 'Added by:' : 'By:'}
-                          </span>
-                          <span className="truncate font-medium">{doc.user}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <div className="flex items-center gap-1 min-w-0">
-                          <span className="text-muted-foreground flex-shrink-0">
-                            {doc.status === 'signed' ? 'Signed:' :
-                             doc.status === 'placeholder_added' ? 'Added:' : 'Action:'}
-                          </span>
-                          <span className="truncate font-medium" title={`Action Date: ${format(new Date(doc.actionDate), "PPpp")}`}>
-                            {format(
-                              new Date(doc.actionDate),
-                              "MMM d, yyyy h:mm a"
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Timestamp Details Section */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground bg-muted/30 p-3 rounded-md">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-3 w-3 flex-shrink-0" />
-                        <div className="flex items-center gap-1 min-w-0">
-                          <span className="flex-shrink-0">Action Date:</span>
-                          <span className="truncate" title={format(new Date(doc.actionDate), "PPpp")}>
-                            {format(new Date(doc.actionDate), "MMM d, yyyy h:mm a")}
-                          </span>
-                        </div>
-                      </div>
-                      {doc.createdAt && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
                         <div className="flex items-center gap-2">
-                          <Clock className="h-3 w-3 flex-shrink-0" />
+                          <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           <div className="flex items-center gap-1 min-w-0">
-                            <span className="flex-shrink-0">Created:</span>
-                            <span className="truncate" title={format(new Date(doc.createdAt), "PPpp")}>
-                              {format(new Date(doc.createdAt), "MMM d, yyyy h:mm a")}
+                            <span className="text-muted-foreground flex-shrink-0">
+                              From:
+                            </span>
+                            <span className="truncate font-medium">
+                              {doc.fromDepartment}
                             </span>
                           </div>
                         </div>
-                      )}
-                      {doc.updatedAt && doc.updatedAt !== doc.createdAt && (
                         <div className="flex items-center gap-2">
-                          <Clock className="h-3 w-3 flex-shrink-0" />
+                          <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           <div className="flex items-center gap-1 min-w-0">
-                            <span className="flex-shrink-0">Last Updated:</span>
-                            <span className="truncate" title={format(new Date(doc.updatedAt), "PPpp")}>
-                              {format(new Date(doc.updatedAt), "MMM d, yyyy h:mm a")}
+                            <span className="text-muted-foreground flex-shrink-0">
+                              To:
+                            </span>
+                            <span className="truncate font-medium">
+                              {doc.toDepartment}
                             </span>
                           </div>
                         </div>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className="text-muted-foreground flex-shrink-0">
+                              {doc.status === "signed"
+                                ? "Signed by:"
+                                : doc.status === "placeholder_added"
+                                ? "Added by:"
+                                : "By:"}
+                            </span>
+                            <span className="truncate font-medium">
+                              {doc.user}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className="text-muted-foreground flex-shrink-0">
+                              {doc.status === "signed"
+                                ? "Signed:"
+                                : doc.status === "placeholder_added"
+                                ? "Added:"
+                                : "Action:"}
+                            </span>
+                            <span
+                              className="truncate font-medium"
+                              title={`Action Date: ${format(
+                                new Date(doc.actionDate),
+                                "PPpp"
+                              )}`}
+                            >
+                              {format(
+                                new Date(doc.actionDate),
+                                "MMM d, yyyy h:mm a"
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Timestamp Details Section */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground bg-muted/30 p-3 rounded-md">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-3 w-3 flex-shrink-0" />
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className="flex-shrink-0">Action Date:</span>
+                            <span
+                              className="truncate"
+                              title={format(new Date(doc.actionDate), "PPpp")}
+                            >
+                              {format(
+                                new Date(doc.actionDate),
+                                "MMM d, yyyy h:mm a"
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                        {doc.createdAt && (
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-3 w-3 flex-shrink-0" />
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="flex-shrink-0">Created:</span>
+                              <span
+                                className="truncate"
+                                title={format(new Date(doc.createdAt), "PPpp")}
+                              >
+                                {format(
+                                  new Date(doc.createdAt),
+                                  "MMM d, yyyy h:mm a"
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        {doc.updatedAt && doc.updatedAt !== doc.createdAt && (
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-3 w-3 flex-shrink-0" />
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="flex-shrink-0">
+                                Last Updated:
+                              </span>
+                              <span
+                                className="truncate"
+                                title={format(new Date(doc.updatedAt), "PPpp")}
+                              >
+                                {format(
+                                  new Date(doc.updatedAt),
+                                  "MMM d, yyyy h:mm a"
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {doc.remarks && (
+                        <div
+                          className={`text-sm p-3 rounded-md border flex items-center gap-2 ${
+                            doc.status === "signed"
+                              ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800"
+                              : doc.status === "placeholder_added"
+                              ? "bg-violet-50 dark:bg-violet-950/20 border-violet-200 dark:border-violet-800"
+                              : "bg-muted/50"
+                          }`}
+                        >
+                          <span className="font-medium text-muted-foreground flex-shrink-0">
+                            {doc.status === "signed"
+                              ? "Signature Details:"
+                              : doc.status === "placeholder_added"
+                              ? "Placeholder Details:"
+                              : "Remarks:"}
+                          </span>
+                          <span
+                            className="text-foreground font-medium truncate"
+                            title={doc.remarks}
+                          >
+                            {doc.remarks}
+                          </span>
+                        </div>
                       )}
                     </div>
-
-                    {doc.remarks && (
-                      <div className={`text-sm p-3 rounded-md border flex items-center gap-2 ${
-                        doc.status === 'signed' ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800' :
-                        doc.status === 'placeholder_added' ? 'bg-violet-50 dark:bg-violet-950/20 border-violet-200 dark:border-violet-800' :
-                        'bg-muted/50'
-                      }`}>
-                        <span className="font-medium text-muted-foreground flex-shrink-0">
-                          {doc.status === 'signed' ? 'Signature Details:' :
-                           doc.status === 'placeholder_added' ? 'Placeholder Details:' :
-                           'Remarks:'}
-                        </span>
-                        <span className="text-foreground font-medium truncate" title={doc.remarks}>{doc.remarks}</span>
-                      </div>
-                    )}
                   </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
             </div>
           </div>
         </CardContent>

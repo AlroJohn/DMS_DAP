@@ -273,9 +273,9 @@ export function canCancelDocument(user: User | null, document: Document): boolea
 
   // Check if document status is intransit/outgoing
   const isIntransit = document.status?.toLowerCase().includes('intransit') ||
-                     document.status?.toLowerCase() === 'dispatch' ||
-                     document.status?.toLowerCase() === 'transit' ||
-                     document.status?.toLowerCase() === 'outgoing';
+    document.status?.toLowerCase() === 'pending' ||
+    document.status?.toLowerCase() === 'transit' ||
+    document.status?.toLowerCase() === 'outgoing';
 
   // If a user has explicit transfer reject/initiate permissions, they can cancel intransit documents
   if (hasAnyPermission(user, ['document_transfer_reject', 'document_transfer_initiate']) && isIntransit) return true;
@@ -327,50 +327,50 @@ export function canDeleteDocument(user: User | null, document: Document): boolea
  */
 export function getAllowedActions(user: User | null, document: Document): string[] {
   if (!user) return [];
-  
+
   const actions: string[] = [];
-  
+
   // Always allow copy code for authenticated users
   actions.push('copy_code');
-  
+
   // View actions
   if (canViewDocuments(user)) actions.push('view_details');
   if (canViewDocument(user)) actions.push('view_document');
-  
+
   // Document management actions (for owned documents)
   if (canEditDocumentDetails(user, document)) {
     actions.push('edit_details');
   }
-  
+
   if (canEditDocument(user, document)) {
     actions.push('edit_document');
   }
-  
+
   if (canSignDocument(user, document)) {
     actions.push('sign_document');
   }
-  
+
   // Document sharing/transfer actions
   if (canReleaseDocument(user, document)) {
     actions.push('release');
   }
-  
+
   if (canCompleteDocument(user, document)) {
     actions.push('complete');
   }
-  
+
   if (canCancelDocument(user, document)) {
     actions.push('cancel');
   }
-  
+
   // Document lifecycle actions (for owned/managed documents)
   if (canArchiveDocument(user, document)) {
     actions.push('archive');
   }
-  
+
   if (canDeleteDocument(user, document)) {
     actions.push('delete');
   }
-  
+
   return actions;
 }

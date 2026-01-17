@@ -320,7 +320,7 @@ export const incomingColumns: ColumnDef<IncomingDocument>[] = [
           bgColor: "bg-orange-500",
           label: "In Transit",
         },
-        dispatch: {
+        pending: {
           color: "text-cyan-600",
           bgColor: "bg-cyan-500",
           label: "Dispatch",

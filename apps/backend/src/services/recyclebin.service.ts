@@ -388,12 +388,12 @@ export class RecycleBinService {
       }
 
       await prisma.$transaction(async (tx) => {
-        // Update document status back to 'dispatch' (default) or the original status before deletion
-        // For now we'll set it back to 'dispatch' which is the default status
+        // Update document status back to 'pending' (default) or the original status before deletion
+        // For now we'll set it back to 'pending' which is the default status
         await tx.document.update({
           where: { document_id: id },
           data: {
-            status: 'dispatch', // Restore to initial status
+            status: 'pending', // Restore to initial status
             updated_at: new Date(),
           },
         });
@@ -475,11 +475,11 @@ export class RecycleBinService {
         throw new Error('Document not found');
       }
 
-      // Update document status to dispatch (canceled workflow)
+      // Update document status to pending (canceled workflow)
       await prisma.document.update({
         where: { document_id: documentId },
         data: {
-          status: 'dispatch',
+          status: 'pending',
           updated_at: new Date()
         }
       });
@@ -878,7 +878,7 @@ export class RecycleBinService {
         return { count: 0, failed: failedIds };
       }
 
-      // Update document status back to 'dispatch' (default) and update restored information
+      // Update document status back to 'pending' (default) and update restored information
       const result = await prisma.$transaction(async (tx) => {
         // Update document statuses
         const updateResult = await tx.document.updateMany({
@@ -888,7 +888,7 @@ export class RecycleBinService {
             },
           },
           data: {
-            status: 'dispatch', // Restore to initial status as per single restore method
+            status: 'pending', // Restore to initial status as per single restore method
             updated_at: new Date(),
           },
         });

@@ -2,206 +2,206 @@ import { prisma } from '../lib/prisma';
 import { DocumentService } from './document.service';
 
 export class DashboardService {
-  private documentService: DocumentService;
+    private documentService: DocumentService;
 
-  constructor() {
-    this.documentService = new DocumentService();
-  }
-
-  async getDashboardStats(userId: string) {
-    const user = await prisma.user.findUnique({
-      where: { user_id: userId },
-      select: { department_id: true },
-    });
-
-    if (!user) {
-      throw new Error('User not found');
+    constructor() {
+        this.documentService = new DocumentService();
     }
 
-    const departmentId = user.department_id;
-    if (!departmentId) {
-        throw new Error('User does not have a department.');
-    }
+    async getDashboardStats(userId: string) {
+        const user = await prisma.user.findUnique({
+            where: { user_id: userId },
+            select: { department_id: true },
+        });
 
-    const departmentFilter = {
-        DocumentAdditionalDetails: {
-            some: {
-                work_flow_id: {
-                    string_contains: `"${departmentId}"`,
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        const departmentId = user.department_id;
+        if (!departmentId) {
+            throw new Error('User does not have a department.');
+        }
+
+        const departmentFilter = {
+            DocumentAdditionalDetails: {
+                some: {
+                    work_flow_id: {
+                        string_contains: `"${departmentId}"`,
+                    },
                 },
             },
-        },
-    };
+        };
 
-    // Use existing services to get counts
-    const ownedDocuments = await this.documentService.getOwnedDocuments(userId, 1, 1);
-    const receivedDocuments = await this.documentService.getReceivedDocuments(userId, 1, 1);
-    const completedDocuments = await this.documentService.getCompletedDocuments(userId, 1, 1);
+        // Use existing services to get counts
+        const ownedDocuments = await this.documentService.getOwnedDocuments(userId, 1, 1);
+        const receivedDocuments = await this.documentService.getReceivedDocuments(userId, 1, 1);
+        const completedDocuments = await this.documentService.getCompletedDocuments(userId, 1, 1);
 
-    const documentStats = {
-      owned: ownedDocuments.pagination.total,
-      inTransit: await prisma.document.count({ where: { status: 'intransit', ...departmentFilter } }),
-      shared: receivedDocuments.pagination.total, // Assuming received are shared
-      archive: await prisma.document.count({ where: { status: 'archive', ...departmentFilter } }),
-      recycleBin: await prisma.document.count({ where: { status: 'deleted', ...departmentFilter } }),
-      total: await prisma.document.count({ where: { status: { notIn: ['deleted', 'archive'] }, ...departmentFilter } }),
-      completed: completedDocuments.pagination.total,
-    };
+        const documentStats = {
+            owned: ownedDocuments.pagination.total,
+            inTransit: await prisma.document.count({ where: { status: 'intransit', ...departmentFilter } }),
+            shared: receivedDocuments.pagination.total, // Assuming received are shared
+            archive: await prisma.document.count({ where: { status: 'archive', ...departmentFilter } }),
+            recycleBin: await prisma.document.count({ where: { status: 'deleted', ...departmentFilter } }),
+            total: await prisma.document.count({ where: { status: { notIn: ['deleted', 'archive'] }, ...departmentFilter } }),
+            completed: completedDocuments.pagination.total,
+        };
 
-    const documentTrends = await this.getDocumentTrends(departmentId);
-    const recentDocuments = await this.getRecentDocuments(userId);
-    const recentActivity = await this.getRecentActivityCount(departmentId);
-    const pendingApprovals = await this.getPendingApprovalsCount(departmentId);
-    const activeWorkflows = await this.getActiveWorkflowsCount(departmentId);
-    const documentTypes = await this.getDocumentTypeDistribution(departmentId);
-    const departmentPerformance = await this.getDepartmentPerformance();
-    const workflowStats = await this.getWorkflowStats(departmentId);
+        const documentTrends = await this.getDocumentTrends(departmentId);
+        const recentDocuments = await this.getRecentDocuments(userId);
+        const recentActivity = await this.getRecentActivityCount(departmentId);
+        const pendingApprovals = await this.getPendingApprovalsCount(departmentId);
+        const activeWorkflows = await this.getActiveWorkflowsCount(departmentId);
+        const documentTypes = await this.getDocumentTypeDistribution(departmentId);
+        const departmentPerformance = await this.getDepartmentPerformance();
+        const workflowStats = await this.getWorkflowStats(departmentId);
 
-    const stats = {
-        documentStats: documentStats,
-        recentActivity,
-        pendingApprovals,
-        activeWorkflows,
-        collaborators: 10,
-        storageUsage: { used: 50, total: 100, percentage: 50 },
-        complianceStatus: 98,
-        systemActivity: [],
-        topDocuments: [],
-        departmentPerformance,
-        workflowStats,
-        documentTypes,
-        recentDocuments: recentDocuments,
-        documentTrends: documentTrends,
-    };
+        const stats = {
+            documentStats: documentStats,
+            recentActivity,
+            pendingApprovals,
+            activeWorkflows,
+            collaborators: 10,
+            storageUsage: { used: 50, total: 100, percentage: 50 },
+            complianceStatus: 98,
+            systemActivity: [],
+            topDocuments: [],
+            departmentPerformance,
+            workflowStats,
+            documentTypes,
+            recentDocuments: recentDocuments,
+            documentTrends: documentTrends,
+        };
 
-    return stats;
-  }
+        return stats;
+    }
 
-  private async getDocumentTrends(departmentId: string) {
-    const trends = await prisma.document.groupBy({
-      by: ['created_at'],
-      where: {
-        DocumentAdditionalDetails: {
-          some: {
-            work_flow_id: {
-              string_contains: `"${departmentId}"`
-            }
-          }
-        }
-      },
-      _count: {
-        document_id: true,
-      },
-      orderBy: {
-        created_at: 'asc',
-      },
-    });
+    private async getDocumentTrends(departmentId: string) {
+        const trends = await prisma.document.groupBy({
+            by: ['created_at'],
+            where: {
+                DocumentAdditionalDetails: {
+                    some: {
+                        work_flow_id: {
+                            string_contains: `"${departmentId}"`
+                        }
+                    }
+                }
+            },
+            _count: {
+                document_id: true,
+            },
+            orderBy: {
+                created_at: 'asc',
+            },
+        });
 
-    // This is a simplified version. A real implementation should group by month.
-    return trends.map(t => ({
-        month: new Date(t.created_at).toLocaleString('default', { month: 'short' }),
-        active: t._count.document_id,
-        archived: 0, // Placeholder
-    }));
-  }
+        // This is a simplified version. A real implementation should group by month.
+        return trends.map(t => ({
+            month: new Date(t.created_at).toLocaleString('default', { month: 'short' }),
+            active: t._count.document_id,
+            archived: 0, // Placeholder
+        }));
+    }
 
-  private async getRecentDocuments(userId: string) {
-    const { data } = await this.documentService.getAllDocuments(userId, 1, 5);
-    return data.map(doc => ({
-        id: doc.id,
-        title: doc.document,
-        sender: {
-            name: doc.contactPerson,
-            initials: doc.contactPerson.substring(0,2),
-        },
-        timeAgo: this.formatTimeAgo(doc.activityTime),
-    }));
-  }
+    private async getRecentDocuments(userId: string) {
+        const { data } = await this.documentService.getAllDocuments(userId, 1, 5);
+        return data.map(doc => ({
+            id: doc.id,
+            title: doc.document,
+            sender: {
+                name: doc.contactPerson,
+                initials: doc.contactPerson.substring(0, 2),
+            },
+            timeAgo: this.formatTimeAgo(doc.activityTime),
+        }));
+    }
 
-  private async getRecentActivityCount(departmentId: string) {
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 7);
+    private async getRecentActivityCount(departmentId: string) {
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 7);
 
-    const departmentFilter = {
-      DocumentAdditionalDetails: {
-        some: {
-          work_flow_id: {
-            string_contains: `"${departmentId}"`,
-          },
-        },
-      },
-    };
+        const departmentFilter = {
+            DocumentAdditionalDetails: {
+                some: {
+                    work_flow_id: {
+                        string_contains: `"${departmentId}"`,
+                    },
+                },
+            },
+        };
 
-    const [createdCount, receivedCount] = await Promise.all([
-      prisma.document.count({
-        where: {
-          ...departmentFilter,
-          status: 'dispatch',
-          created_at: { gte: startDate },
-        },
-      }),
-      prisma.document.count({
-        where: {
-          ...departmentFilter,
-          status: 'received',
-          updated_at: { gte: startDate },
-        },
-      }),
-    ]);
+        const [createdCount, receivedCount] = await Promise.all([
+            prisma.document.count({
+                where: {
+                    ...departmentFilter,
+                    status: 'pending',
+                    created_at: { gte: startDate },
+                },
+            }),
+            prisma.document.count({
+                where: {
+                    ...departmentFilter,
+                    status: 'received',
+                    updated_at: { gte: startDate },
+                },
+            }),
+        ]);
 
-    return createdCount + receivedCount;
-  }
+        return createdCount + receivedCount;
+    }
 
-  private async getPendingApprovalsCount(departmentId: string) {
-    const departmentFilter = {
-      DocumentAdditionalDetails: {
-        some: {
-          work_flow_id: {
-            string_contains: `"${departmentId}"`,
-          },
-        },
-      },
-    };
+    private async getPendingApprovalsCount(departmentId: string) {
+        const departmentFilter = {
+            DocumentAdditionalDetails: {
+                some: {
+                    work_flow_id: {
+                        string_contains: `"${departmentId}"`,
+                    },
+                },
+            },
+        };
 
-    const inTransitDocuments = await prisma.document.findMany({
-      where: {
-        ...departmentFilter,
-        status: 'intransit',
-      },
-      select: {
-        document_id: true,
-        document_trails: {
-          take: 1,
-          orderBy: { created_at: 'desc' },
-          select: { to_department: true },
-        },
-      },
-    });
+        const inTransitDocuments = await prisma.document.findMany({
+            where: {
+                ...departmentFilter,
+                status: 'intransit',
+            },
+            select: {
+                document_id: true,
+                document_trails: {
+                    take: 1,
+                    orderBy: { created_at: 'desc' },
+                    select: { to_department: true },
+                },
+            },
+        });
 
-    return inTransitDocuments.filter((doc) => {
-      const latestTrail = doc.document_trails[0];
-      return latestTrail?.to_department === departmentId;
-    }).length;
-  }
+        return inTransitDocuments.filter((doc) => {
+            const latestTrail = doc.document_trails[0];
+            return latestTrail?.to_department === departmentId;
+        }).length;
+    }
 
-  private async getActiveWorkflowsCount(departmentId: string) {
-    const departmentFilter = {
-      DocumentAdditionalDetails: {
-        some: {
-          work_flow_id: {
-            string_contains: `"${departmentId}"`,
-          },
-        },
-      },
-    };
+    private async getActiveWorkflowsCount(departmentId: string) {
+        const departmentFilter = {
+            DocumentAdditionalDetails: {
+                some: {
+                    work_flow_id: {
+                        string_contains: `"${departmentId}"`,
+                    },
+                },
+            },
+        };
 
-    return prisma.document.count({
-      where: {
-        ...departmentFilter,
-        status: { in: ['intransit', 'intransit_signature'] },
-      },
-    });
-  }
+        return prisma.document.count({
+            where: {
+                ...departmentFilter,
+                status: { in: ['intransit', 'intransit_signature'] },
+            },
+        });
+    }
 
     private formatTimeAgo(dateString: string): string {
         const date = new Date(dateString);
@@ -347,7 +347,7 @@ export class DashboardService {
                     }
                 });
 
-                const efficiency = documentsInWorkflow > 0 
+                const efficiency = documentsInWorkflow > 0
                     ? Math.round((completedInWorkflow / documentsInWorkflow) * 100)
                     : 0;
 
@@ -424,7 +424,7 @@ export class DashboardService {
                 completedWorkflows++;
             } else if (status === 'intransit' || status === 'intransit_signature') {
                 inProgressWorkflows++;
-            } else if (status === 'dispatch' || status === 'received') {
+            } else if (status === 'pending' || status === 'received') {
                 pendingWorkflows++;
             } else {
                 pendingWorkflows++;

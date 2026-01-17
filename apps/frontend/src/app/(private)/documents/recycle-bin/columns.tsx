@@ -6,7 +6,14 @@ import { DataTableRowActions } from "@/components/reuseable/tables/data-table-ro
 import { DataTableColumnHeader } from "@/components/reuseable/tables/data-table-column-header";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Calendar, Copy, User, Building2, RotateCcw, Trash2 } from "lucide-react";
+import {
+  Calendar,
+  Copy,
+  User,
+  Building2,
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
 import { ScanCodes } from "@/components/ui/scan-codes";
 import { DateTime } from "@/components/wrapper/DateTime";
 
@@ -118,7 +125,7 @@ export const columns: ColumnDef<RecycleBinDocument, unknown>[] = [
       // Handle array filter values (for faceted filters)
       if (Array.isArray(filterValue) && filterValue.length > 0) {
         const document = row.original as RecycleBinDocument;
-        return filterValue.includes('deleted');
+        return filterValue.includes("deleted");
       }
 
       // Handle string filter values (for search)
@@ -136,7 +143,7 @@ export const columns: ColumnDef<RecycleBinDocument, unknown>[] = [
           document.contactPerson?.toLowerCase().includes(searchTerm) ||
           document.contactOrganization?.toLowerCase().includes(searchTerm) ||
           document.status?.toLowerCase().includes(searchTerm) ||
-          'deleted'.includes(searchTerm)
+          "deleted".includes(searchTerm)
         );
       }
 
@@ -216,7 +223,9 @@ export const columns: ColumnDef<RecycleBinDocument, unknown>[] = [
       const classification = row.original.classification;
       return (
         <Badge
-          variant={classification === "Highly technical" ? "destructive" : "secondary"}
+          variant={
+            classification === "Highly technical" ? "destructive" : "secondary"
+          }
           className="font-medium text-x s px-1.5 py-0.5"
         >
           {formatText(classification)}
@@ -248,17 +257,17 @@ export const columns: ColumnDef<RecycleBinDocument, unknown>[] = [
       const statusConfig: {
         [key: string]: { color: string; bgColor: string; label: string };
       } = {
-        'dispatch': {
+        pending: {
           color: "text-emerald-600",
           bgColor: "bg-emerald-500",
           label: "Dispatch",
         },
-        'deleted': {
+        deleted: {
           color: "text-red-600",
-          bgColor: "bg-red-500", 
+          bgColor: "bg-red-500",
           label: "Deleted",
         },
-        'completed': {
+        completed: {
           color: "text-emerald-600",
           bgColor: "bg-emerald-500",
           label: "Completed",
@@ -340,7 +349,7 @@ export const columns: ColumnDef<RecycleBinDocument, unknown>[] = [
       const deletedAt = row.original.deletedAt;
 
       const formatDateTime = (dateString: string | undefined) => {
-        if (!dateString) return 'N/A';
+        if (!dateString) return "N/A";
         try {
           // JavaScript Date constructor should handle most ISO string formats
           // including "2025-11-27t01:38:32.058z" format
@@ -348,8 +357,8 @@ export const columns: ColumnDef<RecycleBinDocument, unknown>[] = [
 
           // Check if the date is valid
           if (isNaN(date.getTime())) {
-            console.warn('Invalid date value:', dateString);
-            return 'Invalid Date';
+            console.warn("Invalid date value:", dateString);
+            return "Invalid Date";
           }
 
           // Format as "Nov 27, 2025, 1:38 AM"
@@ -359,11 +368,11 @@ export const columns: ColumnDef<RecycleBinDocument, unknown>[] = [
             day: "numeric",
             hour: "numeric",
             minute: "2-digit",
-            hour12: true
+            hour12: true,
           });
         } catch (e) {
-          console.error('Error parsing date:', e, dateString);
-          return 'Invalid Date';
+          console.error("Error parsing date:", e, dateString);
+          return "Invalid Date";
         }
       };
 

@@ -125,7 +125,7 @@ export class ActivityLogsService {
 
         // Determine action type based on status
         let type = 'update';
-        if (trail.status === 'dispatch') type = 'create';
+        if (trail.status === 'pending') type = 'create';
         else if (trail.status === 'deleted') type = 'delete';
         else if (trail.status === 'intransit') type = 'transfer';
         else if (trail.status === 'received') type = 'receive';
@@ -135,7 +135,7 @@ export class ActivityLogsService {
 
         // Build action description
         let action = trail.documentAction?.action_name || 'Updated';
-        if (trail.status === 'dispatch') action = 'Created document';
+        if (trail.status === 'pending') action = 'Created document';
         else if (trail.status === 'intransit') action = 'Released document';
         else if (trail.status === 'received') action = 'Received document';
         else if (trail.status === 'deleted') action = 'Deleted document';
@@ -288,7 +288,7 @@ export class ActivityLogsService {
           : 'Unknown User';
 
         let type = 'update';
-        if (trail.status === 'dispatch') type = 'create';
+        if (trail.status === 'pending') type = 'create';
         else if (trail.status === 'deleted') type = 'delete';
         else if (trail.status === 'intransit') type = 'transfer';
         else if (trail.status === 'received') type = 'receive';
@@ -296,7 +296,7 @@ export class ActivityLogsService {
         else if (trail.status === 'archive') type = 'archive';
 
         let action = trail.documentAction?.action_name || 'Updated';
-        if (trail.status === 'dispatch') action = 'Created document';
+        if (trail.status === 'pending') action = 'Created document';
         else if (trail.status === 'intransit') action = 'Released document';
         else if (trail.status === 'received') action = 'Received document';
         else if (trail.status === 'deleted') action = 'Deleted document';

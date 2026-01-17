@@ -1,4 +1,5 @@
 # User Stories, Features, and Pages
+
 ## DMS System with DocOnChain Integration
 
 > **Legend:** ✅ Already Implemented | 🔴 New Feature Needed | 🟡 Enhancement to Existing
@@ -103,7 +104,7 @@
 - ✅ Document CRUD Operations (metadata)
 - ✅ Document Classification (simple, complex, highly_technical)
 - ✅ Document Origin (internal, external)
-- ✅ Document Status (dispatch, intransit, completed, canceled, deleted)
+- ✅ Document Status (pending, intransit, completed, canceled, deleted)
 - ✅ Document Workflow Tracking (JSON array)
 - ✅ Document Release/Routing Between Departments
 - ✅ Document Metadata Management
@@ -811,6 +812,7 @@
 ## Summary of Implementation Status
 
 ### Fully Implemented (10 sections) ✅
+
 1. Authentication & Access Control
 2. Role & Permission Management
 3. Department Management
@@ -823,6 +825,7 @@
 10. Document Metadata Management (without files)
 
 ### Major New Features Needed (12 sections) 🔴
+
 1. Document File Management (upload/download/preview) [FK-015, FK-017, FK-018, FK-019]
 2. Document Editing & Version Control [FK-014, FK-027]
 3. Blockchain Document Signing & Verification (DocOnChain)
@@ -837,6 +840,7 @@
 12. System Integration & API Management [FK-036]
 
 ### Enhancements to Existing Features (4 areas) 🟡
+
 1. Search & Discovery (add signature filtering)
 2. Data Management (preserve blockchain data on restore)
 3. Notifications (add blockchain-related notifications)

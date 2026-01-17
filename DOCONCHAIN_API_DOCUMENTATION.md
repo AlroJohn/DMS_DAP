@@ -11848,7 +11848,7 @@ axios
 
 | Step | Description | Timeline |
 |------|-------------|----------|
-| **Email Sent** | Activation email dispatched to owner | Immediate |
+| **Email Sent** | Activation email pending to owner | Immediate |
 | **Temporary Password** | Secure temporary password generated | Auto-generated |
 | **Activation Link** | Unique activation URL provided | 24-48 hours valid |
 | **Account Activation** | Owner completes activation process | Within validity period |

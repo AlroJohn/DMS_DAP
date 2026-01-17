@@ -253,7 +253,7 @@ export const columns: ColumnDef<ReceivedDocument>[] = [
           bgColor: "bg-emerald-500",
           label: "Completed",
         },
-        dispatch: {
+        pending: {
           color: "text-blue-600",
           bgColor: "bg-blue-500",
           label: "Dispatch",

@@ -233,7 +233,7 @@ export function DataTableRowActions<TData>({
 
       let response;
       if (isDocumentInTransit) {
-        // Use the intransit cancel endpoint for in-transit documents to revert status back to dispatch
+        // Use the intransit cancel endpoint for in-transit documents to revert status back to pending
         response = await fetch(`/api/intransit/${document.id}/cancel`, {
           method: "POST",
           credentials: "include",
@@ -429,7 +429,7 @@ export function DataTableRowActions<TData>({
   const canDelete = canDeleteDocument(currentUser, effectiveDocument);
 
   // Status-based checks
-  const isDispatch = document.status?.toLowerCase().includes("dispatch");
+  const isDispatch = document.status?.toLowerCase().includes("pending");
   const isInTransit = document.status?.toLowerCase() === "intransit";
 
   // Check if document is already in transit (released) - in which case release should be disabled
@@ -444,7 +444,7 @@ export function DataTableRowActions<TData>({
   const showEditDocument = canEditDoc;
   const showSignaturePlaceholder = canEditDoc;
   const showRelease = canRelease && !isAlreadyReleased; // Release is hidden when document is already in-transit
-  const showComplete = canComplete && !isDispatch; // Complete shows when not dispatch status
+  const showComplete = canComplete && !isDispatch; // Complete shows when not pending status
   const showCancel = canCancel && isInTransit; // Cancel only shows for in-transit status
   const showArchive = canArchive;
   const showDelete = canDelete;
@@ -557,7 +557,7 @@ export function DataTableRowActions<TData>({
                 </DropdownMenuItem>
               )}
 
-              {/* Complete - for users with document receive permissions and dispatch status */}
+              {/* Complete - for users with document receive permissions and pending status */}
               {showComplete && (
                 <DropdownMenuItem
                   onClick={(e) => handleAction(e, handleComplete)}

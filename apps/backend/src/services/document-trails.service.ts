@@ -65,7 +65,7 @@ export class DocumentTrailsService {
       // Look for any remaining UUID patterns and try to resolve them
       const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
       const uuids = processedRemarks.match(uuidPattern);
-      
+
       if (uuids) {
         for (const uuid of [...new Set(uuids)]) {
           // Try to find if it's a department
@@ -268,13 +268,13 @@ export class DocumentTrailsService {
   }) {
     try {
       // Resolve UUIDs in remarks to human-readable names
-      const processedRemarks = data.remarks 
+      const processedRemarks = data.remarks
         ? await this.resolveRemarksWithNames(
-            data.remarks,
-            data.from_department,
-            data.to_department,
-            data.user_id
-          )
+          data.remarks,
+          data.from_department,
+          data.to_department,
+          data.user_id
+        )
         : undefined;
 
       const trail = await prisma.documentTrail.update({
@@ -577,8 +577,8 @@ export class DocumentTrailsService {
             }
           }
           break;
-          
-        case 'dispatch':
+
+        case 'pending':
           {
             const usersToNotify = await prisma.user.findMany({
               where: {

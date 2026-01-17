@@ -532,7 +532,7 @@ export function DataTableToolbar<TData>({
       localStorage.setItem("recycleBinWarningHidden", String(!toggleValue));
 
       // Dispatch a storage event to trigger updates in other tabs
-      window.dispatchEvent(
+      window.pendingEvent(
         new StorageEvent("storage", {
           key: "recycleBinWarningHidden",
           oldValue: hidden,
@@ -541,7 +541,7 @@ export function DataTableToolbar<TData>({
       );
 
       // Dispatch a custom event to trigger updates in the same tab
-      window.dispatchEvent(new CustomEvent("recycleBinWarningChange"));
+      window.pendingEvent(new CustomEvent("recycleBinWarningChange"));
     } else {
       // For non-recycle-bin views, just update local state
       const newShowWarning = !showWarning;

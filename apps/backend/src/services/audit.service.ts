@@ -61,7 +61,7 @@ class AuditService {
   }
 
   async logDocumentCreated(userId: string, documentId: string, details: TrailLogDetails = {}) {
-    return this.createDocumentTrail(userId, documentId, details.status ?? 'dispatch', {
+    return this.createDocumentTrail(userId, documentId, details.status ?? 'pending', {
       description: details.description ?? 'Document created',
       ...details,
     });
@@ -137,15 +137,15 @@ class AuditService {
     try {
       const user = await prisma.user.findUnique({
         where: { user_id: userId },
-        select: { 
-          first_name: true, 
-          last_name: true, 
+        select: {
+          first_name: true,
+          last_name: true,
           department_id: true
         }
       });
       if (user) {
         userName = `${user.first_name} ${user.last_name}`.trim();
-        
+
         // Fetch department name separately
         if (user.department_id) {
           const department = await prisma.department.findUnique({
@@ -154,7 +154,7 @@ class AuditService {
           });
           deptName = department?.name || 'Unknown Department';
         }
-        
+
         console.log('🔷 [AuditService] logDocumentSigned called:', {
           userId,
           documentId,
@@ -461,7 +461,7 @@ class AuditService {
         code: document?.document_code || 'N/A',
         type: document?.document_type || 'Unknown',
         classification: document?.classification || 'simple',
-        status: document?.status || 'dispatch',
+        status: document?.status || 'pending',
         createdAt: document?.created_at ? document.created_at.toISOString() : new Date().toISOString()
       };
 

@@ -612,7 +612,7 @@ export default function DocumentDetailPage() {
         variant: "secondary",
         className: "text-black dark:text-white",
       },
-      dispatch: { label: "Dispatch", variant: "secondary", className: "" },
+      pending: { label: "Dispatch", variant: "secondary", className: "" },
       canceled: { label: "Cancelled", variant: "destructive", className: "" },
       deleted: { label: "Deleted", variant: "destructive", className: "" },
       processing: { label: "Processing", variant: "secondary", className: "" },

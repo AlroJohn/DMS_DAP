@@ -19,7 +19,7 @@ export class ArchiveService {
     try {
       // Check if the document exists and is not already archived
       const document = await prisma.document.findUnique({
-        where: { 
+        where: {
           document_id: documentId,
           deleted_at: null // Only archive documents that are not already archived
         }
@@ -121,12 +121,12 @@ export class ArchiveService {
           deleted_at: null,
           restored_at: new Date(),
           restored_by: user.account_id, // Use account_id instead of user_id
-          status: 'dispatch' // Reset to initial status after restoration
+          status: 'pending' // Reset to initial status after restoration
         }
       });
 
       // Create a document trail entry for document restoration
-    // Use the previously fetched 'user' to get department for the document trail
+      // Use the previously fetched 'user' to get department for the document trail
       const documentTrailsService = new DocumentTrailsService();
       try {
         await documentTrailsService.createDocumentTrail({
@@ -134,7 +134,7 @@ export class ArchiveService {
           from_department: user?.department_id || undefined, // Use the department of the user performing the restoration
           to_department: user?.department_id || undefined, // Restoration happens in same department as the user
           user_id: restoredByUserId, // Use the userId who performed the restoration
-          status: 'dispatch', // Status is reset to dispatch after restoration
+          status: 'pending', // Status is reset to pending after restoration
           remarks: `Document restored from archive: ${document.title}`
         });
       } catch (error) {
@@ -211,10 +211,10 @@ export class ArchiveService {
 
       const documentTypes = validDocumentTypeIds.length > 0
         ? await prisma.documentType.findMany({
-            where: {
-              type_id: { in: validDocumentTypeIds }
-            }
-          })
+          where: {
+            type_id: { in: validDocumentTypeIds }
+          }
+        })
         : [];
       const typeMap = new Map(documentTypes.map(dt => [dt.type_id, dt.name]));
 

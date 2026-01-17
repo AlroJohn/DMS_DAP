@@ -72,7 +72,7 @@ export class IntransitService {
       const releasedToThisDepartment = await prisma.documentTrail.findMany({
         where: {
           to_department: user.department_id,
-          status: { in: ['intransit', 'dispatch'] },
+          status: { in: ['intransit', 'pending'] },
           from_department: {
             not: user.department_id // Exclude documents from same department
           }
@@ -238,7 +238,7 @@ export class IntransitService {
         return ownerName;
       };
 
-      // Get documents with status 'intransit' or 'dispatch' that are incoming
+      // Get documents with status 'intransit' or 'pending' that are incoming
       // Only show documents that haven't been received yet by this user
       const [documents, total] = await Promise.all([
         prisma.document.findMany({
@@ -247,7 +247,7 @@ export class IntransitService {
               in: Array.from(incomingDocumentIds)
             },
             status: {
-              in: ['intransit', 'dispatch'], // Only show intransit/dispatch
+              in: ['intransit', 'pending'], // Only show intransit/pending
               not: 'received' // Explicitly exclude received documents
             }
           },
@@ -282,7 +282,7 @@ export class IntransitService {
               in: Array.from(incomingDocumentIds)
             },
             status: {
-              in: ['intransit', 'dispatch'], // Only show intransit/dispatch
+              in: ['intransit', 'pending'], // Only show intransit/pending
               not: 'received' // Explicitly exclude received documents
             }
           }
@@ -417,7 +417,7 @@ export class IntransitService {
       // 1. Department is the originator AND sent to other departments, OR
       // 2. Department has released/transmitted the document to another department (via DocumentTrail)
       // AND the document is NOT currently assigned back to this department
-      
+
       // First, get documents released by this department (from DocumentTrail)
       // Get the most recent trail for each document where this department sent it out
       const releasedByDepartment = await prisma.documentTrail.findMany({
@@ -426,7 +426,7 @@ export class IntransitService {
           to_department: {
             not: user.department_id // Sent to different department
           },
-          status: { in: ['intransit', 'dispatch'] }
+          status: { in: ['intransit', 'pending'] }
         },
         select: {
           document_id: true,
@@ -441,14 +441,14 @@ export class IntransitService {
       // Group by document_id and keep only the latest trail for each document
       const latestTrailsByDoc = new Map<string, any>();
       releasedByDepartment.forEach(trail => {
-        if (!latestTrailsByDoc.has(trail.document_id) || 
-            new Date(trail.created_at) > new Date(latestTrailsByDoc.get(trail.document_id).created_at)) {
+        if (!latestTrailsByDoc.has(trail.document_id) ||
+          new Date(trail.created_at) > new Date(latestTrailsByDoc.get(trail.document_id).created_at)) {
           latestTrailsByDoc.set(trail.document_id, trail);
         }
       });
 
       const releasedDocumentIds = new Set(latestTrailsByDoc.keys());
-      
+
       console.log('📍 [getOutgoingDocuments] Documents released by department:', releasedDocumentIds.size);
 
       const outgoingDocumentIds = await (async () => {
@@ -504,7 +504,7 @@ export class IntransitService {
           const allTrails = await prisma.documentTrail.findMany({
             where: {
               document_id: docId,
-              status: { in: ['intransit', 'dispatch'] }
+              status: { in: ['intransit', 'pending'] }
             },
             orderBy: {
               created_at: 'desc'
@@ -513,11 +513,11 @@ export class IntransitService {
 
           if (allTrails.length > 0) {
             const latestTrail = allTrails[0];
-            
+
             // If the latest trail shows document is coming TO this department (not FROM), 
             // it should be in incoming, not outgoing
-            if (latestTrail.to_department === user.department_id && 
-                latestTrail.from_department !== user.department_id) {
+            if (latestTrail.to_department === user.department_id &&
+              latestTrail.from_department !== user.department_id) {
               ids.delete(docId);
             }
           }
@@ -583,7 +583,7 @@ export class IntransitService {
       };
 
       // Get documents that originated from the user's department and are in active workflow state
-      // This includes documents that are dispatched, in transit, or have been received but not yet completed
+      // This includes documents that are pending, in transit, or have been received but not yet completed
       const [documents, total] = await Promise.all([
         prisma.document.findMany({
           where: {
@@ -900,7 +900,7 @@ export class IntransitService {
   }
 
   /**
-   * Cancel an in-transit document - reverts status back to dispatch
+   * Cancel an in-transit document - reverts status back to pending
    */
   async cancelIntransitDocument(documentId: string, userId: string) {
     // Validate UUID format
@@ -949,11 +949,11 @@ export class IntransitService {
         throw new Error('Only the department that released the document can cancel it');
       }
 
-      // Update document status back to 'dispatch'
+      // Update document status back to 'pending'
       const updatedDocument = await prisma.document.update({
         where: { document_id: documentId },
         data: {
-          status: 'dispatch',
+          status: 'pending',
           updated_at: new Date()
         }
       });
@@ -967,7 +967,7 @@ export class IntransitService {
           to_department: user!.department_id, // For cancellation, same department
           user_id: userId,
           status: 'canceled',
-          remarks: `In-transit document canceled by ${user!.first_name} ${user!.last_name}, status reverted to dispatch`
+          remarks: `In-transit document canceled by ${user!.first_name} ${user!.last_name}, status reverted to pending`
         });
       } catch (error) {
         console.error('Error creating document trail for in-transit cancellation:', error);
@@ -978,7 +978,7 @@ export class IntransitService {
       if (io) {
         io.emit('documentUpdated', {
           documentId: documentId,
-          status: 'dispatch',
+          status: 'pending',
           updatedBy: userId,
           timestamp: new Date().toISOString()
         });
@@ -994,7 +994,7 @@ export class IntransitService {
 
       return {
         success: true,
-        message: 'In-transit document canceled successfully, status reverted to dispatch',
+        message: 'In-transit document canceled successfully, status reverted to pending',
         documentId: documentId,
         updatedDocument
       };

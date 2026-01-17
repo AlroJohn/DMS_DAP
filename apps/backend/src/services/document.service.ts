@@ -1665,7 +1665,7 @@ export class DocumentService {
         document_type: documentTypeName,
         classification: documentData.classification,
         origin: documentData.origin,
-        status: 'dispatch'
+        status: 'pending'
       } as any,
       user.department_id
     );
@@ -1770,7 +1770,7 @@ export class DocumentService {
         from_department: user.department_id,
         to_department: user.department_id, // Document created in the same department
         user_id: userId,
-        status: 'dispatch',
+        status: 'pending',
         remarks: `Document created by ${user.first_name} ${user.last_name} with file upload`
       });
     } catch (error) {
@@ -2309,7 +2309,7 @@ export class DocumentService {
         document_type: documentTypeName,
         classification: documentData.classification,
         origin: documentData.origin,
-        status: 'dispatch'
+        status: 'pending'
       } as any,
       user.department_id
     );
@@ -2357,7 +2357,7 @@ export class DocumentService {
         from_department: user.department_id,
         to_department: user.department_id, // Document created in the same department
         user_id: userId,
-        status: 'dispatch',
+        status: 'pending',
         remarks: `Document created by ${user.first_name} ${user.last_name}`
       });
     } catch (error) {
@@ -2991,7 +2991,7 @@ export class DocumentService {
       const updatedDocument = await prisma.document.update({
         where: { document_id: documentId },
         data: {
-          status: 'dispatch',
+          status: 'pending',
           updated_at: new Date()
         }
       });
