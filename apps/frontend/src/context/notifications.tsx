@@ -131,12 +131,14 @@ export const NotificationsProvider = ({
         } catch {
           errorData = { error: `HTTP ${response.status}: ${errorText}` };
         }
-        console.error('Notifications error response:', errorData);
-        throw new Error(
+        const errorMessage =
           typeof errorData.error === 'string'
             ? errorData.error
-            : errorData.error?.message || errorData.message || 'Failed to fetch notifications'
-        );
+            : errorData.error?.message ||
+              errorData.message ||
+              'Failed to fetch notifications';
+        toast.error(errorMessage);
+        return;
       }
       
       const data = await response.json();
@@ -160,7 +162,6 @@ export const NotificationsProvider = ({
 
       setNotifications(formattedNotifications);
     } catch (error) {
-      console.error('Error fetching notifications:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to load notifications';
       toast.error(errorMessage);
     }
