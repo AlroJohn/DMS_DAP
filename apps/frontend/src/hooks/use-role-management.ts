@@ -88,11 +88,11 @@ export const useRoleManagement = () => {
       const result = await response.json();
 
       if (result.success) {
-        toast.success(result.message || 'Role deleted successfully.');
+        toast.success(result.data?.message || result.message || 'Role deleted successfully.');
         fetchRoles();
         closeDeleteAlert();
       } else {
-        throw new Error(result.message || 'Failed to delete role.');
+        throw new Error(result.error?.message || result.message || 'Failed to delete role.');
       }
     } catch (err: any) {
       console.error('Error deleting role:', err);

@@ -40,6 +40,40 @@ interface FormData {
   selectedPermissionIds: string[];
 }
 
+const getPermissionGroup = (permission: PermissionDefinition) => {
+  const permissionName = permission.permission || "";
+
+  if (permissionName.startsWith("document_")) {
+    return "document";
+  }
+  if (permissionName.startsWith("department_")) {
+    return "department";
+  }
+  if (permissionName.startsWith("user_")) {
+    return "user";
+  }
+  if (permissionName.startsWith("role_")) {
+    return "role";
+  }
+  if (permissionName.startsWith("permission_")) {
+    return "permission";
+  }
+  if (permissionName.startsWith("system_")) {
+    return "system";
+  }
+  if (permissionName.startsWith("notification_")) {
+    return "notification";
+  }
+  if (permissionName.startsWith("report_")) {
+    return "report";
+  }
+  if (permissionName.startsWith("api_")) {
+    return "api";
+  }
+
+  return permission.resource_type || "General";
+};
+
 const RoleFormModal: React.FC<RoleFormModalProps> = ({
   isOpen,
   onClose,
@@ -118,6 +152,7 @@ const RoleFormModal: React.FC<RoleFormModalProps> = ({
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
+    const selectedPermissionIds = formData.selectedPermissionIds;
 
     if (!formData.name.trim()) {
       newErrors.name = "Role name is required";
@@ -128,7 +163,7 @@ const RoleFormModal: React.FC<RoleFormModalProps> = ({
       newErrors.code =
         "Code must be uppercase, alphanumeric with underscores, starting with a letter";
     }
-    if (formData.selectedPermissionIds.length === 0) {
+    if (selectedPermissionIds.length === 0) {
       newErrors.selectedPermissionIds =
         "At least one permission must be selected";
     }
@@ -140,7 +175,7 @@ const RoleFormModal: React.FC<RoleFormModalProps> = ({
   const groupPermissions = (permissions: PermissionDefinition[]) => {
     const grouped: Record<string, PermissionDefinition[]> = {};
     permissions.forEach((p) => {
-      const resourceType = p.resource_type || "General"; // Default group if resource_type is missing
+      const resourceType = getPermissionGroup(p);
       if (!grouped[resourceType]) {
         grouped[resourceType] = [];
       }
@@ -162,6 +197,7 @@ const RoleFormModal: React.FC<RoleFormModalProps> = ({
         ? `/api/admin/roles/${initialData.role_id}`
         : "/api/admin/roles";
       const method = initialData?.role_id ? "PUT" : "POST";
+    const permissionsToSubmit = formData.selectedPermissionIds;
 
       const response = await fetch(url, {
         method,
@@ -173,7 +209,7 @@ const RoleFormModal: React.FC<RoleFormModalProps> = ({
           code: formData.code.toUpperCase(),
           description: formData.description,
           isSystemRole: formData.is_system_role,
-          permissions: formData.selectedPermissionIds,
+          permissions: permissionsToSubmit,
         }),
       });
 

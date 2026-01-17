@@ -254,26 +254,27 @@ export class RoleService {
         throw new Error('Cannot delete system roles');
       }
 
-      // Check if role is assigned to any users
-      const userRoles = await this.prisma.userRole.findMany({
-        where: {
-          role_id: roleId,
-          is_active: true
-        }
-      });
+      await this.prisma.$transaction(async (tx) => {
+        await tx.permissionAuditLog.updateMany({
+          where: { target_role_id: roleId },
+          data: { target_role_id: null }
+        });
 
-      if (userRoles.length > 0) {
-        throw new Error('Cannot delete role that is assigned to users. Please remove all user assignments first.');
-      }
+        await tx.userInvitation.deleteMany({
+          where: { role_id: roleId }
+        });
 
-      // Soft delete role
-      await this.prisma.role.update({
-        where: { role_id: roleId },
-        data: {
-          is_active: false,
-          updated_by: deletedBy,
-          updated_at: new Date()
-        }
+        await tx.userRole.deleteMany({
+          where: { role_id: roleId }
+        });
+
+        await tx.rolePermission.deleteMany({
+          where: { role_id: roleId }
+        });
+
+        await tx.role.delete({
+          where: { role_id: roleId }
+        });
       });
 
       return true;

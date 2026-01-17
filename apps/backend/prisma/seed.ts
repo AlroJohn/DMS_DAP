@@ -172,13 +172,13 @@ async function main() {
           data: {
             permission: permission as any,
             resource_type: permission.includes('document') ? 'document' :
-                         permission.includes('user') ? 'user' :
-                         permission.includes('role') ? 'role' :
-                         permission.includes('department') ? 'department' :
-                         permission.includes('permission') ? 'permission' :
-                         permission.includes('system') ? 'system' :
-                         permission.includes('notification') ? 'notification' :
-                         permission.includes('report') ? 'report' : 'document',
+              permission.includes('user') ? 'user' :
+                permission.includes('role') ? 'role' :
+                  permission.includes('department') ? 'department' :
+                    permission.includes('permission') ? 'permission' :
+                      permission.includes('system') ? 'system' :
+                        permission.includes('notification') ? 'notification' :
+                          permission.includes('report') ? 'report' : 'document',
             description: `Permission to ${permission.replace(/_/g, ' ')}`,
             is_active: true
           }
@@ -210,6 +210,45 @@ async function main() {
       });
     } else {
       console.log('✅ Using existing Super Admin role');
+    }
+    // Step 5b: Create core system roles
+    console.log('?? Creating core system roles...');
+    const coreRoles = [
+      {
+        name: 'Administrator',
+        code: 'ADMINISTRATOR',
+        description: 'Global administrator with full system access'
+      },
+      {
+        name: 'Department Head',
+        code: 'DEPARTMENT_HEAD',
+        description: 'Can access transactions for all users within the department'
+      },
+      {
+        name: 'User',
+        code: 'USER',
+        description: 'Standard user with access to own transactions'
+      }
+    ];
+
+    for (const role of coreRoles) {
+      const existingRole = await prisma.role.findUnique({
+        where: { code: role.code }
+      });
+
+      if (!existingRole) {
+        await prisma.role.create({
+          data: {
+            ...role,
+            is_system_role: true,
+            is_active: true,
+            created_by: superAdminAccount.account_id
+          }
+        });
+
+      } else {
+
+      }
     }
 
     // Step 6: Get all permissions and assign them to Super Admin role
@@ -248,6 +287,85 @@ async function main() {
         console.log(`✅ Assigned ${rolePermissionsData.length} permissions to Super Admin role`);
       }
     });
+
+    // Step 6b: Assign permissions to core roles
+    console.log('?? Assigning permissions to core roles...');
+    const permissionPrefix = {
+      document: 'document_',
+      notification: 'notification_',
+      report: 'report_',
+      user: 'user_',
+      role: 'role_',
+      system: 'system_',
+      permission: 'permission_',
+    };
+
+    const normalizePermission = (permission: any) => String(permission);
+    const hasPrefix = (permission: any, prefix: string) =>
+      normalizePermission(permission).startsWith(prefix);
+    const pickByPrefixes = (prefixes: string[]) =>
+      allPermissions.filter(permission =>
+        prefixes.some(prefix => hasPrefix(permission.permission, prefix))
+      );
+
+    const uniquePermissionIds = (permissions: typeof allPermissions) =>
+      Array.from(new Set(permissions.map(permission => permission.permission_id)));
+
+    const assignPermissionsToRole = async (roleCode: string, permissionIds: string[]) => {
+      const role = await prisma.role.findUnique({
+        where: { code: roleCode }
+      });
+
+      if (!role) {
+        console.log(`?? Role not found for permission assignment: ${roleCode}`);
+        return;
+      }
+
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        await tx.rolePermission.deleteMany({
+          where: { role_id: role.role_id }
+        });
+
+        if (permissionIds.length > 0) {
+          await tx.rolePermission.createMany({
+            data: permissionIds.map(permissionId => ({
+              role_id: role.role_id,
+              permission_id: permissionId,
+              scope: 'global' as any,
+              granted_by: superAdminAccount.account_id,
+              is_active: true
+            }))
+          });
+        }
+      });
+
+      console.log(`? Assigned ${permissionIds.length} permissions to ${roleCode}`);
+    };
+
+    const baseUserPermissions = pickByPrefixes([
+      permissionPrefix.document,
+      permissionPrefix.notification,
+      permissionPrefix.report,
+    ]);
+
+    const departmentHeadPermissions = uniquePermissionIds(
+      baseUserPermissions.concat(
+        pickByPrefixes([
+          permissionPrefix.user,
+        ])
+      )
+    );
+    const userPermissions = uniquePermissionIds(baseUserPermissions);
+
+    const administratorPermissions = uniquePermissionIds(
+      allPermissions.filter(permission =>
+        !hasPrefix(permission.permission, permissionPrefix.system)
+      )
+    );
+
+    await assignPermissionsToRole('DEPARTMENT_HEAD', departmentHeadPermissions);
+    await assignPermissionsToRole('USER', userPermissions);
+    await assignPermissionsToRole('ADMINISTRATOR', administratorPermissions);
 
     // Step 7: Get Super Admin user and assign role
     const superAdminUser = await prisma.user.findFirst({
@@ -413,110 +531,15 @@ async function main() {
       sampleUsers.push(userAccount.user);
     }
 
-    // Step 11: Create view-only role for testing
-    console.log('\n 👁️ Creating View-Only role for testing...');
-    let viewOnlyRole = await prisma.role.findUnique({
-      where: { code: 'VIEW_ONLY' }
-    });
-
-    if (!viewOnlyRole) {
-      viewOnlyRole = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        const role = await tx.role.create({
-          data: {
-            name: 'View Only',
-            code: 'VIEW_ONLY',
-            description: 'Can only view documents, no editing or management permissions',
-            is_system_role: true,
-            is_active: true,
-            created_by: superAdminAccount.account_id
-          }
-        });
-        console.log('✅ Created View-Only role');
-        return role;
-      });
-    } else {
-      console.log('✅ Using existing View-Only role');
-    }
-
-    // Step 12: Assign document_read and document_type_read permissions to the View-Only role
-    console.log('🔗 Assigning document_read and document_type_read permissions to View-Only role...');
-    const readPermission = await prisma.permissionDefinition.findUnique({
-      where: { permission: 'document_read' as any }
-    });
-
-    const typeReadPermission = await prisma.permissionDefinition.findUnique({
-      where: { permission: 'document_type_read' as any }
-    });
-
-    // Assign document_read permission
-    if (readPermission) {
-      // Check if this permission is already assigned
-      const existingRolePermission = await prisma.rolePermission.findFirst({
-        where: {
-          role_id: viewOnlyRole.role_id,
-          permission_id: readPermission.permission_id
-        }
-      });
-
-      if (!existingRolePermission) {
-        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-          await tx.rolePermission.create({
-            data: {
-              role_id: viewOnlyRole.role_id,
-              permission_id: readPermission.permission_id,
-              scope: 'department' as any,
-              granted_by: superAdminAccount.account_id,
-              is_active: true
-            }
-          });
-          console.log('✅ Assigned document_read permission to View-Only role');
-        });
-      } else {
-        console.log('✅ document_read permission already assigned to View-Only role');
-      }
-    }
-
-    // Assign document_type_read permission for basic app functionality
-    if (typeReadPermission) {
-      // Check if this permission is already assigned
-      const existingTypeRolePermission = await prisma.rolePermission.findFirst({
-        where: {
-          role_id: viewOnlyRole.role_id,
-          permission_id: typeReadPermission.permission_id
-        }
-      });
-
-      if (!existingTypeRolePermission) {
-        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-          await tx.rolePermission.create({
-            data: {
-              role_id: viewOnlyRole.role_id,
-              permission_id: typeReadPermission.permission_id,
-              scope: 'department' as any,
-              granted_by: superAdminAccount.account_id,
-              is_active: true
-            }
-          });
-          console.log('✅ Assigned document_type_read permission to View-Only role');
-        });
-      } else {
-        console.log('✅ document_type_read permission already assigned to View-Only role');
-      }
-    }
-
-    // Step 13: Create some document actions for testing
+    // Step 11: Create some document actions for testing
     console.log('\n📝 Creating sample document actions...');
     const documentActions = [
       { action_name: 'For Approval', description: 'Document requires approval', sender_tag: 'FROM', recipient_tag: 'TO' },
       { action_name: 'For Signature', description: 'Document requires signature', sender_tag: 'FROM', recipient_tag: 'TO' },
       { action_name: 'For Review', description: 'Document requires review', sender_tag: 'FROM', recipient_tag: 'TO' },
-      { action_name: 'For Information', description: 'Document for information purposes', sender_tag: 'FROM', recipient_tag: 'TO' },
-      { action_name: 'For Action', description: 'Document requires action', sender_tag: 'FROM', recipient_tag: 'TO' },
-      { action_name: 'For Comment', description: 'Document requires comments', sender_tag: 'FROM', recipient_tag: 'TO' },
-      { action_name: 'For Endorsement', description: 'Document requires endorsement', sender_tag: 'FROM', recipient_tag: 'TO' },
-      { action_name: 'For Filing', description: 'Document requires filing', sender_tag: 'FROM', recipient_tag: 'TO' },
-      { action_name: 'For Release', description: 'Document for release', sender_tag: 'FROM', recipient_tag: 'TO' },
-      { action_name: 'For Follow-up', description: 'Document requires follow-up', sender_tag: 'FROM', recipient_tag: 'TO' }
+      { action_name: 'For Cancellation', description: 'Document is requested to be cancelled', sender_tag: 'FROM', recipient_tag: 'TO' },
+      { action_name: 'Cancelled', description: 'Document has been cancelled', sender_tag: 'FROM', recipient_tag: 'TO' },
+      { action_name: 'Approved', description: 'Document has been approved', sender_tag: 'FROM', recipient_tag: 'TO' }
     ];
 
     for (const action of documentActions) {
@@ -537,182 +560,7 @@ async function main() {
       }
     }
 
-    // Step 14: Create a view-only user account
-    console.log(' 👤 Creating View-Only test user...');
-    const viewOnlyUserAccount = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const account = await tx.account.create({
-        data: {
-          email: 'viewer@dms.com',
-          password: await bcrypt.hash('viewer123', 12),
-          email_verified: true,
-          is_active: true,
-          last_login: new Date(),
-          department_id: tempDepartment.department_id
-        }
-      });
-
-      const user = await tx.user.create({
-        data: {
-          account_id: account.account_id,
-          department_id: tempDepartment.department_id,
-          first_name: 'Test',
-          last_name: 'Viewer',
-          active: true
-        }
-      });
-
-      // Assign View-Only role to the user
-      await tx.userRole.create({
-        data: {
-          user_id: user.user_id,
-          role_id: viewOnlyRole.role_id,
-          assigned_by: superAdminAccount.account_id,
-          is_active: true
-        }
-      });
-
-      return { account, user };
-    });
-
-    console.log('✅ Created View-Only test user with login: viewer@dms.com, password: viewer123');
-
-    console.log('\n🎯 View-Only Test User Permissions:');
-    console.log('- Can view documents (document_read)');
-    console.log('- Can view document types (document_type_read) for basic functionality');
-    console.log('- Cannot edit, sign, delete, archive, or perform any other document operations');
-
-    // Step 15: Create roles for accounts that don't have roles
-    console.log('\n👥 Creating roles for accounts without roles...');
-
-    // Find all accounts that don't have any roles
-    const allAccounts = await prisma.account.findMany({
-      include: {
-        user: {
-          include: {
-            user_roles: {
-              include: {
-                role: true
-              }
-            }
-          }
-        }
-      }
-    });
-
-    const accountsWithoutRoles = allAccounts.filter(account => {
-      // Check if the account has any user roles
-      if (!account.user || !account.user.user_roles || account.user.user_roles.length === 0) {
-        return true;
-      }
-
-      // Also check if all roles associated with the user are inactive
-      const activeRoles = account.user.user_roles.filter(ur => ur.is_active);
-      return activeRoles.length === 0;
-    });
-
-    if (accountsWithoutRoles.length > 0) {
-      console.log(`📝 Found ${accountsWithoutRoles.length} accounts without active roles`);
-
-      // Create a role with all permissions except user management
-      let defaultRole = await prisma.role.findUnique({
-        where: { code: 'DEFAULT_USER' }
-      });
-
-      if (!defaultRole) {
-        defaultRole = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-          const role = await tx.role.create({
-            data: {
-              name: 'Default User',
-              code: 'DEFAULT_USER',
-              description: 'Default role with all permissions except user management',
-              is_system_role: true,
-              is_active: true,
-              created_by: superAdminAccount.account_id
-            }
-          });
-          console.log('✅ Created Default User role');
-          return role;
-        });
-      } else {
-        console.log('✅ Using existing Default User role');
-      }
-
-      // Get all permissions except user management permissions
-      const allPermissions = await prisma.permissionDefinition.findMany({
-        where: { is_active: true }
-      });
-
-      // Filter out user management permissions
-      const nonUserManagementPermissions = allPermissions.filter(permission =>
-        !permission.permission.startsWith('user_')
-      );
-
-      console.log(`🔗 Assigning ${nonUserManagementPermissions.length} non-user-management permissions to Default User role...`);
-
-      // Assign non-user-management permissions to the default role
-      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        // Remove existing role permissions for this role if any
-        const existingRolePermissions = await tx.rolePermission.findMany({
-          where: { role_id: defaultRole.role_id }
-        });
-
-        if (existingRolePermissions.length > 0) {
-          await tx.rolePermission.deleteMany({
-            where: { role_id: defaultRole.role_id }
-          });
-          console.log(`✅ Removed ${existingRolePermissions.length} existing role permissions for Default User role`);
-        }
-
-        // Create new role permissions excluding user management
-        const rolePermissionsData = nonUserManagementPermissions.map(permission => ({
-          role_id: defaultRole!.role_id,
-          permission_id: permission.permission_id,
-          scope: 'global' as any,
-          granted_by: superAdminAccount.account_id,
-          is_active: true
-        }));
-
-        if (rolePermissionsData.length > 0) {
-          await tx.rolePermission.createMany({
-            data: rolePermissionsData
-          });
-          console.log(`✅ Assigned ${rolePermissionsData.length} non-user-management permissions to Default User role`);
-        }
-      });
-
-      // Assign the default role to accounts without roles
-      for (const account of accountsWithoutRoles) {
-        if (account.user) {
-          await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-            // Check if user role already exists for this user and role
-            const existingUserRole = await tx.userRole.findFirst({
-              where: {
-                user_id: account.user!.user_id,
-                role_id: defaultRole.role_id
-              }
-            });
-
-            if (!existingUserRole) {
-              await tx.userRole.create({
-                data: {
-                  user_id: account.user!.user_id,
-                  role_id: defaultRole.role_id,
-                  assigned_by: superAdminAccount.account_id,
-                  is_active: true
-                }
-              });
-              console.log(`✅ Assigned Default User role to account: ${account.email}`);
-            } else {
-              console.log(`✅ Default User role already assigned to account: ${account.email}`);
-            }
-          });
-        }
-      }
-    } else {
-      console.log('✅ All accounts already have roles assigned');
-    }
-
-    // Step: Seed Sidebar Settings
+    // Step 12: Seed Sidebar Settings
     console.log('🎨 Seeding sidebar settings...');
     const defaultSidebarSettings = [
       { section_key: 'home', section_name: 'Home', is_enabled: true },
