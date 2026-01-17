@@ -49,6 +49,18 @@ export function UploadDocumentModal({
   open,
   onOpenChange,
 }: UploadDocumentModalProps) {
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "";
+  const normalizedApiBaseUrl = apiBaseUrl.replace(/\/$/, "");
+  const ocrDefaultEnabled = false;
+  const buildApiUrl = (path: string) => {
+    if (!normalizedApiBaseUrl) {
+      return `/api${path}`;
+    }
+    if (normalizedApiBaseUrl.endsWith("/api")) {
+      return `${normalizedApiBaseUrl}${path}`;
+    }
+    return `${normalizedApiBaseUrl}/api${path}`;
+  };
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -58,7 +70,7 @@ export function UploadDocumentModal({
   const [selectedClassification, setSelectedClassification] =
     useState("simple");
   const [selectedOrigin, setSelectedOrigin] = useState("external");
-  const [enableOcr, setEnableOcr] = useState(false);
+  const [enableOcr, setEnableOcr] = useState(ocrDefaultEnabled);
   const [enableEncryption, setEnableEncryption] = useState(true);
   const maxInlineChecksumMB = 15;
 
@@ -179,7 +191,7 @@ export function UploadDocumentModal({
 
       setUploadProgress(20);
 
-      const response = await fetch(`/api/documents/upload`, {
+      const response = await fetch(buildApiUrl("/documents/upload"), {
         method: "POST",
         credentials: "include",
         body: formData,
@@ -219,7 +231,7 @@ export function UploadDocumentModal({
           );
           additionalFileForm.append("versionGroupId", versionGroupId);
 
-          return fetch(`/api/documents/${documentId}/files`, {
+          return fetch(buildApiUrl(`/documents/${documentId}/files`), {
             method: "POST",
             credentials: "include",
             body: additionalFileForm,

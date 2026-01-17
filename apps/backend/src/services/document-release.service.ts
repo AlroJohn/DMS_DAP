@@ -26,6 +26,19 @@ export class DocumentReleaseService {
             width: number;
             height: number;
             assigned_user_id?: string | null;
+        }[],
+        textPlaceholders?: {
+            document_file_id: string;
+            page_number: number;
+            x_position: number;
+            y_position: number;
+            width: number;
+            height: number;
+            font_family: string;
+            font_size: number;
+            font_color: string;
+            text_value: string;
+            assigned_user_id?: string | null;
         }[]
     ) {
         // Validate UUID format
@@ -101,6 +114,28 @@ export class DocumentReleaseService {
                 if (hasSignatureAction) {
                     console.log('📍 [DocumentReleaseService.releaseDocument] Document released for signature, no placeholders placed yet.');
                 }
+            }
+
+            if (textPlaceholders && textPlaceholders.length > 0) {
+                const textPlaceholderData = textPlaceholders.map((textPlaceholder) => ({
+                    document_id: documentId,
+                    document_file_id: textPlaceholder.document_file_id,
+                    page_number: textPlaceholder.page_number,
+                    x_position: textPlaceholder.x_position,
+                    y_position: textPlaceholder.y_position,
+                    width: textPlaceholder.width,
+                    height: textPlaceholder.height,
+                    font_family: textPlaceholder.font_family,
+                    font_size: textPlaceholder.font_size,
+                    font_color: textPlaceholder.font_color,
+                    text_value: textPlaceholder.text_value,
+                    assigned_user_id: textPlaceholder.assigned_user_id || null,
+                }));
+
+                await prisma.textPlaceholder.createMany({
+                    data: textPlaceholderData,
+                });
+                console.log('📍 [DocumentReleaseService.releaseDocument] Text placeholders saved to TextPlaceholder table.');
             }
 
             // Get the current workflow

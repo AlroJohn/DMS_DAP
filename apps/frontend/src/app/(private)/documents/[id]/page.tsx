@@ -382,6 +382,19 @@ export default function DocumentDetailPage() {
         height: number;
         assigned_user_id?: string | null;
       }[];
+      textPlaceholders?: {
+        document_file_id: string;
+        page_number: number;
+        x_position: number;
+        y_position: number;
+        width: number;
+        height: number;
+        font_family: string;
+        font_size: number;
+        font_color: string;
+        text_value: string;
+        assigned_user_id?: string | null;
+      }[];
     }) => {
       const response = await fetch(`/api/documents/${documentId}/release`, {
         method: "POST",
@@ -392,6 +405,7 @@ export default function DocumentDetailPage() {
           requestActions: data.requestActions,
           remarks: data.remarks,
           signatures: data.signatures, // This matches the expected format in the backend
+          textPlaceholders: data.textPlaceholders,
         }),
       });
       if (!response.ok) {
@@ -409,11 +423,13 @@ export default function DocumentDetailPage() {
     boxes,
     textBoxes,
     targetFileIds,
+    pageScales,
   }: {
     fileId: string;
     boxes: SignatureBox[];
     textBoxes: TextBox[];
     targetFileIds?: string[];
+    pageScales?: Record<number, { scaleX: number; scaleY: number }>;
   }) => {
     if (isConfirmingRelease) return;
     const params = new URLSearchParams(searchParams?.toString() || "");
@@ -422,38 +438,48 @@ export default function DocumentDetailPage() {
     const remarks = params.get("releaseRemarks") || undefined;
 
     setIsConfirmingRelease(true);
-    const RENDER_SCALE = 1.4;
+    const DEFAULT_SCALE = 1.2;
     const normalizedTargetIds = Array.from(
       new Set([...(targetFileIds || []), fileId].filter(Boolean))
     );
 
     // Prepare signature placeholders data
     const signaturePlaceholders = normalizedTargetIds.flatMap((targetFileId) =>
-      boxes.map((box) => ({
-        document_file_id: targetFileId,
-        page_number: box.pageNumber,
-        x_position: box.x / RENDER_SCALE, // Adjust for scale
-        y_position: box.y / RENDER_SCALE,
-        width: box.width / RENDER_SCALE,
-        height: box.height / RENDER_SCALE,
-        assigned_user_id: box.assignedUserId || null,
-      }))
+      boxes.map((box) => {
+        const scale = pageScales?.[box.pageNumber];
+        const scaleX = scale?.scaleX ?? DEFAULT_SCALE;
+        const scaleY = scale?.scaleY ?? DEFAULT_SCALE;
+        return {
+          document_file_id: targetFileId,
+          page_number: box.pageNumber,
+          x_position: box.x / scaleX, // Adjust for scale
+          y_position: box.y / scaleY,
+          width: box.width / scaleX,
+          height: box.height / scaleY,
+          assigned_user_id: box.assignedUserId || null,
+        };
+      })
     );
 
     const textPlaceholders = normalizedTargetIds.flatMap((targetFileId) =>
-      textBoxes.map((box) => ({
-        document_file_id: targetFileId,
-        page_number: box.pageNumber,
-        x_position: box.x / RENDER_SCALE,
-        y_position: box.y / RENDER_SCALE,
-        width: box.width / RENDER_SCALE,
-        height: box.height / RENDER_SCALE,
-        font_family: box.fontFamily,
-        font_size: box.fontSize,
-        font_color: box.fontColor,
-        text_value: box.text?.trim() || "",
-        assigned_user_id: box.assignedUserId || null,
-      }))
+      textBoxes.map((box) => {
+        const scale = pageScales?.[box.pageNumber];
+        const scaleX = scale?.scaleX ?? DEFAULT_SCALE;
+        const scaleY = scale?.scaleY ?? DEFAULT_SCALE;
+        return {
+          document_file_id: targetFileId,
+          page_number: box.pageNumber,
+          x_position: box.x / scaleX,
+          y_position: box.y / scaleY,
+          width: box.width / scaleX,
+          height: box.height / scaleY,
+          font_family: box.fontFamily,
+          font_size: box.fontSize,
+          font_color: box.fontColor,
+          text_value: box.text?.trim() || "",
+          assigned_user_id: box.assignedUserId || null,
+        };
+      })
     );
 
     const saveSignaturePlaceholders = async (
@@ -569,11 +595,10 @@ export default function DocumentDetailPage() {
         requestActions,
         remarks,
         signatures: signaturePlaceholders,
+        textPlaceholders: textPlaceholders.length
+          ? textPlaceholders
+          : undefined,
       });
-
-      if (textPlaceholders.length) {
-        await saveTextPlaceholders(textPlaceholders);
-      }
 
       toast.success("Document released with signature requests.");
       refetch();

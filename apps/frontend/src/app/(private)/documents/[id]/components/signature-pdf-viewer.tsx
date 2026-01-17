@@ -84,6 +84,7 @@ interface SignaturePdfViewerProps {
     boxes: SignatureBox[];
     textBoxes: TextBox[];
     targetFileIds?: string[];
+    pageScales?: Record<number, { scaleX: number; scaleY: number }>;
   }) => void;
 }
 
@@ -239,7 +240,7 @@ export function SignaturePdfViewer({
     "signature" | "text" | null
   >(null);
 
-  const RENDER_SCALE = useMemo(() => 1.4, []);
+  const RENDER_SCALE = useMemo(() => 1.2, []);
   const TEXT_FONT_OPTIONS = useMemo(
     () => ["Arial", "Times New Roman", "Courier New", "Georgia"],
     []
@@ -338,16 +339,28 @@ export function SignaturePdfViewer({
     // Create a stable reference to existing boxes to prevent infinite loops
     const newExistingBoxes = placeholders
       .filter((placeholder) => placeholder.document_file_id === selectedFileId)
-      .map((placeholder) => ({
-        id: placeholder.placeholder_id,
-        pageNumber: placeholder.page_number,
-        x: placeholder.x_position * RENDER_SCALE,
-        y: placeholder.y_position * RENDER_SCALE,
-        width: placeholder.width * RENDER_SCALE,
-        height: placeholder.height * RENDER_SCALE,
-        isExisting: true,
-        assignedUserId: placeholder.assigned_user_id || null,
-      }));
+      .map((placeholder) => {
+        const page = pages.find(
+          (candidate) => candidate.pageNumber === placeholder.page_number
+        );
+        const scaleX = page?.pdfWidth
+          ? page.width / page.pdfWidth
+          : RENDER_SCALE;
+        const scaleY = page?.pdfHeight
+          ? page.height / page.pdfHeight
+          : RENDER_SCALE;
+
+        return {
+          id: placeholder.placeholder_id,
+          pageNumber: placeholder.page_number,
+          x: placeholder.x_position * scaleX,
+          y: placeholder.y_position * scaleY,
+          width: placeholder.width * scaleX,
+          height: placeholder.height * scaleY,
+          isExisting: true,
+          assignedUserId: placeholder.assigned_user_id || null,
+        };
+      });
 
     setBoxes((prevBoxes) => {
       // Separate existing and new boxes
@@ -374,7 +387,7 @@ export function SignaturePdfViewer({
 
       return [...newExistingBoxes, ...prevNewBoxes];
     });
-  }, [selectedFileId, placeholders, RENDER_SCALE]);
+  }, [selectedFileId, placeholders, pages, RENDER_SCALE]);
 
   useEffect(() => {
     if (!selectedFileId) {
@@ -384,20 +397,32 @@ export function SignaturePdfViewer({
 
     const newExistingTextBoxes = textPlaceholders
       .filter((placeholder) => placeholder.document_file_id === selectedFileId)
-      .map((placeholder) => ({
-        id: placeholder.placeholder_id,
-        pageNumber: placeholder.page_number,
-        x: placeholder.x_position * RENDER_SCALE,
-        y: placeholder.y_position * RENDER_SCALE,
-        width: placeholder.width * RENDER_SCALE,
-        height: placeholder.height * RENDER_SCALE,
-        fontFamily: placeholder.font_family || DEFAULT_TEXT_FONT,
-        fontSize: placeholder.font_size || DEFAULT_TEXT_SIZE,
-        fontColor: placeholder.font_color || DEFAULT_TEXT_COLOR,
-        text: placeholder.text_value || "",
-        isExisting: true,
-        assignedUserId: placeholder.assigned_user_id || null,
-      }));
+      .map((placeholder) => {
+        const page = pages.find(
+          (candidate) => candidate.pageNumber === placeholder.page_number
+        );
+        const scaleX = page?.pdfWidth
+          ? page.width / page.pdfWidth
+          : RENDER_SCALE;
+        const scaleY = page?.pdfHeight
+          ? page.height / page.pdfHeight
+          : RENDER_SCALE;
+
+        return {
+          id: placeholder.placeholder_id,
+          pageNumber: placeholder.page_number,
+          x: placeholder.x_position * scaleX,
+          y: placeholder.y_position * scaleY,
+          width: placeholder.width * scaleX,
+          height: placeholder.height * scaleY,
+          fontFamily: placeholder.font_family || DEFAULT_TEXT_FONT,
+          fontSize: placeholder.font_size || DEFAULT_TEXT_SIZE,
+          fontColor: placeholder.font_color || DEFAULT_TEXT_COLOR,
+          text: placeholder.text_value || "",
+          isExisting: true,
+          assignedUserId: placeholder.assigned_user_id || null,
+        };
+      });
 
     setTextBoxes((prevBoxes) => {
       const prevExistingBoxes = prevBoxes.filter((b) => b.isExisting);
@@ -429,6 +454,7 @@ export function SignaturePdfViewer({
   }, [
     selectedFileId,
     textPlaceholders,
+    pages,
     RENDER_SCALE,
     DEFAULT_TEXT_FONT,
     DEFAULT_TEXT_SIZE,
@@ -665,13 +691,15 @@ export function SignaturePdfViewer({
   };
 
   const handleRemove = (id: string) => {
-    const boxToRemove = boxes.find(b => b.id === id);
+    const boxToRemove = boxes.find((b) => b.id === id);
 
     if (!boxToRemove) return;
 
     // Check if it's an existing placeholder and if user has permission to delete
     if (boxToRemove.isExisting && !hasDepartmentPermission) {
-      toast.error("Only members of the document's department can delete existing placeholders.");
+      toast.error(
+        "Only members of the document's department can delete existing placeholders."
+      );
       return;
     }
 
@@ -680,13 +708,15 @@ export function SignaturePdfViewer({
   };
 
   const handleRemoveText = (id: string) => {
-    const textboxToRemove = textBoxes.find(b => b.id === id);
+    const textboxToRemove = textBoxes.find((b) => b.id === id);
 
     if (!textboxToRemove) return;
 
     // Check if it's an existing placeholder and if user has permission to delete
     if (textboxToRemove.isExisting && !hasDepartmentPermission) {
-      toast.error("Only members of the document's department can delete existing placeholders.");
+      toast.error(
+        "Only members of the document's department can delete existing placeholders."
+      );
       return;
     }
 
@@ -722,11 +752,18 @@ export function SignaturePdfViewer({
     const targets = normalizedTargetFileIds.length
       ? normalizedTargetFileIds
       : [selectedFileId];
+    const pageScales = pages.reduce((acc, page) => {
+      const scaleX = page.pdfWidth ? page.width / page.pdfWidth : 1;
+      const scaleY = page.pdfHeight ? page.height / page.pdfHeight : 1;
+      acc[page.pageNumber] = { scaleX, scaleY };
+      return acc;
+    }, {} as Record<number, { scaleX: number; scaleY: number }>);
     onConfirm({
       fileId: selectedFileId,
       boxes: newBoxes,
       textBoxes: newTextBoxes,
       targetFileIds: targets.filter(Boolean) as string[],
+      pageScales,
     });
   };
 
@@ -920,7 +957,9 @@ export function SignaturePdfViewer({
                         bounds="parent"
                         minWidth={50}
                         minHeight={30}
-                        disableDragging={!hasDepartmentPermission && box.isExisting}
+                        disableDragging={
+                          !hasDepartmentPermission && box.isExisting
+                        }
                         enableResizing={
                           !hasDepartmentPermission && box.isExisting
                             ? false
@@ -997,7 +1036,9 @@ export function SignaturePdfViewer({
                         bounds="parent"
                         minWidth={60}
                         minHeight={30}
-                        disableDragging={!hasDepartmentPermission && box.isExisting}
+                        disableDragging={
+                          !hasDepartmentPermission && box.isExisting
+                        }
                         enableResizing={
                           !hasDepartmentPermission && box.isExisting
                             ? false
@@ -1125,7 +1166,9 @@ export function SignaturePdfViewer({
                   <Select
                     value={selectedAssigneeId || ""}
                     onValueChange={(value) => setSelectedAssigneeId(value)}
-                    disabled={!selectedDepartmentId || !usersForDepartment.length}
+                    disabled={
+                      !selectedDepartmentId || !usersForDepartment.length
+                    }
                   >
                     <SelectTrigger className="h-8 text-xs">
                       <SelectValue
@@ -1235,7 +1278,11 @@ export function SignaturePdfViewer({
                           className="h-6 w-6 text-destructive"
                           onClick={() => handleRemove(box.id)}
                           disabled={box.isExisting && !hasDepartmentPermission}
-                          title={box.isExisting && !hasDepartmentPermission ? "Only department members can delete existing placeholders" : undefined}
+                          title={
+                            box.isExisting && !hasDepartmentPermission
+                              ? "Only department members can delete existing placeholders"
+                              : undefined
+                          }
                         >
                           <X className="h-3 w-3" />
                         </Button>
@@ -1351,7 +1398,11 @@ export function SignaturePdfViewer({
                           className="h-6 w-6 text-destructive"
                           onClick={() => handleRemoveText(box.id)}
                           disabled={box.isExisting && !hasDepartmentPermission}
-                          title={box.isExisting && !hasDepartmentPermission ? "Only department members can delete existing placeholders" : undefined}
+                          title={
+                            box.isExisting && !hasDepartmentPermission
+                              ? "Only department members can delete existing placeholders"
+                              : undefined
+                          }
                         >
                           <X className="h-3 w-3" />
                         </Button>

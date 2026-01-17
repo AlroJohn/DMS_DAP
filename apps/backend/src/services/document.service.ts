@@ -14,7 +14,7 @@ import { DocumentTrailsService } from './document-trails.service';
 import { NotificationService } from './notification.service';
 import { recordCompletionStatus, recordCreationStatus, recordReceiveStatus } from './workflow-status.service';
 import { auditService } from './audit.service';
-import { ocrService } from './ocr.service';
+import { ocrQueueService } from './ocr-queue.service';
 // Import the getSocketInstance function instead of importing io directly from index
 
 // Create a type alias to avoid confusion with DOM Document
@@ -128,47 +128,10 @@ export class DocumentService {
       return;
     }
 
-    setImmediate(() => {
-      void this.runOcrProcessing(params);
+    ocrQueueService.enqueue({
+      jobId: crypto.randomUUID(),
+      ...params,
     });
-  }
-
-  private async runOcrProcessing(params: {
-    documentId: string;
-    filePath: string;
-    mimeType: string;
-    originalName: string;
-  }): Promise<void> {
-    try {
-      console.log(
-        `[DocumentService] OCR enabled for ${params.originalName}. Starting process.`
-      );
-      const ocrResult = await ocrService.extractTextFromPdf(
-        params.filePath,
-        params.mimeType
-      );
-      if (ocrResult) {
-        await prisma.oCR_Json.create({
-          data: {
-            documentDocument_id: params.documentId,
-            file_url: params.filePath,
-            ocr_json: ocrResult as any,
-          },
-        });
-        console.log(
-          `[DocumentService] OCR data saved for document ${params.documentId} and file ${params.filePath}`
-        );
-      } else {
-        console.warn(
-          `[DocumentService] OCR processing failed or returned no result for ${params.originalName}. Continuing without saving OCR data.`
-        );
-      }
-    } catch (ocrError) {
-      console.error(
-        `[DocumentService] OCR processing failed for ${params.originalName}, but continuing with upload.`,
-        ocrError
-      );
-    }
   }
 
   private isPlaceholderFile(file: any): boolean {

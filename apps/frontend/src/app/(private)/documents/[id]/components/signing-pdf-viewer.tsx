@@ -279,7 +279,7 @@ export function SigningPdfViewer({
   const [shouldNavigateAfterSuccess, setShouldNavigateAfterSuccess] =
     useState(false);
 
-  const RENDER_SCALE = 1.4;
+  const RENDER_SCALE = 1.2;
 
   const handleSelectAllFiles = () => {
     setSelectedFileIds(sortedPdfFiles.map((file) => file.id));
@@ -1303,6 +1303,12 @@ export function SigningPdfViewer({
   }
 
   const activePageData = pages.find((p) => p.pageNumber === activePage);
+  const pageScaleX = activePageData?.pdfWidth
+    ? activePageData.width / activePageData.pdfWidth
+    : RENDER_SCALE;
+  const pageScaleY = activePageData?.pdfHeight
+    ? activePageData.height / activePageData.pdfHeight
+    : RENDER_SCALE;
   const pendingCount = actionableFilePlaceholders.length;
   const hasDrafts = Object.keys(placedSignatures).length > 0;
   const hasCurrentSignature = Boolean(selectedPlaceholder && signatureData);
@@ -1565,164 +1571,167 @@ export function SigningPdfViewer({
             </div>
           </div>
 
-          <div className="flex-1 flex items-center justify-center overflow-auto min-h-[300px]">
+          <div className="flex-1 overflow-auto rounded-md bg-muted/20 min-h-[300px]">
             {isRendering || !activePageData ? (
-              <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex flex-col items-center gap-2 p-6 text-sm text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin" />
                 <span>Loading PDF page...</span>
               </div>
             ) : (
-              <div
-                className="relative "
-                style={{
-                  width: activePageData.width,
-                  height: activePageData.height,
-                }}
-              >
-                <img
-                  src={activePageData.imageUrl}
-                  alt={`Page ${activePageData.pageNumber}`}
-                  className="h-full w-full object-contain rounded-md border border-border/50 bg-white"
+              <div className="flex items-center justify-center min-w-full">
+                <div
+                  className="relative "
                   style={{
                     width: activePageData.width,
                     height: activePageData.height,
                   }}
-                />
-                {filePlaceholders
-                  .filter((p) => p.page_number === activePage)
-                  .map((placeholder) => {
-                    const signedData = signatureDataByPlaceholderId.get(
-                      placeholder.placeholder_id
-                    );
-                    const overlaySignature =
-                      signedData ||
-                      (selectedPlaceholder &&
-                        signatureData &&
-                        selectedPlaceholder.placeholder_id ===
-                          placeholder.placeholder_id &&
-                        signatureData) ||
-                      placedSignatures[placeholder.placeholder_id] ||
-                      remoteSignatureDrafts[placeholder.placeholder_id]
-                        ?.dataUrl;
-                    const isSigned = signedPlaceholderIds.has(
-                      placeholder.placeholder_id
-                    );
-                    const isLocked = !isAssignedToCurrentUser(
-                      placeholder.assigned_user_id
-                    );
-                    const remoteSignatureUser =
-                      remoteSignatureDrafts[placeholder.placeholder_id]?.userId;
+                >
+                  <img
+                    src={activePageData.imageUrl}
+                    alt={`Page ${activePageData.pageNumber}`}
+                    className="h-full w-full object-fill rounded-md border  border-red-500 bg-black scroll-none"
+                    style={{
+                      width: activePageData.width,
+                      height: activePageData.height,
+                    }}
+                  />
+                  {filePlaceholders
+                    .filter((p) => p.page_number === activePage)
+                    .map((placeholder) => {
+                      const signedData = signatureDataByPlaceholderId.get(
+                        placeholder.placeholder_id
+                      );
+                      const overlaySignature =
+                        signedData ||
+                        (selectedPlaceholder &&
+                          signatureData &&
+                          selectedPlaceholder.placeholder_id ===
+                            placeholder.placeholder_id &&
+                          signatureData) ||
+                        placedSignatures[placeholder.placeholder_id] ||
+                        remoteSignatureDrafts[placeholder.placeholder_id]
+                          ?.dataUrl;
+                      const isSigned = signedPlaceholderIds.has(
+                        placeholder.placeholder_id
+                      );
+                      const isLocked = !isAssignedToCurrentUser(
+                        placeholder.assigned_user_id
+                      );
+                      const remoteSignatureUser =
+                        remoteSignatureDrafts[placeholder.placeholder_id]
+                          ?.userId;
 
-                    return (
-                      <div
-                        key={placeholder.placeholder_id}
-                        style={{
-                          position: "absolute",
-                          left: placeholder.x_position * RENDER_SCALE,
-                          top: placeholder.y_position * RENDER_SCALE,
-                          width: placeholder.width * RENDER_SCALE,
-                          height: placeholder.height * RENDER_SCALE,
-                          zIndex: 10, // Ensure it's on top
-                        }}
-                        className={cn(
-                          "group rounded-md border-2 border-dashed transition-all flex items-center justify-center",
-                          isSigned
-                            ? "border-emerald-500 bg-emerald-500/15 cursor-not-allowed"
-                            : isLocked
-                            ? "border-slate-300 bg-slate-100/60 cursor-not-allowed"
-                            : "border-yellow-500 bg-yellow-500/20 hover:bg-yellow-500/40 cursor-pointer"
-                        )}
-                        onClick={(e) => {
-                          e.stopPropagation(); // Prevent bubbling
-                          if (!isLocked) {
-                            handlePlaceholderClick(placeholder);
-                          }
-                        }}
-                      >
-                        {overlaySignature ? (
-                          <img
-                            src={overlaySignature}
-                            alt="Signature"
-                            className="h-full w-full object-contain rounded-md bg-white pointer-events-none"
-                          />
-                        ) : (
-                          <div className="flex flex-col items-center gap-1 text-yellow-700 font-bold bg-white/80 px-2 py-1 rounded shadow-sm animate-pulse pointer-events-none">
-                            <PenLine className="h-4 w-4" />
-                            <span className="text-[10px]">
-                              {isSigned
-                                ? "Signed"
-                                : isLocked
-                                ? "Assigned"
-                                : "Sign Here"}
-                            </span>
-                            {!isSigned && remoteSignatureUser && (
-                              <span className="text-[10px] text-muted-foreground">
-                                In progress
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                {fileTextPlaceholders
-                  .filter((p) => p.page_number === activePage)
-                  .map((placeholder) => {
-                    const storedText = placeholder.text_value || "";
-                    const savedText =
-                      textValues[placeholder.placeholder_id] || "";
-                    // Use the saved text from state if available, otherwise use stored text from API
-                    // Only show "Text" as placeholder if both are empty
-                    const remoteText =
-                      remoteTextDrafts[placeholder.placeholder_id]?.text;
-                    const mergedText =
-                      savedText || storedText || remoteText || "Text";
-                    const hasMergedText = Boolean(
-                      mergedText && mergedText.toLowerCase() !== "text"
-                    );
-                    const isLocked = !isAssignedToCurrentUser(
-                      placeholder.assigned_user_id
-                    );
-                    return (
-                      <div
-                        key={placeholder.placeholder_id}
-                        style={{
-                          position: "absolute",
-                          left: placeholder.x_position * RENDER_SCALE,
-                          top: placeholder.y_position * RENDER_SCALE,
-                          width: placeholder.width * RENDER_SCALE,
-                          height: placeholder.height * RENDER_SCALE,
-                          zIndex: 8,
-                        }}
-                        className={cn(
-                          "rounded-md border-2 border-dashed bg-transparent flex items-center justify-center",
-                          hasMergedText
-                            ? "border-amber-500/50 cursor-not-allowed"
-                            : isLocked
-                            ? "border-slate-300 bg-slate-100/60 cursor-not-allowed"
-                            : "border-amber-500/70 cursor-pointer hover:border-amber-500"
-                        )}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (!hasMergedText && !isLocked) {
-                            setSelectedTextPlaceholder(placeholder);
-                            setIsTextModalOpen(true);
-                          }
-                        }}
-                      >
+                      return (
                         <div
-                          className="text-center px-1"
+                          key={placeholder.placeholder_id}
                           style={{
-                            fontFamily: placeholder.font_family || "Arial",
-                            fontSize: placeholder.font_size || 14,
-                            color: placeholder.font_color || "#111827",
+                            position: "absolute",
+                            left: placeholder.x_position * pageScaleX,
+                            top: placeholder.y_position * pageScaleY,
+                            width: placeholder.width * pageScaleX,
+                            height: placeholder.height * pageScaleY,
+                            zIndex: 10, // Ensure it's on top
+                          }}
+                          className={cn(
+                            "group rounded-md border-2 border-dashed transition-all flex items-center justify-center",
+                            isSigned
+                              ? "border-emerald-500 bg-emerald-500/15 cursor-not-allowed"
+                              : isLocked
+                              ? "border-slate-300 bg-slate-100/60 cursor-not-allowed"
+                              : "border-yellow-500 bg-yellow-500/20 hover:bg-yellow-500/40 cursor-pointer"
+                          )}
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent bubbling
+                            if (!isLocked) {
+                              handlePlaceholderClick(placeholder);
+                            }
                           }}
                         >
-                          {mergedText}
+                          {overlaySignature ? (
+                            <img
+                              src={overlaySignature}
+                              alt="Signature"
+                              className="h-full w-full object-contain rounded-md bg-white pointer-events-none"
+                            />
+                          ) : (
+                            <div className="flex flex-col items-center gap-1 text-yellow-700 font-bold bg-white/80 px-2 py-1 rounded shadow-sm animate-pulse pointer-events-none">
+                              <PenLine className="h-4 w-4" />
+                              <span className="text-[10px]">
+                                {isSigned
+                                  ? "Signed"
+                                  : isLocked
+                                  ? "Assigned"
+                                  : "Sign Here"}
+                              </span>
+                              {!isSigned && remoteSignatureUser && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  In progress
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  {fileTextPlaceholders
+                    .filter((p) => p.page_number === activePage)
+                    .map((placeholder) => {
+                      const storedText = placeholder.text_value || "";
+                      const savedText =
+                        textValues[placeholder.placeholder_id] || "";
+                      // Use the saved text from state if available, otherwise use stored text from API
+                      // Only show "Text" as placeholder if both are empty
+                      const remoteText =
+                        remoteTextDrafts[placeholder.placeholder_id]?.text;
+                      const mergedText =
+                        savedText || storedText || remoteText || "Text";
+                      const hasMergedText = Boolean(
+                        mergedText && mergedText.toLowerCase() !== "text"
+                      );
+                      const isLocked = !isAssignedToCurrentUser(
+                        placeholder.assigned_user_id
+                      );
+                      return (
+                        <div
+                          key={placeholder.placeholder_id}
+                          style={{
+                            position: "absolute",
+                            left: placeholder.x_position * pageScaleX,
+                            top: placeholder.y_position * pageScaleY,
+                            width: placeholder.width * pageScaleX,
+                            height: placeholder.height * pageScaleY,
+                            zIndex: 8,
+                          }}
+                          className={cn(
+                            "rounded-md border-2 border-dashed bg-transparent flex items-center justify-center",
+                            hasMergedText
+                              ? "border-amber-500/50 cursor-not-allowed"
+                              : isLocked
+                              ? "border-slate-300 bg-slate-100/60 cursor-not-allowed"
+                              : "border-amber-500/70 cursor-pointer hover:border-amber-500"
+                          )}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (!hasMergedText && !isLocked) {
+                              setSelectedTextPlaceholder(placeholder);
+                              setIsTextModalOpen(true);
+                            }
+                          }}
+                        >
+                          <div
+                            className="text-center px-1"
+                            style={{
+                              fontFamily: placeholder.font_family || "Arial",
+                              fontSize: placeholder.font_size || 14,
+                              color: placeholder.font_color || "#111827",
+                            }}
+                          >
+                            {mergedText}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
               </div>
             )}
           </div>
