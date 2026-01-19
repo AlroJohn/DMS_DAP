@@ -382,20 +382,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           } else {
             // On error, enable all sections by default
             setEnabledSections(
-              new Set(["home", "dashboard", "documents", "management", "search", "notifications", "sidebar settings", "reports"])
+              new Set(["home", "dashboard", "documents", "management", "search", "notifications", "reports"])
             );
           }
         } else {
           // On error, enable all sections by default
           setEnabledSections(
-            new Set(["home", "dashboard", "documents", "management", "search", "notifications", "sidebar settings", "reports"])
+            new Set(["home", "dashboard", "documents", "management", "search", "notifications", "reports"])
           );
         }
       } catch (error) {
         console.error("Error fetching sidebar settings:", error);
         // On error, enable all sections by default
         setEnabledSections(
-          new Set(["home", "dashboard", "documents", "management", "search", "notifications", "sidebar settings", "reports"])
+          new Set(["home", "dashboard", "documents", "management", "search", "notifications", "reports"])
         );
       } finally {
         setLoadingSettings(false);
@@ -512,8 +512,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           return true;
 
         case "Sidebar Settings":
-          // Sidebar Settings requires system_settings_write permission
-          return hasPermission(user, "system_settings_write");
+          // Sidebar Settings is only visible to SUPER_ADMIN role
+          return user?.roles?.some((role: any) => role.code === "SUPER_ADMIN");
 
         case "Reports":
           // Reports require any report permission

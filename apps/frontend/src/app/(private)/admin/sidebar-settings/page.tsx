@@ -76,7 +76,11 @@ export default function SidebarSettingsPage() {
       const data = await response.json();
       console.log("Fetched settings:", data);
       if (data.success) {
-        setSettings(data.data);
+        // Filter out "sidebar settings" since it's only for superadmin and shouldn't be toggled
+        const filteredSettings = data.data.filter(
+          (setting: any) => setting.section_key !== "sidebar settings"
+        );
+        setSettings(filteredSettings);
       } else {
         throw new Error(data.message || "Invalid response");
       }

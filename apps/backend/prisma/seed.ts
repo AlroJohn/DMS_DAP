@@ -289,15 +289,19 @@ async function main() {
     });
 
     // Step 6b: Assign permissions to core roles
-    console.log('?? Assigning permissions to core roles...');
+    console.log('📋 Assigning permissions to core roles...');
     const permissionPrefix = {
       document: 'document_',
+      document_type: 'document_type_',
+      document_action: 'document_action_',
       notification: 'notification_',
       report: 'report_',
       user: 'user_',
       role: 'role_',
+      department: 'department_',
       system: 'system_',
       permission: 'permission_',
+      api: 'api_',
     };
 
     const normalizePermission = (permission: any) => String(permission);
@@ -317,7 +321,7 @@ async function main() {
       });
 
       if (!role) {
-        console.log(`?? Role not found for permission assignment: ${roleCode}`);
+        console.log(`⚠️ Role not found for permission assignment: ${roleCode}`);
         return;
       }
 
@@ -339,32 +343,50 @@ async function main() {
         }
       });
 
-      console.log(`? Assigned ${permissionIds.length} permissions to ${roleCode}`);
+      console.log(`✅ Assigned ${permissionIds.length} permissions to ${roleCode}`);
     };
 
-    const baseUserPermissions = pickByPrefixes([
-      permissionPrefix.document,
-      permissionPrefix.notification,
-      permissionPrefix.report,
-    ]);
+    // USER Role: Documents, Search, Reports, Notification (exclude management permissions)
+    const userPermissions = uniquePermissionIds(
+      allPermissions.filter(permission => {
+        const permStr = normalizePermission(permission.permission);
+        // Include document permissions but exclude document_type and document_action
+        const isDocumentPerm = hasPrefix(permission.permission, permissionPrefix.document);
+        const isTypePerm = hasPrefix(permission.permission, permissionPrefix.document_type);
+        const isActionPerm = hasPrefix(permission.permission, permissionPrefix.document_action);
+        const isNotificationPerm = hasPrefix(permission.permission, permissionPrefix.notification);
+        const isReportPerm = hasPrefix(permission.permission, permissionPrefix.report);
+        
+        return (isDocumentPerm && !isTypePerm && !isActionPerm) || isNotificationPerm || isReportPerm;
+      })
+    );
 
+    // DEPARTMENT_HEAD Role: Documents, Search, Reports, Notification, Management (Types, Actions, Users only)
     const departmentHeadPermissions = uniquePermissionIds(
-      baseUserPermissions.concat(
-        pickByPrefixes([
-          permissionPrefix.user,
-        ])
-      )
+      allPermissions.filter(permission => {
+        const permStr = normalizePermission(permission.permission);
+        // Include all document permissions (which includes document_type and document_action)
+        const isDocumentPerm = hasPrefix(permission.permission, permissionPrefix.document);
+        const isNotificationPerm = hasPrefix(permission.permission, permissionPrefix.notification);
+        const isReportPerm = hasPrefix(permission.permission, permissionPrefix.report);
+        const isUserPerm = hasPrefix(permission.permission, permissionPrefix.user);
+        
+        return isDocumentPerm || isNotificationPerm || isReportPerm || isUserPerm;
+      })
     );
-    const userPermissions = uniquePermissionIds(baseUserPermissions);
 
+    // ADMINISTRATOR Role: Everything except Sidebar Settings (system_settings)
     const administratorPermissions = uniquePermissionIds(
-      allPermissions.filter(permission =>
-        !hasPrefix(permission.permission, permissionPrefix.system)
-      )
+      allPermissions.filter(permission => {
+        const permStr = normalizePermission(permission.permission);
+        // Exclude only system_settings permissions (sidebar settings)
+        return permStr !== 'system_settings_read' && 
+               permStr !== 'system_settings_write';
+      })
     );
 
-    await assignPermissionsToRole('DEPARTMENT_HEAD', departmentHeadPermissions);
     await assignPermissionsToRole('USER', userPermissions);
+    await assignPermissionsToRole('DEPARTMENT_HEAD', departmentHeadPermissions);
     await assignPermissionsToRole('ADMINISTRATOR', administratorPermissions);
 
     // Step 7: Get Super Admin user and assign role
