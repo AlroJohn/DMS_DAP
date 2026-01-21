@@ -54,7 +54,7 @@ export default function DocumentsPage() {
         try {
           refetch();
         } catch (err) {
-          console.error("Error refetching documents on documentAdded:", err);
+          // Error handling for document refetch
         }
       }
     };
@@ -64,7 +64,7 @@ export default function DocumentsPage() {
         try {
           refetch();
         } catch (err) {
-          console.error("Error refetching documents on documentUpdated:", err);
+          // Error handling for document refetch
         }
       }
     };
@@ -74,7 +74,7 @@ export default function DocumentsPage() {
         try {
           refetch();
         } catch (err) {
-          console.error("Error refetching documents on documentDeleted:", err);
+          // Error handling for document refetch
         }
       }
     };

@@ -44,6 +44,9 @@ export class DocumentReleaseController {
       return sendError(res, 'requestActions cannot be empty', 400);
     }
 
+    console.log('📍 [DocumentReleaseController.releaseDocument] Signatures received:', signatures?.length || 0);
+    console.log('📍 [DocumentReleaseController.releaseDocument] Signatures data:', JSON.stringify(signatures, null, 2));
+
     const result = await this.documentReleaseService.releaseDocument(
       id,
       departmentId,

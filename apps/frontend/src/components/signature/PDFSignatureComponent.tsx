@@ -12,11 +12,13 @@ interface PDFSignatureComponentProps {
   pdfUrl?: string;
   documentId: string;
   onComplete: () => void;
+  returnPath?: string; // Optional path to navigate after signing
 }
 
 export default function PDFSignatureComponent({
   documentId,
   onComplete,
+  returnPath,
 }: PDFSignatureComponentProps) {
   const router = useRouter();
   const { files, isLoading, error } = useDocumentFiles(documentId);
@@ -46,6 +48,7 @@ export default function PDFSignatureComponent({
       isLoadingFiles={isLoading}
       onExit={handleExit}
       onSigned={onComplete}
+      returnPath={returnPath}
     />
   );
 }

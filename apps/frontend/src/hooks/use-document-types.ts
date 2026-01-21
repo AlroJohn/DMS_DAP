@@ -28,7 +28,18 @@ export function useDocumentTypes() {
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error?.message || 'Failed to fetch document types');
+          const errorMessage = errorData.error?.message || 'Failed to fetch document types';
+          
+          // If it's a permission error, silently fail and return empty array
+          // This allows the UI to continue working without document types
+          if (response.status === 403 || errorMessage.includes('Insufficient permissions')) {
+            console.warn('User does not have permission to view document types');
+            setDocumentTypes([]);
+            setError(null); // Don't set error for permission issues
+            return;
+          }
+          
+          throw new Error(errorMessage);
         }
 
         const result = await response.json();

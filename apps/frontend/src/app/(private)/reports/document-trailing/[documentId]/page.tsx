@@ -76,7 +76,6 @@ export default function DocumentTrailsDetailPage() {
           Array.isArray(result?.data?.trails) ? result.data.trails : []
         );
       } catch (error) {
-        console.error("Error fetching document trails:", error);
         toast.error("Failed to load document trail data");
       } finally {
         setLoading(false);
@@ -430,14 +429,16 @@ export default function DocumentTrailsDetailPage() {
                             <div className="flex items-start gap-3">
                               <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
                               <div className="flex-1">
-                                <p className="text-xs text-muted-foreground mb-1">
+                                <p className="text-xs font-semibold text-muted-foreground mb-2">
                                   {trail.status === "signed"
                                     ? "Signature Details"
                                     : trail.status === "placeholder_added"
                                     ? "Placeholder Details"
                                     : "Remarks"}
                                 </p>
-                                <p className="text-sm">{trail.remarks}</p>
+                                <div className="text-sm whitespace-pre-line font-mono leading-relaxed bg-muted/30 p-3 rounded border">
+                                  {trail.remarks}
+                                </div>
                               </div>
                             </div>
                           </div>

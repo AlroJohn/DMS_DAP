@@ -121,8 +121,49 @@ router.post('/documents/:documentId/signatures', upload.none(), async (req: Requ
 
     // Log signature placeholder addition to document trail
     if (user_id) {
+      // Get user who created the placeholder
+      const creatingUser = await prisma.user.findUnique({
+        where: { user_id: user_id },
+        select: { first_name: true, last_name: true, department_id: true }
+      });
+
+      let placeholderDesc: string;
+      
+      // Build description based on whether user is assigned
+      if (assigned_user_id) {
+        const assignedUser = await prisma.user.findUnique({
+          where: { user_id: assigned_user_id },
+          select: { first_name: true, last_name: true, department_id: true }
+        });
+        
+        if (assignedUser && creatingUser) {
+          // Get assigned user's department name
+          let assignedDeptName = '';
+          if (assignedUser.department_id) {
+            const assignedDept = await prisma.department.findUnique({
+              where: { department_id: assignedUser.department_id },
+              select: { name: true }
+            });
+            assignedDeptName = assignedDept ? ` (${assignedDept.name})` : '';
+          }
+          
+          placeholderDesc = `Signature placeholder added by ${creatingUser.first_name} ${creatingUser.last_name} - Assigned to: ${assignedUser.first_name} ${assignedUser.last_name}${assignedDeptName} (Page ${page_number})`;
+        } else {
+          placeholderDesc = `Signature placeholder added at page ${page_number} - Assigned to: Unknown User`;
+        }
+      } else {
+        // No specific user assigned
+        if (creatingUser) {
+          placeholderDesc = `Signature placeholder added by ${creatingUser.first_name} ${creatingUser.last_name} at page ${page_number} - Open for signing`;
+        } else {
+          placeholderDesc = `Signature placeholder added at page ${page_number} - Open for signing`;
+        }
+      }
+
       await auditService.logSignaturePlaceholderAdded(user_id, documentId, {
-        description: `Signature placeholder added at page ${page_number}`,
+        description: placeholderDesc,
+        fromDepartmentId: creatingUser?.department_id,
+        toDepartmentId: creatingUser?.department_id
       });
     }
 

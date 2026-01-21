@@ -48,7 +48,6 @@ export class DocumentReleaseService {
         }
 
         try {
-            console.log('📍 [DocumentReleaseService.releaseDocument] Releasing document:', documentId, 'to department:', departmentId);
 
             // Verify document exists and get its additional details
             const document = await prisma.document.findUnique({
@@ -89,13 +88,68 @@ export class DocumentReleaseService {
                 await prisma.signaturePlaceholder.createMany({
                     data: placeholderData,
                 });
-                console.log('📍 [DocumentReleaseService.releaseDocument] Signature placeholders saved to SignaturePlaceholder table.');
 
-                // Log signature placeholder addition to document trail
-                const placeholderDesc = signatures.length === 1 
-                    ? `1 signature placeholder added by ${releasingUser.first_name} ${releasingUser.last_name} for signing` 
-                    : `${signatures.length} signature placeholders added by ${releasingUser.first_name} ${releasingUser.last_name} for signing`;
+                // Log signature placeholder addition to document trail - create ONE consolidated trail entry
                 
+                // Get department names
+                const fromDeptName = releasingUser.department_id 
+                    ? (await prisma.department.findUnique({ 
+                        where: { department_id: releasingUser.department_id },
+                        select: { name: true }
+                      }))?.name 
+                    : 'Unknown Department';
+                
+                const toDeptName = await prisma.department.findUnique({
+                    where: { department_id: departmentId },
+                    select: { name: true }
+                });
+                
+                // Build the description with count and assigned users
+                let placeholderDesc = `━━━ SIGNATURE PLACEHOLDERS (${signatures.length}) ━━━\n\n`;
+                placeholderDesc += `Added by: ${releasingUser.first_name} ${releasingUser.last_name}\n`;
+                placeholderDesc += `From: ${fromDeptName}\n`;
+                placeholderDesc += `To: ${toDeptName?.name || 'Unknown Department'}\n\n`;
+                
+                // Collect assigned user information
+                const assignedUsers: string[] = [];
+                for (let i = 0; i < signatures.length; i++) {
+                    const sig = signatures[i];
+                    
+                    if (sig.assigned_user_id) {
+                        try {
+                            const assignedUser = await prisma.user.findUnique({
+                                where: { user_id: sig.assigned_user_id },
+                                select: { first_name: true, last_name: true, department_id: true }
+                            });
+                            
+                            if (assignedUser) {
+                                // Get assigned user's department name
+                                let assignedDeptName = '';
+                                if (assignedUser.department_id) {
+                                    const assignedDept = await prisma.department.findUnique({
+                                        where: { department_id: assignedUser.department_id },
+                                        select: { name: true }
+                                    });
+                                    assignedDeptName = assignedDept ? ` (${assignedDept.name})` : '';
+                                }
+                                
+                                assignedUsers.push(`Placeholder ${i + 1}: ${assignedUser.first_name} ${assignedUser.last_name}${assignedDeptName}`);
+                            } else {
+                                assignedUsers.push(`Placeholder ${i + 1}: Unknown User`);
+                            }
+                        } catch (error) {
+                            console.error('Error fetching assigned user:', error);
+                            assignedUsers.push(`Placeholder ${i + 1}: Unknown User`);
+                        }
+                    } else {
+                        assignedUsers.push(`Placeholder ${i + 1}: Open (any user in ${toDeptName?.name || 'target department'})`);
+                    }
+                }
+                
+                // Add all assigned users to description
+                placeholderDesc += `ASSIGNED TO:\n${assignedUsers.join('\n')}`;
+
+                // Create single trail entry with all information
                 await auditService.logSignaturePlaceholderAdded(userId, documentId, {
                     description: placeholderDesc,
                     fromDepartmentId: releasingUser.department_id ?? undefined,
@@ -112,7 +166,7 @@ export class DocumentReleaseService {
                     : requestAction.toLowerCase().includes('signature');
 
                 if (hasSignatureAction) {
-                    console.log('📍 [DocumentReleaseService.releaseDocument] Document released for signature, no placeholders placed yet.');
+                    // Document released for signature, no placeholders placed yet.
                 }
             }
 
@@ -135,7 +189,6 @@ export class DocumentReleaseService {
                 await prisma.textPlaceholder.createMany({
                     data: textPlaceholderData,
                 });
-                console.log('📍 [DocumentReleaseService.releaseDocument] Text placeholders saved to TextPlaceholder table.');
             }
 
             // Get the current workflow
@@ -151,13 +204,11 @@ export class DocumentReleaseService {
                         currentWorkflow = JSON.parse(currentDetail.work_flow_id);
                     }
                 } catch (e) {
-                    console.error('📍 [DocumentReleaseService.releaseDocument] Error parsing work_flow_id:', e);
+                    console.error('[DocumentReleaseService.releaseDocument] Error parsing work_flow_id:', e);
                     // Initialize with empty object
                     currentWorkflow = {};
                 }
             }
-
-            console.log('📍 [DocumentReleaseService.releaseDocument] Current workflow object:', currentWorkflow);
 
             const releaseActions = Array.isArray(requestAction)
                 ? requestAction
@@ -203,10 +254,8 @@ export class DocumentReleaseService {
 
                 // Add the destination department to the workflow with the next position
                 currentWorkflow[nextPosition] = departmentId;
-                console.log(`📍 [DocumentReleaseService.releaseDocument] Added department at position '${nextPosition}':`, departmentId);
-                console.log('📍 [DocumentReleaseService.releaseDocument] Updated workflow object:', currentWorkflow);
             } else {
-                console.log('📍 [DocumentReleaseService.releaseDocument] Department already in workflow, skipping');
+                // Department already in workflow, skipping
             }
 
             // Update document status to intransit (being routed)
@@ -244,13 +293,12 @@ export class DocumentReleaseService {
                         updated_at: new Date()
                     }
                 });
-                console.log('📍 [DocumentReleaseService.releaseDocument] DocumentAdditionalDetails updated with pass_to_department');
             } else {
                 // If no detail exists, create one with the releasing department as 'first'
                 // First, get the user's department and account to set as 'first' in the workflow
                 const user = await prisma.user.findUnique({
                     where: { user_id: userId },
-                    select: { 
+                    select: {
                         department_id: true,
                         account: {
                             select: {
@@ -275,7 +323,6 @@ export class DocumentReleaseService {
                             account_id: user.account.account_id // Store the releasing user's account ID
                         }
                     });
-                    console.log('📍 [DocumentReleaseService.releaseDocument] Created new DocumentAdditionalDetails with proper workflow');
                 } else {
                     // Fallback - just add the receiving department if we can't get the user's department
                     const newWorkflow = {
@@ -291,7 +338,6 @@ export class DocumentReleaseService {
                             account_id: user?.account?.account_id || null // Try to store account_id if available
                         }
                     });
-                    console.log('📍 [DocumentReleaseService.releaseDocument] Created new DocumentAdditionalDetails with fallback workflow');
                 }
             }
 
@@ -422,7 +468,7 @@ export class DocumentReleaseService {
                 data: { message: 'Document released successfully' }
             };
         } catch (error: any) {
-            console.error('📍 [DocumentReleaseService.releaseDocument] Error:', error);
+            console.error('[DocumentReleaseService.releaseDocument] Error:', error);
             return {
                 success: false,
                 error: error.message || 'Failed to release document'
@@ -440,8 +486,6 @@ export class DocumentReleaseService {
       return { success: false, error: 'Invalid document ID format' };
     }
 
-    console.log('📍 [DocumentReleaseService.receiveDocument] Start receiving process for document:', documentId, 'by user:', userId);
-
     try {
       // Get user's department
       const user = await prisma.user.findUnique({
@@ -450,10 +494,9 @@ export class DocumentReleaseService {
       });
 
       if (!user || !user.account?.account_id) {
-        console.error('📍 [DocumentReleaseService.receiveDocument] Error: User not found or user has no account_id. User:', user);
+        console.error('[DocumentReleaseService.receiveDocument] Error: User not found or user has no account_id.');
         return { success: false, error: 'User not found' };
       }
-      console.log('📍 [DocumentReleaseService.receiveDocument] User found:', user);
 
       // Verify document exists and get its additional details
       const document = await prisma.document.findUnique({
@@ -464,13 +507,12 @@ export class DocumentReleaseService {
       });
 
       if (!document) {
-        console.error('📍 [DocumentReleaseService.receiveDocument] Error: Document not found with ID:', documentId);
+        console.error('[DocumentReleaseService.receiveDocument] Error: Document not found with ID:', documentId);
         return { success: false, error: 'Document not found' };
       }
-      console.log('📍 [DocumentReleaseService.receiveDocument] Document found:', document);
 
       if (document.status !== 'intransit') {
-        console.warn('📍 [DocumentReleaseService.receiveDocument] Warning: Document is not in transit. Status:', document.status);
+        console.warn('[DocumentReleaseService.receiveDocument] Warning: Document is not in transit. Status:', document.status);
         return { success: false, error: 'Document is not in transit' };
       }
 
@@ -487,10 +529,9 @@ export class DocumentReleaseService {
           trail_id: true
         }
       });
-      console.log('📍 [DocumentReleaseService.receiveDocument] Latest transit trail:', latestTransitTrail);
 
       if (latestTransitTrail?.to_department && latestTransitTrail.to_department !== user.department_id) {
-        console.error('📍 [DocumentReleaseService.receiveDocument] Error: Document is not assigned to this user\'s department. Assigned to:', latestTransitTrail.to_department, 'User department:', user.department_id);
+        console.error('[DocumentReleaseService.receiveDocument] Error: Document is not assigned to this user\'s department. Assigned to:', latestTransitTrail.to_department, 'User department:', user.department_id);
         return { success: false, error: 'Document is not assigned to your department' };
       }
 
@@ -511,16 +552,15 @@ export class DocumentReleaseService {
       });
 
       if (latestTrailToThisDept && latestTrailToThisDept.status === 'received') {
-        console.warn('📍 [DocumentReleaseService.receiveDocument] Warning: Document already received in current transit cycle.');
+        console.warn('[DocumentReleaseService.receiveDocument] Warning: Document already received in current transit cycle.');
         return { success: false, error: 'Document has already been received by your department in the current transit cycle' };
       }
 
       const currentDetail = document.DocumentAdditionalDetails?.[0];
       if (!currentDetail) {
-        console.error('?? [DocumentReleaseService.receiveDocument] Error: Document details not found for document ID:', documentId);
+        console.error('[DocumentReleaseService.receiveDocument] Error: Document details not found for document ID:', documentId);
         return { success: false, error: 'Document details not found' };
       }
-      console.log('?? [DocumentReleaseService.receiveDocument] Current document details:', currentDetail);
 
       // Get current workflow and received_by_departments
       let currentWorkflow: any = {};
@@ -534,24 +574,20 @@ export class DocumentReleaseService {
             currentWorkflow = JSON.parse(currentDetail.work_flow_id);
           }
         } catch (e) {
-          console.error('?? [DocumentReleaseService.receiveDocument] Error parsing work_flow_id:', e);
+          console.error('[DocumentReleaseService.receiveDocument] Error parsing work_flow_id:', e);
         }
       }
-      console.log('?? [DocumentReleaseService.receiveDocument] Parsed workflow:', currentWorkflow);
-
-      console.log('📍 [DocumentReleaseService.receiveDocument] received_by_departments before parsing:', currentDetail.received_by_departments);
       if (currentDetail.received_by_departments) {
         try {
           receivedByUsers = Array.isArray(currentDetail.received_by_departments)
             ? currentDetail.received_by_departments
             : JSON.parse(currentDetail.received_by_departments as any);
         } catch (e) {
-          console.error('📍 [DocumentReleaseService.receiveDocument] Error parsing received_by_departments:', e);
+          console.error('[DocumentReleaseService.receiveDocument] Error parsing received_by_departments:', e);
           // If parsing fails, and it's a non-array value, we might want to handle it
           // For now, it will default to an empty array.
         }
       }
-      console.log('?? [DocumentReleaseService.receiveDocument] Parsed receivedByUsers:', receivedByUsers);
       const isSharedToUser = receivedByUsers.includes(userId);
 
       const latestTransitTrailForCheck = await prisma.documentTrail.findFirst({
@@ -566,17 +602,16 @@ export class DocumentReleaseService {
           to_department: true
         }
       });
-      console.log('?? [DocumentReleaseService.receiveDocument] Latest transit trail:', latestTransitTrail);
 
       if (latestTransitTrailForCheck?.to_department && latestTransitTrailForCheck.to_department !== user.department_id && !isSharedToUser) {
-        console.error('?? [DocumentReleaseService.receiveDocument] Error: Document is not assigned to this user\'s department. Assigned to:', latestTransitTrailForCheck.to_department, 'User department:', user.department_id);
+        console.error('[DocumentReleaseService.receiveDocument] Error: Document is not assigned to this user\'s department. Assigned to:', latestTransitTrailForCheck.to_department, 'User department:', user.department_id);
         return { success: false, error: 'Document is not assigned to your department' };
       }
 
       // Check if department is in workflow (allowed to receive) by looking at workflow object values
       const workflowDepartments = Object.values(currentWorkflow);
       if (!workflowDepartments.includes(user.department_id) && !isSharedToUser) {
-        console.error('?? [DocumentReleaseService.receiveDocument] Error: Department not in document workflow. User department:', user.department_id, 'Workflow departments:', workflowDepartments);
+        console.error('[DocumentReleaseService.receiveDocument] Error: Department not in document workflow. User department:', user.department_id, 'Workflow departments:', workflowDepartments);
         return { success: false, error: 'Department not in document workflow' };
       }
 
@@ -623,10 +658,8 @@ export class DocumentReleaseService {
       if (!receivedByUsers.includes(userId)) {
         receivedByUsers.push(userId);
       }
-      console.log('📍 [DocumentReleaseService.receiveDocument] Updated receivedByUsers:', receivedByUsers);
 
       // Update the existing 'intransit' trail to 'received' status
-      console.log('📍 [DocumentReleaseService.receiveDocument] Updating intransit trail to received status');
       if (latestTransitTrail) {
         await prisma.documentTrail.updateMany({
           where: {
@@ -640,11 +673,9 @@ export class DocumentReleaseService {
             updated_at: new Date()
           }
         });
-        console.log('📍 [DocumentReleaseService.receiveDocument] Intransit trail updated to received.');
       }
 
       // Update the document status to 'received'
-      console.log('📍 [DocumentReleaseService.receiveDocument] Updating document status to received for document:', documentId);
       await prisma.document.update({
         where: { document_id: documentId },
         data: {
@@ -652,26 +683,22 @@ export class DocumentReleaseService {
           updated_at: new Date()
         }
       });
-      console.log('📍 [DocumentReleaseService.receiveDocument] Document status updated.');
 
       // Update DocumentAdditionalDetails
       const updateData = {
         received_by_departments: receivedByUsers as any,
         updated_at: new Date()
       };
-      console.log('📍 [DocumentReleaseService.receiveDocument] Updating DocumentAdditionalDetails with:', updateData);
       await prisma.documentAdditionalDetails.update({
         where: { detail_id: currentDetail.detail_id },
         data: updateData
       });
-      console.log('📍 [DocumentReleaseService.receiveDocument] DocumentAdditionalDetails updated.');
 
       await recordReceiveStatus(documentId, {
         departmentId: user.department_id,
         userId
       });
 
-      console.log('📍 [DocumentReleaseService.receiveDocument] Document received successfully by user:', userId, 'in department:', user.department_id);
 
       // Send notification to users in the receiving department
       const notificationService = new NotificationService();
@@ -698,7 +725,6 @@ export class DocumentReleaseService {
             documentForNotif?.title || 'Untitled Document'
           );
         }
-        console.log('📍 [DocumentReleaseService.receiveDocument] Sent received notifications.');
       } catch (notificationError) {
         console.error('Error creating notifications for document received:', notificationError);
       }
@@ -707,14 +733,14 @@ export class DocumentReleaseService {
         success: true,
         data: { message: 'Document received successfully' }
       };
-        } catch (error: any) {
-          console.error('📍 [DocumentReleaseService.receiveDocument] Fatal error:', error);
-          return {
-            success: false,
-            error: error.message || 'Failed to receive document'
-          };
-        }
-      }
+    } catch (error: any) {
+      console.error('[DocumentReleaseService.receiveDocument] Fatal error:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to receive document'
+      };
+    }
+  }
 }
 
 

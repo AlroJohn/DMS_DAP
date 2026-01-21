@@ -346,18 +346,22 @@ async function main() {
       console.log(`✅ Assigned ${permissionIds.length} permissions to ${roleCode}`);
     };
 
-    // USER Role: Documents, Search, Reports, Notification (exclude management permissions)
+    // USER Role: Documents, Search, Reports, Notification (exclude management permissions except read-only)
     const userPermissions = uniquePermissionIds(
       allPermissions.filter(permission => {
         const permStr = normalizePermission(permission.permission);
-        // Include document permissions but exclude document_type and document_action
+        // Include document permissions but exclude document_type and document_action (except read)
         const isDocumentPerm = hasPrefix(permission.permission, permissionPrefix.document);
         const isTypePerm = hasPrefix(permission.permission, permissionPrefix.document_type);
         const isActionPerm = hasPrefix(permission.permission, permissionPrefix.document_action);
         const isNotificationPerm = hasPrefix(permission.permission, permissionPrefix.notification);
         const isReportPerm = hasPrefix(permission.permission, permissionPrefix.report);
         
-        return (isDocumentPerm && !isTypePerm && !isActionPerm) || isNotificationPerm || isReportPerm;
+        // Allow document_type_read for users to view document types when creating/filtering documents
+        const isTypeReadPerm = permStr === 'document_type_read';
+        const isActionReadPerm = permStr === 'document_action_read';
+        
+        return (isDocumentPerm && !isTypePerm && !isActionPerm) || isTypeReadPerm || isActionReadPerm || isNotificationPerm || isReportPerm;
       })
     );
 

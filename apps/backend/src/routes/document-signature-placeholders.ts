@@ -6,6 +6,156 @@ import { auditService } from '../services/audit.service';
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// Endpoint to batch create signature placeholders (for adding multiple at once)
+router.post('/documents/:documentId/signature-placeholders/batch', async (req: Request, res: Response) => {
+  try {
+    const { documentId } = req.params;
+    const { placeholders, user_id } = req.body;
+
+    console.log(`📍 [Batch Placeholder] Request received for document ${documentId}`);
+    console.log(`📍 [Batch Placeholder] Placeholders:`, placeholders);
+    console.log(`📍 [Batch Placeholder] User ID:`, user_id);
+
+    if (!Array.isArray(placeholders) || placeholders.length === 0) {
+      console.log(`❌ [Batch Placeholder] Invalid placeholders array`);
+      return res.status(400).json({ error: 'Placeholders array is required' });
+    }
+
+    console.log(`📍 [Batch Placeholder] Creating ${placeholders.length} placeholders for document ${documentId}`);
+
+    // Verify document exists
+    const document = await prisma.document.findUnique({
+      where: { document_id: documentId }
+    });
+
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    // Get user info
+    const creatingUser = user_id ? await prisma.user.findUnique({
+      where: { user_id: user_id },
+      select: { first_name: true, last_name: true, department_id: true }
+    }) : null;
+
+    // Create all placeholders
+    const createdPlaceholders = await Promise.all(
+      placeholders.map(async (placeholder: any) => {
+        return await prisma.signaturePlaceholder.create({
+          data: {
+            document_id: documentId,
+            document_file_id: placeholder.document_file_id,
+            page_number: placeholder.page_number,
+            x_position: placeholder.x_position,
+            y_position: placeholder.y_position,
+            width: placeholder.width,
+            height: placeholder.height,
+            assigned_user_id: placeholder.assigned_user_id || null
+          }
+        });
+      })
+    );
+
+    console.log(`✅ [Batch Placeholder] Created ${createdPlaceholders.length} placeholders`);
+
+    // Update or create ONE consolidated trail entry for all placeholders
+    console.log(`📍 [Batch Placeholder] Checking if should create/update trail: user_id=${user_id}, creatingUser=${!!creatingUser}`);
+    
+    if (user_id && creatingUser) {
+      console.log(`📍 [Batch Placeholder] Creating/updating trail entry for user ${user_id}`);
+      
+      // Get ALL current placeholders for this document (not just the ones we created)
+      const allPlaceholders = await prisma.signaturePlaceholder.findMany({
+        where: { document_id: documentId },
+        include: {
+          assigned_user: {
+            select: {
+              first_name: true,
+              last_name: true,
+              department_id: true
+            }
+          }
+        },
+        orderBy: { created_at: 'asc' }
+      });
+
+      console.log(`📊 [Batch Placeholder] Total placeholders on document: ${allPlaceholders.length}`);
+
+      // Get department name
+      const deptName = creatingUser.department_id
+        ? (await prisma.department.findUnique({
+            where: { department_id: creatingUser.department_id },
+            select: { name: true }
+          }))?.name
+        : 'Unknown Department';
+
+      // Build the description with ALL placeholders
+      let placeholderDesc = `━━━ SIGNATURE PLACEHOLDERS (${allPlaceholders.length}) ━━━\n\n`;
+      placeholderDesc += `Added by: ${creatingUser.first_name} ${creatingUser.last_name}\n`;
+      placeholderDesc += `Department: ${deptName}\n\n`;
+
+      // Collect ALL assigned user information
+      const assignedUsers: string[] = [];
+      for (let i = 0; i < allPlaceholders.length; i++) {
+        const placeholder = allPlaceholders[i];
+
+        if (placeholder.assigned_user_id && placeholder.assigned_user) {
+          // Get department name for the assigned user
+          const assignedUserDeptName = placeholder.assigned_user.department_id
+            ? (await prisma.department.findUnique({
+                where: { department_id: placeholder.assigned_user.department_id },
+                select: { name: true }
+              }))?.name || ''
+            : '';
+          assignedUsers.push(`Placeholder ${i + 1}: ${placeholder.assigned_user.first_name} ${placeholder.assigned_user.last_name}${assignedUserDeptName ? ` (${assignedUserDeptName})` : ''}`);
+        } else {
+          assignedUsers.push(`Placeholder ${i + 1}: Open (any user can sign)`);
+        }
+      }
+      
+      placeholderDesc += `ASSIGNED TO:\n${assignedUsers.join('\n')}`;
+
+      console.log(`📍 [Batch Placeholder] Trail description:\n${placeholderDesc}`);
+
+      // Check if a placeholder trail entry already exists
+      const existingTrail = await prisma.documentTrail.findFirst({
+        where: {
+          document_id: documentId,
+          status: 'placeholder_added'
+        },
+        orderBy: { created_at: 'desc' }
+      });
+
+      if (existingTrail) {
+        // Update existing trail entry
+        await prisma.documentTrail.update({
+          where: { trail_id: existingTrail.trail_id },
+          data: {
+            remarks: placeholderDesc,
+            updated_at: new Date(),
+          },
+        });
+        console.log(`✅ [Batch Placeholder] Trail entry UPDATED (trail_id: ${existingTrail.trail_id})`);
+      } else {
+        // Create new trail entry
+        await auditService.logSignaturePlaceholderAdded(user_id, documentId, {
+          description: placeholderDesc,
+          fromDepartmentId: creatingUser.department_id,
+          toDepartmentId: creatingUser.department_id
+        });
+        console.log(`✅ [Batch Placeholder] Trail entry CREATED`);
+      }
+    } else {
+      console.log(`⚠️  [Batch Placeholder] Skipping trail entry - user_id: ${user_id}, creatingUser: ${!!creatingUser}`);
+    }
+
+    res.status(201).json(createdPlaceholders);
+  } catch (error) {
+    console.error('Error creating signature placeholders (batch):', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Endpoint to get signature placeholders for a document
 router.get('/documents/:documentId/signature-placeholders', async (req: Request, res: Response) => {
   try {
@@ -82,8 +232,49 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
 
     // Log signature placeholder addition to document trail if user_id is provided
     if (user_id) {
+      // Get user who created the placeholder
+      const creatingUser = await prisma.user.findUnique({
+        where: { user_id: user_id },
+        select: { first_name: true, last_name: true, department_id: true }
+      });
+
+      let placeholderDesc: string;
+      
+      // Build description based on whether user is assigned
+      if (assigned_user_id) {
+        const assignedUser = await prisma.user.findUnique({
+          where: { user_id: assigned_user_id },
+          select: { first_name: true, last_name: true, department_id: true }
+        });
+        
+        if (assignedUser && creatingUser) {
+          // Get assigned user's department name
+          let assignedDeptName = '';
+          if (assignedUser.department_id) {
+            const assignedDept = await prisma.department.findUnique({
+              where: { department_id: assignedUser.department_id },
+              select: { name: true }
+            });
+            assignedDeptName = assignedDept ? ` (${assignedDept.name})` : '';
+          }
+          
+          placeholderDesc = `Signature placeholder added by ${creatingUser.first_name} ${creatingUser.last_name} - Assigned to: ${assignedUser.first_name} ${assignedUser.last_name}${assignedDeptName}`;
+        } else {
+          placeholderDesc = `Signature placeholder added - Assigned to: Unknown User`;
+        }
+      } else {
+        // No specific user assigned
+        if (creatingUser) {
+          placeholderDesc = `Signature placeholder added by ${creatingUser.first_name} ${creatingUser.last_name} - Open for signing`;
+        } else {
+          placeholderDesc = `Signature placeholder added - Open for signing`;
+        }
+      }
+
       await auditService.logSignaturePlaceholderAdded(user_id, documentId, {
-        description: `Signature placeholder added for document`
+        description: placeholderDesc,
+        fromDepartmentId: creatingUser?.department_id,
+        toDepartmentId: creatingUser?.department_id
       });
     }
 

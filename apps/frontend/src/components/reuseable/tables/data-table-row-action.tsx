@@ -168,8 +168,11 @@ export function DataTableRowActions<TData>({
   };
 
   const handleSign = () => {
-    // Redirect to the document page in signature mode
-    router.push(`/documents/${document.id}?mode=sign`);
+    // Determine return path based on view type
+    const returnPath = viewType === "shared" ? "/documents/shared" : "/documents";
+    
+    // Redirect to the document page in signature mode with return path
+    router.push(`/documents/${document.id}?mode=sign&returnTo=${encodeURIComponent(returnPath)}`);
   };
 
   const handleEdit = () => {

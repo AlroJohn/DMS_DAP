@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf";
 import { useQuery } from "@tanstack/react-query";
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
@@ -70,6 +71,7 @@ interface SigningPdfViewerProps {
   isLoadingFiles: boolean;
   onExit: () => void;
   onSigned: () => void;
+  returnPath?: string; // Optional path to navigate after signing
 }
 
 const dataUrlToUint8Array = (dataUrl: string) => {
@@ -171,7 +173,9 @@ export function SigningPdfViewer({
   isLoadingFiles,
   onExit,
   onSigned,
+  returnPath,
 }: SigningPdfViewerProps) {
+  const router = useRouter();
   const { user } = useAuth();
   const signeeId = user?.user_id || user?.id;
   const { socket } = useSocket();
@@ -306,9 +310,15 @@ export function SigningPdfViewer({
   useEffect(() => {
     if (!isSuccessModalOpen && shouldNavigateAfterSuccess) {
       setShouldNavigateAfterSuccess(false);
-      onSigned();
+      
+      // If returnPath is provided, navigate there; otherwise call onSigned callback
+      if (returnPath) {
+        router.push(returnPath);
+      } else {
+        onSigned();
+      }
     }
-  }, [isSuccessModalOpen, shouldNavigateAfterSuccess, onSigned]);
+  }, [isSuccessModalOpen, shouldNavigateAfterSuccess, onSigned, returnPath, router]);
 
   // Fetch placeholders
   const { data: placeholders = [], isLoading: isLoadingPlaceholders } =

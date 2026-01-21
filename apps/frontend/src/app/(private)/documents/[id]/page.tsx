@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useRouter, useSearchParams, useParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -92,6 +93,7 @@ const compareDocumentFilesByVersionDesc = (
 };
 
 export default function DocumentDetailPage() {
+  const { user: currentUser } = useAuth();
   const routeParams = useParams<{ id: string }>();
   const documentId = routeParams.id as string;
   const router = useRouter();
@@ -117,6 +119,7 @@ export default function DocumentDetailPage() {
   const modeParam = searchParams?.get("mode");
   const fileIdFromUrl = searchParams?.get("fileId");
   const fileIdsFromUrl = searchParams?.get("fileIds");
+  const returnToParam = searchParams?.get("returnTo"); // Extract return path
   const [isEditorOpen, setIsEditorOpen] = useState(modeParam === "edit");
   const [isSignatureModeOpen, setIsSignatureModeOpen] = useState(
     modeParam === "signature"
@@ -396,6 +399,7 @@ export default function DocumentDetailPage() {
         assigned_user_id?: string | null;
       }[];
     }) => {
+      
       const response = await fetch(`/api/documents/${documentId}/release`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -443,7 +447,6 @@ export default function DocumentDetailPage() {
       new Set([...(targetFileIds || []), fileId].filter(Boolean))
     );
 
-    // Prepare signature placeholders data
     const signaturePlaceholders = normalizedTargetIds.flatMap((targetFileId) =>
       boxes.map((box) => {
         const scale = pageScales?.[box.pageNumber];
@@ -493,29 +496,35 @@ export default function DocumentDetailPage() {
         assigned_user_id?: string | null;
       }>
     ) => {
-      await Promise.all(
-        placeholders.map(async (placeholder) => {
-          const response = await fetch(
-            `/api/document-signatures/documents/${documentIdForRoutes}/signature-placeholders`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              credentials: "include",
-              body: JSON.stringify(placeholder),
-            }
-          );
 
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({
-              error: "Failed to save signature placeholder.",
-            }));
-            throw new Error(
-              errorData.error || "Failed to save signature placeholder."
-            );
-          }
-        })
+      // Try both user_id and id properties to get the user ID
+      const userId = currentUser?.user_id || (currentUser as any)?.id;
+
+      // Use batch endpoint to create all placeholders with one trail entry
+      const response = await fetch(
+        `/api/document-signatures/documents/${documentIdForRoutes}/signature-placeholders/batch`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            placeholders: placeholders,
+            user_id: userId
+          }),
+        }
       );
-    };
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({
+          error: "Failed to save signature placeholders.",
+        }));
+        throw new Error(
+          errorData.error || "Failed to save signature placeholders."
+        );
+      }
+      
+      const result = await response.json();
+      return result;};
 
     const saveTextPlaceholders = async (
       placeholders: Array<{
@@ -778,6 +787,7 @@ export default function DocumentDetailPage() {
           isLoadingFiles={filesLoading}
           onExit={() => router.back()}
           onSigned={handleSigned}
+          returnPath={returnToParam || "/documents"}
         />
       </div>
     );

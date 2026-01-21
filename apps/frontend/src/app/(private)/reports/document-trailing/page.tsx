@@ -111,7 +111,7 @@ export default function DocumentTrailingPage() {
           }
         }
       } catch (error) {
-        console.error("Error fetching filter options:", error);
+        // Silently handle filter options fetch errors
       }
     };
 
@@ -211,7 +211,6 @@ export default function DocumentTrailingPage() {
       setDocuments(uniqueDocuments);
       setFilteredDocuments(uniqueDocuments);
     } catch (e) {
-      console.error("Error fetching documents:", e);
       const msg = "Failed to load document data. Please try again.";
       toast.error(msg);
       setError(msg);
@@ -283,7 +282,7 @@ export default function DocumentTrailingPage() {
       remarksLower.includes("check out") ||
       remarksLower.includes("checked out")
     ) {
-      return "bg-orange-100 text-orange-800";
+      return "bg-orange-50 text-orange-700";
     }
     if (
       action.includes("checkin") ||
@@ -293,46 +292,46 @@ export default function DocumentTrailingPage() {
       remarksLower.includes("check in") ||
       remarksLower.includes("checked in")
     ) {
-      return "bg-teal-100 text-teal-800";
+      return "bg-teal-50 text-teal-700";
     }
 
     // Check status field directly for checkout/checkin
     if (status === "checkout") {
-      return "bg-orange-100 text-orange-800";
+      return "bg-orange-50 text-orange-700";
     }
     if (status === "checkin") {
-      return "bg-teal-100 text-teal-800";
+      return "bg-teal-50 text-teal-700";
     }
 
     // Check for signature-related statuses
     if (status === "placeholder_added") {
-      return "bg-violet-100 text-violet-800";
+      return "bg-violet-50 text-violet-700";
     }
     if (status === "signed") {
-      return "bg-emerald-100 text-emerald-800";
+      return "bg-emerald-50 text-emerald-700";
     }
 
     // If action name exists and is not empty, use a default color
     if (action && action !== "pending" && action !== "pendinged") {
-      return "bg-indigo-100 text-indigo-800";
+      return "bg-indigo-50 text-indigo-700";
     }
 
     // Fall back to status-based colors
     switch (status) {
       case "pending":
-        return "bg-blue-100 text-blue-800";
+        return "bg-blue-50 text-blue-700";
       case "intransit":
-        return "bg-yellow-100 text-yellow-800";
+        return "bg-yellow-50 text-yellow-700";
       case "received":
-        return "bg-green-100 text-green-800";
+        return "bg-green-50 text-green-700";
       case "completed":
-        return "bg-purple-100 text-purple-800";
+        return "bg-purple-50 text-purple-700";
       case "deleted":
-        return "bg-red-100 text-red-800";
+        return "bg-red-50 text-red-700";
       case "archive":
-        return "bg-gray-100 text-gray-800";
+        return "bg-gray-50 text-gray-700";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-gray-50 text-gray-700";
     }
   };
 
@@ -431,10 +430,14 @@ export default function DocumentTrailingPage() {
   return (
     <div className="container mx-auto p-4">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Document Trailing</h1>
-        <p className="text-muted-foreground">
-          Track documents created by departments and shared documents
-        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h1 className="text-2xl font-bold">Document Trailing</h1>
+            <p className="text-muted-foreground text-sm">
+              Track documents created by departments and shared documents
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
@@ -751,7 +754,7 @@ export default function DocumentTrailingPage() {
                 filteredDocuments.map((doc) => (
                   <div
                     key={doc.id}
-                    className="border rounded-lg p-5 hover:bg-muted/30 transition-all hover:shadow-md bg-card"
+                    className="border rounded-lg p-5 hover:bg-accent/50 transition-all hover:shadow-md bg-card shadow-sm"
                   >
                     <div className="flex flex-col gap-4">
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
@@ -759,18 +762,18 @@ export default function DocumentTrailingPage() {
                           <FileText className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
-                              <h3 className="font-medium">
+                              <h3 className="font-medium truncate max-w-[200px] sm:max-w-md" title={doc.documentTitle}>
                                 {doc.documentTitle}
                               </h3>
-                              <Badge variant="secondary" className="text-xs">
+                              <Badge variant="secondary" className="text-xs font-mono">
                                 {doc.documentCode}
                               </Badge>
                               <Badge
-                                className={getStatusColor(
+                                className={`${getStatusColor(
                                   doc.actionName,
                                   doc.status,
                                   doc.remarks
-                                )}
+                                )} px-2 py-1 text-xs`}
                               >
                                 {getStatusText(
                                   doc.actionName,
@@ -779,7 +782,7 @@ export default function DocumentTrailingPage() {
                                 )}
                               </Badge>
                             </div>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-sm text-muted-foreground truncate max-w-[200px] sm:max-w-md" title={doc.documentType}>
                               {doc.documentType}
                             </p>
                           </div>
@@ -799,21 +802,11 @@ export default function DocumentTrailingPage() {
                         <div className="flex items-center gap-2">
                           <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           <div className="flex items-center gap-1 min-w-0">
-                            <span className="text-muted-foreground flex-shrink-0">
-                              From:
-                            </span>
-                            <span className="truncate font-medium">
+                            <span className="text-muted-foreground flex-shrink-0 whitespace-nowrap">
                               {doc.fromDepartment}
                             </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <div className="flex items-center gap-1 min-w-0">
-                            <span className="text-muted-foreground flex-shrink-0">
-                              To:
-                            </span>
-                            <span className="truncate font-medium">
+                            <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mx-1" />
+                            <span className="text-muted-foreground flex-shrink-0 whitespace-nowrap">
                               {doc.toDepartment}
                             </span>
                           </div>
@@ -821,7 +814,7 @@ export default function DocumentTrailingPage() {
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           <div className="flex items-center gap-1 min-w-0">
-                            <span className="text-muted-foreground flex-shrink-0">
+                            <span className="text-muted-foreground flex-shrink-0 whitespace-nowrap">
                               {doc.status === "signed"
                                 ? "Signed by:"
                                 : doc.status === "placeholder_added"
@@ -836,7 +829,7 @@ export default function DocumentTrailingPage() {
                         <div className="flex items-center gap-2">
                           <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           <div className="flex items-center gap-1 min-w-0">
-                            <span className="text-muted-foreground flex-shrink-0">
+                            <span className="text-muted-foreground flex-shrink-0 whitespace-nowrap">
                               {doc.status === "signed"
                                 ? "Signed:"
                                 : doc.status === "placeholder_added"
@@ -860,7 +853,7 @@ export default function DocumentTrailingPage() {
                       </div>
 
                       {/* Timestamp Details Section */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground bg-muted/30 p-3 rounded-md">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground bg-muted/20 p-3 rounded-md">
                         <div className="flex items-center gap-2">
                           <Calendar className="h-3 w-3 flex-shrink-0" />
                           <div className="flex items-center gap-1 min-w-0">
@@ -916,27 +909,20 @@ export default function DocumentTrailingPage() {
 
                       {doc.remarks && (
                         <div
-                          className={`text-sm p-3 rounded-md border flex items-center gap-2 ${
-                            doc.status === "signed"
-                              ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800"
-                              : doc.status === "placeholder_added"
-                              ? "bg-violet-50 dark:bg-violet-950/20 border-violet-200 dark:border-violet-800"
-                              : "bg-muted/50"
-                          }`}
+                          className={`text-sm p-4 rounded-md border bg-muted/20`}
                         >
-                          <span className="font-medium text-muted-foreground flex-shrink-0">
-                            {doc.status === "signed"
-                              ? "Signature Details:"
-                              : doc.status === "placeholder_added"
-                              ? "Placeholder Details:"
-                              : "Remarks:"}
-                          </span>
-                          <span
-                            className="text-foreground font-medium truncate"
-                            title={doc.remarks}
-                          >
-                            {doc.remarks}
-                          </span>
+                          <div className="flex flex-col gap-2">
+                            <span className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">
+                              {doc.status === "signed"
+                                ? "Signature Details"
+                                : doc.status === "placeholder_added"
+                                ? "Placeholder Details"
+                                : "Remarks"}
+                            </span>
+                            <div className="text-foreground whitespace-pre-line leading-relaxed bg-background p-3 rounded border">
+                              {doc.remarks}
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>

@@ -34,14 +34,6 @@ class AuditService {
       const fromDepartment = details.fromDepartmentId ?? userDepartmentId ?? undefined;
       const toDepartment = details.toDepartmentId ?? userDepartmentId ?? undefined;
 
-      console.log('🔷 [AuditService] Creating document trail:', {
-        document_id: documentId,
-        user_id: userId,
-        from_department: fromDepartment,
-        to_department: toDepartment,
-        status,
-        remarks: details.description
-      });
 
       const trail = await prisma.documentTrail.create({
         data: {
@@ -54,9 +46,10 @@ class AuditService {
         },
       });
 
-      console.log('✅ [AuditService] Document trail created successfully:', trail.trail_id);
+      return trail;
     } catch (error) {
       console.error('❌ [AuditService] Failed to create document trail:', error);
+      throw error;
     }
   }
 
@@ -117,12 +110,6 @@ class AuditService {
       console.error('Failed to fetch user for signature placeholder log:', error);
     }
 
-    console.log('🔷 [AuditService] logSignaturePlaceholderAdded called:', {
-      userId,
-      documentId,
-      userName,
-      description: details.description ?? `Signature placeholder added by ${userName}`
-    });
 
     return this.createDocumentTrail(userId, documentId, details.status ?? 'placeholder_added', {
       description: details.description ?? `Signature placeholder added by ${userName}`,
@@ -155,13 +142,6 @@ class AuditService {
           deptName = department?.name || 'Unknown Department';
         }
 
-        console.log('🔷 [AuditService] logDocumentSigned called:', {
-          userId,
-          documentId,
-          userName,
-          deptName,
-          description: details.description ?? `Document signed by ${userName} from ${deptName}`
-        });
 
         const defaultDescription = `Document signed by ${userName} from ${deptName}`;
         return this.createDocumentTrail(userId, documentId, details.status ?? 'signed', {
@@ -173,11 +153,6 @@ class AuditService {
       console.error('Failed to fetch user for document signing log:', error);
     }
 
-    console.log('🔷 [AuditService] logDocumentSigned called (fallback):', {
-      userId,
-      documentId,
-      description: details.description ?? 'Document signed'
-    });
 
     return this.createDocumentTrail(userId, documentId, details.status ?? 'signed', {
       description: details.description ?? 'Document signed',
