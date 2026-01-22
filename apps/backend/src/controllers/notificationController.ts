@@ -14,6 +14,10 @@ export const getNotifications = async (req: Request, res: Response) => {
     }
     const userId = authReq.user.id;
 
+    console.log('\n========== GET NOTIFICATIONS ==========');
+    console.log('User ID requesting notifications:', userId);
+    console.log('Query params:', req.query);
+
     const { limit = 50, offset = 0, isRead } = req.query;
 
     const whereClause: any = {
@@ -25,6 +29,8 @@ export const getNotifications = async (req: Request, res: Response) => {
       whereClause.is_read = isRead === 'true';
     }
 
+    console.log('Where clause:', whereClause);
+
     const notifications = await prisma.notification.findMany({
       where: whereClause,
       orderBy: {
@@ -34,9 +40,22 @@ export const getNotifications = async (req: Request, res: Response) => {
       take: parseInt(limit as string),
     });
 
+    console.log('Found notifications:', notifications.length);
+    console.log('Notifications:', notifications.map(n => ({
+      id: n.notification_id,
+      title: n.title,
+      message: n.message,
+      created_at: n.created_at,
+      is_read: n.is_read,
+      user_id: n.user_id
+    })));
+
     const total = await prisma.notification.count({
       where: whereClause,
     });
+
+    console.log('Total count:', total);
+    console.log('====================================\n');
 
     res.json({
       data: notifications,

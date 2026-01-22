@@ -89,6 +89,59 @@ export class DocumentReleaseService {
                     data: placeholderData,
                 });
 
+                console.log(`📧 [Document Release] Sending signature notifications for ${signatures.length} placeholders`);
+
+                // Send notifications to assigned users
+                const notificationService = new NotificationService();
+                const assignedUserIds = signatures
+                    .map(sig => sig.assigned_user_id)
+                    .filter((id): id is string => !!id);
+
+                // Get unique user IDs
+                const uniqueUserIds = [...new Set(assignedUserIds)];
+
+                console.log(`📧 [Document Release] Unique assigned users: ${uniqueUserIds.length}`, uniqueUserIds);
+
+                // Get document details for notification
+                const documentDetails = await prisma.document.findUnique({
+                    where: { document_id: documentId },
+                    select: { title: true }
+                });
+
+                // Send notification to each unique assigned user
+                for (const assignedUserId of uniqueUserIds) {
+                    console.log(`📧 [Document Release] Notifying user ${assignedUserId} about signature requirement`);
+                    
+                    // Verify user exists and is active
+                    const assignedUser = await prisma.user.findFirst({
+                        where: {
+                            user_id: assignedUserId,
+                            active: true
+                        }
+                    });
+
+                    if (assignedUser) {
+                        try {
+                            await notificationService.createNotification(
+                                assignedUserId,
+                                'Signature Required',
+                                `You have been assigned to sign the document: ${documentDetails?.title || 'Untitled'}`,
+                                'signature',
+                                'signature_pending',
+                                {
+                                    documentId,
+                                    documentTitle: documentDetails?.title
+                                }
+                            );
+                            console.log(`✅ [Document Release] Notification sent to user ${assignedUserId}`);
+                        } catch (error) {
+                            console.error(`❌ [Document Release] Failed to notify user ${assignedUserId}:`, error);
+                        }
+                    } else {
+                        console.log(`⚠️ [Document Release] User ${assignedUserId} not found or inactive - skipping notification`);
+                    }
+                }
+
                 // Log signature placeholder addition to document trail - create ONE consolidated trail entry
                 
                 // Get department names

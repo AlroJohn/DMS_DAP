@@ -35,13 +35,18 @@ export class NotificationService {
    */
   private async checkUserPreferences(userId: string, workflowEvent?: string): Promise<{ sendInApp: boolean; sendEmail: boolean }> {
     try {
+      console.log(`[NotificationService] Checking preferences for user ${userId}, event: ${workflowEvent}`);
+      
       // Get user's notification settings
       const settings = await prisma.notificationSettings.findUnique({
         where: { user_id: userId },
       });
 
+      console.log(`[NotificationService] User settings:`, settings ? `global: ${settings.global_notifications}, email: ${settings.email_notifications}` : 'No settings found');
+
       // If global notifications are disabled, don't send anything
       if (settings && !settings.global_notifications) {
+        console.log(`[NotificationService] Global notifications disabled for user ${userId}`);
         return { sendInApp: false, sendEmail: false };
       }
 
@@ -49,6 +54,8 @@ export class NotificationService {
       if (workflowEvent && NOTIFICATION_PREFERENCE_MAP[workflowEvent]) {
         const { category, name } = NOTIFICATION_PREFERENCE_MAP[workflowEvent];
         
+        console.log(`[NotificationService] Looking for specific preference: ${category} > ${name}`);
+
         const preference = await prisma.notificationPreference.findUnique({
           where: {
             user_id_category_notification_name: {
@@ -60,20 +67,25 @@ export class NotificationService {
         });
 
         if (preference) {
+          console.log(`[NotificationService] Found specific preference: inApp=${preference.in_app_enabled}, email=${preference.email_enabled}`);
           return {
             sendInApp: preference.in_app_enabled,
             sendEmail: preference.email_enabled && (settings?.email_notifications ?? true),
           };
+        } else {
+          console.log(`[NotificationService] No specific preference found, using defaults`);
         }
       }
 
       // Default: send in-app, send email if email notifications are enabled
-      return {
+      const result = {
         sendInApp: true,
         sendEmail: settings?.email_notifications ?? true,
       };
+      console.log(`[NotificationService] Using default preferences:`, result);
+      return result;
     } catch (error) {
-      console.error('Error checking user preferences:', error);
+      console.error('[NotificationService] Error checking user preferences:', error);
       // Default to sending both on error
       return { sendInApp: true, sendEmail: true };
     }
@@ -127,12 +139,16 @@ export class NotificationService {
 
   async createNotification(userId: string, title: string, message: string, type: string, workflowEvent?: string, metadata?: any) {
     try {
+      console.log(`[NotificationService] Creating notification for user ${userId}, event: ${workflowEvent}`);
+      
       // Check user preferences
       const { sendInApp, sendEmail } = await this.checkUserPreferences(userId, workflowEvent);
 
+      console.log(`[NotificationService] User ${userId} preferences - InApp: ${sendInApp}, Email: ${sendEmail}`);
+
       // If user doesn't want any notifications, skip
       if (!sendInApp && !sendEmail) {
-        console.log(`User ${userId} has disabled notifications for ${workflowEvent}`);
+        console.log(`[NotificationService] User ${userId} has disabled all notifications for ${workflowEvent}`);
         return null;
       }
 
@@ -140,6 +156,7 @@ export class NotificationService {
 
       // Create in-app notification if enabled
       if (sendInApp) {
+        console.log(`[NotificationService] Creating in-app notification for user ${userId}`);
         notification = await prisma.notification.create({
           data: {
             user_id: userId,
@@ -151,7 +168,10 @@ export class NotificationService {
           },
         });
 
+        console.log(`[NotificationService] In-app notification created: ${notification.notification_id}`);
+
         // Emit real-time notification to the user's socket
+        console.log(`[NotificationService] Emitting socket notification to user-${userId}`);
         emitNotificationToUser(userId, 'new_notification', {
           notificationId: notification.notification_id,
           title: notification.title,
@@ -159,16 +179,19 @@ export class NotificationService {
           type: notification.type,
           workflowEvent: notification.workflow_event,
         });
+        console.log(`[NotificationService] Socket notification emitted successfully`);
       }
 
       // Send email notification if enabled
       if (sendEmail) {
+        console.log(`[NotificationService] Sending email notification to user ${userId}`);
         await this.sendEmailNotification(userId, title, message, metadata);
+        console.log(`[NotificationService] Email notification sent successfully`);
       }
 
       return notification;
     } catch (error) {
-      console.error('Error creating notification:', error);
+      console.error('[NotificationService] Error creating notification:', error);
       throw error;
     }
   }

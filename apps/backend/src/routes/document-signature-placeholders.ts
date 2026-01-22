@@ -2,12 +2,20 @@ import express, { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { DocumentSignatureWorkflowService } from '../services/DocumentSignatureWorkflowService.service';
 import { auditService } from '../services/audit.service';
+import { NotificationService } from '../services/notification.service';
 
 const router = express.Router();
 const prisma = new PrismaClient();
+const notificationService = new NotificationService();
 
 // Endpoint to batch create signature placeholders (for adding multiple at once)
 router.post('/documents/:documentId/signature-placeholders/batch', async (req: Request, res: Response) => {
+  console.log('\n\n========== BATCH PLACEHOLDER ENDPOINT CALLED ==========');
+  console.log('Timestamp:', new Date().toISOString());
+  console.log('Request params:', req.params);
+  console.log('Request body keys:', Object.keys(req.body));
+  console.log('========================================\n');
+  
   try {
     const { documentId } = req.params;
     const { placeholders, user_id } = req.body;
@@ -149,6 +157,80 @@ router.post('/documents/:documentId/signature-placeholders/batch', async (req: R
       console.log(`⚠️  [Batch Placeholder] Skipping trail entry - user_id: ${user_id}, creatingUser: ${!!creatingUser}`);
     }
 
+    // Send notifications to assigned users
+    console.log(`📧 [Batch Placeholder] Sending notifications to assigned users`);
+    const uniqueAssignedUserIds = new Set<string>();
+    
+    createdPlaceholders.forEach(placeholder => {
+      if (placeholder.assigned_user_id) {
+        uniqueAssignedUserIds.add(placeholder.assigned_user_id);
+      }
+    });
+
+    console.log(`📧 [Batch Placeholder] Found ${uniqueAssignedUserIds.size} unique assigned users`);
+
+    if (uniqueAssignedUserIds.size > 0) {
+      // Get document title for notification
+      const documentTitle = document.title || `Document ${documentId}`;
+      
+      // Send notification to each unique assigned user
+      for (const assignedUserId of uniqueAssignedUserIds) {
+        try {
+          console.log(`📧 [Batch Placeholder] Attempting to send notification to user ${assignedUserId}`);
+          
+          // Verify user exists
+          const assignedUser = await prisma.user.findUnique({
+            where: { user_id: assignedUserId },
+            select: { 
+              user_id: true, 
+              first_name: true, 
+              last_name: true,
+              active: true 
+            }
+          });
+
+          if (!assignedUser) {
+            console.warn(`⚠️  [Batch Placeholder] User ${assignedUserId} not found, skipping notification`);
+            continue;
+          }
+
+          if (!assignedUser.active) {
+            console.warn(`⚠️  [Batch Placeholder] User ${assignedUserId} is inactive, skipping notification`);
+            continue;
+          }
+
+          console.log(`📧 [Batch Placeholder] Sending notification to ${assignedUser.first_name} ${assignedUser.last_name}`);
+
+          const notification = await notificationService.createNotification(
+            assignedUserId,
+            'Signature Required',
+            `You have been assigned to sign the document: ${documentTitle}`,
+            'workflow',
+            'signature_pending',
+            { 
+              documentId, 
+              documentTitle,
+              createdBy: creatingUser ? `${creatingUser.first_name} ${creatingUser.last_name}` : 'System'
+            }
+          );
+
+          if (notification) {
+            console.log(`✅ [Batch Placeholder] Notification created successfully for user ${assignedUserId} (notification_id: ${notification.notification_id})`);
+          } else {
+            console.log(`ℹ️  [Batch Placeholder] Notification blocked by user preferences for user ${assignedUserId}`);
+          }
+        } catch (notificationError) {
+          console.error(`❌ [Batch Placeholder] Failed to send notification to user ${assignedUserId}:`, notificationError);
+          console.error(`❌ [Batch Placeholder] Error details:`, notificationError instanceof Error ? notificationError.message : String(notificationError));
+          // Continue with other notifications even if one fails
+        }
+      }
+      
+      console.log(`✅ [Batch Placeholder] Completed sending notifications to ${uniqueAssignedUserIds.size} users`);
+    } else {
+      console.log(`ℹ️  [Batch Placeholder] No assigned users to notify`);
+    }
+
     res.status(201).json(createdPlaceholders);
   } catch (error) {
     console.error('Error creating signature placeholders (batch):', error);
@@ -276,6 +358,58 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
         fromDepartmentId: creatingUser?.department_id,
         toDepartmentId: creatingUser?.department_id
       });
+    }
+
+    // Send notification to assigned user if specified
+    if (assigned_user_id) {
+      try {
+        console.log(`📧 [Single Placeholder] Attempting to send notification to user ${assigned_user_id}`);
+        
+        // Verify user is active
+        const assignedUser = await prisma.user.findUnique({
+          where: { user_id: assigned_user_id },
+          select: { 
+            user_id: true, 
+            first_name: true, 
+            last_name: true,
+            active: true 
+          }
+        });
+
+        if (!assignedUser) {
+          console.warn(`⚠️  [Single Placeholder] User ${assigned_user_id} not found, skipping notification`);
+        } else if (!assignedUser.active) {
+          console.warn(`⚠️  [Single Placeholder] User ${assigned_user_id} is inactive, skipping notification`);
+        } else {
+          const documentTitle = document.title || `Document ${documentId}`;
+          const creatorName = creatingUser ? `${creatingUser.first_name} ${creatingUser.last_name}` : 'System';
+          
+          console.log(`📧 [Single Placeholder] Sending notification to ${assignedUser.first_name} ${assignedUser.last_name}`);
+
+          const notification = await notificationService.createNotification(
+            assigned_user_id,
+            'Signature Required',
+            `You have been assigned to sign the document: ${documentTitle}`,
+            'workflow',
+            'signature_pending',
+            { 
+              documentId, 
+              documentTitle,
+              createdBy: creatorName
+            }
+          );
+          
+          if (notification) {
+            console.log(`✅ [Single Placeholder] Notification created successfully for user ${assigned_user_id} (notification_id: ${notification.notification_id})`);
+          } else {
+            console.log(`ℹ️  [Single Placeholder] Notification blocked by user preferences for user ${assigned_user_id}`);
+          }
+        }
+      } catch (notificationError) {
+        console.error(`❌ [Single Placeholder] Failed to send notification to user ${assigned_user_id}:`, notificationError);
+        console.error(`❌ [Single Placeholder] Error details:`, notificationError instanceof Error ? notificationError.message : String(notificationError));
+        // Continue even if notification fails
+      }
     }
 
     res.status(201).json(placeholder);

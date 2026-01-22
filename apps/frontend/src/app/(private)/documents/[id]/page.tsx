@@ -500,6 +500,13 @@ export default function DocumentDetailPage() {
       // Try both user_id and id properties to get the user ID
       const userId = currentUser?.user_id || (currentUser as any)?.id;
 
+      console.log('\n========== SAVING SIGNATURE PLACEHOLDERS ==========');
+      console.log('Document ID:', documentIdForRoutes);
+      console.log('User ID:', userId);
+      console.log('Number of placeholders:', placeholders.length);
+      console.log('Placeholders:', placeholders);
+      console.log('====================================\n');
+
       // Use batch endpoint to create all placeholders with one trail entry
       const response = await fetch(
         `/api/document-signatures/documents/${documentIdForRoutes}/signature-placeholders/batch`,
@@ -513,6 +520,9 @@ export default function DocumentDetailPage() {
           }),
         }
       );
+      
+      console.log('Response status:', response.status);
+      console.log('Response OK:', response.ok);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({
