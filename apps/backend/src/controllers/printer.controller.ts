@@ -14,8 +14,8 @@ export const printEscPos = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid payload' });
     }
 
-    const host = process.env.PRINTER_IP || '192.168.1.14';
-    const port = Number(process.env.PRINTER_PORT || 9600);
+    const host = process.env.PRINTER_IP || '192.168.1.16';
+    const port = Number(process.env.PRINTER_PORT || 9100);
 
     await sendRawToPrinter(payload, { host, port });
 

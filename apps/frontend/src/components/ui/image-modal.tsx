@@ -74,10 +74,7 @@ export function ImageModal({
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const scale = Math.min(
-      targetWidth / img.width,
-      targetHeight / img.height,
-    );
+    const scale = Math.min(targetWidth / img.width, targetHeight / img.height);
     const drawWidth = Math.round(img.width * scale);
     const drawHeight = Math.round(img.height * scale);
     const offsetX = Math.floor((targetWidth - drawWidth) / 2);
@@ -145,9 +142,6 @@ export function ImageModal({
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      const printerIp = process.env.NEXT_PUBLIC_PRINTER_IP;
-      const printerPort = Number(process.env.NEXT_PUBLIC_PRINTER_PORT || 9100);
-
       await new Promise((resolve, reject) => {
         const timeout = window.setTimeout(() => {
           cleanup();
@@ -180,8 +174,6 @@ export function ImageModal({
           {
             jobId,
             payloadBase64,
-            printer_ip: printerIp,
-            printer_port: printerPort,
           },
           (ack: { success?: boolean; error?: string } | undefined) => {
             if (!ack?.success) {

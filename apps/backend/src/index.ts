@@ -307,14 +307,17 @@ io.on('connection', (socket) => {
 
     printerJobs.set(jobId, socket.id);
     console.log(`[${new Date().toISOString()}] Queued print job ${jobId}`);
+    const resolvedPrinterIp = process.env.PRINTER_IP || data.printer_ip;
+    const resolvedPrinterPort = process.env.PRINTER_PORT || data.printer_port;
+
     io.to(printerServiceRoom).emit('printJob', {
       app: 'dms',
       jobId,
       data: {
         event: 'printing',
         payloadBase64: data.payloadBase64,
-        printer_ip: data.printer_ip,
-        printer_port: data.printer_port,
+        printer_ip: resolvedPrinterIp,
+        printer_port: resolvedPrinterPort,
       },
     });
 

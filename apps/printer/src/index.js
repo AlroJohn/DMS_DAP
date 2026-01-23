@@ -80,8 +80,8 @@ async function handlePrintJob(receivedData) {
   }
 
   const { payloadBase64, printer_ip, printer_port } = socketData.data;
-  const printerHost = printer_ip || process.env.PRINTER_IP || "192.168.1.14";
-  const printerPort = Number(printer_port || process.env.PRINTER_PORT || 9600);
+  const printerHost = printer_ip || process.env.PRINTER_IP || "192.168.1.16";
+  const printerPort = Number(printer_port || process.env.PRINTER_PORT || 9100);
 
   console.log(
     "Printer job received:",
@@ -127,6 +127,7 @@ async function handlePrintJob(receivedData) {
 
     printer.clear();
     printer.add(payload);
+    printer.cut();
     const result = await printer.execute();
     console.log("Print sent successfully:", result);
 
