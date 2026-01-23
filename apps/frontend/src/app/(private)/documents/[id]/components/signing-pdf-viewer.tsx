@@ -289,6 +289,10 @@ export function SigningPdfViewer({
     setSelectedFileIds(sortedPdfFiles.map((file) => file.id));
   };
 
+  const handleDeselectAllFiles = () => {
+    setSelectedFileIds([]);
+  };
+
   const handleToggleFileSelection = (fileId: string) => {
     setSelectedFileIds((prev) => {
       const isSelected = prev.includes(fileId);
@@ -526,6 +530,32 @@ export function SigningPdfViewer({
       });
     };
   }, [isAssignedToCurrentUser, placeholders]);
+
+  const findMatchingTextPlaceholders = useMemo(() => {
+    const EPSILON = 0.5;
+    return (
+      source: TextPlaceholder,
+      targetFileIds: string[]
+    ): TextPlaceholder[] => {
+      return textPlaceholders.filter((placeholder) => {
+        if (!targetFileIds.includes(placeholder.document_file_id))
+          return false;
+        if (placeholder.page_number !== source.page_number) return false;
+        if (
+          placeholder.assigned_user_id !== source.assigned_user_id ||
+          !isAssignedToCurrentUser(placeholder.assigned_user_id)
+        ) {
+          return false;
+        }
+        return (
+          Math.abs(placeholder.x_position - source.x_position) <= EPSILON &&
+          Math.abs(placeholder.y_position - source.y_position) <= EPSILON &&
+          Math.abs(placeholder.width - source.width) <= EPSILON &&
+          Math.abs(placeholder.height - source.height) <= EPSILON
+        );
+      });
+    };
+  }, [isAssignedToCurrentUser, textPlaceholders]);
 
   // Filter placeholders for the selected file
   const filePlaceholders = useMemo(() => {
@@ -1351,6 +1381,14 @@ export function SigningPdfViewer({
                 >
                   Select all
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={handleDeselectAllFiles}
+                >
+                  Deselect all
+                </Button>
               </div>
               <div className="flex flex-wrap gap-2">
                 {sortedPdfFiles.map((file) => {
@@ -1826,13 +1864,27 @@ export function SigningPdfViewer({
           }}
           onSave={(text) => {
             if (selectedTextPlaceholder) {
-              const placeholderId = selectedTextPlaceholder.placeholder_id;
-              setTextValues((prev) => ({
-                ...prev,
-                [placeholderId]: text,
-              }));
+              const targetIds =
+                selectedFileIds.length > 0
+                  ? selectedFileIds
+                  : selectedFileId
+                  ? [selectedFileId]
+                  : [];
+              const matchingPlaceholders = findMatchingTextPlaceholders(
+                selectedTextPlaceholder,
+                targetIds,
+              );
+
+              setTextValues((prev) => {
+                const next = { ...prev };
+                matchingPlaceholders.forEach((p) => {
+                  next[p.placeholder_id] = text;
+                });
+                return next;
+              });
+
               emitTextDraft(text);
-              toast.success("Text saved to placeholder.");
+              toast.success("Text saved to placeholder(s).");
             }
             setIsTextModalOpen(false);
             setSelectedTextPlaceholder(null);

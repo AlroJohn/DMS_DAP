@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useSocket } from "@/components/providers/providers";
 
 interface ImageModalProps {
   isOpen: boolean;
@@ -26,74 +27,173 @@ export function ImageModal({
   const label = (title || alt || "").toString();
   const isBarcode = /barcod/i.test(label);
   const [isPrinting, setIsPrinting] = useState(false);
+  const { socket } = useSocket();
 
-  // Send image to thermal printer service
+  const bytesToBase64 = (bytes: Uint8Array) => {
+    const chunkSize = 0x8000;
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode(...chunk);
+    }
+    return btoa(binary);
+  };
+
+  const concatBytes = (chunks: Uint8Array[]) => {
+    const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const result = new Uint8Array(total);
+    let offset = 0;
+    chunks.forEach((chunk) => {
+      result.set(chunk, offset);
+      offset += chunk.length;
+    });
+    return result;
+  };
+
+  const buildEscPosRaster = async () => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = imageUrl;
+
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+    });
+
+    // 80mm width (~576 dots) and 70mm height (~504 dots) at 203dpi
+    const targetWidth = 576;
+    const targetHeight = isBarcode ? 320 : 504;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) throw new Error("Canvas not supported");
+
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const scale = Math.min(
+      targetWidth / img.width,
+      targetHeight / img.height,
+    );
+    const drawWidth = Math.round(img.width * scale);
+    const drawHeight = Math.round(img.height * scale);
+    const offsetX = Math.floor((targetWidth - drawWidth) / 2);
+    const offsetY = Math.floor((targetHeight - drawHeight) / 2);
+
+    ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+
+    const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
+    const { data } = imageData;
+    const widthBytes = Math.ceil(targetWidth / 8);
+    const raster = new Uint8Array(widthBytes * targetHeight);
+
+    for (let y = 0; y < targetHeight; y += 1) {
+      for (let xByte = 0; xByte < widthBytes; xByte += 1) {
+        let byte = 0;
+        for (let bit = 0; bit < 8; bit += 1) {
+          const x = xByte * 8 + bit;
+          if (x >= targetWidth) continue;
+          const idx = (y * targetWidth + x) * 4;
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          const a = data[idx + 3];
+          const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          const isBlack = a > 32 && luminance < 160;
+          if (isBlack) {
+            byte |= 0x80 >> bit;
+          }
+        }
+        raster[y * widthBytes + xByte] = byte;
+      }
+    }
+
+    const header = new Uint8Array([
+      0x1d,
+      0x76,
+      0x30,
+      0x00,
+      widthBytes & 0xff,
+      (widthBytes >> 8) & 0xff,
+      targetHeight & 0xff,
+      (targetHeight >> 8) & 0xff,
+    ]);
+
+    const init = new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x01]);
+    const feed = new Uint8Array([0x1b, 0x64, 0x04]);
+
+    return concatBytes([init, header, raster, feed]);
+  };
+
+  // Print via socket -> printer service
   const handlePrint = async () => {
     if (!imageUrl) return;
+    if (!socket) {
+      alert("Printer service is not connected");
+      return;
+    }
 
     setIsPrinting(true);
 
     try {
-      // Dynamically import socket.io-client
-      const { io } = await import('socket.io-client');
+      const payload = await buildEscPosRaster();
+      const payloadBase64 = bytesToBase64(payload);
+      const jobId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const printerIp = process.env.NEXT_PUBLIC_PRINTER_IP;
+      const printerPort = Number(process.env.NEXT_PUBLIC_PRINTER_PORT || 9100);
 
-      // Connect to the printer Socket.IO service
-      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_IO_URL || process.env.NEXT_PUBLIC_PRINTER_SOCKET_URL || 'https://quanby-staging.com'; // Using the same URL as in the printer service
-      const socket = io(socketUrl, {
-        transports: ['websocket'],
+      await new Promise((resolve, reject) => {
+        const timeout = window.setTimeout(() => {
+          cleanup();
+          reject(new Error("Printer response timed out"));
+        }, 15000);
+
+        const cleanup = () => {
+          window.clearTimeout(timeout);
+          socket.off("printSuccess", onSuccess);
+          socket.off("printError", onError);
+        };
+
+        const onSuccess = (data: any) => {
+          if (data?.jobId !== jobId) return;
+          cleanup();
+          resolve(data);
+        };
+
+        const onError = (data: any) => {
+          if (data?.jobId !== jobId) return;
+          cleanup();
+          reject(new Error(data?.error || "Printer error"));
+        };
+
+        socket.on("printSuccess", onSuccess);
+        socket.on("printError", onError);
+
+        socket.emit(
+          "printer:print",
+          {
+            jobId,
+            payloadBase64,
+            printer_ip: printerIp,
+            printer_port: printerPort,
+          },
+          (ack: { success?: boolean; error?: string } | undefined) => {
+            if (!ack?.success) {
+              cleanup();
+              reject(new Error(ack?.error || "Failed to queue print"));
+            }
+          },
+        );
       });
-
-      // Wait for connection
-      await new Promise<void>((resolve, reject) => {
-        socket.on('connect', () => {
-          console.log('Connected to Socket.IO server:', socket.id);
-          resolve();
-        });
-
-        socket.on('connect_error', (error: any) => {
-          console.error('Socket.IO connection error:', error);
-          reject(error);
-        });
-
-        // Set timeout for connection
-        setTimeout(() => reject(new Error('Connection timeout')), 5000);
-      });
-
-      // Prepare print data for thermal printer
-      const printData = {
-        app: 'dms', // Changed from 'pcso' to 'dms' for this application
-        data: {
-          event: 'printing',
-          type: isBarcode ? 'barcode' : 'qr_code',
-          title: title,
-          imageUrl: imageUrl,
-          timestamp: new Date().toISOString(),
-          printer_ip: process.env.NEXT_PUBLIC_PRINTER_IP || '192.168.1.100' // Default IP if not set
-        }
-      };
-
-      // Send print job to printer service via 'printJob' event
-      socket.emit('printJob', printData);
-
-      // Listen for print success/error responses
-      socket.on('printSuccess', (response: any) => {
-        console.log('Print job completed successfully:', response);
-      });
-
-      socket.on('printError', (error: any) => {
-        console.error('Print job failed:', error);
-        alert(`Print job failed: ${error.error || 'Unknown error'}`);
-      });
-
-      // Disconnect after sending
-      setTimeout(() => {
-        socket.close();
-      }, 2000); // Give some time for the print job to be processed
-
-      console.log('Print job sent to thermal printer');
-    } catch (error) {
-      console.error('Error sending print job:', error);
-      alert('Failed to send print job to thermal printer. Please check printer connection.');
+    } catch (err) {
+      console.error("❌ Print failed", err);
+      alert("Failed to print image");
     } finally {
       setIsPrinting(false);
     }
@@ -165,10 +265,10 @@ export function ImageModal({
           <button
             type="button"
             onClick={handlePrint}
-            className={`px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 transition-colors shadow ${isPrinting ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 transition-colors shadow ${isPrinting ? "opacity-50 cursor-not-allowed" : ""}`}
             disabled={isPrinting || !imageUrl}
           >
-            {isPrinting ? 'Printing...' : 'Print'}
+            {isPrinting ? "Printing..." : "Print"}
           </button>
           <button
             type="button"

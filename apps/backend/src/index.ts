@@ -1,6 +1,7 @@
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
+import { randomUUID } from 'crypto';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -52,6 +53,7 @@ import activityLogsRoutes from './routes/activity-logs.routes'; // Import activi
 import accessHistoryRoutes from './routes/access-history.routes'; // Import access history routes
 import homeCMSRoutes from './routes/home-cms.routes'; // Import home CMS routes
 import sidebarSettingsRoutes from './routes/sidebar-settings.routes'; // Import sidebar settings routes
+import printerRoutes from './routes/printer.routes';
 
 // Import middleware
 import { requestLogger, errorLogger } from './middleware/logging';
@@ -82,6 +84,9 @@ const signatureRoomMembers = new Map<
 >();
 const signatureRoomCounts = new Map<string, Map<string, number>>();
 const socketSignatureRooms = new Map<string, Set<string>>();
+const printerToken = process.env.PRINTER_SOCKET_TOKEN;
+const printerJobs = new Map<string, string>();
+const printerServiceRoom = 'printer-service';
 
 const getSignatureRoomKey = (documentId: string, fileId: string) =>
   `document-${documentId}:file-${fileId}`;
@@ -107,6 +112,30 @@ const emitSignaturePresence = (roomKey: string) => {
 
 io.use(async (socket, next) => {
   const token = socket.handshake.auth.token;
+  const printerToken = process.env.PRINTER_SOCKET_TOKEN;
+  const printerFlag = socket.handshake.auth?.printer === true;
+  if (printerToken && token === printerToken) {
+    (socket as any).user = {
+      user_id: 'printer-service',
+      first_name: 'Printer',
+      last_name: 'Service',
+      department_id: null,
+    };
+    (socket as any).isPrinter = true;
+    return next();
+  }
+
+  if (!printerToken && printerFlag) {
+    (socket as any).user = {
+      user_id: 'printer-service',
+      first_name: 'Printer',
+      last_name: 'Service',
+      department_id: null,
+    };
+    (socket as any).isPrinter = true;
+    return next();
+  }
+
   if (!token) {
     return next(new Error('Authentication error: Token not provided.'));
   }
@@ -221,11 +250,13 @@ app.use('/api', activityLogsRoutes); // Add activity logs routes
 app.use('/api', accessHistoryRoutes); // Add access history routes
 app.use('/api/home-cms', homeCMSRoutes); // Add home CMS routes
 app.use('/api/sidebar-settings', sidebarSettingsRoutes); // Add sidebar settings routes
+app.use('/api/printer', printerRoutes);
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log(`[${new Date().toISOString()}] User connected: ${socket.id}`);
   const user = (socket as any).user;
+  const isPrinter = Boolean((socket as any).isPrinter);
 
   if (user && user.department_id) {
     socket.join(`department_${user.department_id}`);
@@ -242,6 +273,76 @@ io.on('connection', (socket) => {
   socket.on('join-user-room', (userId: string) => {
     socket.join(`user-${userId}`);
     console.log(`User ${userId} joined their personal room`);
+  });
+
+  if (isPrinter) {
+    socket.join(printerServiceRoom);
+  }
+
+  socket.on('printer:register', () => {
+    if (!printerToken) {
+      (socket as any).isPrinter = true;
+    }
+    if (!(socket as any).isPrinter) return;
+    socket.join(printerServiceRoom);
+    console.log(`[${new Date().toISOString()}] Printer service registered: ${socket.id}`);
+  });
+
+  socket.on('printer:print', (data, callback) => {
+    if (isPrinter) return;
+    if (!data?.payloadBase64 || typeof data.payloadBase64 !== 'string') {
+      callback?.({ success: false, error: 'payloadBase64 is required' });
+      return;
+    }
+
+    const room = io.sockets.adapter.rooms.get(printerServiceRoom);
+    if (!room || room.size === 0) {
+      callback?.({ success: false, error: 'Printer service not connected' });
+      return;
+    }
+
+    const jobId = data.jobId && typeof data.jobId === 'string'
+      ? data.jobId
+      : randomUUID();
+
+    printerJobs.set(jobId, socket.id);
+    console.log(`[${new Date().toISOString()}] Queued print job ${jobId}`);
+    io.to(printerServiceRoom).emit('printJob', {
+      app: 'dms',
+      jobId,
+      data: {
+        event: 'printing',
+        payloadBase64: data.payloadBase64,
+        printer_ip: data.printer_ip,
+        printer_port: data.printer_port,
+      },
+    });
+
+    callback?.({ success: true, jobId });
+  });
+
+  socket.on('printSuccess', (payload) => {
+    if (!isPrinter) return;
+    const jobId = payload?.jobId;
+    if (jobId && printerJobs.has(jobId)) {
+      const requesterSocketId = printerJobs.get(jobId)!;
+      io.to(requesterSocketId).emit('printSuccess', payload);
+      printerJobs.delete(jobId);
+      return;
+    }
+    io.emit('printSuccess', payload);
+  });
+
+  socket.on('printError', (payload) => {
+    if (!isPrinter) return;
+    const jobId = payload?.jobId;
+    if (jobId && printerJobs.has(jobId)) {
+      const requesterSocketId = printerJobs.get(jobId)!;
+      io.to(requesterSocketId).emit('printError', payload);
+      printerJobs.delete(jobId);
+      return;
+    }
+    io.emit('printError', payload);
   });
 
   // Handle document updates
@@ -359,6 +460,12 @@ io.on('connection', (socket) => {
       });
     }
     socketSignatureRooms.delete(socket.id);
+
+    for (const [jobId, socketId] of printerJobs.entries()) {
+      if (socketId === socket.id) {
+        printerJobs.delete(jobId);
+      }
+    }
   });
 });
 

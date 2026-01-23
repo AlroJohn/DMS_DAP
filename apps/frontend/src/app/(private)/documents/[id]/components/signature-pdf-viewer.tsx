@@ -138,7 +138,7 @@ export function SignaturePdfViewer({
     string | null
   >(currentDepartmentId);
   const [selectedAssigneeId, setSelectedAssigneeId] = useState<string | null>(
-    user?.user_id || null
+    user?.user_id || null,
   );
 
   const usersForDepartment = useMemo(() => {
@@ -183,7 +183,7 @@ export function SignaturePdfViewer({
   }, [usersForDepartment, user?.user_id]);
   const pdfFiles = useMemo(
     () => files.filter((file) => isPdfLikeFile(file)),
-    [files]
+    [files],
   );
 
   // For now, assume all users have department permission
@@ -203,7 +203,7 @@ export function SignaturePdfViewer({
   }, [normalizedTargetFileIds, pdfFiles]);
 
   const [selectedFileId, setSelectedFileId] = useState<string | null>(
-    initialFileId ?? selectableFiles[0]?.id ?? null
+    initialFileId ?? selectableFiles[0]?.id ?? null,
   );
 
   const selectedFile = useMemo(() => {
@@ -224,7 +224,7 @@ export function SignaturePdfViewer({
       return;
     }
     const isAvailable = selectableFiles.some(
-      (file) => file.id === selectedFileId
+      (file) => file.id === selectedFileId,
     );
     if (!isAvailable) {
       setSelectedFileId(selectableFiles[0]?.id ?? null);
@@ -243,7 +243,7 @@ export function SignaturePdfViewer({
   const RENDER_SCALE = useMemo(() => 1.2, []);
   const TEXT_FONT_OPTIONS = useMemo(
     () => ["Arial", "Times New Roman", "Courier New", "Georgia"],
-    []
+    [],
   );
   const DEFAULT_TEXT_FONT = "Arial";
   const DEFAULT_TEXT_SIZE = 14;
@@ -253,7 +253,7 @@ export function SignaturePdfViewer({
     queryKey: ["signature-placeholders", documentId],
     queryFn: async () => {
       const response = await fetch(
-        `/api/document-signatures/documents/${documentId}/signature-placeholders`
+        `/api/document-signatures/documents/${documentId}/signature-placeholders`,
       );
       if (!response.ok) {
         throw new Error("Failed to fetch signature placeholders");
@@ -278,7 +278,7 @@ export function SignaturePdfViewer({
     queryKey: ["text-placeholders", documentId],
     queryFn: async () => {
       const response = await fetch(
-        `/api/document-texts/documents/${documentId}/text-placeholders`
+        `/api/document-texts/documents/${documentId}/text-placeholders`,
       );
       if (!response.ok) {
         throw new Error("Failed to fetch text placeholders");
@@ -341,7 +341,7 @@ export function SignaturePdfViewer({
       .filter((placeholder) => placeholder.document_file_id === selectedFileId)
       .map((placeholder) => {
         const page = pages.find(
-          (candidate) => candidate.pageNumber === placeholder.page_number
+          (candidate) => candidate.pageNumber === placeholder.page_number,
         );
         const scaleX = page?.pdfWidth
           ? page.width / page.pdfWidth
@@ -377,8 +377,8 @@ export function SignaturePdfViewer({
               prevBox.x === newBox.x &&
               prevBox.y === newBox.y &&
               prevBox.width === newBox.width &&
-              prevBox.height === newBox.height
-          )
+              prevBox.height === newBox.height,
+          ),
         );
 
       if (!hasExistingBoxesChanged) {
@@ -399,7 +399,7 @@ export function SignaturePdfViewer({
       .filter((placeholder) => placeholder.document_file_id === selectedFileId)
       .map((placeholder) => {
         const page = pages.find(
-          (candidate) => candidate.pageNumber === placeholder.page_number
+          (candidate) => candidate.pageNumber === placeholder.page_number,
         );
         const scaleX = page?.pdfWidth
           ? page.width / page.pdfWidth
@@ -441,8 +441,8 @@ export function SignaturePdfViewer({
               prevBox.fontFamily === newBox.fontFamily &&
               prevBox.fontSize === newBox.fontSize &&
               prevBox.fontColor === newBox.fontColor &&
-              prevBox.text === newBox.text
-          )
+              prevBox.text === newBox.text,
+          ),
         );
 
       if (!hasExistingBoxesChanged) {
@@ -530,7 +530,7 @@ export function SignaturePdfViewer({
           error?.message?.includes("Worker was destroyed")
         ) {
           console.warn(
-            "PDF render was cancelled or worker was destroyed during cleanup."
+            "PDF render was cancelled or worker was destroyed during cleanup.",
           );
         } else {
           console.error("Failed to render PDF for signature placement", error);
@@ -647,13 +647,13 @@ export function SignaturePdfViewer({
 
   const handleUpdatePosition = (id: string, x: number, y: number) => {
     setBoxes((prev) =>
-      prev.map((box) => (box.id === id ? { ...box, x, y } : box))
+      prev.map((box) => (box.id === id ? { ...box, x, y } : box)),
     );
   };
 
   const handleUpdateTextPosition = (id: string, x: number, y: number) => {
     setTextBoxes((prev) =>
-      prev.map((box) => (box.id === id ? { ...box, x, y } : box))
+      prev.map((box) => (box.id === id ? { ...box, x, y } : box)),
     );
   };
 
@@ -662,10 +662,12 @@ export function SignaturePdfViewer({
     width: number,
     height: number,
     x: number,
-    y: number
+    y: number,
   ) => {
     setBoxes((prev) =>
-      prev.map((box) => (box.id === id ? { ...box, width, height, x, y } : box))
+      prev.map((box) =>
+        box.id === id ? { ...box, width, height, x, y } : box,
+      ),
     );
   };
 
@@ -674,19 +676,21 @@ export function SignaturePdfViewer({
     width: number,
     height: number,
     x: number,
-    y: number
+    y: number,
   ) => {
     setTextBoxes((prev) =>
-      prev.map((box) => (box.id === id ? { ...box, width, height, x, y } : box))
+      prev.map((box) =>
+        box.id === id ? { ...box, width, height, x, y } : box,
+      ),
     );
   };
 
   const handleUpdateTextStyle = (
     id: string,
-    updates: Partial<Pick<TextBox, "fontFamily" | "fontSize" | "fontColor">>
+    updates: Partial<Pick<TextBox, "fontFamily" | "fontSize" | "fontColor">>,
   ) => {
     setTextBoxes((prev) =>
-      prev.map((box) => (box.id === id ? { ...box, ...updates } : box))
+      prev.map((box) => (box.id === id ? { ...box, ...updates } : box)),
     );
   };
 
@@ -698,7 +702,7 @@ export function SignaturePdfViewer({
     // Check if it's an existing placeholder and if user has permission to delete
     if (boxToRemove.isExisting && !hasDepartmentPermission) {
       toast.error(
-        "Only members of the document's department can delete existing placeholders."
+        "Only members of the document's department can delete existing placeholders.",
       );
       return;
     }
@@ -715,7 +719,7 @@ export function SignaturePdfViewer({
     // Check if it's an existing placeholder and if user has permission to delete
     if (textboxToRemove.isExisting && !hasDepartmentPermission) {
       toast.error(
-        "Only members of the document's department can delete existing placeholders."
+        "Only members of the document's department can delete existing placeholders.",
       );
       return;
     }
@@ -727,7 +731,7 @@ export function SignaturePdfViewer({
   const handleConfirm = () => {
     if (!selectedFileId) {
       toast.error(
-        "No PDF file selected. Please select a PDF file before confirming signature positions."
+        "No PDF file selected. Please select a PDF file before confirming signature positions.",
       );
       console.error("No file selected for signature.");
       return;
@@ -736,7 +740,7 @@ export function SignaturePdfViewer({
     const newBoxes = boxes.filter((box) => !box.isExisting);
     const newTextBoxes = textBoxes.filter((box) => !box.isExisting);
     const hasUnassigned = [...newBoxes, ...newTextBoxes].some(
-      (box) => !box.assignedUserId
+      (box) => !box.assignedUserId,
     );
     if (hasUnassigned) {
       toast.error("Assign a user to each new placeholder before confirming.");
@@ -744,7 +748,7 @@ export function SignaturePdfViewer({
     }
     if (newBoxes.length === 0 && newTextBoxes.length === 0) {
       toast.error(
-        "No new placeholders added. Please add at least one signature or text placeholder before confirming."
+        "No new placeholders added. Please add at least one signature or text placeholder before confirming.",
       );
       return;
     }
@@ -752,12 +756,15 @@ export function SignaturePdfViewer({
     const targets = normalizedTargetFileIds.length
       ? normalizedTargetFileIds
       : [selectedFileId];
-    const pageScales = pages.reduce((acc, page) => {
-      const scaleX = page.pdfWidth ? page.width / page.pdfWidth : 1;
-      const scaleY = page.pdfHeight ? page.height / page.pdfHeight : 1;
-      acc[page.pageNumber] = { scaleX, scaleY };
-      return acc;
-    }, {} as Record<number, { scaleX: number; scaleY: number }>);
+    const pageScales = pages.reduce(
+      (acc, page) => {
+        const scaleX = page.pdfWidth ? page.width / page.pdfWidth : 1;
+        const scaleY = page.pdfHeight ? page.height / page.pdfHeight : 1;
+        acc[page.pageNumber] = { scaleX, scaleY };
+        return acc;
+      },
+      {} as Record<number, { scaleX: number; scaleY: number }>,
+    );
     onConfirm({
       fileId: selectedFileId,
       boxes: newBoxes,
@@ -787,7 +794,7 @@ export function SignaturePdfViewer({
           <CardTitle>Prepare Signature Positions</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <div className="rounded-md border border-dashed border-destructive/60 bg-destructive/10 p-4 text-sm text-destructive">
+          <div className="rounded-md border border-dashed border-destructive/60 bg-destructive/10 text-sm text-destructive">
             This document does not have any PDF files. Upload a PDF file first
             to place signature boxes.
           </div>
@@ -929,7 +936,7 @@ export function SignaturePdfViewer({
                 <div
                   className={cn(
                     "relative",
-                    placementMode && "cursor-crosshair"
+                    placementMode && "cursor-crosshair",
                   )}
                   style={{
                     width: activePageData.width,
@@ -984,7 +991,7 @@ export function SignaturePdfViewer({
                             ref.offsetWidth,
                             ref.offsetHeight,
                             position.x,
-                            position.y
+                            position.y,
                           );
                         }}
                         onMouseDown={(event) => event.stopPropagation()}
@@ -995,7 +1002,7 @@ export function SignaturePdfViewer({
                           "absolute rounded-md border-2 shadow-sm",
                           box.isExisting
                             ? "border-emerald-500/70 bg-emerald-500/10"
-                            : "border-primary/70 bg-primary/10"
+                            : "border-primary/70 bg-primary/10",
                         )}
                       >
                         <div className="relative h-full w-full">
@@ -1063,7 +1070,7 @@ export function SignaturePdfViewer({
                             ref.offsetWidth,
                             ref.offsetHeight,
                             position.x,
-                            position.y
+                            position.y,
                           );
                         }}
                         onMouseDown={(event) => event.stopPropagation()}
@@ -1074,7 +1081,7 @@ export function SignaturePdfViewer({
                           "absolute rounded-md border-2 border-dashed shadow-sm bg-transparent",
                           box.isExisting
                             ? "border-amber-500/70"
-                            : "border-amber-500/80"
+                            : "border-amber-500/80",
                         )}
                       >
                         <div className="relative h-full w-full">
@@ -1137,7 +1144,7 @@ export function SignaturePdfViewer({
                     }}
                     disabled={isLoadingUsers || departments.length === 0}
                   >
-                    <SelectTrigger className="h-8 text-xs">
+                    <SelectTrigger className="h-8 text-xs w-full max-h-56 overflow-y-auto">
                       <SelectValue
                         placeholder={
                           isLoadingUsers
@@ -1170,7 +1177,7 @@ export function SignaturePdfViewer({
                       !selectedDepartmentId || !usersForDepartment.length
                     }
                   >
-                    <SelectTrigger className="h-8 text-xs">
+                    <SelectTrigger className="h-8 text-xs w-full max-h-56 overflow-y-auto">
                       <SelectValue
                         placeholder={
                           selectedDepartmentId
@@ -1306,7 +1313,7 @@ export function SignaturePdfViewer({
                               handleUpdatePosition(
                                 box.id,
                                 Number(e.target.value),
-                                box.y
+                                box.y,
                               )
                             }
                           />
@@ -1323,7 +1330,7 @@ export function SignaturePdfViewer({
                               handleUpdatePosition(
                                 box.id,
                                 box.x,
-                                Number(e.target.value)
+                                Number(e.target.value),
                               )
                             }
                           />
@@ -1340,14 +1347,14 @@ export function SignaturePdfViewer({
                             onChange={(e) => {
                               const value = Math.max(
                                 50,
-                                Number(e.target.value)
+                                Number(e.target.value),
                               );
                               handleResize(
                                 box.id,
                                 value,
                                 box.height,
                                 box.x,
-                                box.y
+                                box.y,
                               );
                             }}
                           />
@@ -1364,14 +1371,14 @@ export function SignaturePdfViewer({
                             onChange={(e) => {
                               const value = Math.max(
                                 30,
-                                Number(e.target.value)
+                                Number(e.target.value),
                               );
                               handleResize(
                                 box.id,
                                 box.width,
                                 value,
                                 box.x,
-                                box.y
+                                box.y,
                               );
                             }}
                           />
@@ -1426,7 +1433,7 @@ export function SignaturePdfViewer({
                               handleUpdateTextPosition(
                                 box.id,
                                 Number(e.target.value),
-                                box.y
+                                box.y,
                               )
                             }
                           />
@@ -1443,7 +1450,7 @@ export function SignaturePdfViewer({
                               handleUpdateTextPosition(
                                 box.id,
                                 box.x,
-                                Number(e.target.value)
+                                Number(e.target.value),
                               )
                             }
                           />
@@ -1460,14 +1467,14 @@ export function SignaturePdfViewer({
                             onChange={(e) => {
                               const value = Math.max(
                                 60,
-                                Number(e.target.value)
+                                Number(e.target.value),
                               );
                               handleResizeText(
                                 box.id,
                                 value,
                                 box.height,
                                 box.x,
-                                box.y
+                                box.y,
                               );
                             }}
                           />
@@ -1484,14 +1491,14 @@ export function SignaturePdfViewer({
                             onChange={(e) => {
                               const value = Math.max(
                                 30,
-                                Number(e.target.value)
+                                Number(e.target.value),
                               );
                               handleResizeText(
                                 box.id,
                                 box.width,
                                 value,
                                 box.x,
-                                box.y
+                                box.y,
                               );
                             }}
                           />

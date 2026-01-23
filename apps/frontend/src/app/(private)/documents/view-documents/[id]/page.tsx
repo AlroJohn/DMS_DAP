@@ -1,56 +1,72 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams, useSearchParams, useRouter } from 'next/navigation';
-import { useDocumentDetail } from '@/hooks/use-document-detail';
-import { useDocumentFiles } from '@/hooks/use-document-files';
-import { DocumentViewerWithSignatures } from '@/components/reuseable/document-viewer-with-signatures/document-viewer-with-signatures';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useDocumentDetail } from "@/hooks/use-document-detail";
+import { useDocumentFiles } from "@/hooks/use-document-files";
+import { DocumentViewerWithSignatures } from "@/components/reuseable/document-viewer-with-signatures/document-viewer-with-signatures";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
-import { AlertCircle, ArrowLeft, Save, X, ChevronsUpDown } from 'lucide-react';
-import { toast } from 'sonner';
-import { useAuth } from '@/hooks/use-auth';
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { AlertCircle, ArrowLeft, Save, X, ChevronsUpDown } from "lucide-react";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function DocumentSignatureViewerPage() {
   const { id } = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user } = useAuth();
-  const documentId = Array.isArray(id) ? id[0] : (id || '');
-  const fileIdFromUrl = searchParams?.get('fileId');
+  const documentId = Array.isArray(id) ? id[0] : id || "";
+  const fileIdFromUrl = searchParams?.get("fileId");
 
-  const [activeSignatureData, setActiveSignatureData] = useState<string | null>(null);
+  const [activeSignatureData, setActiveSignatureData] = useState<string | null>(
+    null,
+  );
   const [isPlacingSignature, setIsPlacingSignature] = useState(false);
-  const [signatureMode, setSignatureMode] = useState<'view' | 'place'>('view');
+  const [signatureMode, setSignatureMode] = useState<"view" | "place">("view");
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [signatureRecords, setSignatureRecords] = useState<any[]>([]);
 
-  const { document: documentDetail, isLoading: docLoading, error: docError } = useDocumentDetail(documentId);
+  const {
+    document: documentDetail,
+    isLoading: docLoading,
+    error: docError,
+  } = useDocumentDetail(documentId);
   const {
     files,
     isLoading: filesLoading,
     error: filesError,
-    refetch
+    refetch,
   } = useDocumentFiles(documentId);
 
   const parseVersion = useCallback((value?: string | null) => {
     if (!value) return null;
-    const parts = value.split('.').map((part) => Number(part));
+    const parts = value.split(".").map((part) => Number(part));
     if (parts.some((part) => Number.isNaN(part))) return null;
     return parts;
   }, []);
 
   const compareDocumentFilesByVersionDesc = useCallback(
-    (left: { version?: string | null; uploadDate?: string | Date | null; name: string },
-     right: { version?: string | null; uploadDate?: string | Date | null; name: string }) => {
+    (
+      left: {
+        version?: string | null;
+        uploadDate?: string | Date | null;
+        name: string;
+      },
+      right: {
+        version?: string | null;
+        uploadDate?: string | Date | null;
+        name: string;
+      },
+    ) => {
       const leftParts = parseVersion(left.version);
       const rightParts = parseVersion(right.version);
 
@@ -69,15 +85,19 @@ export default function DocumentSignatureViewerPage() {
         return 1;
       }
 
-      const leftDate = left.uploadDate ? new Date(left.uploadDate).getTime() : 0;
-      const rightDate = right.uploadDate ? new Date(right.uploadDate).getTime() : 0;
+      const leftDate = left.uploadDate
+        ? new Date(left.uploadDate).getTime()
+        : 0;
+      const rightDate = right.uploadDate
+        ? new Date(right.uploadDate).getTime()
+        : 0;
       if (leftDate !== rightDate) {
         return rightDate - leftDate;
       }
 
       return left.name.localeCompare(right.name);
     },
-    [parseVersion]
+    [parseVersion],
   );
 
   const sortedFiles = useMemo(() => {
@@ -99,9 +119,9 @@ export default function DocumentSignatureViewerPage() {
   }, [fileIdFromUrl, sortedFiles]);
 
   // Check if this is coming from release with signature requirements
-  const releaseDepartmentId = searchParams?.get('releaseDepartmentId');
-  const releaseActions = searchParams?.get('releaseActions');
-  const releaseRemarks = searchParams?.get('releaseRemarks');
+  const releaseDepartmentId = searchParams?.get("releaseDepartmentId");
+  const releaseActions = searchParams?.get("releaseActions");
+  const releaseRemarks = searchParams?.get("releaseRemarks");
 
   // Get user's signature from the user profile
   useEffect(() => {
@@ -116,22 +136,22 @@ export default function DocumentSignatureViewerPage() {
       const response = await fetch(
         `/api/document-signatures/documents/${documentId}/signatures`,
         {
-          method: 'GET',
-          credentials: 'include',
+          method: "GET",
+          credentials: "include",
           headers: {
-            'Cache-Control': 'no-cache'
-          }
-        }
+            "Cache-Control": "no-cache",
+          },
+        },
       );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch signatures');
+        throw new Error("Failed to fetch signatures");
       }
 
       const result = await response.json();
       setSignatureRecords(Array.isArray(result) ? result : []);
     } catch (error) {
-      console.error('Error fetching signatures:', error);
+      console.error("Error fetching signatures:", error);
       setSignatureRecords([]);
     }
   }, [documentId]);
@@ -147,17 +167,17 @@ export default function DocumentSignatureViewerPage() {
     };
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === "visible") {
         refreshData();
       }
     };
 
-    window.addEventListener('focus', refreshData);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener("focus", refreshData);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      window.removeEventListener('focus', refreshData);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener("focus", refreshData);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [fetchSignatures, refetch]);
 
@@ -173,45 +193,50 @@ export default function DocumentSignatureViewerPage() {
       // Use the API to place the signature at the specified coordinates
       // We need to get the document file ID to use for the signature placement
       const primaryFile =
-        (activeFileId ? files.find((file) => file.id === activeFileId) : null) ||
+        (activeFileId
+          ? files.find((file) => file.id === activeFileId)
+          : null) ||
         files.find((file) => file.isPrimary) ||
         files[0];
 
       if (!primaryFile) {
-        toast.error('No document file available for signature');
+        toast.error("No document file available for signature");
         return;
       }
 
-      const response = await fetch(`/api/document-signatures/documents/${documentId}/place-signature`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await fetch(
+        `/api/document-signatures/documents/${documentId}/place-signature`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            signee_id: user?.user_id, // Using user_id instead of id
+            document_file_id: primaryFile.id,
+            page_number: coords.page_number,
+            x_position: coords.x_position,
+            y_position: coords.y_position,
+            width: coords.width,
+            height: coords.height,
+            signature_data: coords.signatureData,
+          }),
         },
-        credentials: 'include',
-        body: JSON.stringify({
-          signee_id: user?.user_id,  // Using user_id instead of id
-          document_file_id: primaryFile.id,
-          page_number: coords.page_number,
-          x_position: coords.x_position,
-          y_position: coords.y_position,
-          width: coords.width,
-          height: coords.height,
-          signature_data: coords.signatureData
-        })
-      });
+      );
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to place signature');
+        throw new Error(error.message || "Failed to place signature");
       }
 
-      toast.success('Signature placed successfully!');
-      setSignatureMode('view'); // Return to view mode after placing signature
+      toast.success("Signature placed successfully!");
+      setSignatureMode("view"); // Return to view mode after placing signature
       refetch(); // Refresh document data
       fetchSignatures();
     } catch (error: any) {
-      console.error('Error placing signature:', error);
-      toast.error(error.message || 'Failed to place signature');
+      console.error("Error placing signature:", error);
+      toast.error(error.message || "Failed to place signature");
     }
   };
 
@@ -221,35 +246,35 @@ export default function DocumentSignatureViewerPage() {
 
   const handleReleaseWithSignatures = async () => {
     if (!releaseDepartmentId || !releaseActions) {
-      toast.error('Missing release information');
+      toast.error("Missing release information");
       return;
     }
 
     try {
       // Release the document to the specified department with signature requirements
       const response = await fetch(`/api/documents/${documentId}/release`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        credentials: 'include',
+        credentials: "include",
         body: JSON.stringify({
           departmentId: releaseDepartmentId,
-          requestActions: releaseActions.split(','),
-          remarks: releaseRemarks || undefined
-        })
+          requestActions: releaseActions.split(","),
+          remarks: releaseRemarks || undefined,
+        }),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to release document');
+        throw new Error(error.message || "Failed to release document");
       }
 
-      toast.success('Document released with signatures successfully!');
+      toast.success("Document released with signatures successfully!");
       router.push(`/documents/${documentId}`);
     } catch (error: any) {
-      console.error('Error releasing document:', error);
-      toast.error(error.message || 'Failed to release document');
+      console.error("Error releasing document:", error);
+      toast.error(error.message || "Failed to release document");
     }
   };
 
@@ -286,9 +311,7 @@ export default function DocumentSignatureViewerPage() {
     return (
       <div className="container mx-auto py-6">
         <Alert>
-          <AlertDescription>
-            Document not found.
-          </AlertDescription>
+          <AlertDescription>Document not found.</AlertDescription>
         </Alert>
       </div>
     );
@@ -297,37 +320,39 @@ export default function DocumentSignatureViewerPage() {
   // Get any existing signatures for the document
   const signedDocuments = signatureRecords.length
     ? signatureRecords
-    : ((documentDetail as any).signedDocuments || []);
+    : (documentDetail as any).signedDocuments || [];
 
-  const mappedSignedDocuments = signedDocuments.map((sig: any, index: number) => ({
-    signed_document_id:
-      sig.signed_document_id ||
-      `${sig.document_file_id || sig.documentFileFile_id || sig.documentFile?.file_id || 'sig'}-${sig.page_number}-${sig.x_position}-${sig.y_position}-${index}`,
-    documentFileFile_id:
-      sig.document_file_id ||
-      sig.documentFileFile_id ||
-      sig.documentFile?.file_id ||
-      '',
-    signature_data: sig.signature_data || user?.signature || '',
-    x_position: sig.x_position,
-    y_position: sig.y_position,
-    width: sig.width,
-    height: sig.height,
-    page_number: sig.page_number,
-  }));
+  const mappedSignedDocuments = signedDocuments.map(
+    (sig: any, index: number) => ({
+      signed_document_id:
+        sig.signed_document_id ||
+        `${sig.document_file_id || sig.documentFileFile_id || sig.documentFile?.file_id || "sig"}-${sig.page_number}-${sig.x_position}-${sig.y_position}-${index}`,
+      documentFileFile_id:
+        sig.document_file_id ||
+        sig.documentFileFile_id ||
+        sig.documentFile?.file_id ||
+        "",
+      signature_data: sig.signature_data || user?.signature || "",
+      x_position: sig.x_position,
+      y_position: sig.y_position,
+      width: sig.width,
+      height: sig.height,
+      page_number: sig.page_number,
+    }),
+  );
 
   const documentFiles = (sortedFiles || []).map((file) => {
     const cacheKey = file.uploadDate
       ? new Date(file.uploadDate).getTime().toString()
-      : (file.version || file.id || file.name || 'default');
+      : file.version || file.id || file.name || "default";
 
     return {
-    id: file.id,
-    name: file.name,
-    downloadUrl: `/api/documents/${documentId}/files/${file.id}/stream?download=1&v=${encodeURIComponent(
-      cacheKey
-    )}`,
-    isPrimary: activeFileId ? file.id === activeFileId : !!file.isPrimary,
+      id: file.id,
+      name: file.name,
+      downloadUrl: `/api/documents/${documentId}/files/${file.id}/stream?download=1&v=${encodeURIComponent(
+        cacheKey,
+      )}`,
+      isPrimary: activeFileId ? file.id === activeFileId : !!file.isPrimary,
     };
   });
 
@@ -335,13 +360,13 @@ export default function DocumentSignatureViewerPage() {
   const viewDocumentFiles = (sortedFiles || []).map((file) => {
     const cacheKey = file.uploadDate
       ? new Date(file.uploadDate).getTime().toString()
-      : (file.version || file.id || file.name || 'default');
+      : file.version || file.id || file.name || "default";
 
     return {
       id: file.id,
       name: file.name,
       downloadUrl: `/api/documents/${documentId}/files/${file.id}/stream?v=${encodeURIComponent(
-        cacheKey
+        cacheKey,
       )}`,
       isPrimary: activeFileId ? file.id === activeFileId : !!file.isPrimary,
     };
@@ -352,7 +377,7 @@ export default function DocumentSignatureViewerPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold">{documentDetail.title}</h1>
-          <p className="text-muted-foreground">Document ID: {documentDetail.document_id}</p>
+          {/* <p className="text-muted-foreground">Document ID: {documentDetail.document_id}</p> */}
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleGoBack}>
@@ -371,10 +396,11 @@ export default function DocumentSignatureViewerPage() {
       {releaseDepartmentId && (
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
           <p className="text-sm text-blue-800">
-            <strong>For Signature:</strong> This document will be released to department{' '}
+            <strong>For Signature:</strong> This document will be released to
+            department{" "}
             <span className="font-medium">
               {documentDetail.current_department?.name || releaseDepartmentId}
-            </span>{' '}
+            </span>{" "}
             for signature.
           </p>
         </div>
@@ -389,7 +415,9 @@ export default function DocumentSignatureViewerPage() {
                   <span>Document Viewer</span>
                   {documentFiles.length > 0 && (
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">File version:</span>
+                      <span className="text-xs text-muted-foreground">
+                        File version:
+                      </span>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
@@ -398,15 +426,20 @@ export default function DocumentSignatureViewerPage() {
                             className="h-8 rounded border bg-background px-2 text-xs flex justify-between items-center w-48"
                           >
                             <span className="truncate max-w-[100px]">
-                              {documentFiles.find(f => f.id === activeFileId)?.name ||
-                               documentFiles[0]?.name ||
-                               'Select file'}
-                              {documentFiles.find(f => f.id === activeFileId)?.isPrimary && ' (Primary)'}
+                              {documentFiles.find((f) => f.id === activeFileId)
+                                ?.name ||
+                                documentFiles[0]?.name ||
+                                "Select file"}
+                              {documentFiles.find((f) => f.id === activeFileId)
+                                ?.isPrimary && " (Primary)"}
                             </span>
                             <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56 max-h-64 overflow-y-auto">
+                        <DropdownMenuContent
+                          align="end"
+                          className="w-56 max-h-64 overflow-y-auto"
+                        >
                           {documentFiles.map((file, index) => (
                             <DropdownMenuItem
                               key={file.id}
@@ -418,7 +451,9 @@ export default function DocumentSignatureViewerPage() {
                                   {file.name || `File ${index + 1}`}
                                 </span>
                                 {file.isPrimary && (
-                                  <span className="text-xs text-muted-foreground">Primary</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    Primary
+                                  </span>
                                 )}
                               </div>
                             </DropdownMenuItem>
@@ -429,18 +464,15 @@ export default function DocumentSignatureViewerPage() {
                   )}
                 </div>
                 <div className="flex gap-2">
-                  {signatureMode === 'view' && user?.signature ? (
-                    <Button 
-                      size="sm" 
-                      onClick={() => setSignatureMode('place')}
-                    >
+                  {signatureMode === "view" && user?.signature ? (
+                    <Button size="sm" onClick={() => setSignatureMode("place")}>
                       Add Signature
                     </Button>
                   ) : (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => setSignatureMode('view')}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSignatureMode("view")}
                     >
                       <X className="h-4 w-4 mr-2" />
                       Cancel
@@ -453,9 +485,15 @@ export default function DocumentSignatureViewerPage() {
               <DocumentViewerWithSignatures
                 documentFiles={viewDocumentFiles}
                 signedDocuments={mappedSignedDocuments}
-                activeSignatureData={signatureMode === 'place' ? user?.signature || null : null}
-                onConfirmSignaturePlacement={signatureMode === 'place' ? handleConfirmSignaturePlacement : undefined}
-                onCancelSignaturePlacement={() => setSignatureMode('view')}
+                activeSignatureData={
+                  signatureMode === "place" ? user?.signature || null : null
+                }
+                onConfirmSignaturePlacement={
+                  signatureMode === "place"
+                    ? handleConfirmSignaturePlacement
+                    : undefined
+                }
+                onCancelSignaturePlacement={() => setSignatureMode("view")}
               />
             </CardContent>
           </Card>
@@ -473,7 +511,9 @@ export default function DocumentSignatureViewerPage() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Type</p>
-                <p className="font-medium">{documentDetail.detail?.document_type?.name || 'N/A'}</p>
+                <p className="font-medium">
+                  {documentDetail.detail?.document_type?.name || "N/A"}
+                </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Classification</p>
@@ -481,20 +521,25 @@ export default function DocumentSignatureViewerPage() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Department</p>
-                <p className="font-medium">{documentDetail.current_department?.name || 'N/A'}</p>
+                <p className="font-medium">
+                  {documentDetail.current_department?.name || "N/A"}
+                </p>
               </div>
               {releaseDepartmentId && (
                 <>
                   <div className="pt-4 border-t">
                     <p className="text-sm text-muted-foreground">Release To</p>
                     <p className="font-medium">
-                      {documentDetail.current_department?.name || releaseDepartmentId}
+                      {documentDetail.current_department?.name ||
+                        releaseDepartmentId}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Actions Required</p>
+                    <p className="text-sm text-muted-foreground">
+                      Actions Required
+                    </p>
                     <p className="font-medium">
-                      {releaseActions?.split(',').join(', ') || 'N/A'}
+                      {releaseActions?.split(",").join(", ") || "N/A"}
                     </p>
                   </div>
                 </>

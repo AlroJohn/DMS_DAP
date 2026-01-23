@@ -187,7 +187,7 @@ export default function Page() {
                   ? Math.round(
                       (data.workflowStats.completedWorkflows /
                         data.workflowStats.totalWorkflows) *
-                        100
+                        100,
                     ) + "%"
                   : "0%"}
               </p>

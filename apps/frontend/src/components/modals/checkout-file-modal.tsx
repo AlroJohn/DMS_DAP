@@ -108,7 +108,7 @@ const groupFilesToItems = (filesToGroup: DocumentFile[]): FileItem[] => {
       children: groupFiles.sort(
         (a, b) =>
           new Date(b.uploadDate as string).getTime() -
-          new Date(a.uploadDate as string).getTime()
+          new Date(a.uploadDate as string).getTime(),
       ),
     });
   });
@@ -250,7 +250,7 @@ export function CheckoutFileModal({
       // File is already checked out by the current user, just navigate to edit
       onOpenChange(false);
       router.push(
-        `/documents/${documentId}?mode=edit&fileId=${selectedFileId}`
+        `/documents/${documentId}?mode=edit&fileId=${selectedFileId}`,
       );
       return;
     }
@@ -266,18 +266,25 @@ export function CheckoutFileModal({
       }
       toast.success("File checked out successfully!");
       // Update local state to reflect the checkout
-      setFiles(prevFiles =>
-        prevFiles.map(file =>
+      setFiles((prevFiles) =>
+        prevFiles.map((file) =>
           file.id === selectedFileId
-            ? { ...file, checkout: true, checkedOutBy: { accountId: user?.accountId || '', name: user?.name || '' } }
-            : file
-        )
+            ? {
+                ...file,
+                checkout: true,
+                checkedOutBy: {
+                  accountId: user?.accountId || "",
+                  name: user?.name || "",
+                },
+              }
+            : file,
+        ),
       );
       // Refresh the file list to ensure consistency with server state
       await fetchFiles();
       onOpenChange(false);
       router.push(
-        `/documents/${documentId}?mode=edit&fileId=${selectedFileId}`
+        `/documents/${documentId}?mode=edit&fileId=${selectedFileId}`,
       );
     } catch (error: any) {
       toast.error(error.message);
@@ -300,7 +307,7 @@ export function CheckoutFileModal({
         `/api/documents/${documentId}/files/${fileId}`,
         {
           method: "DELETE",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -394,7 +401,7 @@ export function CheckoutFileModal({
           name: `${child.name} (v${child.version || "1.0"})`,
           type: "file",
           data: child,
-        }))
+        })),
       );
     }
   };
@@ -497,7 +504,18 @@ export function CheckoutFileModal({
                 onClick={fetchFiles}
                 disabled={isProcessing}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 mr-2">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4 mr-2"
+                >
                   <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
                   <path d="M21 3v5h-5"></path>
                   <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
@@ -515,7 +533,9 @@ export function CheckoutFileModal({
                     variant="outline"
                     size="sm"
                     onClick={handleSelectAllSignatureFiles}
-                    disabled={!selectableSignatureFileIds.length || isProcessing}
+                    disabled={
+                      !selectableSignatureFileIds.length || isProcessing
+                    }
                   >
                     Select all PDFs
                   </Button>
@@ -580,7 +600,8 @@ export function CheckoutFileModal({
                               ? "cursor-not-allowed bg-muted/30 text-muted-foreground"
                               : "cursor-pointer hover:bg-accent"
                           } ${
-                            (!isSignatureAction && selectedFileId === file.id) ||
+                            (!isSignatureAction &&
+                              selectedFileId === file.id) ||
                             isSelected
                               ? "bg-accent border-primary"
                               : ""
@@ -604,7 +625,9 @@ export function CheckoutFileModal({
                             )}
                             <File className="h-5 w-5 text-green-500 flex-shrink-0" />
                             <div className="overflow-hidden">
-                              <div className="font-medium truncate">
+                              <div
+                                className={`font-medium  ${file.name.length > 10 ? "truncate" : ""}`}
+                              >
                                 {file.name}
                               </div>
                               <div className="text-xs text-muted-foreground">
@@ -628,7 +651,9 @@ export function CheckoutFileModal({
                                   variant="ghost"
                                   size="sm"
                                   className="h-7 px-2"
-                                  onClick={(event) => handleUnlockFile(file.id, event)}
+                                  onClick={(event) =>
+                                    handleUnlockFile(file.id, event)
+                                  }
                                   disabled={isProcessing}
                                   title="Unlock file"
                                 >

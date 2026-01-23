@@ -144,7 +144,7 @@ const hexToRgbColor = (hex?: string | null) => {
   const r = (num >> 16) & 255;
   const g = (num >> 8) & 255;
   const b = num & 255;
-  return rgb(r / 255, g / 255, b / 255);
+  return rgb((r * 1.0) / 255, (g * 1.0) / 255, (b * 1.0) / 255);
 };
 
 const FONT_FAMILIES: Array<{
@@ -203,7 +203,7 @@ const FONT_FAMILIES: Array<{
 
 const findFamilyByFontName = (fontName: StandardFonts | undefined) =>
   FONT_FAMILIES.find((family) =>
-    Object.values(family.variants).some((variant) => variant === fontName)
+    Object.values(family.variants).some((variant) => variant === fontName),
   );
 
 const resolveFontVariant = ({
@@ -246,7 +246,7 @@ const resolveFontVariant = ({
 const detectFontFromPdf = async (
   documentId: string,
   fileId: string,
-  pageNumber: number
+  pageNumber: number,
 ) => {
   try {
     const url = `/api/documents/${documentId}/files/${fileId}/stream?download=1&v=${Date.now()}`;
@@ -377,7 +377,7 @@ export function EditablePdfViewer({
 
   const pdfFiles = useMemo(
     () => files.filter((file) => isPdfLikeFile(file)),
-    [files]
+    [files],
   );
   const [internalSelectedFileId, setInternalSelectedFileId] = useState<
     string | null
@@ -411,7 +411,12 @@ export function EditablePdfViewer({
   const [pages, setPages] = useState<PdfPageRender[]>([]);
   const [activePage, setActivePage] = useState(1); // activePage also moved here as it's directly related to pages
   const [isRendering, setIsRendering] = useState(false);
-  const RENDER_SCALE = 1.4;
+  const RENDER_SCALE = useMemo(() => 1.2, []);
+
+  // Memoize active page data for efficient rendering
+  const activePageData = useMemo(() => {
+    return pages.find((p) => p.pageNumber === activePage);
+  }, [pages, activePage]);
 
   useEffect(() => {
     if (pages.length === 0) {
@@ -493,7 +498,7 @@ export function EditablePdfViewer({
           error?.message?.includes("Worker was destroyed")
         ) {
           console.warn(
-            "PDF render was cancelled or worker was destroyed during cleanup."
+            "PDF render was cancelled or worker was destroyed during cleanup.",
           );
         } else {
           console.error("Failed to render PDF for editing", error);
@@ -528,6 +533,54 @@ export function EditablePdfViewer({
     };
   }, [documentId, selectedFile]);
 
+  // Load existing placeholders when selectedFile changes
+  useEffect(() => {
+    if (!selectedFile || !documentId) return;
+
+    const loadPlaceholders = async () => {
+      setIsLoadingPlaceholders(true);
+      try {
+        const [signaturePlaceholdersResponse, textPlaceholdersResponse] =
+          await Promise.all([
+            fetch(
+              `/api/document-signatures/documents/${documentId}/signature-placeholders`,
+            ),
+            fetch(
+              `/api/document-texts/documents/${documentId}/text-placeholders`,
+            ),
+          ]);
+
+        const signaturePlaceholders = signaturePlaceholdersResponse.ok
+          ? await signaturePlaceholdersResponse.json()
+          : [];
+        const textPlaceholders = textPlaceholdersResponse.ok
+          ? await textPlaceholdersResponse.json()
+          : [];
+
+        // Filter placeholders for the current file
+        const fileSignaturePlaceholders = signaturePlaceholders.filter(
+          (placeholder: any) =>
+            placeholder.document_file_id === selectedFile.id,
+        );
+
+        const fileTextPlaceholders = textPlaceholders.filter(
+          (placeholder: any) =>
+            placeholder.document_file_id === selectedFile.id,
+        );
+
+        setExistingSignaturePlaceholders(fileSignaturePlaceholders);
+        setExistingTextPlaceholders(fileTextPlaceholders);
+      } catch (error) {
+        console.error("Failed to load placeholders:", error);
+        toast.error("Failed to load existing placeholders");
+      } finally {
+        setIsLoadingPlaceholders(false);
+      }
+    };
+
+    loadPlaceholders();
+  }, [documentId, selectedFile]);
+
   // Original useEffect for rendering pages (depends on selectedFile) remains in its position.
   // const [pages, setPages] = useState<PdfPageRender[]>([]); // This line was moved and removed
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -538,17 +591,116 @@ export function EditablePdfViewer({
   // const [activePage, setActivePage] = useState(1); // This line was moved and removed
   const [isSaving, setIsSaving] = useState(false);
   const [pendingAssetType, setPendingAssetType] = useState<"image" | null>(
-    null
+    null,
   );
   const [placementMode, setPlacementMode] = useState<"text" | "image" | null>(
-    null
+    null,
   );
   const assetInputRef = useRef<HTMLInputElement>(null);
+
+  // State for existing placeholders
+  const [existingSignaturePlaceholders, setExistingSignaturePlaceholders] =
+    useState<any[]>([]);
+  const [existingTextPlaceholders, setExistingTextPlaceholders] = useState<
+    any[]
+  >([]);
+  const [isLoadingPlaceholders, setIsLoadingPlaceholders] = useState(false);
 
   const getSafeFontSize = (value?: number | null) => {
     if (typeof value !== "number" || Number.isNaN(value)) return 12;
     return value;
   };
+
+  // Define the default SVG placeholder image
+  const DEFAULT_SIGNATURE_PLACEHOLDER_SVG =
+    "data:image/svg+xml;base64," +
+    "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAgMCAxMDAgNTAiPjxyZWN0IHdpZHRoPSIxMDAiIGhlaWdodD0iNTAiIGZpbGw9IiNmZmYiLz48cmVjdCB4PSIxIiB5PSIxIiB3aWR0aD0iOTgiIGhlaWdodD0iNDgiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2NjYyIgc3Ryb2tlLXdpZHRoPSIyIi8+PHRleHQgeD0iNTAiIHk9IjI1IiBmb250LWZhbWlseT0iVmVyZGFuYSIgZm9udC1zaXplPSIxMiIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPlNJR05BVFVSRTwvdGV4dD48L3N2Zz4K";
+
+  // Convert existing placeholders to annotation-like objects for display
+  const convertPlaceholdersToAnnotations = (): Annotation[] => {
+    const convertedAnnotations: Annotation[] = [];
+
+    // Convert signature placeholders
+    existingSignaturePlaceholders.forEach((placeholder: any) => {
+      const page = pages.find((p) => p.pageNumber === placeholder.page_number);
+      const scaleX = page ? page.width / page.pdfWidth : RENDER_SCALE;
+      const scaleY = page ? page.height / page.pdfHeight : RENDER_SCALE;
+      const signatureAnnotation: ImageAnnotation = {
+        id: `placeholder-sig-${placeholder.placeholder_id}`,
+        type: "image",
+        pageNumber: placeholder.page_number,
+        x: placeholder.x_position * scaleX,
+        y: placeholder.y_position * scaleY,
+        width: placeholder.width * scaleX,
+        height: placeholder.height * scaleY,
+        dataUrl:
+          placeholder.signature_data || DEFAULT_SIGNATURE_PLACEHOLDER_SVG, // Use a default placeholder image if no signature data
+        mimeType: "image/svg+xml",
+      };
+      convertedAnnotations.push(signatureAnnotation);
+    });
+
+    // Convert text placeholders
+    existingTextPlaceholders.forEach((placeholder: any) => {
+      const page = pages.find((p) => p.pageNumber === placeholder.page_number);
+      const scaleX = page ? page.width / page.pdfWidth : RENDER_SCALE;
+      const scaleY = page ? page.height / page.pdfHeight : RENDER_SCALE;
+      const textAnnotation: TextAnnotation = {
+        id: `placeholder-txt-${placeholder.placeholder_id}`,
+        type: "text",
+        pageNumber: placeholder.page_number,
+        x: placeholder.x_position * scaleX,
+        y: placeholder.y_position * scaleY,
+        width: placeholder.width * scaleX,
+        height: placeholder.height * scaleY,
+        text: placeholder.text_value || "Text Placeholder",
+        fontSize: (placeholder.font_size || 12) * scaleY,
+        fontName: resolveFontVariant({
+          fontFamily: placeholder.font_family as FontFamilyId,
+        }).pdfFont,
+        fontFamily: placeholder.font_family as FontFamilyId,
+        isBold: placeholder.font_weight === "bold",
+        isItalic: placeholder.font_style === "italic",
+        listStyle: "none",
+        backgroundColor: "#ffffff",
+        textColor: placeholder.font_color || "#000000",
+      };
+      convertedAnnotations.push(textAnnotation);
+    });
+
+    return convertedAnnotations;
+  };
+
+  // Memoize all annotations with their indices for efficient rendering
+  const allAnnotationsWithIndices = useMemo(() => {
+    const allAnnotations = [
+      ...annotations,
+      ...convertPlaceholdersToAnnotations(),
+    ];
+    const userAnnotations = allAnnotations.filter(
+      (a) => !a.id.startsWith("placeholder-"),
+    );
+    const signaturePlaceholders = allAnnotations.filter((a) =>
+      a.id.startsWith("placeholder-sig-"),
+    );
+    const textPlaceholders = allAnnotations.filter((a) =>
+      a.id.startsWith("placeholder-txt-"),
+    );
+
+    return allAnnotations.map((annotation) => {
+      let index = 0;
+      if (annotation.id.startsWith("placeholder-sig-")) {
+        index =
+          signaturePlaceholders.findIndex((a) => a.id === annotation.id) + 1;
+      } else if (annotation.id.startsWith("placeholder-txt-")) {
+        index = textPlaceholders.findIndex((a) => a.id === annotation.id) + 1;
+      } else {
+        index = userAnnotations.findIndex((a) => a.id === annotation.id) + 1;
+      }
+
+      return { annotation, index };
+    });
+  }, [annotations, existingSignaturePlaceholders, existingTextPlaceholders]);
 
   const measureTextDimensions = (
     text: string,
@@ -557,7 +709,7 @@ export function EditablePdfViewer({
       cssFamily: string;
       fontWeight?: string;
       fontStyle?: string;
-    }
+    },
   ) => {
     const safeFontSize = getSafeFontSize(fontSize);
     const canvas = document.createElement("canvas");
@@ -604,7 +756,7 @@ export function EditablePdfViewer({
           dataUrl,
           mimeType: file.type || "image/png",
           fileName: file.name,
-        })
+        }),
       );
     } catch (error) {
       console.error("Failed to read image", error);
@@ -622,8 +774,8 @@ export function EditablePdfViewer({
       prev.map((annotation) =>
         annotation.id === id
           ? ({ ...annotation, ...updates } as Annotation)
-          : annotation
-      )
+          : annotation,
+      ),
     );
   };
 
@@ -641,7 +793,7 @@ export function EditablePdfViewer({
     if (!selectedAnnotationId || !selectedFile) return;
 
     const annotation = annotations.find(
-      (item) => item.id === selectedAnnotationId
+      (item) => item.id === selectedAnnotationId,
     );
     if (!annotation || annotation.type !== "text") return;
 
@@ -652,7 +804,7 @@ export function EditablePdfViewer({
       const detectedFont = await detectFontFromPdf(
         documentId,
         selectedFile.id,
-        annotation.pageNumber
+        annotation.pageNumber,
       );
 
       // Update the annotation with detected font properties
@@ -683,7 +835,7 @@ export function EditablePdfViewer({
 
   const clampPosition = (annotation: Annotation, x: number, y: number) => {
     const pageMeta = pages.find(
-      (page) => page.pageNumber === annotation.pageNumber
+      (page) => page.pageNumber === annotation.pageNumber,
     );
     if (!pageMeta) return { x, y };
     const maxX = Math.max(0, pageMeta.width - annotation.width);
@@ -700,7 +852,7 @@ export function EditablePdfViewer({
         if (annotation.id !== id) return annotation;
         const clamped = clampPosition(annotation, x, y);
         return { ...annotation, ...clamped };
-      })
+      }),
     );
   };
 
@@ -709,20 +861,20 @@ export function EditablePdfViewer({
     width: number,
     height: number,
     x: number,
-    y: number
+    y: number,
   ) => {
     setAnnotations((prev) =>
       prev.map((annotation) => {
         if (annotation.id !== id) return annotation;
         const clamped = clampPosition(annotation, x, y);
         return { ...annotation, width, height, ...clamped };
-      })
+      }),
     );
   };
 
   const handleCanvasClick = (
     event: React.MouseEvent<HTMLDivElement>,
-    pageNumber: number
+    pageNumber: number,
   ) => {
     if (!placementMode) return;
 
@@ -744,7 +896,7 @@ export function EditablePdfViewer({
         measureTextDimensions(
           formatListText(initialText, "none"),
           initialFontSize,
-          initialFont
+          initialFont,
         );
 
       const newAnnotation: TextAnnotation = {
@@ -817,7 +969,11 @@ export function EditablePdfViewer({
       toast.error("Select a PDF file to edit first.");
       return;
     }
-    if (annotations.length === 0) {
+    // Allow saving even if there are no new annotations, as long as there are existing placeholders
+    if (
+      annotations.length === 0 &&
+      convertPlaceholdersToAnnotations().length === 0
+    ) {
       toast.error("Add at least one text or image before saving.");
       return;
     }
@@ -837,6 +993,80 @@ export function EditablePdfViewer({
         throw new Error("No PDF file found to edit");
       }
 
+      // Fetch existing signature and text placeholders for this file
+      const [signaturePlaceholdersResponse, textPlaceholdersResponse] =
+        await Promise.all([
+          fetch(
+            `/api/document-signatures/documents/${documentId}/signature-placeholders`,
+          ),
+          fetch(
+            `/api/document-texts/documents/${documentId}/text-placeholders`,
+          ),
+        ]);
+
+      const signaturePlaceholders: Array<{
+        placeholder_id: string;
+        document_file_id: string;
+        x_position: number;
+        y_position: number;
+        width: number;
+        height: number;
+        page_number: number;
+        assigned_user_id?: string | null;
+      }> = signaturePlaceholdersResponse.ok
+        ? await signaturePlaceholdersResponse.json()
+        : [];
+
+      const textPlaceholders: Array<{
+        placeholder_id: string;
+        document_file_id: string;
+        x_position: number;
+        y_position: number;
+        width: number;
+        height: number;
+        page_number: number;
+        font_family: string;
+        font_size: number;
+        font_color: string;
+        text_value?: string | null;
+        assigned_user_id?: string | null;
+      }> = textPlaceholdersResponse.ok
+        ? await textPlaceholdersResponse.json()
+        : [];
+
+      // Get existing signatures for this file
+      const signaturesResponse = await fetch(
+        `/api/document-signatures/documents/${documentId}/signatures`,
+      );
+      const signatures: Array<{
+        document_file_id?: string;
+        documentFileFile_id?: string;
+        documentFile?: { file_id?: string };
+        page_number: number;
+        x_position: number;
+        y_position: number;
+        width: number;
+        height: number;
+        signature_data?: string | null;
+      }> = signaturesResponse.ok ? await signaturesResponse.json() : [];
+
+      // Filter placeholders and signatures for the current file
+      const fileSignaturePlaceholders = signaturePlaceholders.filter(
+        (placeholder) => placeholder.document_file_id === sourceFile.id,
+      );
+
+      const fileTextPlaceholders = textPlaceholders.filter(
+        (placeholder) => placeholder.document_file_id === sourceFile.id,
+      );
+
+      const fileSignatures = signatures.filter((signature) => {
+        const fileId =
+          signature.document_file_id ||
+          signature.documentFileFile_id ||
+          signature.documentFile?.file_id;
+        return fileId === sourceFile.id && signature.signature_data;
+      });
+
       const response = await fetch(
         `/api/documents/${documentId}/files/${
           sourceFile.id
@@ -844,7 +1074,7 @@ export function EditablePdfViewer({
         {
           method: "GET",
           credentials: "include",
-        }
+        },
       );
 
       if (!response.ok) {
@@ -861,9 +1091,135 @@ export function EditablePdfViewer({
         return embedded;
       };
 
+      // Apply existing signatures to the PDF
+      for (const signature of fileSignatures) {
+        const page = pdfDoc.getPage(signature.page_number - 1);
+        const { width: pageWidth, height: pageHeight } = page.getSize();
+
+        const renderWidth = signature.width;
+        const renderHeight = signature.height;
+        const x = signature.x_position;
+        const y = pageHeight - signature.y_position - renderHeight;
+
+        if (signature.signature_data) {
+          let sigBytes: Uint8Array;
+          if (signature.signature_data.startsWith("data:image/")) {
+            const parts = signature.signature_data.split(",");
+            const base64 = parts[1] ?? "";
+            const byteString = atob(base64);
+            sigBytes = new Uint8Array(byteString.length);
+            for (let i = 0; i < byteString.length; i += 1) {
+              sigBytes[i] = byteString.charCodeAt(i);
+            }
+          } else {
+            const imageResponse = await fetch(signature.signature_data);
+            if (!imageResponse.ok) {
+              throw new Error("Unable to load signature image data.");
+            }
+            const arrayBuffer = await imageResponse.arrayBuffer();
+            sigBytes = new Uint8Array(arrayBuffer);
+          }
+
+          try {
+            const isPng =
+              signature.signature_data.startsWith("data:image/png");
+            const isJpg =
+              signature.signature_data.startsWith("data:image/jpeg") ||
+              signature.signature_data.startsWith("data:image/jpg");
+
+            let image;
+            if (isPng) {
+              image = await pdfDoc.embedPng(sigBytes);
+            } else if (isJpg) {
+              image = await pdfDoc.embedJpg(sigBytes);
+            } else {
+              // As a fallback for URLs, attempt JPG and catch errors for unsupported formats.
+              image = await pdfDoc.embedJpg(sigBytes);
+            }
+
+            page.drawImage(image, {
+              x,
+              y,
+              width: renderWidth,
+              height: renderHeight,
+            });
+          } catch (e) {
+            console.warn(
+              `Skipping signature with unsupported image type: ${signature.signature_data}`,
+              e,
+            );
+          }
+        }
+      }
+
+      // Apply existing text placeholders to the PDF
+      for (const textPlaceholder of fileTextPlaceholders) {
+        if (!textPlaceholder.text_value) continue;
+
+        const page = pdfDoc.getPage(textPlaceholder.page_number - 1);
+        const { width: pageWidth, height: pageHeight } = page.getSize();
+
+        const boxWidth = textPlaceholder.width;
+        const boxHeight = textPlaceholder.height;
+
+        const fontName = textPlaceholder.font_family
+          .toLowerCase()
+          .includes("courier")
+          ? StandardFonts.Courier
+          : textPlaceholder.font_family.toLowerCase().includes("times")
+            ? StandardFonts.TimesRoman
+            : StandardFonts.Helvetica;
+
+        const font = await getFont(fontName);
+        const baseSize = Math.max(6, textPlaceholder.font_size || 12);
+        const text = textPlaceholder.text_value;
+
+        const widthAtSize = font.widthOfTextAtSize(text, baseSize);
+        const size =
+          widthAtSize > boxWidth
+            ? Math.max(6, (boxWidth / widthAtSize) * baseSize)
+            : baseSize;
+
+        const textWidth = font.widthOfTextAtSize(text, size);
+        const textHeight = font.heightAtSize(size);
+
+        const x =
+          textPlaceholder.x_position + ((boxWidth - textWidth) * 1.0) / 2;
+        const y =
+          pageHeight -
+          textPlaceholder.y_position -
+          boxHeight +
+          ((boxHeight - textHeight) * 1.0) / 2;
+
+        const hex = textPlaceholder.font_color.replace(
+          new RegExp("#", "g"),
+          "",
+        );
+        const normalized =
+          hex.length === 3
+            ? hex
+                .split("")
+                .map((char) => char + char)
+                .join("")
+            : hex.padEnd(6, "0");
+        const intValue = Number.parseInt(normalized.slice(0, 6), 16);
+        const r = (((intValue >> 16) & 255) * 1.0) / 255;
+        const g = (((intValue >> 8) & 255) * 1.0) / 255;
+        const b = ((intValue & 255) * 1.0) / 255;
+
+        page.drawText(text, {
+          x,
+          y,
+          size,
+          font,
+          color: rgb(r, g, b),
+        });
+      }
+
+      // Process all USER-ADDED annotations
       for (const annotation of annotations) {
         const meta = pages.find(
-          (page) => page.pageNumber === annotation.pageNumber
+          (page) => page.pageNumber === annotation.pageNumber,
         );
         if (!meta) continue;
         const page = pdfDoc.getPage(annotation.pageNumber - 1);
@@ -887,7 +1243,7 @@ export function EditablePdfViewer({
           const font = await getFont(resolvedFont.pdfFont);
           const textValue = formatListText(
             annotation.text || "",
-            annotation.listStyle
+            annotation.listStyle,
           );
           const rectWidth = renderWidth;
           const rectHeight = renderHeight;
@@ -921,9 +1277,20 @@ export function EditablePdfViewer({
           });
         } else if (annotation.type === "image") {
           const bytes = dataUrlToUint8Array(annotation.dataUrl);
-          const image = annotation.mimeType.includes("png")
-            ? await pdfDoc.embedPng(bytes)
-            : await pdfDoc.embedJpg(bytes);
+          let image;
+          if (
+            annotation.mimeType.includes("jpeg") ||
+            annotation.mimeType.includes("jpg")
+          ) {
+            image = await pdfDoc.embedJpg(bytes);
+          } else if (annotation.mimeType.includes("png")) {
+            image = await pdfDoc.embedPng(bytes);
+          } else {
+            console.warn(
+              `Skipping unsupported image type for annotation: ${annotation.mimeType}`,
+            );
+            continue;
+          }
           page.drawImage(image, {
             x: rectX,
             y: rectY,
@@ -935,7 +1302,7 @@ export function EditablePdfViewer({
 
       const editedBytes = await pdfDoc.save();
       const editedFileName = `${(selectedFile.name || "document")
-        .replace(/\.pdf$/i, "")
+        .replace(new RegExp("\\.pdf$", "i"), "")
         .trim()}-edited-${Date.now()}.pdf`;
       const editedCopy = new Uint8Array(editedBytes);
       const editedBlob = new Blob([editedCopy], { type: "application/pdf" });
@@ -962,12 +1329,12 @@ export function EditablePdfViewer({
 
       if (!uploadResponse.ok || uploadResult.success === false) {
         throw new Error(
-          uploadResult.error?.message || "Failed to upload edited PDF."
+          uploadResult.error?.message || "Failed to upload edited PDF.",
         );
       }
 
       toast.success(
-        "Saved a new PDF version. The previous file remains available."
+        "Saved a new PDF version. The previous file remains available.",
       );
       clearAnnotations();
       const newFileId = (uploadResult.data && uploadResult.data[0]?.id) || null;
@@ -979,7 +1346,7 @@ export function EditablePdfViewer({
           {
             method: "POST",
             credentials: "include",
-          }
+          },
         );
 
         if (!checkinResponse.ok) {
@@ -988,7 +1355,7 @@ export function EditablePdfViewer({
           }));
           console.warn(
             "Failed to checkin file after save:",
-            checkinResult.error?.message || "Unknown error"
+            checkinResult.error?.message || "Unknown error",
           );
           // Don't throw an error here as the save was successful, just warn the user
           toast.warning("Document saved but failed to release file lock");
@@ -1016,10 +1383,47 @@ export function EditablePdfViewer({
 
   const renderAnnotationControls = () => {
     if (!selectedAnnotationId) return null;
-    const annotation = annotations.find(
-      (item) => item.id === selectedAnnotationId
-    );
+
+    // Check if it's a placeholder annotation
+    const isPlaceholder = selectedAnnotationId.startsWith("placeholder-");
+
+    let annotation: Annotation | undefined;
+    if (isPlaceholder) {
+      // Find in converted placeholders
+      const allAnnotations = convertPlaceholdersToAnnotations();
+      annotation = allAnnotations.find(
+        (item) => item.id === selectedAnnotationId,
+      );
+    } else {
+      // Find in user annotations
+      annotation = annotations.find((item) => item.id === selectedAnnotationId);
+    }
+
     if (!annotation) return null;
+
+    // Don't show controls for placeholders
+    if (isPlaceholder) {
+      return (
+        <div className="rounded-md bg-background p-4 shadow-none">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium capitalize">
+                {annotation.type} (Placeholder)
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Page {annotation.pageNumber}
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground">Read-only</p>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            This is an existing placeholder. To modify it, you need to update it
+            through the document management system.
+          </p>
+        </div>
+      );
+    }
+
     return (
       <div className="rounded-md bg-background p-4 shadow-none">
         <div className="flex items-center justify-between">
@@ -1051,13 +1455,13 @@ export function EditablePdfViewer({
                   const newText = event.target.value;
                   const formatted = formatListText(
                     newText,
-                    annotation.listStyle
+                    annotation.listStyle,
                   );
                   const style = getFontStyleForAnnotation(annotation);
                   const dims = measureTextDimensions(
                     formatted,
                     annotation.fontSize,
-                    style
+                    style,
                   );
                   updateAnnotation(annotation.id, {
                     text: newText,
@@ -1083,12 +1487,12 @@ export function EditablePdfViewer({
                     });
                     const formatted = formatListText(
                       annotation.text,
-                      annotation.listStyle
+                      annotation.listStyle,
                     );
                     const dims = measureTextDimensions(
                       formatted,
                       annotation.fontSize,
-                      style
+                      style,
                     );
                     updateAnnotation(annotation.id, {
                       fontName: style.pdfFont,
@@ -1138,13 +1542,13 @@ export function EditablePdfViewer({
                     const nextSize = clampFontSize(raw);
                     const formatted = formatListText(
                       annotation.text,
-                      annotation.listStyle
+                      annotation.listStyle,
                     );
                     const style = getFontStyleForAnnotation(annotation);
                     const dims = measureTextDimensions(
                       formatted,
                       nextSize,
-                      style
+                      style,
                     );
                     updateAnnotation(annotation.id, {
                       fontSize: nextSize,
@@ -1198,12 +1602,12 @@ export function EditablePdfViewer({
                   });
                   const formatted = formatListText(
                     annotation.text,
-                    annotation.listStyle
+                    annotation.listStyle,
                   );
                   const dims = measureTextDimensions(
                     formatted,
                     annotation.fontSize,
-                    style
+                    style,
                   );
                   updateAnnotation(annotation.id, {
                     isBold: nextBold,
@@ -1230,12 +1634,12 @@ export function EditablePdfViewer({
                   });
                   const formatted = formatListText(
                     annotation.text,
-                    annotation.listStyle
+                    annotation.listStyle,
                   );
                   const dims = measureTextDimensions(
                     formatted,
                     annotation.fontSize,
-                    style
+                    style,
                   );
                   updateAnnotation(annotation.id, {
                     isItalic: nextItalic,
@@ -1261,7 +1665,7 @@ export function EditablePdfViewer({
                     const dims = measureTextDimensions(
                       formatted,
                       annotation.fontSize,
-                      style
+                      style,
                     );
                     updateAnnotation(annotation.id, {
                       listStyle: nextList,
@@ -1356,7 +1760,7 @@ export function EditablePdfViewer({
                   value={
                     annotation.backgroundColor === undefined
                       ? "#ffffff"
-                      : annotation.backgroundColor ?? "transparent"
+                      : (annotation.backgroundColor ?? "transparent")
                   }
                   onValueChange={(value) => {
                     updateAnnotation(annotation.id, {
@@ -1414,7 +1818,7 @@ export function EditablePdfViewer({
                 const nextSize = clampFontSize(raw);
                 const formatted = formatListText(
                   annotation.text,
-                  annotation.listStyle
+                  annotation.listStyle,
                 );
                 const style = getFontStyleForAnnotation(annotation);
                 const dims = measureTextDimensions(formatted, nextSize, style);
@@ -1547,192 +1951,296 @@ export function EditablePdfViewer({
 
             <div className="flex flex-col gap-4 lg:flex-row">
               <div className="flex-1 overflow-auto bg-transparent p-0">
-                {isRendering && (
-                  <div className="flex flex-col items-center justify-center gap-2 py-16">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                    <p className="text-sm text-muted-foreground">
-                      Rendering PDF pages…
-                    </p>
-                  </div>
-                )}
+                <div className="flex items-center justify-center min-w-full">
+                  {isRendering || !activePageData ? (
+                    <div className="flex flex-col items-center gap-2 p-6 text-sm text-muted-foreground">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                      <span>Loading PDF page...</span>
+                    </div>
+                  ) : (
+                    <div
+                      className={cn(
+                        "relative",
+                        placementMode && "cursor-crosshair",
+                      )}
+                      style={{
+                        width: activePageData.width,
+                        height: activePageData.height,
+                      }}
+                      onClick={(event) => {
+                        if (placementMode) {
+                          handleCanvasClick(event, activePageData.pageNumber);
+                        } else {
+                          handleCanvasBackgroundClick();
+                        }
+                      }}
+                    >
+                      <img
+                        src={activePageData.imageUrl}
+                        alt={`Page ${activePageData.pageNumber}`}
+                        className="h-full w-full object-fill rounded-md border border-red-500 bg-white"
+                        style={{
+                          width: activePageData.width,
+                          height: activePageData.height,
+                        }}
+                      />
 
-                {!isRendering && pages.length === 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    Select a PDF file to begin editing.
-                  </p>
-                )}
+                      {allAnnotationsWithIndices
 
-                {!isRendering &&
-                  pages.map((page) => (
-                    <div key={page.pageNumber} className="mb-6">
-                      <div
-                        className="relative"
-                        style={{ width: page.width, height: page.height }}
-                      >
-                        <img
-                          src={page.imageUrl}
-                          alt={`Page ${page.pageNumber}`}
-                          className="pointer-events-none absolute border border-primary/50 rounded-md inset-0 h-full w-full select-none object-contain"
-                        />
-                        <div
-                          className="absolute inset-0"
-                          style={{ width: page.width, height: page.height }}
-                          onClick={(event) => {
-                            if (placementMode) {
-                              handleCanvasClick(event, page.pageNumber);
-                            } else {
-                              handleCanvasBackgroundClick();
-                            }
-                          }}
-                        >
-                          {annotations
-                            .filter(
-                              (annotation) =>
-                                annotation.pageNumber === page.pageNumber
-                            )
-                            .map((annotation) => {
-                              const isText = annotation.type === "text";
-                              const displayFontSize = getSafeFontSize(
-                                isText ? annotation.fontSize : undefined
-                              );
-                              const resolvedBg =
-                                isText &&
-                                annotation.backgroundColor === undefined
-                                  ? "#ffffff"
-                                  : isText
-                                  ? annotation.backgroundColor
-                                  : undefined;
-                              const isEditing =
-                                isText && editingTextId === annotation.id;
-                              const resolvedFont = isText
-                                ? getFontStyleForAnnotation(annotation)
-                                : null;
-                              const formattedText = isText
-                                ? formatListText(
-                                    annotation.text,
-                                    annotation.listStyle
-                                  )
-                                : "";
+                        .filter(
+                          ({ annotation }) =>
+                            annotation.pageNumber === activePage,
+                        )
+
+                        .map(({ annotation, index }) => {
+                          const isText = annotation.type === "text";
+
+                          const isPlaceholder =
+                            annotation.id.startsWith("placeholder-");
+
+                          if (isPlaceholder) {
+                            if (annotation.type === "image") {
+                              // Signature placeholder
 
                               return (
-                                <RndAnnotation
+                                <Rnd
                                   key={annotation.id}
-                                  annotation={annotation}
-                                  selected={
-                                    annotation.id === selectedAnnotationId
-                                  }
-                                  onSelect={() =>
-                                    setSelectedAnnotationId(annotation.id)
-                                  }
-                                  onPositionChange={updateAnnotationPosition}
-                                  onResize={updateAnnotationSize}
-                                  onRemove={removeAnnotation}
-                                  onMouseDownCapture={(event) => {
-                                    event.stopPropagation();
-                                    setSelectedAnnotationId(annotation.id);
-                                    if (isText) {
-                                      setEditingTextId(annotation.id);
-                                    } else {
-                                      setEditingTextId(null);
-                                    }
+                                  size={{
+                                    width: annotation.width,
+
+                                    height: annotation.height,
                                   }}
+                                  position={{
+                                    x: annotation.x,
+                                    y: annotation.y,
+                                  }}
+                                  disableDragging
+                                  enableResizing={false}
+                                  className="absolute rounded-md border-2 shadow-sm border-emerald-500/70 bg-emerald-500/10"
                                 >
-                                  {isText ? (
-                                    isEditing ? (
-                                      <textarea
-                                        rows={1}
-                                        className="
-                                          annotation-input
-                                          min-w-[24px]
-                                          w-full
-                                          resize-none
-                                          outline-none
-                                          pb-2
-                                          leading-none
-                                          overflow-hidden
-                                        "
-                                        value={annotation.text}
-                                        style={{
-                                          fontSize: displayFontSize,
-                                          lineHeight: `${displayFontSize}px`,
-                                          whiteSpace: "pre-wrap",
-                                          fontFamily: resolvedFont?.cssFamily,
-                                          fontWeight: resolvedFont?.fontWeight,
-                                          fontStyle: resolvedFont?.fontStyle,
-                                          color:
-                                            annotation.textColor || "#000000",
-                                          backgroundColor:
-                                            resolvedBg || "transparent",
-                                        }}
-                                        autoFocus
-                                        onBlur={() => setEditingTextId(null)}
-                                        onChange={(event) => {
-                                          const el = event.target;
-                                          el.style.height = "auto";
-                                          el.style.height = `${el.scrollHeight}px`;
-
-                                          const newText = el.value;
-                                          if (resolvedFont) {
-                                            const dims = measureTextDimensions(
-                                              formatListText(
-                                                newText,
-                                                annotation.listStyle
-                                              ),
-                                              displayFontSize,
-                                              resolvedFont
-                                            );
-
-                                            updateAnnotation(annotation.id, {
-                                              text: newText,
-                                              width: dims.width,
-                                              height: dims.height,
-                                            });
-                                          }
-                                        }}
-                                      />
-                                    ) : (
-                                      <div
-                                        className="h-full w-full cursor-text select-none"
-                                        style={{
-                                          fontSize: displayFontSize,
-                                          lineHeight: `${displayFontSize}px`,
-                                          whiteSpace: "pre-wrap",
-                                          fontFamily: resolvedFont?.cssFamily,
-                                          fontWeight: resolvedFont?.fontWeight,
-                                          fontStyle: resolvedFont?.fontStyle,
-                                          color:
-                                            annotation.textColor || "#000000",
-                                          backgroundColor:
-                                            resolvedBg || "transparent",
-                                        }}
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          setSelectedAnnotationId(
-                                            annotation.id
-                                          );
-                                          setEditingTextId(annotation.id);
-                                        }}
-                                      >
-                                        {annotation.text}
-                                      </div>
-                                    )
-                                  ) : (
-                                    <img
-                                      src={annotation.dataUrl}
-                                      alt={annotation.type}
-                                      className="h-full w-full rounded object-contain"
-                                    />
-                                  )}
-                                </RndAnnotation>
+                                  <div className="flex h-full w-full items-center justify-center text-[11px] font-medium text-emerald-800">
+                                    Existing Signature #{index}
+                                  </div>
+                                </Rnd>
                               );
-                            })}
-                        </div>
-                      </div>
+                            }
+
+                            if (annotation.type === "text") {
+                              // Text placeholder
+
+                              const resolvedFont =
+                                getFontStyleForAnnotation(annotation);
+
+                              return (
+                                <Rnd
+                                  key={annotation.id}
+                                  size={{
+                                    width: annotation.width,
+
+                                    height: annotation.height,
+                                  }}
+                                  position={{
+                                    x: annotation.x,
+                                    y: annotation.y,
+                                  }}
+                                  disableDragging
+                                  enableResizing={false}
+                                  className="absolute rounded-md border-2 border-dashed shadow-sm bg-transparent border-amber-500/70"
+                                >
+                                  <div
+                                    className="flex h-full w-full items-center justify-center text-xs text-center px-1"
+                                    style={{
+                                      fontFamily: resolvedFont?.cssFamily,
+
+                                      // fontSize: annotation.fontSize,
+
+                                      color: annotation.textColor || "#000000",
+
+                                      fontWeight: resolvedFont?.fontWeight,
+
+                                      fontStyle: resolvedFont?.fontStyle,
+                                    }}
+                                  >
+                                    Text Placeholder #{index}
+                                  </div>
+                                </Rnd>
+                              );
+                            }
+
+                            return null; // Should not happen
+                          }
+
+                          const displayFontSize = getSafeFontSize(
+                            isText ? annotation.fontSize : undefined,
+                          );
+
+                          const resolvedBg =
+                            isText && annotation.backgroundColor === undefined
+                              ? "#ffffff"
+                              : isText
+                                ? annotation.backgroundColor
+                                : undefined;
+
+                          const isEditing =
+                            isText &&
+                            editingTextId === annotation.id &&
+                            !isPlaceholder; // Prevent editing placeholders
+
+                          const resolvedFont = isText
+                            ? getFontStyleForAnnotation(annotation)
+                            : null;
+
+                          const formattedText = isText
+                            ? formatListText(
+                                annotation.text,
+
+                                annotation.listStyle,
+                              )
+                            : "";
+
+                          return (
+                            <RndAnnotation
+                              key={annotation.id}
+                              annotation={annotation}
+                              selected={annotation.id === selectedAnnotationId}
+                              onSelect={
+                                () =>
+                                  !isPlaceholder &&
+                                  setSelectedAnnotationId(annotation.id) // Don't select placeholders
+                              }
+                              onPositionChange={
+                                isPlaceholder
+                                  ? undefined
+                                  : updateAnnotationPosition
+                              } // Only allow moving user annotations
+                              onResize={
+                                isPlaceholder ? undefined : updateAnnotationSize
+                              } // Only allow resizing user annotations
+                              onRemove={
+                                isPlaceholder ? undefined : removeAnnotation
+                              } // Only allow removing user annotations
+                              onMouseDownCapture={(event) => {
+                                if (!isPlaceholder) {
+                                  // Only handle user annotations
+
+                                  event.stopPropagation();
+
+                                  setSelectedAnnotationId(annotation.id);
+
+                                  if (isText) {
+                                    setEditingTextId(annotation.id);
+                                  } else {
+                                    setEditingTextId(null);
+                                  }
+                                }
+                              }}
+                            >
+                              {isText ? (
+                                isEditing ? (
+                                  <textarea
+                                    rows={1}
+                                    className="annotation-input min-w-[24px] w-full resize-none outline-none pb-2 leading-none overflow-hidden"
+                                    value={annotation.text}
+                                    style={{
+                                      fontSize: displayFontSize,
+
+                                      lineHeight: `${displayFontSize}px`,
+
+                                      whiteSpace: "pre-wrap",
+
+                                      fontFamily: resolvedFont?.cssFamily,
+
+                                      fontWeight: resolvedFont?.fontWeight,
+
+                                      fontStyle: resolvedFont?.fontStyle,
+
+                                      color: annotation.textColor || "#000000",
+
+                                      backgroundColor:
+                                        resolvedBg || "transparent",
+                                    }}
+                                    autoFocus
+                                    onBlur={() => setEditingTextId(null)}
+                                    onChange={(event) => {
+                                      const el = event.target;
+
+                                      el.style.height = "auto";
+
+                                      el.style.height = `${el.scrollHeight}px`;
+
+                                      const newText = el.value;
+
+                                      if (resolvedFont) {
+                                        const dims = measureTextDimensions(
+                                          formatListText(
+                                            newText,
+
+                                            annotation.listStyle,
+                                          ),
+
+                                          displayFontSize,
+
+                                          resolvedFont,
+                                        );
+
+                                        updateAnnotation(annotation.id, {
+                                          text: newText,
+
+                                          width: dims.width,
+
+                                          height: dims.height,
+                                        });
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <div
+                                    className="h-full w-full cursor-text select-none"
+                                    style={{
+                                      fontSize: displayFontSize,
+
+                                      lineHeight: `${displayFontSize}px`,
+
+                                      whiteSpace: "pre-wrap",
+
+                                      fontFamily: resolvedFont?.cssFamily,
+
+                                      fontWeight: resolvedFont?.fontWeight,
+
+                                      fontStyle: resolvedFont?.fontStyle,
+
+                                      color: annotation.textColor || "#000000",
+
+                                      backgroundColor:
+                                        resolvedBg || "transparent",
+                                    }}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+
+                                      setSelectedAnnotationId(annotation.id);
+
+                                      setEditingTextId(annotation.id);
+                                    }}
+                                  >
+                                    {annotation.text}
+                                  </div>
+                                )
+                              ) : (
+                                <img
+                                  src={annotation.dataUrl}
+                                  alt={annotation.type}
+                                  className="h-full w-full rounded object-contain"
+                                />
+                              )}
+                            </RndAnnotation>
+                          );
+                        })}
                     </div>
-                  ))}
+                  )}
+                </div>
               </div>
 
-              <div className="w-full max-w-sm space-y-3 rounded-md border bg-background p-3">
+              <div className="w-full md:w-72 space-y-3 rounded-md border bg-background p-3">
                 <div className="rounded-md bg-muted/60 p-3 text-sm text-muted-foreground">
                   Saving uploads a brand-new PDF to this document. Older
                   versions stay visible in the file list for auditing and
@@ -1742,11 +2250,10 @@ export function EditablePdfViewer({
                 <div className="rounded-md border bg-muted/40 p-3">
                   <p className="text-sm font-medium">Annotations</p>
                   <p className="text-xs text-muted-foreground">
-                    {annotations.length === 0
-                      ? "No annotations yet."
-                      : `${annotations.length} item${
-                          annotations.length === 1 ? "" : "s"
-                        } added`}
+                    {annotations.length === 0 &&
+                    convertPlaceholdersToAnnotations().length === 0
+                      ? "No annotations or placeholders."
+                      : `${annotations.length} user annotation${annotations.length === 1 ? "" : "s"}, ${convertPlaceholdersToAnnotations().length} placeholder${convertPlaceholdersToAnnotations().length === 1 ? "" : "s"}`}
                   </p>
                 </div>
 
@@ -1778,7 +2285,11 @@ export function EditablePdfViewer({
                 <Button
                   className="w-full"
                   onClick={handleSave}
-                  disabled={isSaving || annotations.length === 0}
+                  disabled={
+                    isSaving ||
+                    (annotations.length === 0 &&
+                      convertPlaceholdersToAnnotations().length === 0)
+                  }
                 >
                   {isSaving ? (
                     <>
@@ -1813,15 +2324,15 @@ interface RndAnnotationProps {
   annotation: Annotation;
   selected: boolean;
   onSelect: () => void;
-  onPositionChange: (id: string, x: number, y: number) => void;
-  onResize: (
+  onPositionChange?: (id: string, x: number, y: number) => void;
+  onResize?: (
     id: string,
     width: number,
     height: number,
     x: number,
-    y: number
+    y: number,
   ) => void;
-  onRemove: (id: string) => void;
+  onRemove?: (id: string) => void;
   children: React.ReactNode;
   // Rnd uses native MouseEvent; keep this narrow to avoid React MouseEvent mismatch
   onMouseDownCapture?: (event: { stopPropagation: () => void }) => void;
@@ -1842,16 +2353,19 @@ function RndAnnotation({
     annotation.type === "text"
       ? Math.max(18, Math.round(annotation.fontSize) + 4)
       : 40;
-  const enableResizing = {
-    top: true,
-    right: true,
-    bottom: true,
-    left: true,
-    topRight: true,
-    topLeft: true,
-    bottomRight: true,
-    bottomLeft: true,
-  };
+  const enableResizing =
+    onPositionChange && onResize
+      ? {
+          top: true,
+          right: true,
+          bottom: true,
+          left: true,
+          topRight: true,
+          topLeft: true,
+          bottomRight: true,
+          bottomLeft: true,
+        }
+      : false;
 
   return (
     <Rnd
@@ -1863,20 +2377,28 @@ function RndAnnotation({
       enableResizing={enableResizing}
       dragHandleClassName="annotation-drag-handle"
       onMouseDown={onMouseDownCapture}
-      onDragStop={(_, data) => onPositionChange(annotation.id, data.x, data.y)}
-      onResizeStop={(_, _dir, ref, _delta, position) => {
-        onResize(
-          annotation.id,
-          ref.offsetWidth,
-          ref.offsetHeight,
-          position.x,
-          position.y
-        );
-      }}
+      onDragStop={
+        onPositionChange
+          ? (_, data) => onPositionChange(annotation.id, data.x, data.y)
+          : undefined
+      }
+      onResizeStop={
+        onResize
+          ? (_, _dir, ref, _delta, position) => {
+              onResize(
+                annotation.id,
+                ref.offsetWidth,
+                ref.offsetHeight,
+                position.x,
+                position.y,
+              );
+            }
+          : undefined
+      }
       className={cn(
         "absolute annotation-drag-handle rounded-md border p-0 shadow-none group",
         selected ? "border-primary ring-2 ring-primary/60" : "border-muted",
-        annotation.type === "text" ? "bg-transparent" : "bg-white/0"
+        annotation.type === "text" ? "bg-transparent" : "bg-white/0",
       )}
     >
       <div className="relative h-fit w-full p-0">

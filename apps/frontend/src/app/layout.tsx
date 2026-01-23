@@ -36,6 +36,9 @@ export const metadata: Metadata = {
   title: "Document Management System Feat Qsign",
   description:
     "A document management system integrated with Qsign for seamless digital signatures.",
+  icons: {
+    icon: "/image/qby.png",
+  },
 };
 
 export default function RootLayout({

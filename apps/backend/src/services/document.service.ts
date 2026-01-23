@@ -1804,10 +1804,8 @@ export class DocumentService {
     }
 
     // This variable will be used if we're branching (versionGroupId provided)
-    // If not branching, each file will get its own version_group_id in the loop
     let branchingVersionGroupId: string | null = null;
     if (versionGroupId) {
-      // Use the provided versionGroupId for branching
       branchingVersionGroupId = versionGroupId;
     }
 
@@ -1817,7 +1815,6 @@ export class DocumentService {
     });
 
     let hasRealFile = existingFiles.some((file: any) => !this.isPlaceholderFile(file));
-    const existingCount = existingFiles.length;
 
     // If we're branching (versionGroupId provided), find existing files in this version group to determine the next version
     let nextVersionInGroup = 1;
@@ -1837,20 +1834,33 @@ export class DocumentService {
         nextVersionInGroup = currentMinor + 1;
       }
     }
-
+    
+    let originalFileToCloneFrom: { file_id: string } | null = null;
+    if (versionGroupId) {
+      originalFileToCloneFrom = await prisma.documentFile.findFirst({
+        where: {
+          document_id: documentId,
+          version_group_id: versionGroupId,
+        },
+        orderBy: {
+          version: 'asc',
+        },
+        select: {
+          file_id: true,
+        },
+      });
+    }
+    
     const uploadedFiles = [];
 
     for (const [index, file] of files.entries()) {
       const fileMetadata = getFileMetadata(file);
       const checksum = await this.calculateChecksum(fileMetadata.path);
 
-      // For branching, increment the version number within the same group
-      // For new uploads (not branching), each file gets its own version group with version 1.0
       const version = versionGroupId
-        ? `1.${nextVersionInGroup + index}`  // Branching: increment within group (e.g., 1.4, 1.5...)
-        : `1.0`;  // New file in new group: all get version 1.0
+        ? `1.${nextVersionInGroup + index}`
+        : `1.0`;
 
-      // If branching, use the same version group; otherwise, each file gets its own version group
       const currentFileVersionGroupId = branchingVersionGroupId || crypto.randomUUID();
 
       const shouldBePrimary = !hasRealFile && index === 0;
@@ -1870,6 +1880,56 @@ export class DocumentService {
           version_group_id: currentFileVersionGroupId
         }
       });
+      
+      if (originalFileToCloneFrom) {
+        // Clone Signature Placeholders
+        const signaturePlaceholdersToClone =
+          await prisma.signaturePlaceholder.findMany({
+            where: { document_file_id: originalFileToCloneFrom.file_id },
+          });
+
+        if (signaturePlaceholdersToClone.length > 0) {
+          await prisma.signaturePlaceholder.createMany({
+            data: signaturePlaceholdersToClone.map((p) => ({
+              document_id: p.document_id,
+              document_file_id: created.file_id, // Link to new file
+              assigned_user_id: p.assigned_user_id,
+              x_position: p.x_position,
+              y_position: p.y_position,
+              width: p.width,
+              height: p.height,
+              page_number: p.page_number,
+            })),
+          });
+        }
+
+        // Clone Text Placeholders
+        const textPlaceholdersToClone = await prisma.textPlaceholder.findMany({
+          where: { document_file_id: originalFileToCloneFrom.file_id },
+        });
+
+        if (textPlaceholdersToClone.length > 0) {
+          await prisma.textPlaceholder.createMany({
+            data: textPlaceholdersToClone.map((p) => ({
+              document_id: p.document_id,
+              document_file_id: created.file_id, // Link to new file
+              assigned_user_id: p.assigned_user_id,
+              x_position: p.x_position,
+              y_position: p.y_position,
+              width: p.width,
+              height: p.height,
+              page_number: p.page_number,
+              font_family: p.font_family,
+              font_size: p.font_size,
+              font_color: p.font_color,
+              text_value: p.text_value,
+            })),
+          });
+        }
+        console.log(
+          `Cloned placeholders from ${originalFileToCloneFrom.file_id} to new file ${created.file_id}`,
+        );
+      }
 
       if (enableOcr) {
         this.queueOcrProcessing({

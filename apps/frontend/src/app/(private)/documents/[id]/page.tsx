@@ -63,7 +63,7 @@ const parseVersion = (value?: string | null) => {
 
 const compareDocumentFilesByVersionDesc = (
   left: DocumentFileMetadata,
-  right: DocumentFileMetadata
+  right: DocumentFileMetadata,
 ) => {
   const leftParts = parseVersion(left.version);
   const rightParts = parseVersion(right.version);
@@ -104,7 +104,7 @@ export default function DocumentDetailPage() {
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
   const [isRedirectingToList, setIsRedirectingToList] = useState(false);
   const [selectedLeftVersion, setSelectedLeftVersion] = useState<string | null>(
-    null
+    null,
   );
   const [selectedRightVersion, setSelectedRightVersion] = useState<
     string | null
@@ -122,10 +122,10 @@ export default function DocumentDetailPage() {
   const returnToParam = searchParams?.get("returnTo"); // Extract return path
   const [isEditorOpen, setIsEditorOpen] = useState(modeParam === "edit");
   const [isSignatureModeOpen, setIsSignatureModeOpen] = useState(
-    modeParam === "signature"
+    modeParam === "signature",
   );
   const [isSigningModeOpen, setIsSigningModeOpen] = useState(
-    modeParam === "sign"
+    modeParam === "sign",
   );
   const [isRedirectingToView, setIsRedirectingToView] = useState(false);
   const [isConfirmingRelease, setIsConfirmingRelease] = useState(false);
@@ -172,18 +172,18 @@ export default function DocumentDetailPage() {
     // Fallback to primary candidate or first file if no specific fileId or it's not found
     const placeholderPattern = /placeholder/i;
     const primaryCandidate = files.find(
-      (file) => !placeholderPattern.test(file.name)
+      (file) => !placeholderPattern.test(file.name),
     );
     return primaryCandidate || files[0];
   }, [files, fileIdFromUrl]);
 
   const pdfFiles = useMemo(
     () => files.filter((file) => isPdfFile(file)),
-    [files]
+    [files],
   );
   const sortedPdfFiles = useMemo(
     () => [...pdfFiles].sort(compareDocumentFilesByVersionDesc),
-    [pdfFiles]
+    [pdfFiles],
   );
   const signatureFileIdsFromUrl = useMemo(() => {
     if (!fileIdsFromUrl) return [];
@@ -244,7 +244,7 @@ export default function DocumentDetailPage() {
     const nextQuery = currentParams.toString();
     router.replace(
       nextQuery ? `/documents/${documentId}?${nextQuery}` : `/documents/owned`,
-      { scroll: false }
+      { scroll: false },
     );
   };
 
@@ -258,7 +258,7 @@ export default function DocumentDetailPage() {
     const nextQuery = currentParams.toString();
     router.replace(
       nextQuery ? `/documents/${documentId}?${nextQuery}` : `/documents/owned`,
-      { scroll: false }
+      { scroll: false },
     );
   };
 
@@ -269,24 +269,24 @@ export default function DocumentDetailPage() {
     const nextQuery = currentParams.toString();
     router.replace(
       nextQuery ? `/documents/${documentId}?${nextQuery}` : `/documents/owned`,
-      { scroll: false }
+      { scroll: false },
     );
   };
 
   const handleEditorSaved = async (newFileId?: string) => {
-    const targetFileId =
-      newFileId ||
-      (files?.length ? files[files.length - 1]?.id : null) ||
-      fileIdFromUrl ||
-      "";
-
     setIsRedirectingToView(true);
 
-    // refresh data in background but redirect immediately
+    // Refetch data in the background.
     refetchFiles();
     refetch();
 
-    router.replace("/documents");
+    if (newFileId) {
+      // Redirect to the view page for the newly created file
+      router.push(`/documents/view-documents/${documentId}?fileId=${newFileId}`);
+    } else {
+      // Fallback to the main documents list if no new file ID is available
+      router.push("/documents");
+    }
 
     setIsEditorOpen(false);
   };
@@ -297,7 +297,7 @@ export default function DocumentDetailPage() {
     const units = ["B", "KB", "MB", "GB", "TB"];
     const index = Math.min(
       Math.floor(Math.log(bytes) / Math.log(1024)),
-      units.length - 1
+      units.length - 1,
     );
     const value = bytes / Math.pow(1024, index);
     return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
@@ -399,7 +399,6 @@ export default function DocumentDetailPage() {
         assigned_user_id?: string | null;
       }[];
     }) => {
-      
       const response = await fetch(`/api/documents/${documentId}/release`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -415,7 +414,7 @@ export default function DocumentDetailPage() {
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(
-          errorData.error || "Failed to release document with signatures."
+          errorData.error || "Failed to release document with signatures.",
         );
       }
       return response.json();
@@ -444,7 +443,7 @@ export default function DocumentDetailPage() {
     setIsConfirmingRelease(true);
     const DEFAULT_SCALE = 1.2;
     const normalizedTargetIds = Array.from(
-      new Set([...(targetFileIds || []), fileId].filter(Boolean))
+      new Set([...(targetFileIds || []), fileId].filter(Boolean)),
     );
 
     const signaturePlaceholders = normalizedTargetIds.flatMap((targetFileId) =>
@@ -461,7 +460,7 @@ export default function DocumentDetailPage() {
           height: box.height / scaleY,
           assigned_user_id: box.assignedUserId || null,
         };
-      })
+      }),
     );
 
     const textPlaceholders = normalizedTargetIds.flatMap((targetFileId) =>
@@ -482,7 +481,7 @@ export default function DocumentDetailPage() {
           text_value: box.text?.trim() || "",
           assigned_user_id: box.assignedUserId || null,
         };
-      })
+      }),
     );
 
     const saveSignaturePlaceholders = async (
@@ -494,18 +493,17 @@ export default function DocumentDetailPage() {
         width: number;
         height: number;
         assigned_user_id?: string | null;
-      }>
+      }>,
     ) => {
-
       // Try both user_id and id properties to get the user ID
       const userId = currentUser?.user_id || (currentUser as any)?.id;
 
-      console.log('\n========== SAVING SIGNATURE PLACEHOLDERS ==========');
-      console.log('Document ID:', documentIdForRoutes);
-      console.log('User ID:', userId);
-      console.log('Number of placeholders:', placeholders.length);
-      console.log('Placeholders:', placeholders);
-      console.log('====================================\n');
+      // console.log("\n========== SAVING SIGNATURE PLACEHOLDERS ==========");
+      // console.log("Document ID:", documentIdForRoutes);
+      // console.log("User ID:", userId);
+      // console.log("Number of placeholders:", placeholders.length);
+      // console.log("Placeholders:", placeholders);
+      // console.log("====================================\n");
 
       // Use batch endpoint to create all placeholders with one trail entry
       const response = await fetch(
@@ -516,25 +514,26 @@ export default function DocumentDetailPage() {
           credentials: "include",
           body: JSON.stringify({
             placeholders: placeholders,
-            user_id: userId
+            user_id: userId,
           }),
-        }
+        },
       );
-      
-      console.log('Response status:', response.status);
-      console.log('Response OK:', response.ok);
+
+      console.log("Response status:", response.status);
+      console.log("Response OK:", response.ok);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({
           error: "Failed to save signature placeholders.",
         }));
         throw new Error(
-          errorData.error || "Failed to save signature placeholders."
+          errorData.error || "Failed to save signature placeholders.",
         );
       }
-      
+
       const result = await response.json();
-      return result;};
+      return result;
+    };
 
     const saveTextPlaceholders = async (
       placeholders: Array<{
@@ -549,7 +548,7 @@ export default function DocumentDetailPage() {
         font_color: string;
         text_value: string;
         assigned_user_id?: string | null;
-      }>
+      }>,
     ) => {
       await Promise.all(
         placeholders.map(async (placeholder) => {
@@ -560,7 +559,7 @@ export default function DocumentDetailPage() {
               headers: { "Content-Type": "application/json" },
               credentials: "include",
               body: JSON.stringify(placeholder),
-            }
+            },
           );
 
           if (!response.ok) {
@@ -568,10 +567,10 @@ export default function DocumentDetailPage() {
               error: "Failed to save text placeholder.",
             }));
             throw new Error(
-              errorData.error || "Failed to save text placeholder."
+              errorData.error || "Failed to save text placeholder.",
             );
           }
-        })
+        }),
       );
     };
 
@@ -598,8 +597,8 @@ export default function DocumentDetailPage() {
           signaturePlaceholders.length && textPlaceholders.length
             ? "Signature and text placeholders saved."
             : signaturePlaceholders.length
-            ? "Signature placeholders saved."
-            : "Text placeholders saved.";
+              ? "Signature placeholders saved."
+              : "Text placeholders saved.";
         toast.success(successMessage);
         refetch();
         // Redirect to owned documents page instead of back to document detail
@@ -625,7 +624,7 @@ export default function DocumentDetailPage() {
       router.push("/documents");
     } catch (error: any) {
       toast.error(
-        error.message || "Failed to release document with signatures."
+        error.message || "Failed to release document with signatures.",
       );
     } finally {
       setIsConfirmingRelease(false);
@@ -728,7 +727,7 @@ export default function DocumentDetailPage() {
 
   if (isSignatureModeOpen) {
     return (
-      <div className="mx-auto max-w-[80dvw] flex flex-col gap-2 p-1 md:p-2 lg:p-4 w-full pb-2">
+      <div className="w-full flex flex-col gap-2 p-1 md:p-2 lg:p-4 w-full pb-2">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-lg font-bold tracking-tight">
@@ -804,7 +803,7 @@ export default function DocumentDetailPage() {
   }
 
   return (
-    <div className="flex flex-col gap-2 mx-auto w-full p-4">
+    <div className="flex flex-col gap-2 mx-auto w-full p-1 md:p-2 lg:p-4">
       {isRedirectingToView && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="flex items-center gap-2 rounded-md border bg-white/90 px-4 py-3 text-sm text-muted-foreground shadow-lg">
@@ -1089,7 +1088,7 @@ export default function DocumentDetailPage() {
                         onClick={() =>
                           window.open(
                             `/api/documents/${documentIdForRoutes}/files/${file.id}/stream?download=1`,
-                            "_blank"
+                            "_blank",
                           )
                         }
                       >
@@ -1140,7 +1139,7 @@ export default function DocumentDetailPage() {
             nextQuery
               ? `/documents/${documentId}?${nextQuery}`
               : `/documents/owned`,
-            { scroll: false }
+            { scroll: false },
           );
           setIsReleaseModalOpen(false);
         }}
