@@ -55,16 +55,18 @@ const PermissionCheckboxGroup: React.FC<PermissionCheckboxGroupProps> = ({
                 onPermissionChange(permission.id, checked as boolean)
               }
             />
-            <Label
-              htmlFor={permission.id}
-              className="text-sm font-normal cursor-pointer"
-            >
-              {permission.name}
-              {permission.description && (
-                <span className="text-xs text-gray-500 ml-1">
-                  ({permission.description})
+            <Label htmlFor={permission.id} className="text-sm font-normal cursor-pointer">
+              {/* Use friendly description as primary label when available, otherwise humanize the permission name */}
+              <div className="flex items-baseline gap-2">
+                <span>
+                  {permission.description
+                    ? permission.description
+                    : permission.name
+                        .replace(/_/g, ' ')
+                        .replace(/\b\w/g, (c) => c.toUpperCase())}
                 </span>
-              )}
+                <span className="text-xs text-muted-foreground font-mono">({permission.name})</span>
+              </div>
             </Label>
           </div>
         ))}

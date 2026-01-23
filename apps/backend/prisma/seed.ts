@@ -138,52 +138,118 @@ async function main() {
     // Step 4: Create permission definitions if they don't exist
     console.log('🔐 Creating permission definitions...');
 
-    // Define all permissions that exist in the schema
+    // Define all permissions with friendly descriptions
     const permissions = [
-      'document_read', 'document_write', 'document_edit', 'document_delete',
-      'document_create', 'document_upload', 'document_download', 'document_share',
-      'document_archive', 'document_restore', 'document_move', 'document_copy',
-      'document_metadata_read', 'document_metadata_write', 'document_metadata_edit',
-      'document_routing_read', 'document_routing_create', 'document_routing_edit', 'document_routing_delete', 'document_routing_approve',
-      'document_transfer_initiate', 'document_transfer_approve', 'document_transfer_receive', 'document_transfer_reject', 'document_transfer_track',
-      'document_custody_view', 'document_custody_transfer', 'document_custody_receive', 'document_custody_witness',
-      'document_audit_read', 'document_audit_export', 'document_audit_verify',
-      'document_recycle_view', 'document_recycle_restore', 'document_recycle_permanent_delete', 'document_recycle_bulk_restore', 'document_recycle_bulk_delete',
-      'document_type_read', 'document_type_create', 'document_type_edit', 'document_type_delete',
-      'department_read', 'department_create', 'department_edit', 'department_delete', 'department_users_manage',
-      'user_read', 'user_create', 'user_edit', 'user_delete', 'user_activate', 'user_deactivate',
-      'role_read', 'role_create', 'role_edit', 'role_delete', 'role_assign',
-      'permission_edit', 'permission_create', 'permission_delete', 'permission_read', 'permission_assign', 'permission_revoke',
-      'system_settings_read', 'system_settings_write', 'system_logs_read', 'system_backup', 'system_restore', 'system_maintenance',
-      'notification_read', 'notification_send', 'notification_manage',
-      'report_read', 'report_generate', 'report_export', 'report_schedule',
-      'api_read', 'api_write', 'api_delete', 'api_admin',
-      'document_action_read', 'document_action_create', 'document_action_edit', 'document_action_delete'
+      { id: 'document_read', description: 'View documents' },
+      { id: 'document_write', description: 'Save or update document content' },
+      { id: 'document_edit', description: 'Edit document details' },
+      { id: 'document_delete', description: 'Remove documents' },
+      { id: 'document_create', description: 'Create new documents' },
+      { id: 'document_upload', description: 'Upload files to documents' },
+      { id: 'document_download', description: 'Download document files' },
+      { id: 'document_share', description: 'Share documents with others' },
+      { id: 'document_archive', description: 'Move documents to archive' },
+      { id: 'document_restore', description: 'Restore documents from archive' },
+      { id: 'document_move', description: 'Move documents between folders or locations' },
+      { id: 'document_copy', description: 'Create a copy of a document' },
+      { id: 'document_metadata_read', description: 'View document metadata (tags, fields)' },
+      { id: 'document_metadata_write', description: 'Edit document metadata' },
+      { id: 'document_metadata_edit', description: 'Modify document metadata' },
+      { id: 'document_routing_read', description: 'View routing status and history' },
+      { id: 'document_routing_create', description: 'Start a routing/process for a document' },
+      { id: 'document_routing_edit', description: 'Change routing details' },
+      { id: 'document_routing_delete', description: 'Cancel or remove a routing' },
+      { id: 'document_routing_approve', description: 'Approve routed documents' },
+      { id: 'document_transfer_initiate', description: 'Initiate a document transfer' },
+      { id: 'document_transfer_approve', description: 'Approve document transfers' },
+      { id: 'document_transfer_receive', description: 'Receive transferred documents' },
+      { id: 'document_transfer_reject', description: 'Reject a document transfer' },
+      { id: 'document_transfer_track', description: 'Track transfer progress' },
+      { id: 'document_custody_view', description: 'View custody/ownership history' },
+      { id: 'document_custody_transfer', description: 'Transfer custody of a document' },
+      { id: 'document_custody_receive', description: 'Acknowledge receipt of custody' },
+      { id: 'document_custody_witness', description: 'Act as witness during custody transfer' },
+      { id: 'document_audit_read', description: 'View audit logs for documents' },
+      { id: 'document_audit_export', description: 'Export document audit logs' },
+      { id: 'document_audit_verify', description: 'Verify audit log entries' },
+      { id: 'document_recycle_view', description: 'View items in the recycle bin' },
+      { id: 'document_recycle_restore', description: 'Restore items from recycle bin' },
+      { id: 'document_recycle_permanent_delete', description: 'Permanently delete items from recycle bin' },
+      { id: 'document_recycle_bulk_restore', description: 'Restore multiple items at once' },
+      { id: 'document_recycle_bulk_delete', description: 'Permanently delete multiple items' },
+      { id: 'document_type_read', description: 'View document types' },
+      { id: 'document_type_create', description: 'Create new document types' },
+      { id: 'document_type_edit', description: 'Edit document types' },
+      { id: 'document_type_delete', description: 'Delete document types' },
+      { id: 'department_read', description: 'View department information' },
+      { id: 'department_create', description: 'Create new departments' },
+      { id: 'department_edit', description: 'Edit department details' },
+      { id: 'department_delete', description: 'Delete departments' },
+      { id: 'department_users_manage', description: 'Manage users within a department' },
+      { id: 'user_read', description: 'View user profiles' },
+      { id: 'user_create', description: 'Create new users' },
+      { id: 'user_edit', description: 'Edit user details' },
+      { id: 'user_delete', description: 'Delete users' },
+      { id: 'user_activate', description: 'Activate user accounts' },
+      { id: 'user_deactivate', description: 'Deactivate user accounts' },
+      { id: 'role_read', description: 'View roles and their details' },
+      { id: 'role_create', description: 'Create new roles' },
+      { id: 'role_edit', description: 'Edit roles' },
+      { id: 'role_delete', description: 'Delete roles' },
+      { id: 'role_assign', description: 'Assign roles to users' },
+      { id: 'permission_edit', description: 'Edit permission definitions' },
+      { id: 'permission_create', description: 'Create new permissions' },
+      { id: 'permission_delete', description: 'Delete permissions' },
+      { id: 'permission_read', description: 'View permissions' },
+      { id: 'permission_assign', description: 'Assign permissions to roles' },
+      { id: 'permission_revoke', description: 'Remove permissions from roles' },
+      { id: 'system_settings_read', description: 'View system settings' },
+      { id: 'system_settings_write', description: 'Change system settings' },
+      { id: 'system_logs_read', description: 'View system logs' },
+      { id: 'system_backup', description: 'Create system backups' },
+      { id: 'system_restore', description: 'Restore system from backup' },
+      { id: 'system_maintenance', description: 'Perform system maintenance tasks' },
+      { id: 'notification_read', description: 'View notifications' },
+      { id: 'notification_send', description: 'Send notifications' },
+      { id: 'notification_manage', description: 'Manage notification settings' },
+      { id: 'report_read', description: 'View reports' },
+      { id: 'report_generate', description: 'Generate reports' },
+      { id: 'report_export', description: 'Export reports' },
+      { id: 'report_schedule', description: 'Schedule report generation' },
+      { id: 'api_read', description: 'Read API data' },
+      { id: 'api_write', description: 'Modify data via API' },
+      { id: 'api_delete', description: 'Delete data via API' },
+      { id: 'api_admin', description: 'Full API administration access' },
+      { id: 'document_action_read', description: 'View document action types' },
+      { id: 'document_action_create', description: 'Create document action types' },
+      { id: 'document_action_edit', description: 'Edit document action types' },
+      { id: 'document_action_delete', description: 'Delete document action types' }
     ];
 
     // Create permissions that don't exist yet (outside transaction to avoid timeout)
     for (const permission of permissions) {
       const existingPermission = await prisma.permissionDefinition.findUnique({
-        where: { permission: permission as any }
+        where: { permission: permission.id as any }
       });
 
       if (!existingPermission) {
+        const pid = permission.id;
         await prisma.permissionDefinition.create({
           data: {
-            permission: permission as any,
-            resource_type: permission.includes('document') ? 'document' :
-              permission.includes('user') ? 'user' :
-                permission.includes('role') ? 'role' :
-                  permission.includes('department') ? 'department' :
-                    permission.includes('permission') ? 'permission' :
-                      permission.includes('system') ? 'system' :
-                        permission.includes('notification') ? 'notification' :
-                          permission.includes('report') ? 'report' : 'document',
-            description: `Permission to ${permission.replace(/_/g, ' ')}`,
+            permission: pid as any,
+            resource_type: pid.includes('document') ? 'document' :
+              pid.includes('user') ? 'user' :
+                pid.includes('role') ? 'role' :
+                  pid.includes('department') ? 'department' :
+                    pid.includes('permission') ? 'permission' :
+                      pid.includes('system') ? 'system' :
+                        pid.includes('notification') ? 'notification' :
+                          pid.includes('report') ? 'report' : 'document',
+            description: permission.description || pid.replace(/_/g, ' '),
             is_active: true
           }
         });
-        console.log(`✅ Created permission: ${permission}`);
+        console.log(`✅ Created permission: ${permission.id}`);
       }
     }
 
