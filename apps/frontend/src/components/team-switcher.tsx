@@ -47,8 +47,8 @@ export function TeamSwitcher({
               <img src="/image/qby.png" alt="" />
             </div>
             <div className="grid flex-1 text-left text-base leading-tight">
-              <span className="truncate font-semibold">{activeTeam.name}</span>
-              <span className="truncate text-xs">{activeTeam.plan}</span>
+              <span className="font-semibold break-words">{activeTeam.name}</span>
+              <span className="text-xs">{activeTeam.plan}</span>
             </div>
             {/* <ChevronsUpDown className="ml-auto" /> */}
           </SidebarMenuButton>

@@ -38,7 +38,7 @@ import { hasPermission, hasAnyPermission } from "@/lib/document-permissions";
 const data = {
   teams: [
     {
-      name: "Quanby Solutions Inc.",
+      name: "Department Academy of the Philippines",
       logo: GalleryVerticalEnd,
       plan: "",
     },

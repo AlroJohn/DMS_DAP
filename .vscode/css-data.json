@@ -1,0 +1,28 @@
+{
+  "atDirectives": [
+    {
+      "name": "@apply",
+      "description": "Apply utility classes as CSS declarations"
+    },
+    {
+      "name": "@theme",
+      "description": "Define custom properties for your theme"
+    },
+    {
+      "name": "@custom-variant",
+      "description": "Define custom responsive variants"
+    },
+    {
+      "name": "@layer",
+      "description": "Organize your CSS by layer"
+    },
+    {
+      "name": "@screen",
+      "description": "Define media queries by screen name"
+    },
+    {
+      "name": "@utility",
+      "description": "Define custom utility classes"
+    }
+  ]
+}
