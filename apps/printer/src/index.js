@@ -127,7 +127,7 @@ async function handlePrintJob(receivedData) {
 
     printer.clear();
     printer.add(payload);
-    printer.cut();
+    printer.partialCut();
     const result = await printer.execute();
     console.log("Print sent successfully:", result);
 

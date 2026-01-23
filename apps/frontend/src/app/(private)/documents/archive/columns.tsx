@@ -80,7 +80,11 @@ export const createArchiveColumns = ({
       const data = row.original;
       return (
         <div className="flex items-center">
-          <ScanCodes qrCode={data.qrCode} barcode={data.barcode} />
+          <ScanCodes
+            qrCode={data.qrCode}
+            barcode={data.barcode}
+            documentCode={data.documentId}
+          />
         </div>
       );
     },

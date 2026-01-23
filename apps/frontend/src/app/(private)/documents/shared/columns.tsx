@@ -67,7 +67,11 @@ export const getColumns = ({
       const data = row.original;
       return (
         <div className="flex justify-center items-center">
-          <ScanCodes qrCode={data.qrCode || ""} barcode={data.barcode || ""} />
+          <ScanCodes
+            qrCode={data.qrCode || ""}
+            barcode={data.barcode || ""}
+            documentCode={data.documentId}
+          />
         </div>
       );
     },

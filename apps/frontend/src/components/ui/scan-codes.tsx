@@ -7,9 +7,10 @@ import { ImageModal } from './image-modal'
 interface ScanCodesProps {
     qrCode?: string
     barcode?: string
+    documentCode?: string
 }
 
-export function ScanCodes({ qrCode, barcode }: ScanCodesProps) {
+export function ScanCodes({ qrCode, barcode, documentCode }: ScanCodesProps) {
     const [modalState, setModalState] = useState<{
         isOpen: boolean
         imageUrl: string
@@ -54,7 +55,9 @@ export function ScanCodes({ qrCode, barcode }: ScanCodesProps) {
                     <button
                         type='button'
                         className='flex size-7 items-center justify-center rounded border border-border bg-background text-foreground hover:bg-muted transition-colors'
-                        onClick={() => openModal(qrCode, 'QR Code', 'QR Code')}
+                        onClick={() =>
+                            openModal(qrCode, documentCode || 'QR Code', 'QR Code')
+                        }
                         aria-label='View QR Code'
                         title='View QR Code'
                     >
@@ -65,7 +68,9 @@ export function ScanCodes({ qrCode, barcode }: ScanCodesProps) {
                     <button
                         type='button'
                         className='flex size-7 items-center justify-center rounded border border-border bg-background text-foreground hover:bg-muted transition-colors'
-                        onClick={() => openModal(barcode, 'Barcode', 'Barcode')}
+                        onClick={() =>
+                            openModal(barcode, documentCode || 'Barcode', 'Barcode')
+                        }
                         aria-label='View Barcode'
                         title='View Barcode'
                     >

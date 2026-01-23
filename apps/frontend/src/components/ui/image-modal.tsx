@@ -26,6 +26,9 @@ export function ImageModal({
 }: ImageModalProps) {
   const label = (title || alt || "").toString();
   const isBarcode = /barcod/i.test(label);
+  const printTitle = /qr\s*code|barcode/i.test(title || "")
+    ? (alt || title || "").toString()
+    : (title || alt || "").toString();
   const [isPrinting, setIsPrinting] = useState(false);
   const { socket } = useSocket();
 
@@ -60,9 +63,44 @@ export function ImageModal({
       img.onerror = reject;
     });
 
-    // 80mm width (~576 dots) and 70mm height (~504 dots) at 203dpi
-    const targetWidth = 576;
-    const targetHeight = isBarcode ? 320 : 504;
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    const dateStr = now.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+
+    const textAreaHeight = 120;
+    const qrSize = 256;
+    const imageAreaHeight = isBarcode ? 320 : qrSize;
+
+    let targetWidth = 576;
+    let imageTargetWidth = 576;
+
+    if (!isBarcode) {
+      const measureCanvas = document.createElement("canvas");
+      const measureCtx = measureCanvas.getContext("2d");
+      if (!measureCtx) throw new Error("Canvas not supported");
+
+      measureCtx.font = "bold 28px Arial";
+      const titleWidth = measureCtx.measureText(printTitle).width;
+      measureCtx.font = "20px Arial";
+      const timeWidth = measureCtx.measureText(timeStr).width;
+      const dateWidth = measureCtx.measureText(dateStr).width;
+      const maxTextWidth = Math.max(titleWidth, timeWidth, dateWidth);
+
+      targetWidth = Math.min(
+        576,
+        Math.max(qrSize, Math.ceil(maxTextWidth) + 24),
+      );
+      imageTargetWidth = qrSize;
+    }
+
+    const targetHeight = textAreaHeight + imageAreaHeight;
 
     const canvas = document.createElement("canvas");
     canvas.width = targetWidth;
@@ -74,11 +112,24 @@ export function ImageModal({
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const scale = Math.min(targetWidth / img.width, targetHeight / img.height);
+    ctx.fillStyle = "#000";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.font = "bold 28px Arial";
+    ctx.fillText(printTitle, targetWidth / 2, 8);
+    ctx.font = "20px Arial";
+    ctx.fillText(timeStr, targetWidth / 2, 48);
+    ctx.fillText(dateStr, targetWidth / 2, 74);
+
+    const scale = Math.min(
+      imageTargetWidth / img.width,
+      imageAreaHeight / img.height,
+    );
     const drawWidth = Math.round(img.width * scale);
     const drawHeight = Math.round(img.height * scale);
     const offsetX = Math.floor((targetWidth - drawWidth) / 2);
-    const offsetY = Math.floor((targetHeight - drawHeight) / 2);
+    const offsetY =
+      textAreaHeight + Math.floor((imageAreaHeight - drawHeight) / 2);
 
     ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
 
@@ -257,7 +308,7 @@ export function ImageModal({
           <button
             type="button"
             onClick={handlePrint}
-            className={`px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 transition-colors shadow ${isPrinting ? "opacity-50 cursor-not-allowed" : ""}`}
+            className={`px-4 w-32 py-2 bg-primary text-white rounded hover:bg-primary/90 transition-colors shadow ${isPrinting ? "opacity-50 cursor-not-allowed" : ""}`}
             disabled={isPrinting || !imageUrl}
           >
             {isPrinting ? "Printing..." : "Print"}
@@ -265,7 +316,7 @@ export function ImageModal({
           <button
             type="button"
             onClick={handleDownload}
-            className="px-4 py-2 bg-secondary text-primary rounded hover:bg-secondary/80 transition-colors shadow border border-primary"
+            className="px-4 w-32 py-2 bg-secondary text-primary rounded hover:bg-secondary/80 transition-colors shadow border border-primary"
             disabled={!imageUrl}
           >
             Download

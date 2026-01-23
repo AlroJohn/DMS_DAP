@@ -166,7 +166,13 @@ export const incomingColumns: ColumnDef<IncomingDocument>[] = [
     ),
     cell: ({ row }) => {
       const data = row.original;
-      return <ScanCodes qrCode={data.qrCode} barcode={data.barcode} />;
+      return (
+        <ScanCodes
+          qrCode={data.qrCode}
+          barcode={data.barcode}
+          documentCode={data.documentId}
+        />
+      );
     },
     enableSorting: false,
   },
