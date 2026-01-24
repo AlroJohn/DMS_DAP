@@ -16,6 +16,9 @@ export default function DocumentsPage() {
   // Mark component as mounted and clean up on unmount
   useEffect(() => {
     mountedRef.current = true;
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("documents:returnTo", "/documents");
+    }
     return () => {
       mountedRef.current = false;
     };

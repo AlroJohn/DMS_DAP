@@ -36,6 +36,9 @@ export default function ArchivePage() {
   // Mark component as mounted and clean up on unmount
   useEffect(() => {
     mountedRef.current = true;
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("documents:returnTo", "/documents/archive");
+    }
     return () => {
       mountedRef.current = false;
     };

@@ -75,6 +75,26 @@ interface DataTableRowActionsProps<TData> {
   onSign?: (document: TData) => void;
 }
 
+const getReturnPathForView = (
+  viewType: DataTableRowActionsProps<unknown>["viewType"],
+) => {
+  switch (viewType) {
+    case "owned":
+      return "/documents/owned";
+    case "shared":
+      return "/documents/shared";
+    case "outgoing":
+      return "/documents/in-transit?tab=outgoing";
+    case "archive":
+      return "/documents/archive";
+    case "recycle-bin":
+      return "/documents/recycle-bin";
+    case "document":
+    default:
+      return "/documents";
+  }
+};
+
 export function DataTableRowActions<TData>({
   row,
   viewType = "document",
@@ -160,9 +180,11 @@ export function DataTableRowActions<TData>({
   };
 
   const handleOpenEditor = () => {
-    const returnPath = viewType === "shared" ? "/documents/shared" : "/documents";
+    const returnPath = getReturnPathForView(viewType);
     router.push(
-      `/documents/${document.id}?mode=edit&returnTo=${encodeURIComponent(returnPath)}`,
+      `/documents/${document.id}?mode=edit&returnTo=${encodeURIComponent(
+        returnPath,
+      )}`,
     );
   };
 
@@ -172,10 +194,14 @@ export function DataTableRowActions<TData>({
 
   const handleSign = () => {
     // Determine return path based on view type
-    const returnPath = viewType === "shared" ? "/documents/shared" : "/documents";
-    
+    const returnPath = getReturnPathForView(viewType);
+
     // Redirect to the document page in signature mode with return path
-    router.push(`/documents/${document.id}?mode=sign&returnTo=${encodeURIComponent(returnPath)}`);
+    router.push(
+      `/documents/${document.id}?mode=sign&returnTo=${encodeURIComponent(
+        returnPath,
+      )}`,
+    );
   };
 
   const handleEdit = () => {

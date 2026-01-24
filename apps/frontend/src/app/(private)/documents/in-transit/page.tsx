@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DataTable } from "@/components/reuseable/tables/data-table";
 import { outgoingColumns, type OutgoingDocument } from "./outgoing-columns";
 import { incomingColumns, type IncomingDocument } from "./incoming-columns";
@@ -16,8 +16,12 @@ import { useSocket } from "@/components/providers/providers";
 import { toast } from "sonner";
 
 export default function InTransitDocumentsPage() {
+  const searchParams = useSearchParams();
+  const tabParam = searchParams?.get("tab");
+  const initialTab =
+    tabParam === "outgoing" || tabParam === "incoming" ? tabParam : "incoming";
   const [activeTab, setActiveTab] = useState<"incoming" | "outgoing">(
-    "incoming"
+    initialTab
   );
   const { socket } = useSocket();
   const mountedRef = useRef(false);
@@ -30,6 +34,21 @@ export default function InTransitDocumentsPage() {
       mountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (tabParam === "incoming" || tabParam === "outgoing") {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(
+        "documents:returnTo",
+        `/documents/in-transit?tab=${activeTab}`,
+      );
+    }
+  }, [activeTab]);
 
   // Fetch incoming documents
   const {
@@ -101,7 +120,7 @@ export default function InTransitDocumentsPage() {
   return (
     <div className="flex h-full flex-col gap-4 p-4 bg-background">
       <Tabs
-        defaultValue="incoming"
+        value={activeTab}
         className="w-full"
         onValueChange={(value) =>
           setActiveTab(value as "incoming" | "outgoing")

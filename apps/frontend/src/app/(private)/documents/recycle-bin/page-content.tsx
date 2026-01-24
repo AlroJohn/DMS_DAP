@@ -21,6 +21,9 @@ export default function RecycleBinPage() {
   // Mark component as mounted and clean up on unmount
   useEffect(() => {
     mountedRef.current = true;
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("documents:returnTo", "/documents/recycle-bin");
+    }
     return () => {
       mountedRef.current = false;
     };
