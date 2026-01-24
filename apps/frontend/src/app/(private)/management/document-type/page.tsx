@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getAccessToken } from "@/lib/token-utils";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -74,12 +75,7 @@ const DocumentTypeManagementPage = () => {
   const fetchDocumentTypes = async () => {
     try {
       setLoading(true);
-      const token =
-        localStorage.getItem("accessToken") ||
-        document.cookie
-          .split(";")
-          .find((c) => c.trim().startsWith("accessToken="))
-          ?.split("=")[1];
+      const token = getAccessToken();
 
       const response = await fetch("/api/admin/document-types", {
         headers: {
@@ -152,12 +148,7 @@ const DocumentTypeManagementPage = () => {
     e.preventDefault();
 
     try {
-      const token =
-        localStorage.getItem("accessToken") ||
-        document.cookie
-          .split(";")
-          .find((c) => c.trim().startsWith("accessToken="))
-          ?.split("=")[1];
+      const token = getAccessToken();
 
       let response;
 
@@ -242,12 +233,7 @@ const DocumentTypeManagementPage = () => {
     setIsDeleting(true);
 
     try {
-      const token =
-        localStorage.getItem("accessToken") ||
-        document.cookie
-          .split(";")
-          .find((c) => c.trim().startsWith("accessToken="))
-          ?.split("=")[1];
+      const token = getAccessToken();
 
       const response = await fetch(
         `/api/admin/document-types/${documentTypeToDelete}`,
@@ -279,12 +265,7 @@ const DocumentTypeManagementPage = () => {
   // Toggle document type status
   const toggleDocumentTypeStatus = async (id: string) => {
     try {
-      const token =
-        localStorage.getItem("accessToken") ||
-        document.cookie
-          .split(";")
-          .find((c) => c.trim().startsWith("accessToken="))
-          ?.split("=")[1];
+      const token = getAccessToken();
 
       const response = await fetch(
         `/api/admin/document-types/${id}/toggle-status`,

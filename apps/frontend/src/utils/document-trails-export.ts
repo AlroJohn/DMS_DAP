@@ -2,6 +2,18 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { format } from "date-fns";
 
+// Define types for jspdf-autotable hooks
+interface AutoTableHookData {
+  section: 'head' | 'body' | 'foot';
+  cell: any;
+  row: any;
+  column: any;
+  table: any;
+  pageCount: number;
+  pageNumber: number;
+  settings: any;
+}
+
 export interface DocumentTrailDetail {
   id: string;
   documentId: string;
@@ -65,11 +77,6 @@ export async function exportDocumentTrailsPDF(
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  // top blue header bar (matches design) - #19268f
-  doc.setFillColor(25, 38, 143);
-  const headerBarHeight = 8; // mm
-  doc.rect(0, 0, pageWidth, headerBarHeight, "F");
-
   // Load header images (logo left and ribbon/top-right)
   let logoDataUrl: string | null = null;
   let ribbonDataUrl: string | null = null;
@@ -102,35 +109,33 @@ export async function exportDocumentTrailsPDF(
     // ignore image load failures
   }
 
-  // place logo at top-left (adjust size as needed)
+  // place logo at top-left
   if (logoDataUrl) {
-    // keep logo reasonably sized on A4
-    const logoW = 50; // mm
-    const logoH = 50; // mm
-    doc.addImage(logoDataUrl, "PNG", 14, 8, logoW, logoH);
+    const logoW = 45; // mm
+    const logoH = 20; // mm
+    doc.addImage(logoDataUrl, "PNG", 14, 10, logoW, logoH);
   }
 
   // place ribbon / decorative image on the top-right
   if (ribbonDataUrl) {
-    const ribbonW = 110; // mm
-    const ribbonH = 110; // mm
-    // position ribbon flush to the right (r-0)
-    const ribbonX = Math.max(0, pageWidth - ribbonW);
-    doc.addImage(ribbonDataUrl, "PNG", ribbonX, 0, ribbonW, ribbonH);
+    const ribbonW = 25; // mm
+    const ribbonH = 25; // mm
+    const ribbonX = pageWidth - ribbonW - 5;
+    doc.addImage(ribbonDataUrl, "PNG", ribbonX, 5, ribbonW, ribbonH);
   }
 
   // Main title
-  doc.setFontSize(16);
-  doc.setTextColor(25, 38, 143);
+  doc.setFontSize(14);
+  doc.setTextColor(0, 0, 0);
   doc.setFont("helvetica", "bold");
-  doc.text("Document Trail History Report", 14, 50);
+  doc.text("Document Trail History Report", 14, 40);
 
   // Document info
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(0, 0, 0);
-  let yPos = 65;
-  const labelWidth = 45;
+  let yPos = 50;
+  const labelWidth = 40;
 
   doc.text("Document Title:", 14, yPos);
   doc.setFont("helvetica", "normal");
@@ -175,9 +180,9 @@ export async function exportDocumentTrailsPDF(
   }
 
   // Separator
-  yPos += 10;
+  yPos += 8;
   doc.setDrawColor(218, 165, 32);
-  doc.setLineWidth(0.5);
+  doc.setLineWidth(1);
   doc.line(14, yPos, pageWidth - 14, yPos);
 
   // Table
@@ -208,50 +213,57 @@ export async function exportDocumentTrailsPDF(
   (doc as any).autoTable({
     head: [tableColumn],
     body: tableRows,
-    startY: yPos + 5,
+    startY: yPos + 3,
     margin: { left: 14, right: 14 },
     styles: {
-      fontSize: 8,
-      cellPadding: 4,
-      lineColor: [200, 200, 200],
+      fontSize: 7,
+      cellPadding: 3,
+      lineColor: [180, 180, 180],
       lineWidth: 0.1,
+      textColor: [0, 0, 0],
     },
     headStyles: {
-      fillColor: [218, 165, 32],
+      fillColor: [255, 235, 156],
       textColor: [0, 0, 0],
       fontStyle: "bold",
       halign: "center",
       valign: "middle",
+      lineColor: [180, 180, 180],
+      lineWidth: 0.1,
     },
     columnStyles: {
-      0: { cellWidth: 28, halign: "center" },
-      1: { cellWidth: 25 },
-      2: { cellWidth: 30 },
-      3: { cellWidth: 30 },
-      4: { cellWidth: 25, halign: "center" },
-      5: { cellWidth: "auto" },
+      0: { cellWidth: 25, halign: "center", valign: "top" },
+      1: { cellWidth: 22, valign: "top" },
+      2: { cellWidth: 28, valign: "top" },
+      3: { cellWidth: 28, valign: "top" },
+      4: { cellWidth: 25, halign: "center", valign: "top" },
+      5: { cellWidth: "auto", valign: "top" },
     },
-    alternateRowStyles: { fillColor: [252, 252, 252] },
-    didDrawPage: function (data: any) {
-      const footerHeight = 22; // mm
+    didParseCell: function(data: AutoTableHookData) {
+      // Footer settings
+      const footerHeight = 20; // mm
       const footerY = pageHeight - footerHeight;
 
-      // footer background (blue) - match header color #19268f
-      doc.setFillColor(25, 38, 143);
-      doc.rect(0, pageHeight - footerHeight, pageWidth, footerHeight, "F");
+      // footer background (blue) - #1e3a8a
+      doc.setFillColor(30, 58, 138);
+      doc.rect(0, footerY, pageWidth, footerHeight, "F");
 
       // thin gold bottom stripe
       doc.setFillColor(218, 165, 32);
-      doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
+      doc.rect(0, pageHeight - 3, pageWidth, 3, "F");
 
       // footer text (white)
       doc.setFontSize(8);
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "normal");
       const generatedText = `Generated on: ${format(new Date(), "M/d/yyyy, h:mm:ss a")}`;
-      const systemText = "Document Management System - Ateneo de Manila University";
-      doc.text(generatedText, pageWidth / 2, pageHeight - 9, { align: "center" });
-      doc.text(systemText, pageWidth / 2, pageHeight - 4, { align: "center" });
+      const systemText = "Document Tracking Management System";
+      doc.text(generatedText, pageWidth / 2, footerY + 8, { align: "center" });
+      doc.text(systemText, pageWidth / 2, footerY + 13, { align: "center" });
+
+      // Page number (bottom right)
+      const pageNumber = `${data.pageNumber}/${doc.getNumberOfPages()}`;
+      doc.text(pageNumber, pageWidth - 14, footerY + 13, { align: "right" });
     },
   });
 

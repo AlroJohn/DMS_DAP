@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getAccessToken } from "@/lib/token-utils";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -75,11 +76,8 @@ const DocumentActionManagementPage = () => {
   const fetchDocumentActions = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('accessToken') || document.cookie
-        .split(';')
-        .find(c => c.trim().startsWith('accessToken='))
-        ?.split('=')[1];
-      
+      const token = getAccessToken();
+
       const response = await fetch("/api/admin/document-actions", {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -150,11 +148,8 @@ const DocumentActionManagementPage = () => {
     e.preventDefault();
 
     try {
-      const token = localStorage.getItem('accessToken') || document.cookie
-        .split(';')
-        .find(c => c.trim().startsWith('accessToken='))
-        ?.split('=')[1];
-        
+      const token = getAccessToken();
+
       let response;
       if (editingDocumentAction) {
         // Update existing document action
@@ -254,11 +249,8 @@ const DocumentActionManagementPage = () => {
 
     setIsDeleting(true);
     try {
-      const token = localStorage.getItem('accessToken') || document.cookie
-        .split(';')
-        .find(c => c.trim().startsWith('accessToken='))
-        ?.split('=')[1];
-        
+      const token = getAccessToken();
+
       const response = await fetch(`/api/admin/document-actions/${documentActionToDelete}`, {
         method: "DELETE",
         headers: {
@@ -286,11 +278,8 @@ const DocumentActionManagementPage = () => {
   // Toggle document action status
   const toggleDocumentActionStatus = async (id: string) => {
     try {
-      const token = localStorage.getItem('accessToken') || document.cookie
-        .split(';')
-        .find(c => c.trim().startsWith('accessToken='))
-        ?.split('=')[1];
-        
+      const token = getAccessToken();
+
       const response = await fetch(`/api/admin/document-actions/${id}/toggle-status`, {
         method: "PATCH",
         headers: {

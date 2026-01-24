@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from "sonner";
+import { getAccessToken } from '@/lib/token-utils';
 
 interface User {
   user_id: string;
@@ -85,10 +86,7 @@ export const useUserManagement = () => {
   });
 
   const getToken = () => {
-    return localStorage.getItem('accessToken') || document.cookie
-      .split(';')
-      .find(c => c.trim().startsWith('accessToken='))
-      ?.split('=')[1];
+    return getAccessToken();
   };
 
   const fetchUsers = useCallback(async () => {

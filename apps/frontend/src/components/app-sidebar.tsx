@@ -530,7 +530,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 return hasPermission(user, "document_action_read");
               }
               if (subItem.url?.includes("/department")) {
-                return hasPermission(user, "department_read");
+                // Hide Departments for USER role (they have permission for API access but not sidebar access)
+                const isUserRole = user?.roles?.some((role: any) => role.code === "USER");
+                return hasPermission(user, "department_read") && !isUserRole;
               }
               if (subItem.url?.includes("/user-management")) {
                 return hasPermission(user, "user_read");

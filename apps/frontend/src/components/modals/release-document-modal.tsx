@@ -39,6 +39,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DocumentListItem as Document } from "@/hooks/use-documents";
 import { useAuth } from "@/hooks/use-auth";
 import { ScrollArea } from "../ui/scroll-area";
+import { getAccessToken } from "@/lib/token-utils";
 
 interface Department {
   department_id: string;
@@ -114,11 +115,22 @@ export function ReleaseDocumentModal({
   const fetchDepartments = async () => {
     try {
       setLoadingDepartments(true);
+
+      // Get token from localStorage or cookies
+      const token = getAccessToken();
+
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+
+      // Add Authorization header if token exists
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const response = await fetch("/api/admin/departments", {
         credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
       });
 
       if (response.ok) {
@@ -143,13 +155,24 @@ export function ReleaseDocumentModal({
   const fetchDocumentActions = async () => {
     try {
       setLoadingActions(true);
+
+      // Get token from localStorage or cookies
+      const token = getAccessToken();
+
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+
+      // Add Authorization header if token exists
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const response = await fetch(
         "/api/admin/document-actions?activeOnly=true",
         {
           credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers,
         }
       );
 
@@ -178,12 +201,22 @@ export function ReleaseDocumentModal({
         // For now, keeping the action names as selected by the user
       };
 
+      // Get token from localStorage or cookies
+      const token = getAccessToken();
+
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+
+      // Add Authorization header if token exists
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`/api/documents/${document!.id}/release`, {
         method: "POST",
         credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(payload),
       });
 

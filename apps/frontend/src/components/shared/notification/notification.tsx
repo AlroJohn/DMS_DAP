@@ -44,7 +44,7 @@ export function NotificationSheet({ open, onOpenChange }: NotificationSheetProps
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md p-0">
+      <SheetContent className="w-full sm:max-w-md p-0 h-full">
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="flex items-start justify-between p-6 border-b">

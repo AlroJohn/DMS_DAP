@@ -91,7 +91,7 @@ export class AuthService {
     }
 
     // Get default user role
-    const defaultRole = await this.permissionService.getRoleByCode('USER1');
+    const defaultRole = await this.permissionService.getRoleByCode('USER');
     if (!defaultRole) {
       throw new Error('Default user role not found. Please contact administrator.');
     }
@@ -477,7 +477,7 @@ export class AuthService {
       }
 
       // Get default user role
-      const defaultRole = await this.permissionService.getRoleByCode('USER1');
+      const defaultRole = await this.permissionService.getRoleByCode('USER');
       if (!defaultRole) {
         throw new Error('Default user role not found. Please contact administrator.');
       }

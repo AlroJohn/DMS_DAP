@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
+import { getAccessToken } from '@/lib/token-utils';
 
 interface CounterData {
   count: number;
@@ -81,10 +82,7 @@ interface ManagementOverviewData {
 }
 
 const fetchCount = async (url: string): Promise<CounterData> => {
-  const token = localStorage.getItem('accessToken') || document.cookie
-    .split(';')
-    .find(c => c.trim().startsWith('accessToken='))
-    ?.split('=')[1];
+  const token = getAccessToken();
 
   const response = await fetch(url, {
     headers: {
@@ -99,10 +97,7 @@ const fetchCount = async (url: string): Promise<CounterData> => {
 };
 
 const fetchList = async (url: string): Promise<any[]> => {
-  const token = localStorage.getItem('accessToken') || document.cookie
-    .split(';')
-    .find(c => c.trim().startsWith('accessToken='))
-    ?.split('=')[1];
+  const token = getAccessToken();
 
   const response = await fetch(url, {
     headers: {

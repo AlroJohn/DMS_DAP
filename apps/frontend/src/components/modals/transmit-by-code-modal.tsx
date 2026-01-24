@@ -18,6 +18,7 @@ import { ReleaseDocumentModal } from "@/components/modals/release-document-modal
 import type { DocumentListItem } from "@/hooks/use-documents";
 import { useAuth } from "@/hooks/use-auth";
 import { hasAnyPermission } from "@/lib/document-permissions";
+import { getAccessToken } from "@/lib/token-utils";
 
 interface DocumentLookup {
   document_id: string;
@@ -95,13 +96,23 @@ export function TransmitByCodeModal({
     setDocument(null);
 
     try {
+      // Get token from localStorage or cookies
+      const token = getAccessToken();
+
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+
+      // Add Authorization header if token exists
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const response = await fetch(
         `/api/documents/search?q=${encodeURIComponent(trimmed)}`,
         {
           credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers,
         }
       );
 
@@ -162,14 +173,24 @@ export function TransmitByCodeModal({
     setIsReceiving(true);
 
     try {
+      // Get token from localStorage or cookies
+      const token = getAccessToken();
+
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+
+      // Add Authorization header if token exists
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const response = await fetch(
         `/api/documents/${document.document_id}/receive`,
         {
           method: "POST",
           credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers,
         }
       );
 

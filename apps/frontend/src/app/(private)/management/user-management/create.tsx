@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { getAccessToken } from "@/lib/token-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -200,10 +201,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      const token = localStorage.getItem('accessToken') || document.cookie
-        .split(';')
-        .find(c => c.trim().startsWith('accessToken='))
-        ?.split('=')[1];
+      const token = getAccessToken();
 
       if (creationMode === "manual") {
         // Manual user creation with password

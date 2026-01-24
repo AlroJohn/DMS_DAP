@@ -39,23 +39,24 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
   // Get token from either cookies or Authorization header
   let token = req.cookies.accessToken; // Get token from HttpOnly cookie
 
-  // console.log('🔐 Auth Middleware - Token check:', {
-  //   hasCookieToken: !!token,
-  //   cookieTokenLength: token?.length,
-  //   hasAuthHeader: !!req.headers.authorization,
-  //   authHeaderValue: req.headers.authorization?.substring(0, 20) + '...',
-  //   allCookies: Object.keys(req.cookies || {}),
-  // });
+  console.log('🔐 Auth Middleware - Token check:', {
+    hasCookieToken: !!token,
+    cookieTokenLength: token?.length,
+    hasAuthHeader: !!req.headers.authorization,
+    authHeaderPreview: req.headers.authorization?.substring(0, 30) + '...',
+    url: req.url,
+    method: req.method,
+  });
 
   // If no token in cookies, check Authorization header
   if (!token) {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.substring(7); // Remove 'Bearer ' prefix
-      // console.log('✅ Token extracted from Authorization header, length:', token?.length);
+      console.log('✅ Token extracted from Authorization header, length:', token?.length);
     }
   } else {
-    // console.log('✅ Token found in cookies');
+    console.log('✅ Token found in cookies, length:', token?.length);
   }
 
   if (!token) {
@@ -68,13 +69,14 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
 
   try {
     const authService = new AuthService();
-    // console.log('🔓 Attempting to verify token...');
+    console.log('🔓 Attempting to verify token...');
     const decoded = await authService.verifyToken(token);
-    // console.log('✅ Token verified successfully:', {
-    //   userId: decoded.userId,
-    //   email: decoded.email,
-    //   roles: decoded.roles,
-    // });
+    console.log('✅ Token verified successfully:', {
+      userId: decoded.userId,
+      email: decoded.email,
+      roles: decoded.roles,
+      permissionsCount: decoded.permissions?.length || 0,
+    });
 
     const departmentId = await resolveDepartmentId(decoded);
 
@@ -106,22 +108,24 @@ export const requirePermission = (permission: Permission) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const authReq = req as AuthRequest;
 
-    // console.log('🔐 requirePermission check:', {
-    //   required: permission,
-    //   hasUser: !!authReq.user,
-    //   userPermissions: authReq.user?.permissions || []
-    // });
+    console.log('🔐 requirePermission check:', {
+      required: permission,
+      hasUser: !!authReq.user,
+      userPermissions: authReq.user?.permissions || [],
+      url: req.url,
+      method: req.method,
+    });
 
     if (!authReq.user) {
-      // console.log('❌ No user found in request');
+      console.log('❌ No user found in request');
       return res.status(401).json({ error: 'Authentication required' });
     }
 
     if (!authReq.user.permissions.includes(permission)) {
-      // console.log('❌ Permission denied:', {
-      //   required: permission,
-      //   userPermissions: authReq.user.permissions
-      // });
+      console.log('❌ Permission denied:', {
+        required: permission,
+        userPermissions: authReq.user.permissions
+      });
       return res.status(403).json({
         success: false,
         error: {
@@ -132,7 +136,7 @@ export const requirePermission = (permission: Permission) => {
       });
     }
 
-    // console.log('✅ Permission granted:', permission);
+    console.log('✅ Permission granted:', permission);
     next();
   };
 };

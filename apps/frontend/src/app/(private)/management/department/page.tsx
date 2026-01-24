@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getAccessToken } from "@/lib/token-utils";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -73,12 +74,7 @@ const DepartmentManagementPage = () => {
   const fetchDepartments = async () => {
     try {
       setLoading(true);
-      const token =
-        localStorage.getItem("accessToken") ||
-        document.cookie
-          .split(";")
-          .find((c) => c.trim().startsWith("accessToken="))
-          ?.split("=")[1];
+      const token = getAccessToken();
 
       const response = await fetch("/api/admin/departments", {
         headers: {
@@ -163,12 +159,7 @@ const DepartmentManagementPage = () => {
     e.preventDefault();
 
     try {
-      const token =
-        localStorage.getItem("accessToken") ||
-        document.cookie
-          .split(";")
-          .find((c) => c.trim().startsWith("accessToken="))
-          ?.split("=")[1];
+      const token = getAccessToken();
 
       let response;
       if (editingDepartment) {
@@ -267,12 +258,7 @@ const DepartmentManagementPage = () => {
 
     setIsDeleting(true);
     try {
-      const token =
-        localStorage.getItem("accessToken") ||
-        document.cookie
-          .split(";")
-          .find((c) => c.trim().startsWith("accessToken="))
-          ?.split("=")[1];
+      const token = getAccessToken();
 
       const response = await fetch(
         `/api/admin/departments/${departmentToDelete}`,
@@ -318,12 +304,7 @@ const DepartmentManagementPage = () => {
   // Toggle department status
   const toggleDepartmentStatus = async (id: string) => {
     try {
-      const token =
-        localStorage.getItem("accessToken") ||
-        document.cookie
-          .split(";")
-          .find((c) => c.trim().startsWith("accessToken="))
-          ?.split("=")[1];
+      const token = getAccessToken();
 
       const response = await fetch(
         `/api/admin/departments/${id}/toggle-status`,

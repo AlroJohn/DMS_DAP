@@ -426,8 +426,10 @@ async function main() {
         // Allow document_type_read for users to view document types when creating/filtering documents
         const isTypeReadPerm = permStr === 'document_type_read';
         const isActionReadPerm = permStr === 'document_action_read';
+        // Allow department_read for users to view departments when releasing documents
+        const isDepartmentReadPerm = permStr === 'department_read';
         
-        return (isDocumentPerm && !isTypePerm && !isActionPerm) || isTypeReadPerm || isActionReadPerm || isNotificationPerm || isReportPerm;
+        return (isDocumentPerm && !isTypePerm && !isActionPerm) || isTypeReadPerm || isActionReadPerm || isDepartmentReadPerm || isNotificationPerm || isReportPerm;
       })
     );
 
