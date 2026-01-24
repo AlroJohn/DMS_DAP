@@ -275,13 +275,11 @@ export default function DocumentDetailPage() {
 
   const handleCloseEditor = () => {
     setIsEditorOpen(false);
-    const currentParams = new URLSearchParams(searchParams?.toString() || "");
-    currentParams.delete("mode");
-    const nextQuery = currentParams.toString();
-    router.replace(
-      nextQuery ? `/documents/${documentId}?${nextQuery}` : `/documents/owned`,
-      { scroll: false },
-    );
+    if (returnToParam) {
+      router.push(returnToParam);
+      return;
+    }
+    router.back();
   };
 
   const handleEditorSaved = async (newFileId?: string) => {
@@ -293,10 +291,12 @@ export default function DocumentDetailPage() {
 
     if (newFileId) {
       // Redirect to the view page for the newly created file
-      router.push(`/documents/view-documents/${documentId}?fileId=${newFileId}`);
+      router.push(
+        `/documents/${documentId}/view-documents?fileId=${newFileId}`,
+      );
     } else {
-      // Fallback to the main documents list if no new file ID is available
-      router.push("/documents");
+      // Fallback to the view page if no new file ID is available
+      router.push(`/documents/${documentId}/view-documents`);
     }
 
     setIsEditorOpen(false);

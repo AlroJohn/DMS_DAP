@@ -160,7 +160,10 @@ export function DataTableRowActions<TData>({
   };
 
   const handleOpenEditor = () => {
-    router.push(`/documents/${document.id}?mode=edit`);
+    const returnPath = viewType === "shared" ? "/documents/shared" : "/documents";
+    router.push(
+      `/documents/${document.id}?mode=edit&returnTo=${encodeURIComponent(returnPath)}`,
+    );
   };
 
   const handleViewOcrData = () => {
