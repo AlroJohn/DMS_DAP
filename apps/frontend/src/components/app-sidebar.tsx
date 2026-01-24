@@ -354,12 +354,14 @@ const data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user, isLoading } = useAuth();
-  const [enabledSections, setEnabledSections] = React.useState<Set<string>>(new Set());
+  const [enabledSections, setEnabledSections] = React.useState<Set<string>>(
+    new Set(),
+  );
   const [loadingSettings, setLoadingSettings] = React.useState(true);
   const apiBaseUrl =
-    process.env.NODE_ENV === 'development'
-      ? 'http://localhost:3001'
-      : process.env.NEXT_PUBLIC_API_BASE_URL || '';
+    process.env.NODE_ENV === "development"
+      ? "http://localhost:3001"
+      : process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
   // Fetch global sidebar settings
   React.useEffect(() => {
@@ -369,33 +371,59 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           `${apiBaseUrl}/api/sidebar-settings/enabled`,
           {
             credentials: "include",
-          }
+          },
         );
 
         if (response.ok) {
           const data = await response.json();
           if (data.success && Array.isArray(data.data)) {
             const enabledKeys = new Set<string>(
-              data.data.map((item: { section_key: string }) => item.section_key)
+              data.data.map(
+                (item: { section_key: string }) => item.section_key,
+              ),
             );
             setEnabledSections(enabledKeys);
           } else {
             // On error, enable all sections by default
             setEnabledSections(
-              new Set(["home", "dashboard", "documents", "management", "search", "notifications", "reports"])
+              new Set([
+                "home",
+                "dashboard",
+                "documents",
+                "management",
+                "search",
+                "notifications",
+                "reports",
+              ]),
             );
           }
         } else {
           // On error, enable all sections by default
           setEnabledSections(
-            new Set(["home", "dashboard", "documents", "management", "search", "notifications", "reports"])
+            new Set([
+              "home",
+              "dashboard",
+              "documents",
+              "management",
+              "search",
+              "notifications",
+              "reports",
+            ]),
           );
         }
       } catch (error) {
         console.error("Error fetching sidebar settings:", error);
         // On error, enable all sections by default
         setEnabledSections(
-          new Set(["home", "dashboard", "documents", "management", "search", "notifications", "reports"])
+          new Set([
+            "home",
+            "dashboard",
+            "documents",
+            "management",
+            "search",
+            "notifications",
+            "reports",
+          ]),
         );
       } finally {
         setLoadingSettings(false);
@@ -440,12 +468,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
         case "Dashboard":
           // Dashboard requires dashboard_read permission
-          return hasPermission(user, "dashboard_read") || hasPermission(user, "dashboard_view");
+          return (
+            hasPermission(user, "dashboard_read") ||
+            hasPermission(user, "dashboard_view")
+          );
 
         case "Documents":
           // Documents requires document_read permission
           if (!hasPermission(user, "document_read")) return false;
-          
+
           // Filter sub-items based on permissions
           if (item.items) {
             item.items = item.items.filter((subItem) => {
@@ -453,16 +484,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 return hasPermission(user, "document_read");
               }
               if (subItem.url?.includes("/in-transit")) {
-                return hasAnyPermission(user, ["document_read", "document_transfer_receive"]);
+                return hasAnyPermission(user, [
+                  "document_read",
+                  "document_transfer_receive",
+                ]);
               }
               if (subItem.url?.includes("/shared")) {
                 return hasPermission(user, "document_read");
               }
               if (subItem.url?.includes("/archive")) {
-                return hasAnyPermission(user, ["document_archive", "document_read"]);
+                return hasAnyPermission(user, [
+                  "document_archive",
+                  "document_read",
+                ]);
               }
               if (subItem.url?.includes("/recycle-bin")) {
-                return hasAnyPermission(user, ["document_delete", "document_restore"]);
+                return hasAnyPermission(user, [
+                  "document_delete",
+                  "document_restore",
+                ]);
               }
               return true;
             });
@@ -476,7 +516,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             "document_action_read",
             "department_read",
             "user_read",
-            "role_read"
+            "role_read",
           ];
           if (!hasAnyPermission(user, managementPermissions)) return false;
 
@@ -522,7 +562,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             "report_audit",
             "report_usage",
             "report_compliance",
-            "document_read"
+            "document_read",
           ];
           if (!hasAnyPermission(user, reportPermissions)) return false;
 
@@ -539,7 +579,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 return hasAnyPermission(user, ["report_usage", "report_read"]);
               }
               if (subItem.url?.includes("/compliance")) {
-                return hasAnyPermission(user, ["report_compliance", "report_read"]);
+                return hasAnyPermission(user, [
+                  "report_compliance",
+                  "report_read",
+                ]);
               }
               if (subItem.url?.includes("/signing-history")) {
                 return hasAnyPermission(user, ["report_read", "document_read"]);

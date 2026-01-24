@@ -43,12 +43,12 @@ export function TeamSwitcher({
             size="lg"
             className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
           >
-            <div className="text-sidebar-primary-foreground flex rounded-full size-8 items-center justify-center">
-              <img src="/image/qby.png" alt="" />
+            <div className=" text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+              <img src={"/image/qby.png"} alt="" className="size-8" />
             </div>
-            <div className="grid flex-1 text-left text-base leading-tight">
-              <span className="font-semibold break-words">{activeTeam.name}</span>
-              <span className="text-xs">{activeTeam.plan}</span>
+            <div className="grid flex-1 text-left text-sm leading-tight">
+              <span className=" font-medium">{activeTeam.name}</span>
+              <span className="truncate text-xs">{activeTeam.plan}</span>
             </div>
             {/* <ChevronsUpDown className="ml-auto" /> */}
           </SidebarMenuButton>

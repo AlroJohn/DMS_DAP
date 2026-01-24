@@ -64,6 +64,9 @@ export default function SharedDocumentsPage() {
   // Mark component as mounted and clean up on unmount
   useEffect(() => {
     mountedRef.current = true;
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("documents:returnTo", "/documents/shared");
+    }
     return () => {
       mountedRef.current = false;
     };

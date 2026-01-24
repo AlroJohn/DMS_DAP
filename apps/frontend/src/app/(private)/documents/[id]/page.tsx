@@ -120,6 +120,7 @@ export default function DocumentDetailPage() {
   const fileIdFromUrl = searchParams?.get("fileId");
   const fileIdsFromUrl = searchParams?.get("fileIds");
   const returnToParam = searchParams?.get("returnTo"); // Extract return path
+  const [storedReturnPath, setStoredReturnPath] = useState<string | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(modeParam === "edit");
   const [isSignatureModeOpen, setIsSignatureModeOpen] = useState(
     modeParam === "signature",
@@ -135,6 +136,14 @@ export default function DocumentDetailPage() {
     setIsSignatureModeOpen(modeParam === "signature");
     setIsSigningModeOpen(modeParam === "sign");
   }, [modeParam]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const storedValue = sessionStorage.getItem("documents:returnTo");
+    if (storedValue) {
+      setStoredReturnPath(storedValue);
+    }
+  }, []);
 
   // Initialize version comparison selectors when files are loaded
   useEffect(() => {
@@ -223,6 +232,8 @@ export default function DocumentDetailPage() {
   const projectUuid = document?.blockchain?.projectUuid ?? null;
 
   const canSign = !blockchainStatus || blockchainStatus === "failed";
+  const resolvedReturnPath =
+    returnToParam || storedReturnPath || "/documents";
 
   const handlePreviewClick = () => {
     if (!previewBaseUrl || !isPreviewSupported) return;
@@ -368,7 +379,7 @@ export default function DocumentDetailPage() {
     toast.success("Document signed successfully");
     refetch();
     setIsRedirectingToList(true);
-    router.push("/documents");
+    router.push(resolvedReturnPath);
   };
 
   const releaseWithSignaturesMutation = useMutation({
@@ -796,7 +807,7 @@ export default function DocumentDetailPage() {
           isLoadingFiles={filesLoading}
           onExit={() => router.back()}
           onSigned={handleSigned}
-          returnPath={returnToParam || "/documents"}
+          returnPath={resolvedReturnPath}
         />
       </div>
     );

@@ -5,12 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   FileText,
   Shield,
@@ -48,7 +43,7 @@ const Homepage = () => {
 
   // Check if user is superadmin
   const isSuperAdmin = user?.roles?.some(
-    (role: any) => role.code === "SUPER_ADMIN"
+    (role: any) => role.code === "SUPER_ADMIN",
   );
 
   // Debug logging
@@ -85,7 +80,7 @@ const Homepage = () => {
   };
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     setFormData({
       ...formData,
@@ -105,14 +100,14 @@ const Homepage = () => {
     if (!file) return;
 
     // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please upload an image file');
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file");
       return;
     }
 
     // Validate file size (5MB max)
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image size must be less than 5MB');
+      toast.error("Image size must be less than 5MB");
       return;
     }
 
@@ -127,29 +122,29 @@ const Homepage = () => {
 
       // Upload to server
       const formData = new FormData();
-      formData.append('file', file);
-      formData.append('type', 'logo');
+      formData.append("file", file);
+      formData.append("type", "logo");
 
-      const response = await fetch('/api/upload', {
-        method: 'POST',
+      const response = await fetch("/api/upload", {
+        method: "POST",
         body: formData,
       });
 
       const result = await response.json();
 
       if (result.success) {
-        setFormData(prev => ({
+        setFormData((prev) => ({
           ...prev,
           logo_url: result.url,
         }));
-        toast.success('Logo uploaded successfully!');
+        toast.success("Logo uploaded successfully!");
       } else {
-        toast.error(result.message || 'Upload failed');
+        toast.error(result.message || "Upload failed");
         setLogoPreview(null);
       }
     } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Failed to upload logo');
+      console.error("Upload error:", error);
+      toast.error("Failed to upload logo");
       setLogoPreview(null);
     } finally {
       setUploading(false);
@@ -161,42 +156,42 @@ const Homepage = () => {
     if (!file) return;
 
     // Validate file type
-    if (!file.type.startsWith('video/')) {
-      toast.error('Please upload a video file');
+    if (!file.type.startsWith("video/")) {
+      toast.error("Please upload a video file");
       return;
     }
 
     // Validate file size (50MB max)
     if (file.size > 50 * 1024 * 1024) {
-      toast.error('Video size must be less than 50MB');
+      toast.error("Video size must be less than 50MB");
       return;
     }
 
     setUploading(true);
     try {
       const uploadFormData = new FormData();
-      uploadFormData.append('file', file);
-      uploadFormData.append('type', 'video');
+      uploadFormData.append("file", file);
+      uploadFormData.append("type", "video");
 
-      const response = await fetch('/api/upload', {
-        method: 'POST',
+      const response = await fetch("/api/upload", {
+        method: "POST",
         body: uploadFormData,
       });
 
       const result = await response.json();
 
       if (result.success) {
-        setFormData(prev => ({
+        setFormData((prev) => ({
           ...prev,
           video_url: result.url,
         }));
-        toast.success('Video uploaded successfully!');
+        toast.success("Video uploaded successfully!");
       } else {
-        toast.error(result.message || 'Upload failed');
+        toast.error(result.message || "Upload failed");
       }
     } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Failed to upload video');
+      console.error("Upload error:", error);
+      toast.error("Failed to upload video");
     } finally {
       setUploading(false);
     }
@@ -206,49 +201,59 @@ const Homepage = () => {
   const PreviewContent = ({ data }: { data: typeof cmsData }) => (
     <div className="space-y-4 p-4">
       {/* Company Logo & Welcome Section with Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 items-center">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full ">
         {/* Combined Logo & Welcome Column */}
-        <div className="flex flex-col items-center justify-center pl-26 md:flex-row md:items-center md:justify-start gap-4 animate-in fade-in duration-700">
-          {/* Logo */}
-          <div className="flex-shrink-0">
-            {data?.logo_url ? (
-              <div className="w-20 h-20 md:w-24 md:h-24 relative hover:scale-105 transition-transform duration-300">
-                <Image
-                  src={data.logo_url}
-                  alt="Organization Logo"
-                  fill
-                  className="object-contain drop-shadow-2xl"
-                  priority
-                />
-              </div>
-            ) : (
-              <div className="w-20 h-20 md:w-24 md:h-24 bg-gradient-to-br from-primary via-primary/90 to-primary/80 rounded-2xl flex items-center justify-center shadow-xl hover:shadow-primary/50 transition-all duration-300 hover:scale-105">
-                <FileText className="h-10 w-10 md:h-12 md:w-12 text-primary-foreground" />
-              </div>
-            )}
-          </div>
+        <div className="w-full col-span-2 flex items-center justify-center shadow-md rounded-lg">
+          <div className=" flex flex-col items-center justify-center  md:flex-row md:items-center md:justify-start gap-4 animate-in fade-in duration-700">
+            {/* Logo */}
+            <div className="flex-shrink-0">
+              {data?.logo_url ? (
+                <div className="w-20 h-20 md:w-24 md:h-24 relative hover:scale-105 transition-transform duration-300">
+                  <Image
+                    src={data.logo_url}
+                    alt="Organization Logo"
+                    fill
+                    className="object-contain drop-shadow-2xl"
+                    priority
+                  />
+                </div>
+              ) : (
+                <div className="w-20 h-20 md:w-24 md:h-24 bg-gradient-to-br from-primary via-primary/90 to-primary/80 rounded-2xl flex items-center justify-center shadow-xl hover:shadow-primary/50 transition-all duration-300 hover:scale-105">
+                  <FileText className="h-10 w-10 md:h-12 md:w-12 text-primary-foreground" />
+                </div>
+              )}
+            </div>
 
-          {/* Welcome Content */}
-          <div className="space-y-2 text-center md:text-left">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-r from-primary via-blue-600 to-primary/70 bg-clip-text text-transparent drop-shadow-sm">
-              {data?.welcome_title || "Document Management System"}
-            </h1>
-            <p className="text-sm md:text-base text-muted-foreground/90">
-              {data?.welcome_text ||
-                "Welcome to our organization's document management platform"}
-            </p>
-            <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
-              <Badge variant="secondary" className="bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 text-xs hover:bg-green-100 transition-colors">
-                <CheckCircle className="h-2.5 w-2.5 mr-1" />
-                System Online
-              </Badge>
-              <Badge variant="outline" className="px-2 py-0.5 text-xs hover:bg-accent transition-colors">Version 1.0.0</Badge>
+            {/* Welcome Content */}
+            <div className="space-y-2 text-center md:text-left">
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-r from-primary via-blue-600 to-primary/70 bg-clip-text text-transparent drop-shadow-sm">
+                {data?.welcome_title || "Document Management System"}
+              </h1>
+              <p className="text-sm md:text-base text-muted-foreground/90">
+                {data?.welcome_text ||
+                  "Welcome to our organization's document management platform"}
+              </p>
+              <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
+                <Badge
+                  variant="secondary"
+                  className="bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 text-xs hover:bg-green-100 transition-colors"
+                >
+                  <CheckCircle className="h-2.5 w-2.5 mr-1" />
+                  System Online
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="px-2 py-0.5 text-xs hover:bg-accent transition-colors"
+                >
+                  Version 1.0.0
+                </Badge>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Dashboard Stats Column */}
-        <div className="flex items-center justify-center md:justify-end">
+        <div className="w-full items-center justify-center md:justify-end">
           <div className="grid grid-cols-2 gap-2 animate-in fade-in-50 duration-700 w-full max-w-xs sm:max-w-md">
             <Card className="hover:shadow-md transition-shadow">
               <CardContent className="p-3">
@@ -258,7 +263,9 @@ const Homepage = () => {
                   </div>
                   <div>
                     <p className="text-2xl font-bold">0</p>
-                    <p className="text-xs text-muted-foreground">Total Documents</p>
+                    <p className="text-xs text-muted-foreground">
+                      Total Documents
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -323,13 +330,20 @@ const Homepage = () => {
               </CardHeader>
               <CardContent className="p-0">
                 <div className="aspect-video bg-gradient-to-br from-black to-gray-900">
-                  {data.video_url.includes('youtube.com') || data.video_url.includes('youtu.be') ? (
+                  {data.video_url.includes("youtube.com") ||
+                  data.video_url.includes("youtu.be") ? (
                     <iframe
-                      src={data.video_url.includes('watch?v=') 
-                        ? data.video_url.replace('watch?v=', 'embed/').split('&')[0]
-                        : data.video_url.includes('youtu.be/')
-                        ? data.video_url.replace('youtu.be/', 'youtube.com/embed/')
-                        : data.video_url
+                      src={
+                        data.video_url.includes("watch?v=")
+                          ? data.video_url
+                              .replace("watch?v=", "embed/")
+                              .split("&")[0]
+                          : data.video_url.includes("youtu.be/")
+                            ? data.video_url.replace(
+                                "youtu.be/",
+                                "youtube.com/embed/",
+                              )
+                            : data.video_url
                       }
                       className="w-full h-full"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -355,8 +369,12 @@ const Homepage = () => {
                     <FileText className="h-6 w-6 text-muted-foreground/60" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-muted-foreground/70">Video Coming Soon</h3>
-                    <p className="text-xs text-muted-foreground/50">An introduction video will be available shortly</p>
+                    <h3 className="text-sm font-semibold text-muted-foreground/70">
+                      Video Coming Soon
+                    </h3>
+                    <p className="text-xs text-muted-foreground/50">
+                      An introduction video will be available shortly
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -377,7 +395,7 @@ const Homepage = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-4">
-                  <div 
+                  <div
                     className="prose prose-sm max-w-none text-foreground/80 text-sm leading-relaxed [&>p]:mb-1.5 [&>h2]:text-base [&>h2]:font-semibold [&>h2]:mb-1.5 [&>ul]:my-1.5 [&>ol]:my-1.5 [&>ul]:text-sm [&>ol]:text-sm line-clamp-6"
                     dangerouslySetInnerHTML={{ __html: data.vision }}
                   />
@@ -391,8 +409,12 @@ const Homepage = () => {
                       <Shield className="h-6 w-6 text-muted-foreground/60" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-semibold text-muted-foreground/70">Vision Statement</h3>
-                      <p className="text-xs text-muted-foreground/50">Our vision will be shared soon</p>
+                      <h3 className="text-sm font-semibold text-muted-foreground/70">
+                        Vision Statement
+                      </h3>
+                      <p className="text-xs text-muted-foreground/50">
+                        Our vision will be shared soon
+                      </p>
                     </div>
                   </div>
                 </CardContent>
@@ -411,7 +433,7 @@ const Homepage = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-4">
-                  <div 
+                  <div
                     className="prose prose-sm max-w-none text-foreground/80 text-sm leading-relaxed [&>p]:mb-1.5 [&>h2]:text-base [&>h2]:font-semibold [&>h2]:mb-1.5 [&>ul]:my-1.5 [&>ol]:my-1.5 [&>ul]:text-sm [&>ol]:text-sm line-clamp-6"
                     dangerouslySetInnerHTML={{ __html: data.mission }}
                   />
@@ -425,8 +447,12 @@ const Homepage = () => {
                       <BarChart3 className="h-6 w-6 text-muted-foreground/60" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-semibold text-muted-foreground/70">Mission Statement</h3>
-                      <p className="text-xs text-muted-foreground/50">Our mission will be shared soon</p>
+                      <h3 className="text-sm font-semibold text-muted-foreground/70">
+                        Mission Statement
+                      </h3>
+                      <p className="text-xs text-muted-foreground/50">
+                        Our mission will be shared soon
+                      </p>
                     </div>
                   </div>
                 </CardContent>
@@ -438,7 +464,7 @@ const Homepage = () => {
         {/* Right Column: Calendar & Quick Actions */}
         <div className="space-y-4">
           {/* Calendar Card */}
-          <Card className="shadow-md border hover:shadow-lg transition-shadow animate-in fade-in-50 duration-700 delay-150">
+          <Card className="shadow-md h-full border hover:shadow-lg transition-shadow animate-in py-0 fade-in-50 duration-700 delay-150">
             <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b py-3">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center">
@@ -452,40 +478,58 @@ const Homepage = () => {
                 {/* Month Header */}
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-sm">
-                    {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    {new Date().toLocaleDateString("en-US", {
+                      month: "long",
+                      year: "numeric",
+                    })}
                   </h3>
                   <Badge variant="outline" className="text-xs">
-                    {new Date().toLocaleDateString('en-US', { weekday: 'short' })}
+                    {new Date().toLocaleDateString("en-US", {
+                      weekday: "short",
+                    })}
                   </Badge>
                 </div>
-                
+
                 {/* Calendar Grid */}
                 <div className="grid grid-cols-7 gap-1 text-center">
-                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
-                    <div key={i} className="text-xs font-medium text-muted-foreground py-1">
+                  {["S", "M", "T", "W", "T", "F", "S"].map((day, i) => (
+                    <div
+                      key={i}
+                      className="text-xs font-medium text-muted-foreground py-1"
+                    >
                       {day}
                     </div>
                   ))}
                   {Array.from({ length: 35 }, (_, i) => {
                     const today = new Date();
-                    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).getDay();
-                    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+                    const firstDay = new Date(
+                      today.getFullYear(),
+                      today.getMonth(),
+                      1,
+                    ).getDay();
+                    const daysInMonth = new Date(
+                      today.getFullYear(),
+                      today.getMonth() + 1,
+                      0,
+                    ).getDate();
                     const dayNumber = i - firstDay + 1;
-                    const isCurrentMonth = dayNumber > 0 && dayNumber <= daysInMonth;
-                    const isToday = isCurrentMonth && dayNumber === today.getDate();
-                    
+                    const isCurrentMonth =
+                      dayNumber > 0 && dayNumber <= daysInMonth;
+                    const isToday =
+                      isCurrentMonth && dayNumber === today.getDate();
+
                     return (
                       <div
                         key={i}
                         className={`text-xs py-1.5 rounded-md ${
                           isToday
-                            ? 'bg-primary text-primary-foreground font-bold'
+                            ? "bg-primary text-primary-foreground font-bold"
                             : isCurrentMonth
-                            ? 'hover:bg-accent cursor-pointer'
-                            : 'text-muted-foreground/30'
+                              ? "hover:bg-accent cursor-pointer"
+                              : "text-muted-foreground/30"
                         }`}
                       >
-                        {isCurrentMonth ? dayNumber : ''}
+                        {isCurrentMonth ? dayNumber : ""}
                       </div>
                     );
                   })}
@@ -495,7 +539,7 @@ const Homepage = () => {
           </Card>
 
           {/* Quick Actions */}
-          <Card className="shadow-md border hover:shadow-lg transition-shadow animate-in fade-in-50 duration-700 delay-200">
+          {/* <Card className="shadow-md border py-0 hover:shadow-lg transition-shadow animate-in fade-in-50 duration-700 delay-200">
             <CardHeader className="bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border-b py-3">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <div className="w-7 h-7 bg-blue-500/10 rounded-lg flex items-center justify-center">
@@ -506,21 +550,33 @@ const Homepage = () => {
             </CardHeader>
             <CardContent className="p-4">
               <div className="space-y-2">
-                <Button variant="outline" size="sm" className="w-full justify-start text-xs h-8">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start text-xs h-8"
+                >
                   <FileText className="h-3.5 w-3.5 mr-2" />
                   Upload Document
                 </Button>
-                <Button variant="outline" size="sm" className="w-full justify-start text-xs h-8">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start text-xs h-8"
+                >
                   <BarChart3 className="h-3.5 w-3.5 mr-2" />
                   View Reports
                 </Button>
-                <Button variant="outline" size="sm" className="w-full justify-start text-xs h-8">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start text-xs h-8"
+                >
                   <Shield className="h-3.5 w-3.5 mr-2" />
                   Settings
                 </Button>
               </div>
             </CardContent>
-          </Card>
+          </Card> */}
         </div>
       </div>
 
@@ -534,7 +590,9 @@ const Homepage = () => {
               </div>
               <div>
                 <h3 className="text-base font-semibold">Welcome!</h3>
-                <p className="text-muted-foreground text-xs">Your organization's content will appear here soon.</p>
+                <p className="text-muted-foreground text-xs">
+                  Your organization's content will appear here soon.
+                </p>
               </div>
             </div>
           </CardContent>
@@ -560,7 +618,11 @@ const Homepage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
       <div className="max-w-8xl mx-auto p-2">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="space-y-4"
+        >
           <TabsList className="bg-card border shadow-sm">
             <TabsTrigger value="preview" className="flex items-center gap-2">
               <Eye className="h-4 w-4" />
@@ -674,7 +736,10 @@ const Homepage = () => {
                             placeholder="Or paste image URL"
                             value={formData.logo_url}
                             onChange={(e) => {
-                              setFormData(prev => ({ ...prev, logo_url: e.target.value }));
+                              setFormData((prev) => ({
+                                ...prev,
+                                logo_url: e.target.value,
+                              }));
                               setLogoPreview(e.target.value);
                             }}
                             className="text-xs"
@@ -697,7 +762,9 @@ const Homepage = () => {
                       />
                       <div className="flex items-center gap-2">
                         <div className="flex-1 border-t" />
-                        <span className="text-xs text-muted-foreground">OR</span>
+                        <span className="text-xs text-muted-foreground">
+                          OR
+                        </span>
                         <div className="flex-1 border-t" />
                       </div>
                       <input
@@ -712,7 +779,9 @@ const Homepage = () => {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => document.getElementById('video-upload')?.click()}
+                        onClick={() =>
+                          document.getElementById("video-upload")?.click()
+                        }
                         disabled={uploading}
                         className="w-full"
                       >
@@ -729,7 +798,8 @@ const Homepage = () => {
                         )}
                       </Button>
                       <p className="text-xs text-muted-foreground">
-                        Upload a video file (MP4, WebM, max 50MB) or paste a YouTube URL
+                        Upload a video file (MP4, WebM, max 50MB) or paste a
+                        YouTube URL
                       </p>
                     </div>
                   </div>
@@ -747,7 +817,9 @@ const Homepage = () => {
                 <CardContent>
                   <TiptapEditor
                     content={formData.vision}
-                    onChange={(content) => handleEditorChange("vision", content)}
+                    onChange={(content) =>
+                      handleEditorChange("vision", content)
+                    }
                     placeholder="Enter your organization's vision statement..."
                   />
                 </CardContent>
@@ -764,7 +836,9 @@ const Homepage = () => {
                 <CardContent>
                   <TiptapEditor
                     content={formData.mission}
-                    onChange={(content) => handleEditorChange("mission", content)}
+                    onChange={(content) =>
+                      handleEditorChange("mission", content)
+                    }
                     placeholder="Enter your organization's mission statement..."
                   />
                 </CardContent>
