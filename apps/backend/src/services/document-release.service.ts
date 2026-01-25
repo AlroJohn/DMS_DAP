@@ -157,9 +157,8 @@ export class DocumentReleaseService {
                     select: { name: true }
                 });
                 
-                // Build the description with count and assigned users
-                let placeholderDesc = `━━━ SIGNATURE PLACEHOLDERS (${signatures.length}) ━━━\n\n`;
-                placeholderDesc += `Added by: ${releasingUser.first_name} ${releasingUser.last_name}\n`;
+                // Build the description without header line
+                let placeholderDesc = `Added by: ${releasingUser.first_name} ${releasingUser.last_name}\n`;
                 placeholderDesc += `From: ${fromDeptName}\n`;
                 placeholderDesc += `To: ${toDeptName?.name || 'Unknown Department'}\n\n`;
                 

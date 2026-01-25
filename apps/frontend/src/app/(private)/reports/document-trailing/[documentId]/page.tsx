@@ -14,11 +14,12 @@ import {
   Download,
   ChevronLeft,
   MessageSquare,
+  FileDown,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format as formatDate } from "date-fns";
 import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
-import exportDocumentTrailsPDF from "@/utils/document-trails-export";
+import exportDocumentTrailsPDF, { exportDocumentTrailsCSV, exportDocumentTrailsExcel } from "@/utils/document-trails-export";
 
 interface DocumentTrailDetail {
   id: string;
@@ -140,17 +141,26 @@ export default function DocumentTrailsDetailPage() {
     }
   };
 
-  const handleExport = async () => {
+  const handleExport = async (exportFormat: "pdf" | "csv" | "excel") => {
     if (!documentInfo || trails.length === 0) {
       toast.error("No document data to export");
       return;
     }
 
     try {
-      await exportDocumentTrailsPDF(documentInfo, trails);
-      toast.success("PDF exported successfully!");
+      if (exportFormat === "pdf") {
+        await exportDocumentTrailsPDF(documentInfo, trails);
+        toast.success("PDF exported successfully!");
+      } else if (exportFormat === "csv") {
+        await exportDocumentTrailsCSV(documentInfo, trails);
+        toast.success("CSV exported successfully!");
+      } else if (exportFormat === "excel") {
+        await exportDocumentTrailsExcel(documentInfo, trails);
+        toast.success("Excel exported successfully!");
+      }
     } catch (error) {
-      toast.error("Failed to export PDF");
+      console.error("Export error:", error);
+      toast.error(`Failed to export ${exportFormat.toUpperCase()}`);
     }
   };
 
@@ -180,10 +190,37 @@ export default function DocumentTrailsDetailPage() {
             <ChevronLeft className="h-4 w-4 mr-2" />
             Back
           </Button>
-          <Button onClick={handleExport}>
-            <Download className="h-4 w-4 mr-2" />
-            Export Trail
-          </Button>
+          <div className="relative group inline-block">
+            <Button>
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Button>
+            <div className="absolute right-0 mt-2 w-40 rounded-md shadow-lg bg-background border border-border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              <div className="py-1">
+                <button
+                  onClick={() => handleExport("pdf")}
+                  className="flex items-center w-full px-4 py-2 text-sm hover:bg-accent transition-colors"
+                >
+                  <FileDown className="h-4 w-4 mr-2 text-red-500" />
+                  Export as PDF
+                </button>
+                <button
+                  onClick={() => handleExport("excel")}
+                  className="flex items-center w-full px-4 py-2 text-sm hover:bg-accent transition-colors"
+                >
+                  <FileDown className="h-4 w-4 mr-2 text-green-600" />
+                  Export as Excel
+                </button>
+                <button
+                  onClick={() => handleExport("csv")}
+                  className="flex items-center w-full px-4 py-2 text-sm hover:bg-accent transition-colors"
+                >
+                  <FileDown className="h-4 w-4 mr-2 text-blue-500" />
+                  Export as CSV
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -221,7 +258,7 @@ export default function DocumentTrailsDetailPage() {
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Created</p>
                 <p className="font-medium">
-                  {format(
+                  {formatDate(
                     new Date(documentInfo.createdAt),
                     "MMM d, yyyy h:mm a"
                   )}
@@ -269,9 +306,9 @@ export default function DocumentTrailsDetailPage() {
                             <Clock className="h-4 w-4" />
                             <span className="font-medium">Action Date:</span>
                             <span
-                              title={format(new Date(trail.actionDate), "PPpp")}
+                              title={formatDate(new Date(trail.actionDate), "PPpp")}
                             >
-                              {format(
+                              {formatDate(
                                 new Date(trail.actionDate),
                                 "MMM d, yyyy h:mm a"
                               )}
@@ -282,12 +319,12 @@ export default function DocumentTrailsDetailPage() {
                               <Calendar className="h-3 w-3" />
                               <span>Created:</span>
                               <span
-                                title={format(
+                                title={formatDate(
                                   new Date(trail.createdAt),
                                   "PPpp"
                                 )}
                               >
-                                {format(
+                                {formatDate(
                                   new Date(trail.createdAt),
                                   "MMM d, yyyy h:mm a"
                                 )}
@@ -300,12 +337,12 @@ export default function DocumentTrailsDetailPage() {
                                 <Clock className="h-3 w-3" />
                                 <span>Updated:</span>
                                 <span
-                                  title={format(
+                                  title={formatDate(
                                     new Date(trail.updatedAt),
                                     "PPpp"
                                   )}
                                 >
-                                  {format(
+                                  {formatDate(
                                     new Date(trail.updatedAt),
                                     "MMM d, yyyy h:mm a"
                                   )}

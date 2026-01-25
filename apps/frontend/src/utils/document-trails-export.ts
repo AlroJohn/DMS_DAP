@@ -81,9 +81,8 @@ export async function exportDocumentTrailsPDF(
   let logoDataUrl: string | null = null;
   let ribbonDataUrl: string | null = null;
   try {
-    const [logoRes, ribbonRes] = await Promise.all([
+    const [logoRes] = await Promise.all([
       fetch("/image/dap_logo.png"),
-      fetch("/image/ribbon.png"),
     ]);
 
     if (logoRes.ok) {
@@ -95,46 +94,54 @@ export async function exportDocumentTrailsPDF(
         r.readAsDataURL(blob);
       });
     }
-
-    if (ribbonRes.ok) {
-      const blob2 = await ribbonRes.blob();
-      ribbonDataUrl = await new Promise((resolve, reject) => {
-        const r2 = new FileReader();
-        r2.onload = () => resolve(r2.result as string);
-        r2.onerror = reject;
-        r2.readAsDataURL(blob2);
-      });
-    }
-  } catch (e) {
-    // ignore image load failures
+  } catch (error) {
+    console.error("Error loading logo image:", error);
   }
 
-  // place logo at top-left
+  // place logo centered at top — preserve aspect ratio and cap size to avoid blur
+  const maxLogoW = pageWidth - 28; // leave 14mm side margins
+  const maxLogoH = 60; // mm max height (increased to allow larger logos)
+  let logoW = 70; // fallback width (mm) — larger default
+  let logoH = 35; // fallback height (mm)
+  const logoY = 6;
   if (logoDataUrl) {
-    const logoW = 45; // mm
-    const logoH = 20; // mm
-    doc.addImage(logoDataUrl, "PNG", 14, 10, logoW, logoH);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = logoDataUrl as string;
+      });
+      const aspect = (img.naturalWidth && img.naturalHeight) ? img.naturalWidth / img.naturalHeight : 1;
+      // preferred width but not wider than page margins (allow larger maximum)
+      logoW = Math.min(110, maxLogoW);
+      logoH = logoW / aspect;
+      // if computed height exceeds max, clamp by height instead
+      if (logoH > maxLogoH) {
+        logoH = maxLogoH;
+        logoW = Math.min(logoH * aspect, maxLogoW);
+      }
+    } catch (e) {
+      // keep fallback sizes if image load fails
+      logoW = Math.min(70, maxLogoW);
+      logoH = logoW * 0.5;
+    }
+    const logoX = (pageWidth - logoW) / 2;
+    doc.addImage(logoDataUrl, "PNG", logoX, logoY, logoW, logoH);
   }
 
-  // place ribbon / decorative image on the top-right
-  if (ribbonDataUrl) {
-    const ribbonW = 25; // mm
-    const ribbonH = 25; // mm
-    const ribbonX = pageWidth - ribbonW - 5;
-    doc.addImage(ribbonDataUrl, "PNG", ribbonX, 5, ribbonW, ribbonH);
-  }
-
-  // Main title
+  // Main title (positioned closer to top; below logo when present)
+  const titleY = logoDataUrl ? logoY + logoH + 4 : 18;
   doc.setFontSize(14);
   doc.setTextColor(0, 0, 0);
   doc.setFont("helvetica", "bold");
-  doc.text("Document Trail History Report", 14, 40);
+  doc.text("Document Trail History Report", 14, titleY);
 
   // Document info
   doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(0, 0, 0);
-  let yPos = 50;
+  let yPos = titleY + 8;
   const labelWidth = 40;
 
   doc.text("Document Title:", 14, yPos);
@@ -248,9 +255,16 @@ export async function exportDocumentTrailsPDF(
       doc.setFillColor(30, 58, 138);
       doc.rect(0, footerY, pageWidth, footerHeight, "F");
 
-      // thin gold bottom stripe
+      // thin gold bottom stripe: make thinner and leave a small gap below (~6px)
       doc.setFillColor(218, 165, 32);
-      doc.rect(0, pageHeight - 3, pageWidth, 3, "F");
+      const stripeHeightMm = 1; // mm (thin)
+      const gapBelowPx = 12; // pixels (user requested)
+      const pxToMm = 25.4 / 96; // convert px (96dpi) to mm
+      const gapBelowMm = gapBelowPx * pxToMm;
+      const stripeY = pageHeight - gapBelowMm - stripeHeightMm;
+      // ensure stripe doesn't go off-page
+      const stripeYClamped = Math.max(0, stripeY);
+      doc.rect(0, stripeYClamped, pageWidth, stripeHeightMm, "F");
 
       // footer text (white)
       doc.setFontSize(8);
@@ -269,6 +283,111 @@ export async function exportDocumentTrailsPDF(
 
   const outName = filename || `document-trail-${documentInfo.code || documentInfo.id}.pdf`;
   doc.save(outName);
+}
+
+// Export CSV and Excel helpers so other UI code can reuse the same formatting
+export async function exportDocumentTrailsCSV(
+  documentInfo: DocumentInfo,
+  trails: DocumentTrailDetail[],
+  filename?: string
+): Promise<void> {
+  let csvContent = `Document Trail History Report\n`;
+  csvContent += `Document: ${documentInfo.title}\n`;
+  csvContent += `Code: ${documentInfo.code}\n`;
+  csvContent += `Type: ${documentInfo.type}\n`;
+  csvContent += `Classification: ${documentInfo.classification}\n`;
+  csvContent += `Status: ${getStatusText(documentInfo.status)}\n`;
+  try {
+    csvContent += `Created: ${format(new Date(documentInfo.createdAt), "MMM d, yyyy h:mm a")}\n\n`;
+  } catch {
+    csvContent += `Created: -\n\n`;
+  }
+
+  csvContent += `Action Date,User,From Department,To Department,Status,Remarks\n`;
+  trails.forEach((trail) => {
+    let actionDate = trail.actionDate || "-";
+    try {
+      actionDate = format(new Date(trail.actionDate), "MMM d, yyyy h:mm a");
+    } catch {}
+    const remarks = (trail.remarks || "").replace(/"/g, '""').replace(/\n/g, " ");
+    csvContent += `"${actionDate}","${trail.user || "-"}","${trail.fromDepartment || "-"}","${trail.toDepartment || "-"}","${getStatusText(trail.status || "-")}","${remarks}"\n`;
+  });
+
+  const outName = filename || `document-trail-${documentInfo.code || documentInfo.id}-${new Date().toISOString().split("T")[0]}.csv`;
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.setAttribute("href", url);
+  link.setAttribute("download", outName);
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+export async function exportDocumentTrailsExcel(
+  documentInfo: DocumentInfo,
+  trails: DocumentTrailDetail[],
+  filename?: string
+): Promise<void> {
+  const { utils, writeFile } = await import("xlsx");
+
+  const infoData: any[] = [
+    ["Document Trail History Report"],
+    [""],
+    ["Document Title", documentInfo.title],
+    ["Document Code", documentInfo.code],
+    ["Document Type", documentInfo.type],
+    ["Classification", documentInfo.classification],
+    ["Status", getStatusText(documentInfo.status)],
+  ];
+  try {
+    infoData.push(["Created", format(new Date(documentInfo.createdAt), "MMM d, yyyy h:mm a")]);
+  } catch {
+    infoData.push(["Created", "-"]);
+  }
+  infoData.push([""]); // spacer
+  infoData.push(["Trail History"]);
+  infoData.push(["Action Date", "User", "From Department", "To Department", "Status", "Remarks"]);
+
+  trails.forEach((trail) => {
+    let actionDate = trail.actionDate || "-";
+    try {
+      actionDate = format(new Date(trail.actionDate), "MMM d, yyyy h:mm a");
+    } catch {}
+    infoData.push([
+      actionDate,
+      trail.user || "",
+      trail.fromDepartment || "",
+      trail.toDepartment || "",
+      getStatusText(trail.status || ""),
+      trail.remarks || "",
+    ]);
+  });
+
+  const wb = utils.book_new();
+  const ws = utils.aoa_to_sheet(infoData);
+
+  // Auto column width: compute max length per column across all rows
+  const colCount = Math.max(...infoData.map((r) => r.length));
+  const colWidths: { wch: number }[] = [];
+  for (let c = 0; c < colCount; c++) {
+    let maxLen = 10; // default minimum
+    for (let r = 0; r < infoData.length; r++) {
+      const cell = infoData[r][c];
+      if (cell == null) continue;
+      const len = String(cell).length;
+      if (len > maxLen) maxLen = len;
+    }
+    // add small padding
+    colWidths.push({ wch: Math.min(Math.max(maxLen + 2, 10), 100) });
+  }
+  ws["!cols"] = colWidths;
+
+  utils.book_append_sheet(wb, ws, "Document Trail");
+
+  const outName = filename || `document-trail-${documentInfo.code || documentInfo.id}-${new Date().toISOString().split("T")[0]}.xlsx`;
+  writeFile(wb, outName);
 }
 
 export default exportDocumentTrailsPDF;

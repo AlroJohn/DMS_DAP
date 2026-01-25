@@ -129,7 +129,7 @@ router.post('/documents/:documentId/signatures', upload.none(), async (req: Requ
 
       let placeholderDesc: string;
       
-      // Build description based on whether user is assigned
+      // Build description without verbose prefixes
       if (assigned_user_id) {
         const assignedUser = await prisma.user.findUnique({
           where: { user_id: assigned_user_id },
@@ -147,16 +147,34 @@ router.post('/documents/:documentId/signatures', upload.none(), async (req: Requ
             assignedDeptName = assignedDept ? ` (${assignedDept.name})` : '';
           }
           
-          placeholderDesc = `Signature placeholder added by ${creatingUser.first_name} ${creatingUser.last_name} - Assigned to: ${assignedUser.first_name} ${assignedUser.last_name}${assignedDeptName} (Page ${page_number})`;
+          const deptName = creatingUser.department_id
+            ? (await prisma.department.findUnique({
+                where: { department_id: creatingUser.department_id },
+                select: { name: true }
+              }))?.name || 'Unknown Department'
+            : 'Unknown Department';
+          
+          placeholderDesc = `Added by: ${creatingUser.first_name} ${creatingUser.last_name}\n`;
+          placeholderDesc += `Department: ${deptName}\n\n`;
+          placeholderDesc += `ASSIGNED TO:\n`;
+          placeholderDesc += `Placeholder 1: ${assignedUser.first_name} ${assignedUser.last_name}${assignedDeptName} (Page ${page_number})`;
         } else {
-          placeholderDesc = `Signature placeholder added at page ${page_number} - Assigned to: Unknown User`;
+          placeholderDesc = `ASSIGNED TO:\nPlaceholder 1: Unknown User (Page ${page_number})`;
         }
       } else {
-        // No specific user assigned
         if (creatingUser) {
-          placeholderDesc = `Signature placeholder added by ${creatingUser.first_name} ${creatingUser.last_name} at page ${page_number} - Open for signing`;
+          const deptName = creatingUser.department_id
+            ? (await prisma.department.findUnique({
+                where: { department_id: creatingUser.department_id },
+                select: { name: true }
+              }))?.name || 'Unknown Department'
+            : 'Unknown Department';
+          
+          placeholderDesc = `Added by: ${creatingUser.first_name} ${creatingUser.last_name}\n`;
+          placeholderDesc += `Department: ${deptName}\n\n`;
+          placeholderDesc += `ASSIGNED TO:\nPlaceholder 1: Open (any user can sign) - Page ${page_number}`;
         } else {
-          placeholderDesc = `Signature placeholder added at page ${page_number} - Open for signing`;
+          placeholderDesc = `ASSIGNED TO:\nPlaceholder 1: Open (any user can sign) - Page ${page_number}`;
         }
       }
 

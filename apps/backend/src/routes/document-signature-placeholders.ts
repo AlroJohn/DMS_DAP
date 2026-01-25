@@ -97,9 +97,8 @@ router.post('/documents/:documentId/signature-placeholders/batch', async (req: R
           }))?.name
         : 'Unknown Department';
 
-      // Build the description with ALL placeholders
-      let placeholderDesc = `━━━ SIGNATURE PLACEHOLDERS (${allPlaceholders.length}) ━━━\n\n`;
-      placeholderDesc += `Added by: ${creatingUser.first_name} ${creatingUser.last_name}\n`;
+      // Build the description without header line
+      let placeholderDesc = `Added by: ${creatingUser.first_name} ${creatingUser.last_name}\n`;
       placeholderDesc += `Department: ${deptName}\n\n`;
 
       // Collect ALL assigned user information
@@ -322,7 +321,7 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
 
       let placeholderDesc: string;
       
-      // Build description based on whether user is assigned
+      // Build description without verbose prefixes
       if (assigned_user_id) {
         const assignedUser = await prisma.user.findUnique({
           where: { user_id: assigned_user_id },
@@ -340,16 +339,34 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
             assignedDeptName = assignedDept ? ` (${assignedDept.name})` : '';
           }
           
-          placeholderDesc = `Signature placeholder added by ${creatingUser.first_name} ${creatingUser.last_name} - Assigned to: ${assignedUser.first_name} ${assignedUser.last_name}${assignedDeptName}`;
+          const deptName = creatingUser.department_id
+            ? (await prisma.department.findUnique({
+                where: { department_id: creatingUser.department_id },
+                select: { name: true }
+              }))?.name || 'Unknown Department'
+            : 'Unknown Department';
+          
+          placeholderDesc = `Added by: ${creatingUser.first_name} ${creatingUser.last_name}\n`;
+          placeholderDesc += `Department: ${deptName}\n\n`;
+          placeholderDesc += `ASSIGNED TO:\n`;
+          placeholderDesc += `Placeholder 1: ${assignedUser.first_name} ${assignedUser.last_name}${assignedDeptName}`;
         } else {
-          placeholderDesc = `Signature placeholder added - Assigned to: Unknown User`;
+          placeholderDesc = `ASSIGNED TO:\nPlaceholder 1: Unknown User`;
         }
       } else {
-        // No specific user assigned
         if (creatingUser) {
-          placeholderDesc = `Signature placeholder added by ${creatingUser.first_name} ${creatingUser.last_name} - Open for signing`;
+          const deptName = creatingUser.department_id
+            ? (await prisma.department.findUnique({
+                where: { department_id: creatingUser.department_id },
+                select: { name: true }
+              }))?.name || 'Unknown Department'
+            : 'Unknown Department';
+          
+          placeholderDesc = `Added by: ${creatingUser.first_name} ${creatingUser.last_name}\n`;
+          placeholderDesc += `Department: ${deptName}\n\n`;
+          placeholderDesc += `ASSIGNED TO:\nPlaceholder 1: Open (any user can sign)`;
         } else {
-          placeholderDesc = `Signature placeholder added - Open for signing`;
+          placeholderDesc = `ASSIGNED TO:\nPlaceholder 1: Open (any user can sign)`;
         }
       }
 
