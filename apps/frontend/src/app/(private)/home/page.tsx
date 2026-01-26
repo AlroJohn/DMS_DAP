@@ -200,7 +200,7 @@ const Homepage = () => {
   // Preview Content Component
   const PreviewContent = ({ data }: { data: typeof cmsData }) => (
     <div className="space-y-4 p-4">
-      {/* Company Logo & Welcome Section with Stats */}
+      {/* Company Logo & Welcome Section with Calendar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full ">
         {/* Combined Logo & Welcome Column */}
         <div className="w-full col-span-2 flex items-center justify-center shadow-md rounded-lg">
@@ -252,221 +252,11 @@ const Homepage = () => {
           </div>
         </div>
 
-        {/* Dashboard Stats Column */}
-        <div className="w-full items-center justify-center md:justify-end">
-          <div className="grid grid-cols-2 gap-2 animate-in fade-in-50 duration-700 w-full max-w-xs sm:max-w-md">
-            <Card className="hover:shadow-md transition-shadow">
-              <CardContent className="p-3">
-                <div className="flex flex-col items-center text-center gap-2">
-                  <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                    <FileText className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">0</p>
-                    <p className="text-xs text-muted-foreground">
-                      Total Documents
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="hover:shadow-md transition-shadow">
-              <CardContent className="p-3">
-                <div className="flex flex-col items-center text-center gap-2">
-                  <div className="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">0</p>
-                    <p className="text-xs text-muted-foreground">Approved</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="hover:shadow-md transition-shadow">
-              <CardContent className="p-3">
-                <div className="flex flex-col items-center text-center gap-2">
-                  <div className="w-10 h-10 bg-orange-500/10 rounded-lg flex items-center justify-center">
-                    <Loader2 className="h-5 w-5 text-orange-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">0</p>
-                    <p className="text-xs text-muted-foreground">Pending</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="hover:shadow-md transition-shadow">
-              <CardContent className="p-3">
-                <div className="flex flex-col items-center text-center gap-2">
-                  <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center">
-                    <BarChart3 className="h-5 w-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">0</p>
-                    <p className="text-xs text-muted-foreground">This Month</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content Grid: Video/Calendar and Vision/Mission */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* Left Column: Video or Calendar */}
-        <div className="lg:col-span-2 space-y-4">
-          {/* Video Section */}
-          {data?.video_url ? (
-            <Card className="shadow-md border overflow-hidden hover:shadow-lg transition-all animate-in fade-in-50 duration-700 delay-100">
-              <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b py-3">
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center">
-                    <FileText className="h-4 w-4 text-primary" />
-                  </div>
-                  Introduction Video
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="aspect-video bg-gradient-to-br from-black to-gray-900">
-                  {data.video_url.includes("youtube.com") ||
-                  data.video_url.includes("youtu.be") ? (
-                    <iframe
-                      src={
-                        data.video_url.includes("watch?v=")
-                          ? data.video_url
-                              .replace("watch?v=", "embed/")
-                              .split("&")[0]
-                          : data.video_url.includes("youtu.be/")
-                            ? data.video_url.replace(
-                                "youtu.be/",
-                                "youtube.com/embed/",
-                              )
-                            : data.video_url
-                      }
-                      className="w-full h-full"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    ></iframe>
-                  ) : (
-                    <video
-                      src={data.video_url}
-                      controls
-                      className="w-full h-full"
-                    >
-                      Your browser does not support the video tag.
-                    </video>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="shadow-md border-2 border-dashed border-muted/30 animate-in fade-in-50 duration-700 delay-100">
-              <CardContent className="p-6 text-center">
-                <div className="space-y-2">
-                  <div className="w-12 h-12 bg-muted/20 rounded-lg flex items-center justify-center mx-auto">
-                    <FileText className="h-6 w-6 text-muted-foreground/60" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-muted-foreground/70">
-                      Video Coming Soon
-                    </h3>
-                    <p className="text-xs text-muted-foreground/50">
-                      An introduction video will be available shortly
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Vision & Mission in horizontal layout */}
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Vision */}
-            {data?.vision ? (
-              <Card className="shadow-md border hover:shadow-lg transition-all group hover:-translate-y-0.5 animate-in fade-in-50 duration-700 delay-200">
-                <CardHeader className="bg-gradient-to-br from-primary/8 via-primary/4 to-transparent border-b py-3">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <div className="w-8 h-8 bg-primary/15 rounded-lg flex items-center justify-center group-hover:bg-primary/25 transition-colors">
-                      <Shield className="h-4 w-4 text-primary" />
-                    </div>
-                    Our Vision
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4">
-                  <div
-                    className="prose prose-sm max-w-none text-foreground/80 text-sm leading-relaxed [&>p]:mb-1.5 [&>h2]:text-base [&>h2]:font-semibold [&>h2]:mb-1.5 [&>ul]:my-1.5 [&>ol]:my-1.5 [&>ul]:text-sm [&>ol]:text-sm line-clamp-6"
-                    dangerouslySetInnerHTML={{ __html: data.vision }}
-                  />
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="shadow-md border-2 border-dashed border-muted/30 animate-in fade-in-50 duration-700 delay-200">
-                <CardContent className="p-6 text-center">
-                  <div className="space-y-2">
-                    <div className="w-12 h-12 bg-muted/20 rounded-lg flex items-center justify-center mx-auto">
-                      <Shield className="h-6 w-6 text-muted-foreground/60" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-muted-foreground/70">
-                        Vision Statement
-                      </h3>
-                      <p className="text-xs text-muted-foreground/50">
-                        Our vision will be shared soon
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Mission */}
-            {data?.mission ? (
-              <Card className="shadow-md border hover:shadow-lg transition-all group hover:-translate-y-0.5 animate-in fade-in-50 duration-700 delay-300">
-                <CardHeader className="bg-gradient-to-br from-blue-500/8 via-blue-500/4 to-transparent border-b py-3">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <div className="w-8 h-8 bg-blue-500/15 rounded-lg flex items-center justify-center group-hover:bg-blue-500/25 transition-colors">
-                      <BarChart3 className="h-4 w-4 text-blue-600" />
-                    </div>
-                    Our Mission
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4">
-                  <div
-                    className="prose prose-sm max-w-none text-foreground/80 text-sm leading-relaxed [&>p]:mb-1.5 [&>h2]:text-base [&>h2]:font-semibold [&>h2]:mb-1.5 [&>ul]:my-1.5 [&>ol]:my-1.5 [&>ul]:text-sm [&>ol]:text-sm line-clamp-6"
-                    dangerouslySetInnerHTML={{ __html: data.mission }}
-                  />
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="shadow-md border-2 border-dashed border-muted/30 animate-in fade-in-50 duration-700 delay-300">
-                <CardContent className="p-6 text-center">
-                  <div className="space-y-2">
-                    <div className="w-12 h-12 bg-muted/20 rounded-lg flex items-center justify-center mx-auto">
-                      <BarChart3 className="h-6 w-6 text-muted-foreground/60" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-muted-foreground/70">
-                        Mission Statement
-                      </h3>
-                      <p className="text-xs text-muted-foreground/50">
-                        Our mission will be shared soon
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </div>
-
-        {/* Right Column: Calendar & Quick Actions */}
-        <div className="space-y-4">
-          {/* Calendar Card */}
+        {/* Calendar Column */}
+        <div className="w-full">
           <Card className="shadow-md h-full border hover:shadow-lg transition-shadow animate-in py-0 fade-in-50 duration-700 delay-150">
             <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b py-3">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <CardTitle className="py-2 text-base font-semibold flex items-center gap-2">
                 <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center">
                   <CalendarIcon className="h-4 w-4 text-primary" />
                 </div>
@@ -537,67 +327,159 @@ const Homepage = () => {
               </div>
             </CardContent>
           </Card>
-
-          {/* Quick Actions */}
-          {/* <Card className="shadow-md border py-0 hover:shadow-lg transition-shadow animate-in fade-in-50 duration-700 delay-200">
-            <CardHeader className="bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border-b py-3">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <div className="w-7 h-7 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                  <Shield className="h-4 w-4 text-blue-600" />
-                </div>
-                Quick Actions
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              <div className="space-y-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start text-xs h-8"
-                >
-                  <FileText className="h-3.5 w-3.5 mr-2" />
-                  Upload Document
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start text-xs h-8"
-                >
-                  <BarChart3 className="h-3.5 w-3.5 mr-2" />
-                  View Reports
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start text-xs h-8"
-                >
-                  <Shield className="h-3.5 w-3.5 mr-2" />
-                  Settings
-                </Button>
-              </div>
-            </CardContent>
-          </Card> */}
         </div>
       </div>
 
-      {/* Empty state for non-superadmins when no content */}
-      {!isSuperAdmin && !data?.video_url && !data?.vision && !data?.mission && (
-        <Card className="shadow-md border-2 border-dashed border-muted/50 animate-in fade-in duration-700">
-          <CardContent className="p-6 text-center">
-            <div className="space-y-2">
-              <div className="w-12 h-12 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl flex items-center justify-center mx-auto">
-                <FileText className="h-6 w-6 text-primary/70" />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold">Welcome!</h3>
-                <p className="text-muted-foreground text-xs">
-                  Your organization's content will appear here soon.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Main Content Grid: Video with Vision/Mission beside it */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Video Section */}
+        <div className="lg:col-span-2">
+          {data?.video_url ? (
+            <Card className="py-0 shadow-md border overflow-hidden hover:shadow-lg transition-all animate-in fade-in-50 duration-700 delay-100">
+              <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b py-3">
+                <CardTitle className="py-2 text-base font-semibold flex items-center gap-2">
+                  <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <FileText className="h-4 w-4 text-primary" />
+                  </div>
+                  Introduction Video
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="aspect-video bg-gradient-to-br from-black to-gray-900">
+                  {data.video_url.includes("youtube.com") ||
+                  data.video_url.includes("youtu.be") ? (
+                    <iframe
+                      src={
+                        data.video_url.includes("watch?v=")
+                          ? data.video_url
+                              .replace("watch?v=", "embed/")
+                              .split("&")[0] + "?autoplay=1&mute=1"
+                          : data.video_url.includes("youtu.be/")
+                            ? data.video_url.replace(
+                                "youtu.be/",
+                                "youtube.com/embed/",
+                              ) + "?autoplay=1&mute=1"
+                            : data.video_url + "?autoplay=1&mute=1"
+                      }
+                      className="w-full h-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    ></iframe>
+                  ) : (
+                    <video
+                      src={data.video_url}
+                      controls
+                      autoPlay
+                      muted
+                      loop
+                      className="w-full h-full"
+                    >
+                      Your browser does not support the video tag.
+                    </video>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="shadow-md border-2 border-dashed border-muted/30 animate-in fade-in-50 duration-700 delay-100">
+              <CardContent className="p-6 text-center">
+                <div className="space-y-2">
+                  <div className="w-12 h-12 bg-muted/20 rounded-lg flex items-center justify-center mx-auto">
+                    <FileText className="h-6 w-6 text-muted-foreground/60" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-muted-foreground/70">
+                      Video Coming Soon
+                    </h3>
+                    <p className="text-xs text-muted-foreground/50">
+                      An introduction video will be available shortly
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Vision & Mission Column */}
+        <div className="space-y-4">
+          {/* Vision */}
+          {data?.vision ? (
+            <Card className="py-0 shadow-md border hover:shadow-lg transition-all group hover:-translate-y-0.5 animate-in fade-in-50 duration-700 delay-200">
+              <CardHeader className="bg-gradient-to-br from-primary/8 via-primary/4 to-transparent border-b py-3">
+                <CardTitle className="py-2 flex items-center gap-2 text-base">
+                  <div className="w-8 h-8 bg-primary/15 rounded-lg flex items-center justify-center group-hover:bg-primary/25 transition-colors">
+                    <Shield className="h-4 w-4 text-primary" />
+                  </div>
+                  Our Vision
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                <div
+                  className="prose prose-sm max-w-none text-foreground prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-ol:text-foreground/90 prose-ul:text-foreground/90 prose-li:text-foreground/90"
+                  dangerouslySetInnerHTML={{ __html: data.vision }}
+                />
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="shadow-md border-2 border-dashed border-muted/30 animate-in fade-in-50 duration-700 delay-200">
+              <CardContent className="p-6 text-center">
+                <div className="space-y-2">
+                  <div className="w-12 h-12 bg-muted/20 rounded-lg flex items-center justify-center mx-auto">
+                    <Shield className="h-6 w-6 text-muted-foreground/60" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-muted-foreground/70">
+                      Vision Statement
+                    </h3>
+                    <p className="text-xs text-muted-foreground/50">
+                      Our vision will be shared soon
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Mission */}
+          {data?.mission ? (
+            <Card className="py-0 shadow-md border hover:shadow-lg transition-all group hover:-translate-y-0.5 animate-in fade-in-50 duration-700 delay-300">
+              <CardHeader className="bg-gradient-to-br from-blue-500/8 via-blue-500/4 to-transparent border-b py-3">
+                <CardTitle className="py-2 flex items-center gap-2 text-base">
+                  <div className="w-8 h-8 bg-blue-500/15 rounded-lg flex items-center justify-center group-hover:bg-blue-500/25 transition-colors">
+                    <BarChart3 className="h-4 w-4 text-blue-600" />
+                  </div>
+                  Our Mission
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                <div
+                  className="prose prose-sm max-w-none text-foreground prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-ol:text-foreground/90 prose-ul:text-foreground/90 prose-li:text-foreground/90"
+                  dangerouslySetInnerHTML={{ __html: data.mission }}
+                />
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="shadow-md border-2 border-dashed border-muted/30 animate-in fade-in-50 duration-700 delay-300">
+              <CardContent className="p-6 text-center">
+                <div className="space-y-2">
+                  <div className="w-12 h-12 bg-muted/20 rounded-lg flex items-center justify-center mx-auto">
+                    <BarChart3 className="h-6 w-6 text-muted-foreground/60" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-muted-foreground/70">
+                      Mission Statement
+                    </h3>
+                    <p className="text-xs text-muted-foreground/50">
+                      Our mission will be shared soon
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
     </div>
   );
 

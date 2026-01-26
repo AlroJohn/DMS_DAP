@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/use-auth'
+import { toast } from 'sonner'
 
 export default function AuthCallbackClient() {
   const router = useRouter()
