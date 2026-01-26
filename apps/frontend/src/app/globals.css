@@ -76,9 +76,9 @@
   --primary-foreground: #ffffff;
   --secondary: #ceae2c;
   --secondary-foreground: #ffffff;
-  --secondary-hover: #e6c95a;
-  --secondary-active: #b89d28;
-  --secondary-focus: #d4b85c;
+  --secondary-hover: #e6eef9;
+  --secondary-active: #e6eef9;
+  --secondary-focus: #e6eef9;
   --muted: #1a2a5a;
   --muted-foreground: #a0a0a0;
   --accent: #e6eef9;
