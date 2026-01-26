@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -191,6 +191,23 @@ interface ViewDocumentsModalProps {
     page_number: number;
   }) => Promise<void>;
 }
+
+const metadataDisplayConfig: {
+  [key: string]: { label: string; icon: React.ElementType };
+} = {
+  file_type: { label: "File Type", icon: FileText },
+  mime_type: { label: "MIME Type", icon: FileText },
+  author: { label: "Author", icon: User },
+  creator: { label: "Creator", icon: User },
+  producer: { label: "Producer", icon: Building2 },
+  creation_date: { label: "Creation Date", icon: Calendar },
+  modification_date: { label: "Modification Date", icon: Clock },
+  security_level: { label: "Security Level", icon: Shield },
+  retention_period: { label: "Retention Period (days)", icon: Clock },
+  is_encrypted: { label: "Encrypted", icon: Shield },
+  checksum: { label: "Checksum", icon: GitBranch },
+  version: { label: "Version", icon: GitBranch },
+};
 
 const formatText = (text: string): string => {
   return text
@@ -1142,154 +1159,110 @@ export function ViewDocumentsModal({
                           <FileText className="h-5 w-5" />
                           Additional Document Metadata
                         </h4>
-                        <div className="grid grid-cols-1 gap-6 w-full">
+                        <div className="space-y-4">
                           {(document.files as DocumentFile[]).map(
-                            (file: DocumentFile, index: number) => (
-                              <div
+                            (file: DocumentFile) => (
+                              <Card
                                 key={file.file_id}
-                                className="border rounded-lg p-4 bg-gray-50"
+                                className="overflow-hidden"
                               >
-                                <h5 className="font-medium text-sm mb-3 text-muted-foreground">
-                                  File {index + 1}: {file.original_name}
-                                </h5>
-                                {file.DocumentMetadata && (
-                                  <div className="space-y-2 text-sm">
-                                    {file.DocumentMetadata.file_type && (
-                                      <div className="flex justify-between">
-                                        <span className="text-muted-foreground">
-                                          File Type:
-                                        </span>
-                                        <span className="font-medium">
-                                          {file.DocumentMetadata.file_type}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {file.DocumentMetadata.mime_type && (
-                                      <div className="flex justify-between">
-                                        <span className="text-muted-foreground">
-                                          MIME Type:
-                                        </span>
-                                        <span className="font-medium">
-                                          {file.DocumentMetadata.mime_type}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {file.DocumentMetadata.author && (
-                                      <div className="flex justify-between">
-                                        <span className="text-muted-foreground">
-                                          Author:
-                                        </span>
-                                        <span className="font-medium">
-                                          {file.DocumentMetadata.author}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {file.DocumentMetadata.creator && (
-                                      <div className="flex justify-between">
-                                        <span className="text-muted-foreground">
-                                          Creator:
-                                        </span>
-                                        <span className="font-medium">
-                                          {file.DocumentMetadata.creator}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {file.DocumentMetadata.producer && (
-                                      <div className="flex justify-between">
-                                        <span className="text-muted-foreground">
-                                          Producer:
-                                        </span>
-                                        <span className="font-medium">
-                                          {file.DocumentMetadata.producer}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {file.DocumentMetadata.creation_date && (
-                                      <div className="flex justify-between">
-                                        <span className="text-muted-foreground">
-                                          Creation Date:
-                                        </span>
-                                        <span className="font-medium">
-                                          {
-                                            formatDateTime(
-                                              file.DocumentMetadata
-                                                .creation_date
-                                            ).date
-                                          }
-                                        </span>
-                                      </div>
-                                    )}
-                                    {file.DocumentMetadata
-                                      .modification_date && (
-                                      <div className="flex justify-between">
-                                        <span className="text-muted-foreground">
-                                          Modification Date:
-                                        </span>
-                                        <span className="font-medium">
-                                          {
-                                            formatDateTime(
-                                              file.DocumentMetadata
-                                                .modification_date
-                                            ).date
-                                          }
-                                        </span>
-                                      </div>
-                                    )}
-                                    {file.DocumentMetadata.security_level && (
-                                      <div className="flex justify-between">
-                                        <span className="text-muted-foreground">
-                                          Security Level:
-                                        </span>
-                                        <span className="font-medium">
-                                          {file.DocumentMetadata.security_level}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {file.DocumentMetadata.retention_period && (
-                                      <div className="flex justify-between">
-                                        <span className="text-muted-foreground">
-                                          Retention Period:
-                                        </span>
-                                        <span className="font-medium">
-                                          {
-                                            file.DocumentMetadata
-                                              .retention_period
-                                          }{" "}
-                                          days
-                                        </span>
-                                      </div>
-                                    )}
-                                    {file.DocumentMetadata.is_encrypted !==
-                                      undefined && (
-                                      <div className="flex justify-between">
-                                        <span className="text-muted-foreground">
-                                          Encrypted:
-                                        </span>
-                                        <span className="font-medium">
-                                          {file.DocumentMetadata.is_encrypted
-                                            ? "Yes"
-                                            : "No"}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {file.DocumentMetadata.version && (
-                                      <div className="flex justify-between">
-                                        <span className="text-muted-foreground">
-                                          Version:
-                                        </span>
-                                        <span className="font-medium">
-                                          {file.DocumentMetadata.version}
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                                {!file.DocumentMetadata && (
-                                  <p className="text-muted-foreground text-sm">
-                                    No metadata available for this file
-                                  </p>
-                                )}
-                              </div>
+                                <CardHeader className="bg-muted/50 p-4 border-b">
+                                  <h5 className="font-semibold text-base flex items-center gap-2">
+                                    <FileText className="h-4 w-4 text-muted-foreground" />
+                                    {file.original_name}
+                                  </h5>
+                                </CardHeader>
+                                <CardContent className="p-6">
+                                  {(() => {
+                                    const metadata = file.DocumentMetadata;
+                                    const hasMetadata =
+                                      metadata &&
+                                      Object.values(metadata).some(
+                                        (v) => v != null && v !== ""
+                                      );
+
+                                    if (hasMetadata) {
+                                      return (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
+                                          {Object.entries(metadata).map(
+                                            ([key, value]) => {
+                                              const config =
+                                                metadataDisplayConfig[
+                                                  key as keyof DocumentMetadata
+                                                ];
+                                              if (
+                                                !config ||
+                                                value === null ||
+                                                value === undefined ||
+                                                value === ""
+                                              )
+                                                return null;
+
+                                              let displayValue: React.ReactNode =
+                                                String(value);
+
+                                              if (
+                                                key === "creation_date" ||
+                                                key === "modification_date"
+                                              ) {
+                                                displayValue = formatDateTime(
+                                                  value as string
+                                                ).full;
+                                              } else if (
+                                                key === "is_encrypted"
+                                              ) {
+                                                displayValue = value ? (
+                                                  <Badge
+                                                    variant="secondary"
+                                                    className="bg-green-100 text-green-800"
+                                                  >
+                                                    Yes
+                                                  </Badge>
+                                                ) : (
+                                                  <Badge
+                                                    variant="secondary"
+                                                    className="bg-red-100 text-red-800"
+                                                  >
+                                                    No
+                                                  </Badge>
+                                                );
+                                              } else if (
+                                                key === "retention_period"
+                                              ) {
+                                                displayValue = `${value} days`;
+                                              }
+
+                                              return (
+                                                <div
+                                                  key={key}
+                                                  className="flex items-start gap-3"
+                                                >
+                                                  <config.icon className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                                  <div>
+                                                    <p className="text-xs font-medium text-muted-foreground">
+                                                      {config.label}
+                                                    </p>
+                                                    <div className="text-sm font-semibold break-all">
+                                                      {displayValue}
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              );
+                                            }
+                                          )}
+                                        </div>
+                                      );
+                                    } else {
+                                      return (
+                                        <p className="text-muted-foreground text-sm text-center py-4">
+                                          No additional metadata available for
+                                          this file.
+                                        </p>
+                                      );
+                                    }
+                                  })()}
+                                </CardContent>
+                              </Card>
                             )
                           )}
                         </div>

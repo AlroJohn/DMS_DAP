@@ -15,6 +15,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Eye, Copy, FileText, Clock } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface OcrData {
   ocr_id: string;
@@ -41,12 +48,19 @@ export function ViewOcrDataModal({
   documentId,
 }: ViewOcrDataModalProps) {
   const [ocrData, setOcrData] = useState<OcrData[]>([]);
+  const [selectedOcrId, setSelectedOcrId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && documentId) {
       fetchOcrData();
+    }
+    if (!open) {
+      setOcrData([]);
+      setSelectedOcrId(null);
+      setLoading(true);
+      setError(null);
     }
   }, [open, documentId]);
 
@@ -71,7 +85,11 @@ export function ViewOcrDataModal({
       const result = await response.json();
 
       if (result.success) {
-        setOcrData(result.data?.ocrData || []);
+        const fetchedOcrData = result.data?.ocrData || [];
+        setOcrData(fetchedOcrData);
+        if (fetchedOcrData.length > 0) {
+          setSelectedOcrId(fetchedOcrData[0].ocr_id);
+        }
       } else {
         throw new Error(result.message || "Failed to fetch OCR data");
       }
@@ -137,6 +155,8 @@ export function ViewOcrDataModal({
   const buildAllPagesText = (pages: OcrPageView[]) =>
     pages.map((page) => `Page ${page.pageNumber}:\n${page.text}`).join("\n\n");
 
+  const selectedOcrItem = ocrData.find((item) => item.ocr_id === selectedOcrId);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
@@ -146,6 +166,26 @@ export function ViewOcrDataModal({
             Document OCR Data
           </DialogTitle>
         </DialogHeader>
+
+        {ocrData.length > 1 && (
+          <div className="px-6 pt-4 pb-2">
+            <Select
+              value={selectedOcrId ?? ""}
+              onValueChange={(value) => setSelectedOcrId(value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a file to view its OCR data" />
+              </SelectTrigger>
+              <SelectContent>
+                {ocrData.map((item) => (
+                  <SelectItem key={item.ocr_id} value={item.ocr_id}>
+                    {item.file_url.split("/").pop() || item.file_url}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* ✅ add min-h-0 so the scroll area can take remaining space */}
         <div className="overflow-y-auto h-full">
@@ -175,74 +215,72 @@ export function ViewOcrDataModal({
             </div>
           ) : (
             <ScrollArea className="h-full pr-4">
-              <div className="space-y-4">
-                {ocrData.map((ocrItem) => (
-                  <Card key={ocrItem.ocr_id}>
-                    <CardContent className="p-4">
-                      {(() => {
-                        const pages = normalizeOcrPages(ocrItem.ocr_json);
-                        const pageText = buildAllPagesText(pages);
+              {selectedOcrItem && (
+                <Card>
+                  <CardContent className="p-4">
+                    {(() => {
+                      const pages = normalizeOcrPages(selectedOcrItem.ocr_json);
+                      const pageText = buildAllPagesText(pages);
 
-                        return (
-                          <>
-                            <div className="flex justify-between items-start mb-3">
-                              <Badge variant="secondary" className="text-xs">
-                                <Clock className="h-3 w-3 mr-1" />
-                                {formatDate(ocrItem.created_at)}
-                              </Badge>
+                      return (
+                        <>
+                          <div className="flex justify-between items-start mb-3">
+                            <Badge variant="secondary" className="text-xs">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {formatDate(selectedOcrItem.created_at)}
+                            </Badge>
 
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleCopyToClipboard(pageText)}
-                                disabled={!pageText}
-                              >
-                                <Copy className="h-4 w-4 mr-2" />
-                                Copy OCR Text
-                              </Button>
-                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleCopyToClipboard(pageText)}
+                              disabled={!pageText}
+                            >
+                              <Copy className="h-4 w-4 mr-2" />
+                              Copy OCR Text
+                            </Button>
+                          </div>
 
-                            <Separator className="mb-3" />
+                          <Separator className="mb-3" />
 
-                            <div className="text-sm font-medium mb-2">
-                              OCR Result:
-                            </div>
+                          <div className="text-sm font-medium mb-2">
+                            OCR Result:
+                          </div>
 
-                            {pages.length > 0 ? (
-                              <div className="space-y-3">
-                                {pages.map((page) => (
-                                  <div
-                                    key={`${ocrItem.ocr_id}-page-${page.pageNumber}`}
-                                    className="rounded-md border bg-muted/20 p-3"
-                                  >
-                                    <div className="text-xs font-semibold mb-2">
-                                      Page {page.pageNumber}
-                                    </div>
-                                    <p className="whitespace-pre-wrap break-words text-sm">
-                                      {page.text ||
-                                        "No text detected on this page."}
-                                    </p>
+                          {pages.length > 0 ? (
+                            <div className="space-y-3">
+                              {pages.map((page) => (
+                                <div
+                                  key={`${selectedOcrItem.ocr_id}-page-${page.pageNumber}`}
+                                  className="rounded-md border bg-muted/20 p-3"
+                                >
+                                  <div className="text-xs font-semibold mb-2">
+                                    Page {page.pageNumber}
                                   </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="text-sm text-muted-foreground">
-                                No OCR text available for this file.
-                              </p>
-                            )}
-
-                            <div className="mt-3 text-xs text-muted-foreground">
-                              File:{" "}
-                              {ocrItem.file_url.split("/").pop() ||
-                                ocrItem.file_url}
+                                  <p className="whitespace-pre-wrap break-words text-sm">
+                                    {page.text ||
+                                      "No text detected on this page."}
+                                  </p>
+                                </div>
+                              ))}
                             </div>
-                          </>
-                        );
-                      })()}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              No OCR text available for this file.
+                            </p>
+                          )}
+
+                          <div className="mt-3 text-xs text-muted-foreground">
+                            File:{" "}
+                            {selectedOcrItem.file_url.split("/").pop() ||
+                              selectedOcrItem.file_url}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+              )}
             </ScrollArea>
           )}
         </div>

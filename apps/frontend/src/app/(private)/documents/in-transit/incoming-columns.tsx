@@ -7,7 +7,7 @@ import { DataTableRowActions } from "@/components/reuseable/tables/data-table-ro
 import { DataTableColumnHeader } from "@/components/reuseable/tables/data-table-column-header";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Calendar, Copy, User, Building2, Check } from "lucide-react";
+import { Calendar, Copy, User, Building2, Check, PackageCheck, Loader2 } from "lucide-react";
 import { ScanCodes } from "@/components/ui/scan-codes";
 import { useReceiveDocument } from "@/hooks/use-receive-document";
 import { useState } from "react";
@@ -107,27 +107,41 @@ function ReceiveButton({
           )}
         </Button>
       </AlertDialogTrigger>
-      <AlertDialogContent>
+      <AlertDialogContent className="sm:max-w-lg">
         <AlertDialogHeader>
-          <AlertDialogTitle>Confirm Document Receipt</AlertDialogTitle>
-          <AlertDialogDescription>
-            Are you sure you want to receive this document? This action cannot
-            be undone.
-          </AlertDialogDescription>
+            <div className="flex flex-col items-center text-center space-y-2">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
+                    <PackageCheck className="h-9 w-9 text-blue-600" />
+                </div>
+                <AlertDialogTitle className="text-2xl font-bold">
+                    Confirm Document Receipt
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-base px-4">
+                    You are about to confirm receipt of a document. This action is final.
+                </AlertDialogDescription>
+            </div>
         </AlertDialogHeader>
-        <div className="space-y-2 text-sm">
-          <div>
-            <span className="font-medium">Requested action:</span> {actionLabel}
-          </div>
-          <div>
-            <span className="font-medium">Remarks:</span> {remarksLabel}
-          </div>
+
+        <div className="my-6 space-y-6 rounded-lg border bg-background p-6 text-base">
+            <div className="space-y-2">
+                <p className="font-semibold text-muted-foreground">Requested Action</p>
+                <p className="font-bold text-lg text-primary">{actionLabel}</p>
+            </div>
+            <div className="space-y-2">
+                <p className="font-semibold text-muted-foreground">Release Remarks</p>
+                <p className="text-muted-foreground italic">"{remarksLabel}"</p>
+            </div>
         </div>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleReceive}>
-            {isLoading ? "Processing..." : "Receive"}
-          </AlertDialogAction>
+
+        <AlertDialogFooter className="grid grid-cols-2 gap-4 pt-4">
+            <AlertDialogCancel disabled={isLoading} className="h-12 text-lg">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleReceive} disabled={isLoading} className="h-12 text-lg bg-blue-600 hover:bg-blue-700">
+                {isLoading ? (
+                    <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Working...</>
+                ) : (
+                    <><Check className="mr-2 h-5 w-5" /> Confirm</>
+                )}
+            </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
