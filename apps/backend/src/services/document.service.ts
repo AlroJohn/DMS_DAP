@@ -2231,11 +2231,13 @@ export class DocumentService {
       console.error('Failed to extract or save document metadata:', error);
     }
 
-    // Delete previous file from disk after updating
-    try {
-      await deleteFile(previousPath);
-    } catch (error) {
-      console.error('Error deleting previous file from disk:', error);
+    // Delete previous file from disk after updating (skip if path is unchanged)
+    if (previousPath && previousPath !== storagePath) {
+      try {
+        await deleteFile(previousPath);
+      } catch (error) {
+        console.error('Error deleting previous file from disk:', error);
+      }
     }
 
     return {

@@ -1,4 +1,5 @@
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { DocumentViewerWithSignatures } from "@/components/reuseable/document-viewer-with-signatures/document-viewer-with-signatures";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 
 interface DocumentPreviewModalProps {
@@ -42,10 +43,16 @@ export function DocumentPreviewModal({
             </div>
           ) : isPDF ? (
             <div className="w-full h-full">
-              <iframe
-                src={`${previewUrl}#toolbar=1&statusbar=1&view=Fit&pagemode=thumbs`}
-                title={fileName}
-                className="w-full h-full border-0"
+              <DocumentViewerWithSignatures
+                documentFiles={[
+                  {
+                    id: fileName,
+                    name: fileName,
+                    downloadUrl: previewUrl,
+                    isPrimary: true,
+                  },
+                ]}
+                signedDocuments={[]}
               />
             </div>
           ) : (

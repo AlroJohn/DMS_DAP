@@ -1312,9 +1312,11 @@ export function EditablePdfViewer({
       const formData = new FormData();
       formData.append("files", editedFile);
 
-      // Include the versionGroupId from the source file to maintain the same version group
-      if (selectedFile.versionGroupId) {
-        formData.append("versionGroupId", selectedFile.versionGroupId);
+      // Keep edits in the same version group; fall back to the source file id when missing
+      const versionGroupId =
+        selectedFile.versionGroupId || selectedFile.id || null;
+      if (versionGroupId) {
+        formData.append("versionGroupId", versionGroupId);
       }
 
       const uploadResponse = await fetch(`/api/documents/${documentId}/files`, {
