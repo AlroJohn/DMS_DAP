@@ -2969,6 +2969,7 @@ export class DocumentService {
         where: { document_id: documentId },
         data: {
           status: 'completed',
+          deleted_at: new Date(), // Automatically archive completed documents
           updated_at: new Date()
         }
       });

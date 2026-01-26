@@ -172,13 +172,33 @@ export class ArchiveService {
   /**
    * Get all archived documents
    */
-  async getArchivedDocuments() {
+  async getArchivedDocuments(userId?: string) {
     try {
+      // Build where clause to include both archived and completed documents
+      const whereClause: any = {
+        OR: [
+          { status: 'archive' }, // Explicitly archived documents
+          { status: 'completed' }, // Completed documents also go to archive
+        ]
+      };
+
+      // If userId is provided, filter documents where user is involved
+      // User is involved if they created it, uploaded files, or are in document trails
+      if (userId) {
+        const userTrails = await prisma.documentTrail.findMany({
+          where: { user_id: userId },
+          select: { document_id: true }
+        });
+        const userDocumentIds = userTrails.map(trail => trail.document_id);
+
+        whereClause.OR.push(
+          { document_id: { in: userDocumentIds } }
+        );
+      }
+
       // Get the archived documents
       const archivedDocs = await prisma.document.findMany({
-        where: {
-          status: 'archive', // Use the 'archive' status we set when archiving
-        },
+        where: whereClause,
         include: {
           DocumentAdditionalDetails: true,
           files: {
@@ -343,13 +363,33 @@ export class ArchiveService {
   /**
    * Get a specific archived document
    */
-  async getArchivedDocument(documentId: string) {
+  async getArchivedDocument(documentId: string, userId?: string) {
     try {
+      // Build where clause to include both archived and completed documents
+      const whereClause: any = {
+        document_id: documentId,
+        OR: [
+          { status: 'archive' },
+          { status: 'completed' }
+        ]
+      };
+
+      // If userId is provided, check if user is involved in the document
+      if (userId) {
+        const userTrail = await prisma.documentTrail.findFirst({
+          where: {
+            document_id: documentId,
+            user_id: userId
+          }
+        });
+
+        if (!userTrail) {
+          throw new Error('Access denied: User not involved in this document');
+        }
+      }
+
       const document = await prisma.document.findFirst({
-        where: {
-          document_id: documentId,
-          status: 'archive' // Only archived documents
-        },
+        where: whereClause,
         include: {
           DocumentAdditionalDetails: true,
           files: {

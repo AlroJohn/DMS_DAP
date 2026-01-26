@@ -265,6 +265,11 @@ export const createArchiveColumns = ({
           bgColor: "bg-emerald-500",
           label: "Completed",
         },
+        'archive': {
+          color: "text-blue-600",
+          bgColor: "bg-blue-500",
+          label: "Archived",
+        },
       };
 
       const config = statusConfig[status] || {
