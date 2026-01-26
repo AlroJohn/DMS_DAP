@@ -141,41 +141,7 @@ const data = {
         },
       ],
     },
-    // {
-    //   title: "Workflows",
-    //   url: "/workflows",
-    //   icon: DraftingCompass,
-    //   items: [
-    //     {
-    //       title: "Workflow Builder",
-    //       url: "/workflows/builder",
-    //     },
-    //     {
-    //       title: "Templates",
-    //       url: "/workflows/templates",
-    //     },
-    //     {
-    //       title: "My Approvals",
-    //       url: "/approvals",
-    //     },
-    //     {
-    //       title: "Pending Signatures",
-    //       url: "/workflows/pending-signatures",
-    //     },
-    //     {
-    //       title: "Performance",
-    //       url: "/workflows/performance",
-    //     },
-    //     {
-    //       title: "Email Settings",
-    //       url: "/workflows/email-settings",
-    //     },
-    //     {
-    //       title: "Notification Settings",
-    //       url: "/workflows/notifications-settings",
-    //     },
-    //   ],
-    // },
+   
     {
       title: "Notifications",
       url: "/notifications",
@@ -231,107 +197,9 @@ const data = {
           title: "Version History",
           url: "/reports/versions",
         },
-        // {
-        //   title: "Chain of Custody",
-        //   url: "/reports/chain-of-custody",
-        // },
-        // {
-        //   title: "Report Builder",
-        //   url: "/reports/builder",
-        // },
-        // {
-        //   title: "Scheduled Reports",
-        //   url: "/reports/scheduled",
-        // },
       ],
     },
-    // {
-    //   title: "Admin",
-    //   url: "#",
-    //   icon: Settings,
-    //   items: [
-    //     {
-    //       title: "Security Settings",
-    //       url: "/admin/security",
-    //     },
-    //     {
-    //       title: "Session Management",
-    //       url: "/admin/session-management",
-    //     },
-    //     {
-    //       title: "Security Alerts",
-    //       url: "/admin/security-alerts",
-    //     },
-    //     {
-    //       title: "System Health",
-    //       url: "/admin/system-health",
-    //     },
-    //     {
-    //       title: "Integrations",
-    //       url: "/admin/integrations",
-    //     },
-    //     {
-    //       title: "DocOnChain Config",
-    //       url: "/admin/doconchain",
-    //     },
-    //     {
-    //       title: "API Management",
-    //       url: "/admin/api",
-    //     },
-    //     {
-    //       title: "Connection Monitor",
-    //       url: "/admin/connection-monitor",
-    //     },
-    //     {
-    //       title: "Usage & Billing",
-    //       url: "/admin/usage-billing",
-    //     },
-    //     {
-    //       title: "SSO Settings",
-    //       url: "/admin/sso",
-    //     },
-    //     {
-    //       title: "LDAP Configuration",
-    //       url: "/admin/ldap",
-    //     },
-    //     {
-    //       title: "Webhooks",
-    //       url: "/admin/webhooks",
-    //     },
-    //     {
-    //       title: "API Documentation",
-    //       url: "/admin/api-docs",
-    //     },
-    //     {
-    //       title: "File Management",
-    //       url: "/admin/file-management",
-    //     },
-    //     {
-    //       title: "Retention Policies",
-    //       url: "/admin/retention-policies",
-    //     },
-    //     {
-    //       title: "Remote Access",
-    //       url: "/admin/remote-access",
-    //     },
-    //     {
-    //       title: "Approval Hierarchy",
-    //       url: "/admin/approval-hierarchy",
-    //     },
-    //     {
-    //       title: "Routing Rules",
-    //       url: "/admin/routing-rules",
-    //     },
-    //     {
-    //       title: "Data Migration",
-    //       url: "/admin/migration",
-    //     },
-    //     {
-    //       title: "Backup & Recovery",
-    //       url: "/admin/backup",
-    //     },
-    //   ],
-    // },
+    
   ],
   projects: [
     {

@@ -1,0 +1,69 @@
+DATABASE_URL="postgresql://postgres:PG_PASSWORD@localhost:5432/DMS-DAP"
+
+# JWT Configuration
+JWT_SECRET="a8b9c7d2e5f3a1b4c6d8e9f2a3b5c7d9e1f4a6b8c9d2e5f7a9b1c3d5e7f9a2b4c6d8e0f2a4b6c8d0e2f4a6b8c0d2e4f6a8b0c2d4f6a8b0"
+JWT_REFRESH_SECRET="f6e4d2c0b8a6e4d2c0b8a6e4d2c0b8a6e4d2c0b8a6e4d2c0b8a6e4d2c0b8a6e4d2c0b8a6e4d2c0b8a6e4d2c0b8a6e4d2c0b8a6e4d2c0"
+JWT_EXPIRES_IN="120m"
+JWT_REFRESH_EXPIRES_IN="7d"
+
+# Session Secret
+SESSION_SECRET="a8b9c7d2e5f3a1b4c6d8e9f2a3b5c7d9e1f4a6b8c9d2e5f7a9b1c3d5e7f9a2b4c6d8e0f2a4b6c8d0e2f4a6b8c0d2e4f6a8b0c2d4f6a8b0"
+
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID="56875870055-g1rbbvpnjprb9cuc1f9ajkh9jomlbfkm.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET="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"
+GOOGLE_CALLBACK_URL="http://localhost:3001/api/auth/google/callback"
+
+# Frontend URL
+FRONTEND_URL="http://localhost:3000"
+
+# Frontend Configuration
+NEXT_PUBLIC_API_URL="http://localhost:3001"
+NEXT_PUBLIC_SOCKET_URL="http://localhost:3001"
+
+# Server Configuration
+PORT="3001"
+NODE_ENV="development"
+
+# Logging
+ENABLE_REQUEST_LOGGING=true
+
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT=587
+SMTP_USER="quanbyit.healthcare@gmail.com"
+SMTP_PASS="iayb dnba elkf ytis"
+SMTP_FROM="quanbyit.healthcare@gmail.com"
+
+NEXT_PUBLIC_SOCKET_IO_URL="http://localhost:3001"
+NEXT_PUBLIC_PRINTER_SOCKET_URL="http://localhost:3001"
+NEXT_PUBLIC_PRINTER_IP="192.168.1.16"
+PRINTER_IP="192.168.1.16"
+PRINTER_PORT="9100"
+
+# NEXT_PUBLIC_API_BASE_URL="http://localhost:3001"
+NEXT_PUBLIC_API_BASE_URL="https://dap-dms.quanbyit.com/"
+NEXT_PUBLIC_ENABLE_OCR=true
+ENABLE_OCR=true
+
+
+
+# WiFi Mode:Station
+# Wifi SSID:Quanby Solutions Inc    
+# Wifi PWD:Y8Quanby!n2
+# Wifi AUTH:WPA2-PSK
+# Wifi DHCP:Enable
+# Wifi IP:10,0.1.126
+# Wifi GW:10.0.0.1
+# Wifi MASK:255.255.254.0
+# WiFi Version: V0.0.5.18
+# WiFi Mac:
+# 6c:C1:4727:29:13
+
+
+
+
+
+GEMINI_API_KEY="AIzaSyANN0vWr9pcyjMTgFA9RLHASbaWHgqSX4Q"
+
+
+
