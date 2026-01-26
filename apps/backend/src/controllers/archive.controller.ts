@@ -86,7 +86,10 @@ export class ArchiveController {
    */
   getArchivedDocuments = async (req: Request, res: Response): Promise<void> => {
     try {
-      const archivedDocs = await this.archiveService.getArchivedDocuments();
+      const authReq = req as AuthRequest;
+      const userId = authReq.user?.id; // Get the authenticated user's ID
+
+      const archivedDocs = await this.archiveService.getArchivedDocuments(userId);
 
       res.status(200).json({
         success: true,
@@ -108,14 +111,16 @@ export class ArchiveController {
    */
   getArchivedDocument = async (req: Request, res: Response): Promise<void> => {
     try {
+      const authReq = req as AuthRequest;
       const { documentId } = req.params;
+      const userId = authReq.user?.id; // Get the authenticated user's ID
 
       if (!documentId) {
         res.status(400).json({ error: 'Document ID is required' });
         return;
       }
 
-      const archivedDoc = await this.archiveService.getArchivedDocument(documentId);
+      const archivedDoc = await this.archiveService.getArchivedDocument(documentId, userId);
 
       if (!archivedDoc) {
         res.status(404).json({
