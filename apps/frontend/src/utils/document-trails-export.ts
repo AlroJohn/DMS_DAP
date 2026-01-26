@@ -82,7 +82,7 @@ export async function exportDocumentTrailsPDF(
   let ribbonDataUrl: string | null = null;
   try {
     const [logoRes] = await Promise.all([
-      fetch("/image/dap_logo.png"),
+      fetch("/image/LOGO_BLUE.png"),
     ]);
 
     if (logoRes.ok) {
@@ -131,7 +131,7 @@ export async function exportDocumentTrailsPDF(
   }
 
   // Main title (positioned closer to top; below logo when present)
-  const titleY = logoDataUrl ? logoY + logoH + 4 : 18;
+  const titleY = logoDataUrl ? logoY + logoH + 10 : 18;
   doc.setFontSize(14);
   doc.setTextColor(0, 0, 0);
   doc.setFont("helvetica", "bold");

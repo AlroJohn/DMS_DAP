@@ -39,6 +39,7 @@ import {
   downloadExcel,
   downloadRoutingHistoryCSV,
   exportRoutingHistoryPDF,
+  generateFullReportPDF,
 } from "@/utils/document-export";
 import { DocumentViewerWithSignatures } from "@/components/reuseable/document-viewer-with-signatures/document-viewer-with-signatures";
 
@@ -366,9 +367,10 @@ export function ViewDocumentsModal({
   };
 
   const handleExportPDF = () => {
+    if (!document || !documentTrails) return;
     const docData = createExportDocument();
     if (!docData) return;
-    generateDocumentPDF(docData as any);
+    generateFullReportPDF(docData as any, documentTrails);
   };
 
   const handleExportCSV = () => {
@@ -683,40 +685,15 @@ export function ViewDocumentsModal({
             <TabsContent value="versions" className="space-y-4 mt-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Version History</h3>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleLatestUpdates}
-                    disabled={isLoading}
-                  >
-                    <Clock className="h-4 w-4 mr-2" />
-                    Refresh
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <Download className="h-4 w-4 mr-2" />
-                        Export
-                        <MoreHorizontal className="h-4 w-4 ml-2" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={handleExportPDF}>
-                        <FileText className="h-4 w-4 mr-2" />
-                        Export Full Report (PDF)
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleExportCSV}>
-                        <FileText className="h-4 w-4 mr-2" />
-                        Export Full Report (CSV)
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleExportExcel}>
-                        <FileText className="h-4 w-4 mr-2" />
-                        Export Full Report (Excel)
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLatestUpdates}
+                  disabled={isLoading}
+                >
+                  <Clock className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
               </div>
 
               {isLoading ? (
@@ -959,31 +936,22 @@ export function ViewDocumentsModal({
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="sm">
                         <Download className="h-4 w-4 mr-2" />
-                        Export
+                        Export Document Report
                         <MoreHorizontal className="h-4 w-4 ml-2" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={handleExportPDF}>
                         <FileText className="h-4 w-4 mr-2" />
-                        Export Full Report (PDF)
+                        Document Report (PDF)
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={handleExportCSV}>
                         <FileText className="h-4 w-4 mr-2" />
-                        Export Full Report (CSV)
+                        Document Report (CSV)
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={handleExportExcel}>
                         <FileText className="h-4 w-4 mr-2" />
-                        Export Full Report (Excel)
-                      </DropdownMenuItem>
-                      <div className="border-t my-1"></div>
-                      <DropdownMenuItem onClick={handleExportRoutingHistoryPDF}>
-                        <FileText className="h-4 w-4 mr-2" />
-                        Export Routing History (PDF)
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleExportRoutingHistoryCSV}>
-                        <FileText className="h-4 w-4 mr-2" />
-                        Export Routing History (CSV)
+                        Document Report (Excel)
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
