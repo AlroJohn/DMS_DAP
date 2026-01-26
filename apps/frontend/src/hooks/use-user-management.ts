@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from "sonner";
 import { getAccessToken } from '@/lib/token-utils';
+import { useAuth } from '@/hooks/use-auth';
 
 interface User {
   user_id: string;
@@ -67,6 +68,7 @@ interface UserManagementState {
 }
 
 export const useUserManagement = () => {
+  const { user: currentUser } = useAuth();
   const [state, setState] = useState<UserManagementState>({
     users: [],
     filteredUsers: [],
@@ -89,8 +91,59 @@ export const useUserManagement = () => {
     return getAccessToken();
   };
 
+  const currentRoleCodes = useMemo(() => {
+    return (currentUser?.roles || []).map((role: any) => role.code);
+  }, [currentUser]);
+
+  const hasRole = useCallback((roleCode: string) => {
+    return currentRoleCodes.includes(roleCode);
+  }, [currentRoleCodes]);
+
+  const isSuperAdmin = hasRole('SUPER_ADMIN');
+  const isAdmin = hasRole('ADMINISTRATOR') ||
+    hasRole('ADMIN') ||
+    hasRole('ADMIN1') ||
+    hasRole('ADMIN2') ||
+    hasRole('ADMIN3');
+  const isDepartmentHead = hasRole('DEPARTMENT_HEAD');
+  const canReadUsers = Boolean(currentUser?.permissions?.includes('user_read'));
+
+  const userHasRole = (user: User, roleCode: string) => {
+    return (
+      user.user_roles?.some((userRole) => userRole.role?.code === roleCode) ||
+      false
+    );
+  };
+
+  const applyUserHierarchy = useCallback((users: User[]) => {
+    if (isSuperAdmin) return users;
+
+    if (isAdmin) {
+      return users.filter((user) => !userHasRole(user, 'SUPER_ADMIN'));
+    }
+
+    if (isDepartmentHead) {
+      return users.filter((user) => {
+        if (userHasRole(user, 'SUPER_ADMIN')) return false;
+        return user.department?.department_id === currentUser?.department_id;
+      });
+    }
+
+    return [];
+  }, [currentUser?.department_id, isAdmin, isDepartmentHead, isSuperAdmin]);
+
   const fetchUsers = useCallback(async () => {
     try {
+      if (!canReadUsers) {
+        setState(prev => ({
+          ...prev,
+          users: [],
+          filteredUsers: [],
+          loading: false,
+        }));
+        return;
+      }
+
       setState(prev => ({ ...prev, loading: true }));
       const token = getToken();
       
@@ -102,10 +155,11 @@ export const useUserManagement = () => {
       const data = await response.json();
 
       if (data.success) {
+        const scopedUsers = applyUserHierarchy(data.data || []);
         setState(prev => ({
           ...prev,
-          users: data.data,
-          filteredUsers: data.data,
+          users: scopedUsers,
+          filteredUsers: scopedUsers,
         }));
       } else {
         toast.error(data.message || "Failed to fetch users");
@@ -117,10 +171,15 @@ export const useUserManagement = () => {
     } finally {
       setState(prev => ({ ...prev, loading: false }));
     }
-  }, []);
+  }, [applyUserHierarchy, canReadUsers]);
 
   const fetchDepartments = useCallback(async () => {
     try {
+      const canReadDepartments = Boolean(currentUser?.permissions?.includes('department_read'));
+      if (!canReadDepartments) {
+        setState(prev => ({ ...prev, departments: [] }));
+        return;
+      }
       const token = getToken();
       
       const response = await fetch("/api/admin/departments", {
@@ -131,16 +190,24 @@ export const useUserManagement = () => {
       const data = await response.json();
 
       if (data.success) {
-        setState(prev => ({ ...prev, departments: data.data }));
+        const scopedDepartments = isSuperAdmin || isAdmin
+          ? data.data
+          : data.data.filter((dept: Department) => dept.department_id === currentUser?.department_id);
+        setState(prev => ({ ...prev, departments: scopedDepartments }));
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An error occurred while fetching departments';
       console.error("Error fetching departments:", errorMessage);
     }
-  }, []);
+  }, [currentUser?.department_id, isAdmin, isSuperAdmin]);
 
   const fetchRoles = useCallback(async () => {
     try {
+      const canReadRoles = Boolean(currentUser?.permissions?.includes('role_read'));
+      if (!canReadRoles) {
+        setState(prev => ({ ...prev, roles: [] }));
+        return;
+      }
       const token = getToken();
       
       const response = await fetch("/api/admin/roles", {
@@ -151,13 +218,16 @@ export const useUserManagement = () => {
       const data = await response.json();
 
       if (data.success) {
-        setState(prev => ({ ...prev, roles: data.data }));
+        const scopedRoles = isSuperAdmin
+          ? data.data
+          : data.data.filter((role: Role) => role.code !== 'SUPER_ADMIN');
+        setState(prev => ({ ...prev, roles: scopedRoles }));
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An error occurred while fetching roles';
       console.error("Error fetching roles:", errorMessage);
     }
-  }, []);
+  }, [isSuperAdmin, currentUser?.permissions]);
 
   const toggleUserStatus = async (id: string) => {
     try {

@@ -11,6 +11,19 @@ interface SessionAlertProviderProps {
 }
 
 const IGNORED_PATHS = ["/api/auth/login", "/api/auth/logout"];
+const AUTH_PATH_HINTS = [
+  "/api/auth/me",
+  "/api/auth/refresh",
+  "/api/auth/socket-token",
+];
+const AUTH_ERROR_HINTS = [
+  "invalid or expired token",
+  "unauthorized",
+  "user not authenticated",
+  "authentication required",
+  "refresh token is required",
+  "no access token found",
+];
 
 export function SessionAlertProvider({ children }: SessionAlertProviderProps) {
   const router = useRouter();
@@ -31,6 +44,37 @@ export function SessionAlertProvider({ children }: SessionAlertProviderProps) {
             ? input.toString()
             : input.url;
       return IGNORED_PATHS.some((path) => url.includes(path));
+    };
+
+    const shouldTriggerSessionAlert = async (
+      input: RequestInfo | URL,
+      response: Response,
+    ) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+
+      if (AUTH_PATH_HINTS.some((path) => url.includes(path))) {
+        return true;
+      }
+
+      try {
+        const cloned = response.clone();
+        const data = await cloned.json();
+        const message = (
+          data?.error?.message ||
+          data?.message ||
+          ""
+        )
+          .toString()
+          .toLowerCase();
+        return AUTH_ERROR_HINTS.some((hint) => message.includes(hint));
+      } catch {
+        return false;
+      }
     };
 
     const handleUnauthorized = (input: RequestInfo | URL) => {
@@ -54,7 +98,10 @@ export function SessionAlertProvider({ children }: SessionAlertProviderProps) {
     window.fetch = async (...args) => {
       const response = await originalFetch(...args);
       if (response.status === 401 || response.status === 403) {
-        handleUnauthorized(args[0]);
+        const shouldAlert = await shouldTriggerSessionAlert(args[0], response);
+        if (shouldAlert) {
+          handleUnauthorized(args[0]);
+        }
       }
       return response;
     };
