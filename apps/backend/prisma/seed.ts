@@ -598,28 +598,43 @@ async function main() {
     const sampleUsers = [];
     for (let i = 0; i < 5; i++) {
       const dept = createdDepartments[i % createdDepartments.length];
-      // Create a corresponding account for each user
+      // Create or reuse a corresponding account for each user (idempotent)
       const userAccount = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        const account = await tx.account.create({
-          data: {
-            email: `user${i + 1}@${dept.code.toLowerCase()}.dms.com`,
-            password: await bcrypt.hash('password123', 12), // Using a default password for seed data
+        const email = `user${i + 1}@${dept.code.toLowerCase()}.dms.com`;
+
+        const account = await tx.account.upsert({
+          where: { email },
+          create: {
+            email,
+            password: await bcrypt.hash('password123', 12),
             email_verified: true,
             is_active: true,
             last_login: new Date(),
             department_id: dept.department_id
+          },
+          update: {
+            department_id: dept.department_id,
+            is_active: true,
+            email_verified: true,
+            last_login: new Date()
           }
         });
 
-        const user = await tx.user.create({
-          data: {
+        const user = await tx.user.upsert({
+          where: { account_id: account.account_id },
+          create: {
             account_id: account.account_id,
             department_id: dept.department_id,
             first_name: `Sample${i + 1}`,
             last_name: `User${i + 1}`,
             active: true
+          },
+          update: {
+            department_id: dept.department_id,
+            active: true
           }
         });
+
         return { account, user };
       });
       sampleUsers.push(userAccount.user);
