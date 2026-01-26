@@ -1,18 +1,17 @@
 import { Request, Response } from 'express';
-import { Prisma, PrismaClient, ResourceType } from '@prisma/client';
+import { Prisma, ResourceType } from '@prisma/client';
 import { PermissionService } from '../services/permission.service';
 import { AuthRequest } from '../middleware/auth-middleware';
 import { sendSuccess, sendError } from '../utils/response';
 import { asyncHandler } from '../middleware/error-handler';
+import { prisma } from '../lib/prisma';
 
 const RESOURCE_TYPE_VALUES = new Set<string>(Object.values(ResourceType));
 
 export class PermissionController {
-  private prisma: PrismaClient;
   private permissionService: PermissionService;
 
   constructor() {
-    this.prisma = new PrismaClient();
     this.permissionService = new PermissionService();
   }
 
@@ -81,7 +80,7 @@ export class PermissionController {
     }
 
     try {
-      const permissions = await this.prisma.permissionDefinition.findMany({
+      const permissions = await prisma.permissionDefinition.findMany({
         where: {
           is_active: true
         },
@@ -113,7 +112,7 @@ export class PermissionController {
     }
 
     try {
-      const permission = await this.prisma.permissionDefinition.findUnique({
+      const permission = await prisma.permissionDefinition.findUnique({
         where: {
           permission_id: id
         }
@@ -168,7 +167,7 @@ export class PermissionController {
 
     try {
       // Check if permission already exists
-      const existingPermission = await this.prisma.permissionDefinition.findFirst({
+      const existingPermission = await prisma.permissionDefinition.findFirst({
         where: {
           permission: permission
         }
@@ -178,7 +177,7 @@ export class PermissionController {
         return sendError(res, 'Permission already exists', 409);
       }
 
-      const newPermission = await this.prisma.permissionDefinition.create({
+      const newPermission = await prisma.permissionDefinition.create({
         data: {
           permission,
           resource_type: this.resolveResourceType(permission, normalizedResourceType),
@@ -227,7 +226,7 @@ export class PermissionController {
     const isActiveInput = this.parseBoolean(isActive ?? is_active);
 
     try {
-      const existingPermission = await this.prisma.permissionDefinition.findUnique({
+      const existingPermission = await prisma.permissionDefinition.findUnique({
         where: {
           permission_id: id
         }
@@ -239,7 +238,7 @@ export class PermissionController {
 
       // Check if new permission name conflicts with existing permissions
       if (permission && permission !== existingPermission.permission) {
-        const conflictingPermission = await this.prisma.permissionDefinition.findFirst({
+        const conflictingPermission = await prisma.permissionDefinition.findFirst({
           where: {
             permission: permission,
             permission_id: {
@@ -265,7 +264,7 @@ export class PermissionController {
         is_active: isActiveInput !== undefined ? isActiveInput : existingPermission.is_active
       };
 
-      const updatedPermission = await this.prisma.permissionDefinition.update({
+      const updatedPermission = await prisma.permissionDefinition.update({
         where: {
           permission_id: id
         },
@@ -295,7 +294,7 @@ export class PermissionController {
     }
 
     try {
-      const existingPermission = await this.prisma.permissionDefinition.findUnique({
+      const existingPermission = await prisma.permissionDefinition.findUnique({
         where: {
           permission_id: id
         }
@@ -306,7 +305,7 @@ export class PermissionController {
       }
 
       // Check if permission is being used by any roles
-      const rolePermissions = await this.prisma.rolePermission.findMany({
+      const rolePermissions = await prisma.rolePermission.findMany({
         where: {
           permission_id: id
         }
@@ -316,7 +315,7 @@ export class PermissionController {
         return sendError(res, 'Cannot delete permission that is assigned to roles', 409);
       }
 
-      await this.prisma.permissionDefinition.delete({
+      await prisma.permissionDefinition.delete({
         where: {
           permission_id: id
         }
@@ -345,7 +344,7 @@ export class PermissionController {
     }
 
     try {
-      const roles = await this.prisma.rolePermission.findMany({
+      const roles = await prisma.rolePermission.findMany({
         where: {
           permission_id: id,
           is_active: true

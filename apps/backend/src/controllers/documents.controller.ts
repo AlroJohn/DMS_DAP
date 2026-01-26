@@ -5,7 +5,6 @@ import { AuthRequest } from '../middleware/auth-middleware';
 import { asyncHandler } from '../middleware/error-handler';
 import { sendSuccess, sendError, getPaginationParams, validateRequiredFields } from '../utils/response';
 import { CreateDocumentRequest, UpdateDocumentRequest } from '../types';
-import fs from 'fs';
 
 export class DocumentController {
   private documentService: DocumentService;
@@ -214,12 +213,11 @@ export class DocumentController {
     res.setHeader('Content-Type', file.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.fileName)}"`);
 
-    const stream = fs.createReadStream(file.filePath);
-    stream.on('error', (error) => {
+    file.stream.on('error', (error: Error) => {
       console.error('File stream error:', error);
       res.destroy(error);
     });
-    stream.pipe(res);
+    file.stream.pipe(res);
   });
 
   /**
@@ -241,12 +239,11 @@ export class DocumentController {
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(file.fileName)}"`);
     res.setHeader('Cache-Control', 'private, max-age=3600');
 
-    const stream = fs.createReadStream(file.filePath);
-    stream.on('error', (error) => {
+    file.stream.on('error', (error: Error) => {
       console.error('File stream error:', error);
       res.destroy(error);
     });
-    stream.pipe(res);
+    file.stream.pipe(res);
   });
 
   /**

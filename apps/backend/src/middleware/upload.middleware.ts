@@ -1,27 +1,6 @@
 import multer from 'multer';
-import path from 'path';
 import fs from 'fs';
-import crypto from 'crypto';
-
-// Ensure upload directory exists
-const uploadDir = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    // Generate unique filename with timestamp and random string
-    const uniqueSuffix = Date.now() + '-' + crypto.randomBytes(6).toString('hex');
-    const ext = path.extname(file.originalname);
-    const name = path.basename(file.originalname, ext);
-    cb(null, `${name}-${uniqueSuffix}${ext}`);
-  }
-});
+import { s3Storage } from '../services/storage/s3.service';
 
 // File filter for allowed file types
 const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
@@ -49,9 +28,9 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
   }
 };
 
-// Configure multer
+// Configure multer to keep files in memory for S3 upload
 export const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter,
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB limit
@@ -69,19 +48,24 @@ export const uploadMultiple = upload.array('files', 10);
 export const getFileMetadata = (file: Express.Multer.File) => {
   return {
     originalName: file.originalname,
-    filename: file.filename,
+    filename: file.originalname,
     mimetype: file.mimetype,
     size: file.size,
-    path: file.path,
+    path: file.path ?? '',
     uploadDate: new Date()
   };
 };
 
 // Helper function to delete file
-export const deleteFile = (filePath: string): Promise<void> => {
-  return new Promise((resolve, reject) => {
+export const deleteFile = async (filePath: string): Promise<void> => {
+  if (filePath.startsWith('s3://')) {
+    await s3Storage.deleteObject(filePath);
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
     fs.unlink(filePath, (err) => {
-      if (err && err.code !== 'ENOENT') {
+      if (err && (err as NodeJS.ErrnoException).code !== 'ENOENT') {
         reject(err);
       } else {
         resolve();

@@ -4,7 +4,7 @@ import { Worker } from 'worker_threads';
 type OcrJob = {
   jobId: string;
   documentId: string;
-  filePath: string;
+  storagePath: string;
   mimeType: string;
   originalName: string;
 };

@@ -2,10 +2,9 @@ import { Request, Response } from 'express';
 import { DocumentReportsService } from '../services/document-reports.service';
 import { ScheduledReportsProcessor } from '../services/scheduled-reports.processor';
 import * as fs from 'fs';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
 const documentReportsService = new DocumentReportsService();
-const prisma = new PrismaClient();
 
 export const getUsageReport = async (req: Request, res: Response) => {
   try {

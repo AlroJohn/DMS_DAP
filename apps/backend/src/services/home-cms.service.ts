@@ -1,7 +1,5 @@
 import { prisma } from '../lib/prisma';
 
-const prismaAny = prisma as any;
-
 export interface HomeCMSData {
   logo_url?: string;
   video_url?: string;
@@ -17,7 +15,7 @@ export class HomeCMSService {
    */
   async getActiveCMS() {
     try {
-      const cms = await prismaAny.homeCMS.findFirst({
+      const cms = await prisma.homeCMS.findFirst({
         where: { is_active: true },
         orderBy: { updated_at: "desc" },
       });
@@ -35,13 +33,13 @@ export class HomeCMSService {
   async upsertCMS(data: HomeCMSData, userId: string) {
     try {
       // Check if there's an existing active CMS
-      const existingCMS = await prismaAny.homeCMS.findFirst({
+      const existingCMS = await prisma.homeCMS.findFirst({
         where: { is_active: true },
       });
 
       if (existingCMS) {
         // Update existing CMS
-        return await prismaAny.homeCMS.update({
+        return await prisma.homeCMS.update({
           where: { cms_id: existingCMS.cms_id },
           data: {
             ...data,
@@ -51,7 +49,7 @@ export class HomeCMSService {
         });
       } else {
         // Create new CMS
-        return await prismaAny.homeCMS.create({
+        return await prisma.homeCMS.create({
           data: {
             ...data,
             created_by: userId,
@@ -71,7 +69,7 @@ export class HomeCMSService {
    */
   async getAllCMS() {
     try {
-      return await prismaAny.homeCMS.findMany({
+      return await prisma.homeCMS.findMany({
         orderBy: { updated_at: "desc" },
       });
     } catch (error) {
@@ -85,7 +83,7 @@ export class HomeCMSService {
    */
   async deleteCMS(cmsId: string) {
     try {
-      return await prismaAny.homeCMS.delete({
+      return await prisma.homeCMS.delete({
         where: { cms_id: cmsId },
       });
     } catch (error) {

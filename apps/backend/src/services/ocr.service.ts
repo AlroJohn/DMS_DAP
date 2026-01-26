@@ -63,6 +63,20 @@ export class OcrService {
     try {
       console.log(`[OcrService] Starting page-by-page OCR for file: ${filePath}`);
       const fileBuffer = await fs.readFile(filePath);
+      return await this.extractTextFromPdfBuffer(fileBuffer, mimeType, filePath);
+    } catch (error) {
+      console.error("[OcrService] A critical error occurred during the OCR process:", error);
+      return null;
+    }
+  }
+
+  async extractTextFromPdfBuffer(
+    fileBuffer: Buffer,
+    mimeType: string = "application/pdf",
+    sourceLabel: string = "buffer"
+  ): Promise<OcrResult | null> {
+    try {
+      console.log(`[OcrService] Starting page-by-page OCR for file: ${sourceLabel}`);
 
       // Load the PDF with pdf-lib
       const mainPdfDoc = await PDFDocument.load(fileBuffer);
@@ -120,7 +134,7 @@ export class OcrService {
         pages: allPagesText,
       };
 
-      console.log(`[OcrService] Completed OCR for all pages of file: ${filePath}`);
+      console.log(`[OcrService] Completed OCR for all pages of file: ${sourceLabel}`);
       return finalResult;
 
     } catch (error) {

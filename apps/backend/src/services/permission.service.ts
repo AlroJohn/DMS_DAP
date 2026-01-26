@@ -1,18 +1,17 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { Permission, PermissionScope, Role } from '../types';
 
 /**
  * Permission Service - handles role-based permission logic
  */
 export class PermissionService {
-  private prisma = new PrismaClient();
 
   /**
    * Get all permissions for a user based on their roles
    */
   async getUserPermissions(userId: string): Promise<Permission[]> {
     try {
-      const userRoles = await this.prisma.userRole.findMany({
+      const userRoles = await prisma.userRole.findMany({
         where: {
           user_id: userId,
           is_active: true,
@@ -36,7 +35,7 @@ export class PermissionService {
       });
 
       const permissions = new Set<Permission>();
-      
+
       for (const userRole of userRoles) {
         for (const rolePermission of userRole.role.role_permissions) {
           permissions.add(rolePermission.permission.permission as Permission);
@@ -55,7 +54,7 @@ export class PermissionService {
    */
   async getUserRoles(userId: string): Promise<Role[]> {
     try {
-      const userRoles = await this.prisma.userRole.findMany({
+      const userRoles = await prisma.userRole.findMany({
         where: {
           user_id: userId,
           is_active: true,
@@ -145,7 +144,7 @@ export class PermissionService {
   async hasAnyRole(userId: string, roleCodes: string[]): Promise<boolean> {
     try {
       const userRoles = await this.getUserRoles(userId);
-      return roleCodes.some(roleCode => 
+      return roleCodes.some(roleCode =>
         userRoles.some(role => role.code === roleCode && role.is_active)
       );
     } catch (error) {
@@ -174,7 +173,7 @@ export class PermissionService {
    */
   async assignRoleToUser(userId: string, roleId: string, assignedBy: string, expiresAt?: Date): Promise<boolean> {
     try {
-      await this.prisma.userRole.create({
+      await prisma.userRole.create({
         data: {
           user_id: userId,
           role_id: roleId,
@@ -196,7 +195,7 @@ export class PermissionService {
    */
   async removeRoleFromUser(userId: string, roleId: string): Promise<boolean> {
     try {
-      await this.prisma.userRole.updateMany({
+      await prisma.userRole.updateMany({
         where: {
           user_id: userId,
           role_id: roleId
@@ -217,7 +216,7 @@ export class PermissionService {
    */
   async getAllRoles(): Promise<Role[]> {
     try {
-      const roles = await this.prisma.role.findMany({
+      const roles = await prisma.role.findMany({
         where: { is_active: true },
         orderBy: { name: 'asc' }
       });
@@ -245,7 +244,7 @@ export class PermissionService {
    */
   async getRoleByCode(roleCode: string): Promise<Role | null> {
     try {
-      const role = await this.prisma.role.findUnique({
+      const role = await prisma.role.findUnique({
         where: { code: roleCode }
       });
 

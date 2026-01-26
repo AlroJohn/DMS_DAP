@@ -5,7 +5,8 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import PDFDocument from 'pdfkit';
-import { getFileMetadata, deleteFile } from '../middleware/upload.middleware';
+import { deleteFile } from '../middleware/upload.middleware';
+import { s3Storage } from './storage/s3.service';
 import { DoconchainService, SignerMarkPayload, SignerPayload, SignerRole } from './doconchain.service';
 import { getSocketInstance } from '../socket';
 import { EmailService, DocumentSharedEmailData, DocumentReleasedEmailData, DocumentCompletedEmailData } from './email.service';
@@ -60,7 +61,7 @@ interface SignDocumentOptions {
  * Adjusted to work with the existing schema
  */
 export class DocumentService {
-  private readonly prismaAny = prisma as any;
+  private readonly prisma = prisma as any;
   private documentMetadataService: DocumentMetadataService;
 
   constructor() {
@@ -107,6 +108,43 @@ export class DocumentService {
 
     return [];
   }
+
+  private slugifyDepartmentName(name: string): string {
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    return slug || 'unknown-department';
+  }
+
+  private sanitizeFileName(name: string): string {
+    const base = path.basename(name).replace(/\s+/g, '-');
+    const cleaned = base.replace(/[^a-zA-Z0-9._-]/g, '');
+    return cleaned || `file-${Date.now()}.bin`;
+  }
+
+  private async getDepartmentSlug(departmentId: string): Promise<string> {
+    const department = await prisma.department.findUnique({
+      where: { department_id: departmentId },
+      select: { name: true }
+    });
+    return this.slugifyDepartmentName(department?.name || 'unknown');
+  }
+
+  private buildS3Key(params: {
+    departmentSlug: string;
+    documentId: string;
+    versionGroupId: string;
+    fileId: string;
+    fileName: string;
+  }): string {
+    const safeName = this.sanitizeFileName(params.fileName);
+    return `${params.departmentSlug}/${params.documentId}/${params.versionGroupId}/${params.fileId}/${safeName}`;
+  }
+
+  private async calculateChecksumFromBuffer(buffer: Buffer): Promise<string> {
+    return crypto.createHash('sha256').update(buffer).digest('hex');
+  }
   private async calculateChecksum(filePath: string): Promise<string> {
     return new Promise((resolve, reject) => {
       const hash = crypto.createHash('sha256');
@@ -120,7 +158,7 @@ export class DocumentService {
 
   private queueOcrProcessing(params: {
     documentId: string;
-    filePath: string;
+    storagePath: string;
     mimeType: string;
     originalName: string;
   }): void {
@@ -202,23 +240,36 @@ export class DocumentService {
         first_name: user?.first_name,
         last_name: user?.last_name,
       });
-
-      const uploadsDir = path.join(process.cwd(), 'uploads', 'generated');
-      await fs.promises.mkdir(uploadsDir, { recursive: true });
-
       const storedName = `${documentId}-placeholder-${Date.now()}.pdf`;
-      const storagePath = path.join(uploadsDir, storedName);
-      await fs.promises.writeFile(storagePath, buffer);
-
-      const checksum = await this.calculateChecksum(storagePath);
+      const checksum = await this.calculateChecksumFromBuffer(buffer);
 
       const uploadedBy = user?.account_id ?? detail?.account_id;
       if (!uploadedBy) {
         throw new Error('Missing account reference for placeholder upload');
       }
 
-      const created = await this.prismaAny.documentFile.create({
+      const departmentId = user?.department_id || detail?.work_flow_id?.first;
+      const departmentSlug = departmentId
+        ? await this.getDepartmentSlug(departmentId)
+        : 'unknown-department';
+      const versionGroupId = crypto.randomUUID();
+      const fileId = crypto.randomUUID();
+      const key = this.buildS3Key({
+        departmentSlug,
+        documentId,
+        versionGroupId,
+        fileId,
+        fileName: storedName
+      });
+      const storagePath = await s3Storage.uploadBuffer({
+        key,
+        body: buffer,
+        contentType: 'application/pdf',
+      });
+
+      const created = await prisma.documentFile.create({
         data: {
+          file_id: fileId,
           document_id: documentId,
           original_name: `${document?.document_code || documentId}-placeholder.pdf`,
           stored_name: storedName,
@@ -228,6 +279,7 @@ export class DocumentService {
           checksum,
           is_primary: false,
           uploaded_by: uploadedBy,
+          version_group_id: versionGroupId,
         },
       });
 
@@ -1655,25 +1707,39 @@ export class DocumentService {
 
     // If file is uploaded, save file metadata
     if (file) {
-      const fileMetadata = getFileMetadata(file);
-
-      const existingFileCount = await this.prismaAny.documentFile.count({
+      if (!file.buffer) {
+        throw new Error('File buffer missing. Ensure memory storage is enabled for uploads.');
+      }
+      const existingFileCount = await prisma.documentFile.count({
         where: { document_id: document.document_id }
       });
 
-      const checksum = await this.calculateChecksum(fileMetadata.path);
-
-      // Generate a unique version_group_id for this file
+      const departmentSlug = await this.getDepartmentSlug(user.department_id);
+      const fileId = crypto.randomUUID();
       const newVersionGroupId = crypto.randomUUID();
+      const checksum = await this.calculateChecksumFromBuffer(file.buffer);
+      const storageKey = this.buildS3Key({
+        departmentSlug,
+        documentId: document.document_id,
+        versionGroupId: newVersionGroupId,
+        fileId,
+        fileName: file.originalname,
+      });
+      const storagePath = await s3Storage.uploadBuffer({
+        key: storageKey,
+        body: file.buffer,
+        contentType: file.mimetype,
+      });
 
-      const createdFile = await this.prismaAny.documentFile.create({
+      const createdFile = await prisma.documentFile.create({
         data: {
+          file_id: fileId,
           document_id: document.document_id,
-          original_name: fileMetadata.originalName,
-          stored_name: fileMetadata.filename,
-          storage_path: fileMetadata.path,
-          file_size: BigInt(fileMetadata.size),
-          mime_type: fileMetadata.mimetype,
+          original_name: file.originalname,
+          stored_name: this.sanitizeFileName(file.originalname),
+          storage_path: storagePath,
+          file_size: BigInt(file.size),
+          mime_type: file.mimetype,
           checksum,
           is_primary: existingFileCount === 0,
           uploaded_by: user.account.account_id,
@@ -1684,7 +1750,7 @@ export class DocumentService {
       if (enableOcr) {
         this.queueOcrProcessing({
           documentId: document.document_id,
-          filePath: fileMetadata.path,
+          storagePath: storagePath,
           mimeType: file.mimetype,
           originalName: file.originalname,
         });
@@ -1692,7 +1758,10 @@ export class DocumentService {
 
       // Extract and save document metadata
       try {
-        const metadata = await this.documentMetadataService.extractMetadata(fileMetadata.path);
+        const metadata = await this.documentMetadataService.extractMetadataFromBuffer(
+          file.buffer,
+          file.originalname
+        );
 
         const metadataToSave: any = {
           file_id: createdFile.file_id,
@@ -1712,7 +1781,7 @@ export class DocumentService {
         // Remove undefined fields
         Object.keys(metadataToSave).forEach(key => metadataToSave[key] === undefined && delete metadataToSave[key]);
 
-        const metadataRecord = await this.prismaAny.documentMetadata.create({
+        const metadataRecord = await prisma.documentMetadata.create({
           data: metadataToSave,
         });
 
@@ -1791,6 +1860,7 @@ export class DocumentService {
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
       select: {
+        department_id: true,
         account: {
           select: {
             account_id: true
@@ -1803,13 +1873,24 @@ export class DocumentService {
       throw new Error('User account context missing');
     }
 
+    const departmentSlug = user.department_id
+      ? await this.getDepartmentSlug(user.department_id)
+      : 'unknown-department';
+
+    // Validate that all files have buffers
+    for (const file of files) {
+      if (!file.buffer) {
+        throw new Error('File buffer missing. Ensure memory storage is enabled for uploads.');
+      }
+    }
+
     // This variable will be used if we're branching (versionGroupId provided)
     let branchingVersionGroupId: string | null = null;
     if (versionGroupId) {
       branchingVersionGroupId = versionGroupId;
     }
 
-    const existingFiles = await this.prismaAny.documentFile.findMany({
+    const existingFiles = await prisma.documentFile.findMany({
       where: { document_id: documentId },
       orderBy: { uploaded_at: 'asc' }
     });
@@ -1819,7 +1900,7 @@ export class DocumentService {
     // If we're branching (versionGroupId provided), find existing files in this version group to determine the next version
     let nextVersionInGroup = 1;
     if (versionGroupId) {
-      const existingFilesInGroup = await this.prismaAny.documentFile.findMany({
+      const existingFilesInGroup = await prisma.documentFile.findMany({
         where: {
           document_id: documentId,
           version_group_id: versionGroupId
@@ -1834,7 +1915,7 @@ export class DocumentService {
         nextVersionInGroup = currentMinor + 1;
       }
     }
-    
+
     let originalFileToCloneFrom: { file_id: string } | null = null;
     if (versionGroupId) {
       originalFileToCloneFrom = await prisma.documentFile.findFirst({
@@ -1850,12 +1931,12 @@ export class DocumentService {
         },
       });
     }
-    
+
     const uploadedFiles = [];
 
     for (const [index, file] of files.entries()) {
-      const fileMetadata = getFileMetadata(file);
-      const checksum = await this.calculateChecksum(fileMetadata.path);
+      const fileId = crypto.randomUUID();
+      const checksum = await this.calculateChecksumFromBuffer(file.buffer);
 
       const version = versionGroupId
         ? `1.${nextVersionInGroup + index}`
@@ -1865,14 +1946,28 @@ export class DocumentService {
 
       const shouldBePrimary = !hasRealFile && index === 0;
 
-      const created = await this.prismaAny.documentFile.create({
+      const storageKey = this.buildS3Key({
+        departmentSlug,
+        documentId,
+        versionGroupId: currentFileVersionGroupId,
+        fileId,
+        fileName: file.originalname,
+      });
+      const storagePath = await s3Storage.uploadBuffer({
+        key: storageKey,
+        body: file.buffer,
+        contentType: file.mimetype,
+      });
+
+      const created = await prisma.documentFile.create({
         data: {
+          file_id: fileId,
           document_id: documentId,
-          original_name: fileMetadata.originalName,
-          stored_name: fileMetadata.filename,
-          storage_path: fileMetadata.path,
-          file_size: BigInt(fileMetadata.size),
-          mime_type: fileMetadata.mimetype,
+          original_name: file.originalname,
+          stored_name: this.sanitizeFileName(file.originalname),
+          storage_path: storagePath,
+          file_size: BigInt(file.size),
+          mime_type: file.mimetype,
           checksum,
           version,
           is_primary: shouldBePrimary,
@@ -1880,7 +1975,7 @@ export class DocumentService {
           version_group_id: currentFileVersionGroupId
         }
       });
-      
+
       if (originalFileToCloneFrom) {
         // Clone Signature Placeholders
         const signaturePlaceholdersToClone =
@@ -1934,7 +2029,7 @@ export class DocumentService {
       if (enableOcr) {
         this.queueOcrProcessing({
           documentId,
-          filePath: fileMetadata.path,
+          storagePath,
           mimeType: file.mimetype,
           originalName: file.originalname,
         });
@@ -1942,7 +2037,7 @@ export class DocumentService {
 
       if (shouldBePrimary) {
         hasRealFile = true;
-        await this.prismaAny.documentFile.updateMany({
+        await prisma.documentFile.updateMany({
           where: {
             document_id: documentId,
             file_id: { not: created.file_id }
@@ -1953,7 +2048,10 @@ export class DocumentService {
 
       // Extract and save document metadata for this file
       try {
-        const metadata = await this.documentMetadataService.extractMetadata(fileMetadata.path);
+        const metadata = await this.documentMetadataService.extractMetadataFromBuffer(
+          file.buffer,
+          file.originalname
+        );
 
         const metadataToSave: any = {
           file_id: created.file_id,
@@ -1973,7 +2071,7 @@ export class DocumentService {
         // Remove undefined fields
         Object.keys(metadataToSave).forEach(key => metadataToSave[key] === undefined && delete metadataToSave[key]);
 
-        const metadataRecord = await this.prismaAny.documentMetadata.create({
+        const metadataRecord = await prisma.documentMetadata.create({
           data: metadataToSave,
         });
 
@@ -2033,7 +2131,7 @@ export class DocumentService {
       throw new Error('You do not have permission to update this document');
     }
 
-    const existingFile = await this.prismaAny.documentFile.findFirst({
+    const existingFile = await prisma.documentFile.findFirst({
       where: {
         file_id: fileId,
         document_id: documentId
@@ -2047,6 +2145,7 @@ export class DocumentService {
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
       select: {
+        department_id: true,
         account: {
           select: {
             account_id: true
@@ -2059,31 +2158,50 @@ export class DocumentService {
       throw new Error('User account context missing');
     }
 
-    const fileMetadata = getFileMetadata(file);
-    const checksum = await this.calculateChecksum(fileMetadata.path);
+    const departmentSlug = user.department_id
+      ? await this.getDepartmentSlug(user.department_id)
+      : 'unknown-department';
+    const checksum = await this.calculateChecksumFromBuffer(file.buffer);
     const previousPath = existingFile.storage_path;
+    const versionGroupId = existingFile.version_group_id || crypto.randomUUID();
+    const storageKey = this.buildS3Key({
+      departmentSlug,
+      documentId,
+      versionGroupId,
+      fileId: existingFile.file_id,
+      fileName: file.originalname,
+    });
+    const storagePath = await s3Storage.uploadBuffer({
+      key: storageKey,
+      body: file.buffer,
+      contentType: file.mimetype,
+    });
 
-    const updated = await this.prismaAny.documentFile.update({
+    const updated = await prisma.documentFile.update({
       where: { file_id: fileId },
       data: {
-        original_name: fileMetadata.originalName,
-        stored_name: fileMetadata.filename,
-        storage_path: fileMetadata.path,
-        file_size: BigInt(fileMetadata.size),
-        mime_type: fileMetadata.mimetype,
+        original_name: file.originalname,
+        stored_name: this.sanitizeFileName(file.originalname),
+        storage_path: storagePath,
+        file_size: BigInt(file.size),
+        mime_type: file.mimetype,
         checksum,
         uploaded_at: new Date(),
-        uploaded_by: user.account.account_id
+        uploaded_by: user.account.account_id,
+        version_group_id: versionGroupId
       }
     });
 
     // Update metadata for this file
-    await this.prismaAny.documentMetadata.deleteMany({
+    await prisma.documentMetadata.deleteMany({
       where: { file_id: fileId }
     });
 
     try {
-      const metadata = await this.documentMetadataService.extractMetadata(fileMetadata.path);
+      const metadata = await this.documentMetadataService.extractMetadataFromBuffer(
+        file.buffer,
+        file.originalname
+      );
 
       const metadataToSave: any = {
         file_id: updated.file_id,
@@ -2102,7 +2220,7 @@ export class DocumentService {
 
       Object.keys(metadataToSave).forEach(key => metadataToSave[key] === undefined && delete metadataToSave[key]);
 
-      const metadataRecord = await this.prismaAny.documentMetadata.create({
+      const metadataRecord = await prisma.documentMetadata.create({
         data: metadataToSave,
       });
 
@@ -2142,7 +2260,7 @@ export class DocumentService {
       throw new Error('Invalid document ID format');
     }
 
-    const files = await this.prismaAny.documentFile.findMany({
+    const files = await prisma.documentFile.findMany({
       where: { document_id: documentId },
       include: {
         checked_out_by: {
@@ -2200,7 +2318,7 @@ export class DocumentService {
       throw new Error('Invalid document ID format');
     }
 
-    const files = await this.prismaAny.documentFile.findMany({
+    const files = await prisma.documentFile.findMany({
       where: { document_id: documentId },
       orderBy: { uploaded_at: 'desc' }
     });
@@ -2229,7 +2347,7 @@ export class DocumentService {
       throw new Error('Invalid document ID format');
     }
 
-    const file = await this.prismaAny.documentFile.findFirst({
+    const file = await prisma.documentFile.findFirst({
       where: {
         file_id: fileId,
         document_id: documentId
@@ -2240,15 +2358,23 @@ export class DocumentService {
       throw new Error('File not found');
     }
 
-    // Check if file exists on disk
+    if (file.storage_path.startsWith('s3://')) {
+      const stream = await s3Storage.getObjectStream(file.storage_path);
+      return {
+        stream,
+        fileName: file.original_name,
+        mimeType: file.mime_type
+      };
+    }
+
     if (!fs.existsSync(file.storage_path)) {
-      // Log the discrepancy between database and file system
       console.error(`File not found on disk: ${file.storage_path} for file_id: ${fileId}, document_id: ${documentId}`);
       throw new Error('File not found on disk');
     }
 
+    const stream = fs.createReadStream(file.storage_path);
     return {
-      filePath: file.storage_path,
+      stream,
       fileName: file.original_name,
       mimeType: file.mime_type
     };
@@ -2258,7 +2384,7 @@ export class DocumentService {
    * Delete document file
    */
   async deleteDocumentFile(documentId: string, fileId: string, userId: string) {
-    const file = await this.prismaAny.documentFile.findFirst({
+    const file = await prisma.documentFile.findFirst({
       where: {
         file_id: fileId,
         document_id: documentId
@@ -2277,7 +2403,7 @@ export class DocumentService {
     }
 
     // Delete metadata from database
-    await this.prismaAny.documentFile.delete({
+    await prisma.documentFile.delete({
       where: { file_id: fileId }
     });
 
@@ -3249,7 +3375,7 @@ export class DocumentService {
         return { success: false, error: 'Document has already been submitted to DocOnChain' };
       }
 
-      const documentFiles = await this.prismaAny.documentFile.findMany({
+      const documentFiles = await prisma.documentFile.findMany({
         where: { document_id: documentId },
         orderBy: [
           { is_primary: 'desc' },
@@ -3270,18 +3396,25 @@ export class DocumentService {
       }
 
       if (!documentFile) {
-        documentFile = await this.createPlaceholderDocumentFile(documentId, document, documentDetailRecord, user);
+        const placeholderFile = await this.createPlaceholderDocumentFile(documentId, document, documentDetailRecord, user);
+        if (placeholderFile) {
+          documentFile = placeholderFile;
+        }
       }
 
       if (!documentFile) {
         return { success: false, error: 'Document has no file to send to DocOnChain' };
       }
 
-      if (!fs.existsSync(documentFile.storage_path)) {
-        return { success: false, error: 'Document file is missing from storage' };
+      let fileBuffer: Buffer;
+      if (documentFile.storage_path.startsWith('s3://')) {
+        fileBuffer = await s3Storage.getObjectBuffer(documentFile.storage_path);
+      } else {
+        if (!fs.existsSync(documentFile.storage_path)) {
+          return { success: false, error: 'Document file is missing from storage' };
+        }
+        fileBuffer = await fs.promises.readFile(documentFile.storage_path);
       }
-
-      const fileBuffer = await fs.promises.readFile(documentFile.storage_path);
       const fileName = documentFile.original_name || path.basename(documentFile.storage_path);
 
       await prisma.documentAdditionalDetails.update({
@@ -3317,7 +3450,7 @@ export class DocumentService {
         throw new Error('DocOnChain response did not include a project identifier');
       }
 
-      await this.prismaAny.documentAdditionalDetails.update({
+      await prisma.documentAdditionalDetails.update({
         where: { detail_id: documentDetailRecord.detail_id },
         data: {
           blockchain_project_uuid: projectUuid,
@@ -3487,7 +3620,7 @@ export class DocumentService {
           : await prisma.documentAdditionalDetails.findFirst({ where: { document_id: documentId } });
 
         if (fallbackDetail) {
-          await this.prismaAny.documentAdditionalDetails.update({
+          await prisma.documentAdditionalDetails.update({
             where: { detail_id: fallbackDetail.detail_id },
             data: {
               blockchain_status: 'failed',

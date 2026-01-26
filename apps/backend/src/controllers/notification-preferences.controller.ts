@@ -1,8 +1,6 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth-middleware';
-
-const prisma = new PrismaClient();
+import { prisma } from '../lib/prisma';
 
 // Default notification preferences configuration
 const DEFAULT_PREFERENCES = [
@@ -207,9 +205,9 @@ export const updateNotificationPreference = async (req: Request, res: Response) 
     const { category, name, email, inApp } = req.body;
 
     if (!category || !name) {
-      return res.status(400).json({ 
-        success: false, 
-        error: { message: 'Category and name are required' } 
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Category and name are required' }
       });
     }
 
@@ -261,9 +259,9 @@ export const updateBulkNotificationPreferences = async (req: Request, res: Respo
     const { preferences } = req.body;
 
     if (!Array.isArray(preferences)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: { message: 'Preferences must be an array' } 
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Preferences must be an array' }
       });
     }
 

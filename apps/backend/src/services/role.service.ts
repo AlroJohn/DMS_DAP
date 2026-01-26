@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { Role, PermissionScope } from '../types';
 
 export interface CreateRoleData {
@@ -32,7 +32,6 @@ export interface RoleWithPermissions extends Role {
  * Role Service - handles role management operations
  */
 export class RoleService {
-  private prisma = new PrismaClient();
 
   /**
    * Create a new role
@@ -40,7 +39,7 @@ export class RoleService {
   async createRole(data: CreateRoleData): Promise<RoleWithPermissions> {
     try {
       // Check if role code already exists
-      const existingRole = await this.prisma.role.findUnique({
+      const existingRole = await prisma.role.findUnique({
         where: { code: data.code }
       });
 
@@ -49,7 +48,7 @@ export class RoleService {
       }
 
       // Check if role name already exists
-      const existingName = await this.prisma.role.findUnique({
+      const existingName = await prisma.role.findUnique({
         where: { name: data.name }
       });
 
@@ -58,7 +57,7 @@ export class RoleService {
       }
 
       // Create role
-      const role = await this.prisma.role.create({
+      const role = await prisma.role.create({
         data: {
           name: data.name,
           code: data.code,
@@ -92,7 +91,7 @@ export class RoleService {
    */
   async getRoleWithPermissions(roleId: string): Promise<RoleWithPermissions | null> {
     try {
-      const role = await this.prisma.role.findUnique({
+      const role = await prisma.role.findUnique({
         where: { role_id: roleId },
         include: {
           role_permissions: {
@@ -136,7 +135,7 @@ export class RoleService {
    */
   async getAllRolesWithPermissions(): Promise<RoleWithPermissions[]> {
     try {
-      const roles = await this.prisma.role.findMany({
+      const roles = await prisma.role.findMany({
         where: { is_active: true },
         include: {
           role_permissions: {
@@ -179,7 +178,7 @@ export class RoleService {
    */
   async updateRole(roleId: string, data: UpdateRoleData): Promise<RoleWithPermissions | null> {
     try {
-      const role = await this.prisma.role.findUnique({
+      const role = await prisma.role.findUnique({
         where: { role_id: roleId }
       });
 
@@ -193,7 +192,7 @@ export class RoleService {
 
       // Check if new code conflicts with existing roles
       if (data.code && data.code !== role.code) {
-        const existingRole = await this.prisma.role.findUnique({
+        const existingRole = await prisma.role.findUnique({
           where: { code: data.code }
         });
 
@@ -204,7 +203,7 @@ export class RoleService {
 
       // Check if new name conflicts with existing roles
       if (data.name && data.name !== role.name) {
-        const existingName = await this.prisma.role.findUnique({
+        const existingName = await prisma.role.findUnique({
           where: { name: data.name }
         });
 
@@ -214,7 +213,7 @@ export class RoleService {
       }
 
       // Update role
-      const updatedRole = await this.prisma.role.update({
+      const updatedRole = await prisma.role.update({
         where: { role_id: roleId },
         data: {
           name: data.name,
@@ -242,7 +241,7 @@ export class RoleService {
    */
   async deleteRole(roleId: string, deletedBy: string): Promise<boolean> {
     try {
-      const role = await this.prisma.role.findUnique({
+      const role = await prisma.role.findUnique({
         where: { role_id: roleId }
       });
 
@@ -254,7 +253,7 @@ export class RoleService {
         throw new Error('Cannot delete system roles');
       }
 
-      await this.prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx) => {
         await tx.permissionAuditLog.updateMany({
           where: { target_role_id: roleId },
           data: { target_role_id: null }
@@ -290,14 +289,14 @@ export class RoleService {
   async assignPermissionsToRole(roleId: string, permissionIds: string[], grantedBy: string): Promise<boolean> {
     try {
       // Remove existing permissions
-      await this.prisma.rolePermission.updateMany({
+      await prisma.rolePermission.updateMany({
         where: { role_id: roleId },
         data: { is_active: false }
       });
 
       // Add new permissions
       for (const permissionId of permissionIds) {
-        await this.prisma.rolePermission.upsert({
+        await prisma.rolePermission.upsert({
           where: {
             role_id_permission_id_scope: {
               role_id: roleId,
@@ -340,7 +339,7 @@ export class RoleService {
    */
   async getAllPermissions() {
     try {
-      const permissions = await this.prisma.permissionDefinition.findMany({
+      const permissions = await prisma.permissionDefinition.findMany({
         where: { is_active: true },
         orderBy: { permission: 'asc' }
       });
@@ -357,7 +356,7 @@ export class RoleService {
    */
   async getRoleByCode(code: string): Promise<Role | null> {
     try {
-      const role = await this.prisma.role.findUnique({
+      const role = await prisma.role.findUnique({
         where: { code: code }
       });
 
@@ -385,7 +384,7 @@ export class RoleService {
    * Get user by ID
    */
   async getUser(userId: string) {
-    return this.prisma.user.findUnique({
+    return prisma.user.findUnique({
       where: { user_id: userId },
     });
   }
@@ -400,7 +399,7 @@ export class RoleService {
         whereClause.role_id = { not: excludeRoleId };
       }
 
-      const existingRole = await this.prisma.role.findFirst({
+      const existingRole = await prisma.role.findFirst({
         where: whereClause
       });
 
@@ -421,7 +420,7 @@ export class RoleService {
         whereClause.role_id = { not: excludeRoleId };
       }
 
-      const existingRole = await this.prisma.role.findFirst({
+      const existingRole = await prisma.role.findFirst({
         where: whereClause
       });
 
@@ -437,7 +436,7 @@ export class RoleService {
    */
   async getUsersWithRole(roleId: string) {
     try {
-      const userRoles = await this.prisma.userRole.findMany({
+      const userRoles = await prisma.userRole.findMany({
         where: {
           role_id: roleId,
           is_active: true,

@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { User, AuthTokenPayload, Permission } from '../types';
 import config from '../config';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { GoogleUserData } from '../config/oauth.config';
 import { EmailService } from './email.service';
 import { PermissionService } from './permission.service';
@@ -30,7 +30,6 @@ export interface AuthResult {
  * Auth Service - handles authentication logic
  */
 export class AuthService {
-  private prisma = new PrismaClient();
   private emailService = new EmailService();
   private permissionService = new PermissionService();
 
@@ -73,7 +72,7 @@ export class AuthService {
    */
   async register(data: RegisterData): Promise<AuthResult> {
     // Check if user already exists
-    const existingAccount = await this.prisma.account.findUnique({
+    const existingAccount = await prisma.account.findUnique({
       where: { email: data.email }
     });
 
@@ -82,7 +81,7 @@ export class AuthService {
     }
 
     // Get default department
-    const defaultDepartment = await this.prisma.department.findFirst({
+    const defaultDepartment = await prisma.department.findFirst({
       where: { active: true }
     });
 
@@ -100,7 +99,7 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(data.password, 12);
 
     // Create new account and user
-    const account = await this.prisma.account.create({
+    const account = await prisma.account.create({
       data: {
         email: data.email,
         password: hashedPassword,
@@ -172,7 +171,7 @@ export class AuthService {
   async login(credentials: LoginCredentials): Promise<{ user: Omit<User, 'password'>; token: string; refreshToken: string }> {
     console.log(`[AuthService] Login attempt for email: ${credentials.email}`);
     // Find account by email in database
-    const account = await this.prisma.account.findUnique({
+    const account = await prisma.account.findUnique({
       where: { email: credentials.email },
       include: { user: true }
     });
@@ -237,7 +236,7 @@ export class AuthService {
     const refreshTokenExpires = new Date();
     refreshTokenExpires.setDate(refreshTokenExpires.getDate() + 6); // 6 days validity
 
-    await this.prisma.userSession.create({
+    await prisma.userSession.create({
       data: {
         account_id: account.account_id,
         session_token: token, // Or a unique session ID
@@ -264,13 +263,13 @@ export class AuthService {
     }
 
     // Find the session by the refresh token
-    const session = await this.prisma.userSession.findFirst({
+    const session = await prisma.userSession.findFirst({
       where: { refresh_token: refreshToken },
     });
 
     if (session) {
       // Delete the session to invalidate it
-      await this.prisma.userSession.delete({
+      await prisma.userSession.delete({
         where: { session_id: session.session_id },
       });
     }
@@ -281,7 +280,7 @@ export class AuthService {
    */
   async refreshToken(refreshToken: string): Promise<{ user: Omit<User, 'password'>; token: string; refreshToken: string }> {
     // Find the session in the database
-    const session = await this.prisma.userSession.findFirst({
+    const session = await prisma.userSession.findFirst({
       where: {
         refresh_token: refreshToken,
         refresh_expires_at: {
@@ -337,7 +336,7 @@ export class AuthService {
     const newRefreshTokenExpires = new Date();
     newRefreshTokenExpires.setDate(newRefreshTokenExpires.getDate() + 6); // 6 days validity
 
-    await this.prisma.userSession.update({
+    await prisma.userSession.update({
       where: { session_id: session.session_id },
       data: {
         refresh_token: newRefreshToken,
@@ -358,7 +357,7 @@ export class AuthService {
 
       // Check if user still exists in database
       // The decoded.userId contains user_id (from User table), not account_id
-      const user = await this.prisma.user.findUnique({
+      const user = await prisma.user.findUnique({
         where: { user_id: decoded.userId },
         include: { account: true }
       });
@@ -369,6 +368,11 @@ export class AuthService {
 
       return decoded;
     } catch (error) {
+      const jwtError = error as Error;
+      console.error('[AuthService] JWT verification failed:', {
+        name: jwtError.name,
+        message: jwtError.message
+      });
       throw new Error('Invalid token');
     }
   }
@@ -378,7 +382,7 @@ export class AuthService {
    */
   async getUserById(userId: string): Promise<Omit<User, 'password'> | null> {
     // The userId is actually user_id from the User table (from JWT token)
-    const user = await this.prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { user_id: userId },
       include: { account: true }
     });
@@ -468,7 +472,7 @@ export class AuthService {
   async createGoogleUser(googleData: GoogleUserData): Promise<{ id: string; email: string; name: string }> {
     try {
       // Get or create a default department (you might want to handle this differently)
-      const defaultDepartment = await this.prisma.department.findFirst({
+      const defaultDepartment = await prisma.department.findFirst({
         where: { active: true }
       });
 
@@ -483,7 +487,7 @@ export class AuthService {
       }
 
       // Create account
-      const account = await this.prisma.account.create({
+      const account = await prisma.account.create({
         data: {
           email: googleData.email,
           google_provider_id: googleData.googleId,
@@ -529,7 +533,7 @@ export class AuthService {
    */
   async linkGoogleAccount(accountId: string, googleId: string): Promise<boolean> {
     try {
-      await this.prisma.account.update({
+      await prisma.account.update({
         where: { account_id: accountId },
         data: { google_provider_id: googleId }
       });
@@ -545,7 +549,7 @@ export class AuthService {
    */
   async unlinkGoogleAccount(accountId: string): Promise<boolean> {
     try {
-      await this.prisma.account.update({
+      await prisma.account.update({
         where: { account_id: accountId },
         data: { google_provider_id: null }
       });
@@ -562,7 +566,7 @@ export class AuthService {
   async generateTokensForUser(userId: string): Promise<{ token: string; refreshToken: string }> {
     try {
       // Get user from database
-      const account = await this.prisma.account.findUnique({
+      const account = await prisma.account.findUnique({
         where: { account_id: userId },
         include: { user: true }
       });
@@ -618,7 +622,7 @@ export class AuthService {
   async requestPasswordReset(email: string, ipAddress?: string, userAgent?: string): Promise<{ success: boolean; message: string }> {
     try {
       // Check if user exists in database
-      const account = await this.prisma.account.findUnique({
+      const account = await prisma.account.findUnique({
         where: { email: email },
         include: { user: true }
       });
@@ -634,7 +638,7 @@ export class AuthService {
       }
 
       // Invalidate any existing reset tokens for this account
-      await this.prisma.passwordResetToken.updateMany({
+      await prisma.passwordResetToken.updateMany({
         where: {
           account_id: account.account_id,
           used_at: null
@@ -650,7 +654,7 @@ export class AuthService {
       expiresAt.setHours(expiresAt.getHours() + 1);
 
       // Create reset token record
-      await this.prisma.passwordResetToken.create({
+      await prisma.passwordResetToken.create({
         data: {
           account_id: account.account_id,
           token: resetToken,
@@ -690,7 +694,7 @@ export class AuthService {
    */
   async verifyResetToken(token: string): Promise<{ valid: boolean; email?: string; message: string }> {
     try {
-      const resetToken = await this.prisma.passwordResetToken.findUnique({
+      const resetToken = await prisma.passwordResetToken.findUnique({
         where: { token: token },
         include: { account: true }
       });
@@ -730,7 +734,7 @@ export class AuthService {
       }
 
       // Get the reset token record
-      const resetToken = await this.prisma.passwordResetToken.findUnique({
+      const resetToken = await prisma.passwordResetToken.findUnique({
         where: { token: token },
         include: { account: true }
       });
@@ -748,22 +752,22 @@ export class AuthService {
       const hashedPassword = await bcrypt.hash(newPassword, 12);
 
       // Update account password and mark token as used
-      await this.prisma.$transaction([
-        this.prisma.account.update({
+      await prisma.$transaction([
+        prisma.account.update({
           where: { account_id: resetToken.account_id },
           data: {
             password: hashedPassword,
             updated_at: new Date()
           }
         }),
-        this.prisma.passwordResetToken.update({
+        prisma.passwordResetToken.update({
           where: { token_id: resetToken.token_id },
           data: { used_at: new Date() }
         })
       ]);
 
       // Invalidate all other reset tokens for this account
-      await this.prisma.passwordResetToken.updateMany({
+      await prisma.passwordResetToken.updateMany({
         where: {
           account_id: resetToken.account_id,
           token_id: { not: resetToken.token_id },
@@ -785,7 +789,7 @@ export class AuthService {
   async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
     try {
       // Get the user's account
-      const account = await this.prisma.account.findFirst({
+      const account = await prisma.account.findFirst({
         where: {
           user: {
             user_id: userId
@@ -817,7 +821,7 @@ export class AuthService {
       const hashedNewPassword = await bcrypt.hash(newPassword, 12);
 
       // Update the password
-      await this.prisma.account.update({
+      await prisma.account.update({
         where: { account_id: account.account_id },
         data: {
           password: hashedNewPassword,
@@ -837,7 +841,7 @@ export class AuthService {
    */
   async cleanupExpiredResetTokens(): Promise<number> {
     try {
-      const result = await this.prisma.passwordResetToken.deleteMany({
+      const result = await prisma.passwordResetToken.deleteMany({
         where: {
           expires_at: { lt: new Date() }
         }

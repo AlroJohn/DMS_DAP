@@ -3,6 +3,8 @@ import path from 'path';
 import mammoth from 'mammoth';
 import { fileTypeFromFile } from 'file-type';
 import fs from 'fs/promises';
+import os from 'os';
+import crypto from 'crypto';
 import { fileMetadata as fm } from 'file-metadata';
 import officeDocumentProperties from 'office-document-properties';
 
@@ -94,6 +96,26 @@ export class DocumentMetadataService {
       console.error(`Error extracting metadata from ${filePath}:`, errorMessage);
       console.log(`📍 [DocumentMetadataService.extractMetadata] Returning basic metadata due to error.`);
       return { file_size: (await fs.stat(filePath)).size }; // Return at least the file size
+    }
+  }
+
+  /**
+   * Extract metadata from an in-memory buffer by writing to a temp file.
+   */
+  async extractMetadataFromBuffer(buffer: Buffer, originalName: string): Promise<DocumentMetadataResult> {
+    const ext = path.extname(originalName) || '.bin';
+    const tempName = `dms-meta-${crypto.randomUUID()}${ext}`;
+    const tempPath = path.join(os.tmpdir(), tempName);
+
+    try {
+      await fs.writeFile(tempPath, buffer);
+      return await this.extractMetadata(tempPath);
+    } finally {
+      try {
+        await fs.unlink(tempPath);
+      } catch {
+        // Ignore temp cleanup errors
+      }
     }
   }
 

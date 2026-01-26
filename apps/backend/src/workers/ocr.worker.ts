@@ -1,11 +1,12 @@
 import { parentPort } from 'worker_threads';
 import { prisma } from '../lib/prisma';
 import { ocrService } from '../services/ocr.service';
+import { s3Storage } from '../services/storage/s3.service';
 
 type OcrJob = {
   jobId: string;
   documentId: string;
-  filePath: string;
+  storagePath: string;
   mimeType: string;
   originalName: string;
 };
@@ -26,12 +27,17 @@ parentPort.on('message', async (job: OcrJob) => {
       return;
     }
 
-    const ocrResult = await ocrService.extractTextFromPdf(job.filePath, job.mimeType);
+    const fileBuffer = await s3Storage.getObjectBuffer(job.storagePath);
+    const ocrResult = await ocrService.extractTextFromPdfBuffer(
+      fileBuffer,
+      job.mimeType,
+      job.storagePath
+    );
     if (ocrResult) {
       await prisma.oCR_Json.create({
         data: {
           documentDocument_id: job.documentId,
-          file_url: job.filePath,
+          file_url: job.storagePath,
           ocr_json: ocrResult as any,
         },
       });

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import crypto from 'crypto';
 import { EmailService, InvitationEmailData } from './email.service';
 import config from '../config';
@@ -35,7 +35,6 @@ export interface InvitationAcceptResult {
 }
 
 export class InvitationService {
-  private prisma = new PrismaClient();
   private emailService = new EmailService();
 
   /**
@@ -44,7 +43,7 @@ export class InvitationService {
   async createInvitation(data: CreateInvitationData): Promise<InvitationResult> {
     try {
       // Get the account ID of the user creating this invitation
-      const inviterUser = await this.prisma.user.findUnique({
+      const inviterUser = await prisma.user.findUnique({
         where: { user_id: data.invitedBy },
         select: { account_id: true }
       });
@@ -54,7 +53,7 @@ export class InvitationService {
       }
 
       // Check if user already exists
-      const existingAccount = await this.prisma.account.findUnique({
+      const existingAccount = await prisma.account.findUnique({
         where: { email: data.email }
       });
 
@@ -63,7 +62,7 @@ export class InvitationService {
       }
 
       // Check if there's already a pending invitation
-      const existingInvitation = await this.prisma.userInvitation.findFirst({
+      const existingInvitation = await prisma.userInvitation.findFirst({
         where: {
           email: data.email,
           status: 'pending',
@@ -79,13 +78,13 @@ export class InvitationService {
 
       // Generate invitation token
       const invitationToken = crypto.randomBytes(32).toString('hex');
-      
+
       // Set expiration date (7 days from now)
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
 
       // Create invitation
-      const invitation = await this.prisma.userInvitation.create({
+      const invitation = await prisma.userInvitation.create({
         data: {
           email: data.email,
           first_name: data.firstName,
@@ -156,7 +155,7 @@ export class InvitationService {
    */
   async getInvitationByToken(token: string) {
     try {
-      const invitation = await this.prisma.userInvitation.findUnique({
+      const invitation = await prisma.userInvitation.findUnique({
         where: { invitation_token: token },
         include: {
           department: true,
@@ -179,7 +178,7 @@ export class InvitationService {
 
       if (invitation.expires_at < new Date()) {
         // Mark as expired
-        await this.prisma.userInvitation.update({
+        await prisma.userInvitation.update({
           where: { invitation_id: invitation.invitation_id },
           data: { status: 'expired' }
         });
@@ -205,7 +204,7 @@ export class InvitationService {
       const hashedPassword = await bcrypt.hash(password, 12);
 
       // Create account and user
-      const account = await this.prisma.account.create({
+      const account = await prisma.account.create({
         data: {
           email: invitation.email,
           password: hashedPassword,
@@ -228,7 +227,7 @@ export class InvitationService {
       });
 
       // Assign the role from the invitation to the user
-      await this.prisma.userRole.create({
+      await prisma.userRole.create({
         data: {
           user_id: account.user!.user_id,
           role_id: invitation.role_id,
@@ -239,7 +238,7 @@ export class InvitationService {
       });
 
       // Mark invitation as accepted
-      await this.prisma.userInvitation.update({
+      await prisma.userInvitation.update({
         where: { invitation_id: invitation.invitation_id },
         data: {
           status: 'accepted',
@@ -250,19 +249,19 @@ export class InvitationService {
       // Generate JWT tokens for automatic login
       const jwt = require('jsonwebtoken');
       const accessToken = jwt.sign(
-        { 
+        {
           id: account.account_id,
           email: account.email,
-          user_id: account.user?.user_id 
+          user_id: account.user?.user_id
         },
         process.env.JWT_SECRET || config.jwt.secret,
         { expiresIn: config.jwt.expiresIn }
       );
 
       const refreshToken = jwt.sign(
-        { 
+        {
           userId: account.user?.user_id,
-          email: account.email 
+          email: account.email
         },
         process.env.JWT_REFRESH_SECRET || config.jwt.refreshSecret || config.jwt.secret,
         { expiresIn: config.jwt.refreshExpiresIn }
@@ -294,8 +293,8 @@ export class InvitationService {
   async getAllInvitations(invitedBy?: string) {
     try {
       const whereClause = invitedBy ? { invited_by: invitedBy } : {};
-      
-      const invitations = await this.prisma.userInvitation.findMany({
+
+      const invitations = await prisma.userInvitation.findMany({
         where: whereClause,
         include: {
           department: true,
@@ -323,7 +322,7 @@ export class InvitationService {
    */
   async cancelInvitation(invitationId: string, cancelledBy: string): Promise<boolean> {
     try {
-      await this.prisma.userInvitation.update({
+      await prisma.userInvitation.update({
         where: { invitation_id: invitationId },
         data: { status: 'cancelled' }
       });
@@ -340,7 +339,7 @@ export class InvitationService {
    */
   async resendInvitation(invitationId: string): Promise<InvitationResult> {
     try {
-      const invitation = await this.prisma.userInvitation.findUnique({
+      const invitation = await prisma.userInvitation.findUnique({
         where: { invitation_id: invitationId }
       });
 
@@ -350,12 +349,12 @@ export class InvitationService {
 
       // Generate new token
       const newToken = crypto.randomBytes(32).toString('hex');
-      
+
       // Set new expiration date
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
 
-      const updatedInvitation = await this.prisma.userInvitation.update({
+      const updatedInvitation = await prisma.userInvitation.update({
         where: { invitation_id: invitationId },
         data: {
           invitation_token: newToken,

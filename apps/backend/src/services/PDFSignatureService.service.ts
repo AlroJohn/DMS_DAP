@@ -1,8 +1,9 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument } from 'pdf-lib';
 import { SignedDocument, DocumentFile, Document } from '@prisma/client';
 import axios from 'axios';
+import { s3Storage } from './storage/s3.service';
 
 /**
  * Service to handle PDF processing with signatures
@@ -47,6 +48,27 @@ export class PDFSignatureService {
       console.error('Error adding signatures to PDF:', error);
       throw new Error(`Failed to add signatures to PDF: ${error.message}`);
     }
+  }
+
+  static async addSignaturesToPdfBuffer(
+    inputBuffer: Buffer,
+    signatures: Array<{
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      pageNumber: number;
+      signatureData: string;
+    }>
+  ): Promise<Buffer> {
+    const pdfDoc = await PDFDocument.load(inputBuffer);
+
+    for (const signature of signatures) {
+      await this.addSingleSignature(pdfDoc, signature);
+    }
+
+    const pdfBytes = await pdfDoc.save();
+    return Buffer.from(pdfBytes);
   }
 
   /**
@@ -140,17 +162,13 @@ export class PDFSignatureService {
     documentFile: DocumentFile,
     signedDocuments: SignedDocument[]
   ): Promise<string> {
-    const inputFile = path.join(process.cwd(), documentFile.storage_path, documentFile.stored_name);
-    const outputDir = path.join(process.cwd(), 'uploads', 'signed-pdfs');
-    
-    // Create output directory if it doesn't exist
-    await fs.mkdir(outputDir, { recursive: true });
-    
-    // Generate output filename
-    const fileExtension = path.extname(documentFile.stored_name);
-    const fileNameWithoutExt = path.basename(documentFile.stored_name, fileExtension);
-    const outputFilename = `${fileNameWithoutExt}_signed_${Date.now()}${fileExtension}`;
-    const outputFile = path.join(outputDir, outputFilename);
+    let inputBuffer: Buffer;
+    if (documentFile.storage_path.startsWith('s3://')) {
+      inputBuffer = await s3Storage.getObjectBuffer(documentFile.storage_path);
+    } else {
+      const inputFile = path.join(process.cwd(), documentFile.storage_path, documentFile.stored_name);
+      inputBuffer = await fs.readFile(inputFile);
+    }
     
     // Prepare signature data from signed documents
     const signatures = signedDocuments.map(sd => ({
@@ -162,9 +180,21 @@ export class PDFSignatureService {
       signatureData: sd.signature_data || '' // Will use user's default signature if none provided
     }));
     
-    // Add signatures to the PDF
-    await this.addSignaturesToPDF(inputFile, outputFile, signatures);
-    
-    return outputFile;
+    const signedBuffer = await this.addSignaturesToPdfBuffer(inputBuffer, signatures);
+
+    const safeBaseName = (documentFile.original_name || documentFile.stored_name || 'document')
+      .replace(/\s+/g, '-')
+      .replace(/[^a-zA-Z0-9._-]/g, '');
+    const fileExtension = path.extname(safeBaseName) || '.pdf';
+    const outputFilename = `${path.basename(safeBaseName, fileExtension)}_signed_${Date.now()}${fileExtension}`;
+    const outputKey = `signed/${document.document_id}/${documentFile.file_id}/${outputFilename}`;
+
+    const storagePath = await s3Storage.uploadBuffer({
+      key: outputKey,
+      body: signedBuffer,
+      contentType: documentFile.mime_type || 'application/pdf',
+    });
+
+    return storagePath;
   }
 }
