@@ -134,11 +134,11 @@ export function UploadDocumentModal({
           });
           return file;
         }
-      })
+      }),
     );
 
     const validFiles = validations.filter(
-      (file): file is File => file !== null
+      (file): file is File => file !== null,
     );
 
     if (validFiles.length > 0) {
@@ -147,7 +147,7 @@ export function UploadDocumentModal({
   };
 
   const handleFileSelect = async (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const selectedFiles = Array.from(event.target.files || []);
     await validateAndAddFiles(selectedFiles);
@@ -170,7 +170,7 @@ export function UploadDocumentModal({
     e.preventDefault();
     if (files.length === 0 || !title || !selectedType) {
       toast.error(
-        "Please complete all required fields and select at least one file."
+        "Please complete all required fields and select at least one file.",
       );
       return;
     }
@@ -202,7 +202,7 @@ export function UploadDocumentModal({
           .json()
           .catch(() => ({ error: { message: "Failed to create document" } }));
         throw new Error(
-          errorData.error?.message || "Failed to create document"
+          errorData.error?.message || "Failed to create document",
         );
       }
 
@@ -227,7 +227,7 @@ export function UploadDocumentModal({
               const r = (Math.random() * 16) | 0;
               const v = c === "x" ? r : (r & 0x3) | 0x8;
               return v.toString(16);
-            }
+            },
           );
           additionalFileForm.append("versionGroupId", versionGroupId);
 
@@ -243,7 +243,7 @@ export function UploadDocumentModal({
                 }));
                 throw new Error(
                   errorData.error?.message ||
-                    `Failed to upload additional file: ${file.name}`
+                    `Failed to upload additional file: ${file.name}`,
                 );
               }
             })
@@ -260,7 +260,7 @@ export function UploadDocumentModal({
       toast.success(
         `Document "${title}" created with ${files.length} file${
           files.length > 1 ? "s" : ""
-        }!`
+        }!`,
       );
       if (enableOcr) {
         toast.info("OCR processing started", {
@@ -338,20 +338,20 @@ export function UploadDocumentModal({
                       e.preventDefault();
                       e.currentTarget.classList.add(
                         "border-primary",
-                        "bg-primary/10"
+                        "bg-primary/10",
                       );
                     }}
                     onDragLeave={(e) => {
                       e.currentTarget.classList.remove(
                         "border-primary",
-                        "bg-primary/10"
+                        "bg-primary/10",
                       );
                     }}
                     onDrop={async (e) => {
                       e.preventDefault();
                       e.currentTarget.classList.remove(
                         "border-primary",
-                        "bg-primary/10"
+                        "bg-primary/10",
                       );
                       const dt = e.dataTransfer;
                       const newFiles = Array.from(dt.files || []);
@@ -516,7 +516,7 @@ export function UploadDocumentModal({
                         title ? "border-primary/50 ring-1 ring-primary/20" : ""
                       } text-base transition-all focus:ring-2 focus:ring-primary/30 focus:border-primary`}
                     />
-                    {title && (
+                    {!title && (
                       <p className="text-xs text-muted-foreground">
                         Document title is required
                       </p>
@@ -622,10 +622,7 @@ export function UploadDocumentModal({
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label
-                        htmlFor="origin"
-                        className="text-sm font-medium"
-                      >
+                      <Label htmlFor="origin" className="text-sm font-medium">
                         Origin
                       </Label>
                       <Select

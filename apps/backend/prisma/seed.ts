@@ -442,8 +442,9 @@ async function main() {
         const isNotificationPerm = hasPrefix(permission.permission, permissionPrefix.notification);
         const isReportPerm = hasPrefix(permission.permission, permissionPrefix.report);
         const isUserPerm = hasPrefix(permission.permission, permissionPrefix.user);
+        const isDepartmentReadPerm = permStr === 'department_read';
         
-        return isDocumentPerm || isNotificationPerm || isReportPerm || isUserPerm;
+        return isDocumentPerm || isNotificationPerm || isReportPerm || isUserPerm || isDepartmentReadPerm;
       })
     );
 
