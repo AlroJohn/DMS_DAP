@@ -353,13 +353,13 @@ const Homepage = () => {
                         data.video_url.includes("watch?v=")
                           ? data.video_url
                               .replace("watch?v=", "embed/")
-                              .split("&")[0] + "?autoplay=1&mute=1"
+                              .split("&")[0]
                           : data.video_url.includes("youtu.be/")
                             ? data.video_url.replace(
                                 "youtu.be/",
                                 "youtube.com/embed/",
-                              ) + "?autoplay=1&mute=1"
-                            : data.video_url + "?autoplay=1&mute=1"
+                              )
+                            : data.video_url
                       }
                       className="w-full h-full"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -369,10 +369,8 @@ const Homepage = () => {
                     <video
                       src={data.video_url}
                       controls
-                      autoPlay
-                      muted
-                      loop
                       className="w-full h-full"
+                      playsInline
                     >
                       Your browser does not support the video tag.
                     </video>
@@ -416,7 +414,7 @@ const Homepage = () => {
               </CardHeader>
               <CardContent className="p-4">
                 <div
-                  className="prose prose-sm max-w-none text-foreground prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-ol:text-foreground/90 prose-ul:text-foreground/90 prose-li:text-foreground/90"
+                  className="prose prose-sm max-w-none text-foreground prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-ol:list-decimal prose-ol:ml-4 prose-ul:list-disc prose-ul:ml-4 prose-li:text-foreground/90 prose-li:marker:text-foreground/70"
                   dangerouslySetInnerHTML={{ __html: data.vision }}
                 />
               </CardContent>
@@ -454,7 +452,7 @@ const Homepage = () => {
               </CardHeader>
               <CardContent className="p-4">
                 <div
-                  className="prose prose-sm max-w-none text-foreground prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-ol:text-foreground/90 prose-ul:text-foreground/90 prose-li:text-foreground/90"
+                  className="prose prose-sm max-w-none text-foreground prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-ol:list-decimal prose-ol:ml-4 prose-ul:list-disc prose-ul:ml-4 prose-li:text-foreground/90 prose-li:marker:text-foreground/70"
                   dangerouslySetInnerHTML={{ __html: data.mission }}
                 />
               </CardContent>

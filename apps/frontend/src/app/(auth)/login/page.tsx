@@ -17,7 +17,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
       toast.info("Already logged in", {
-        description: "You are already logged in. Redirecting to dashboard...",
+        description: "Login Successfully. Redirecting to dashboard...",
       });
       router.push("/dashboard");
     }
