@@ -90,11 +90,8 @@ export function LoginFormClient({
         body: JSON.stringify({ email, password }),
       });
 
-      // No need to parse data if we're just checking response.ok
-      // The cookies will be set by the Next.js API route forwarding the backend's Set-Cookie header
-
       if (response.ok) {
-        // Show success toast first
+        // Show success toast
         toast.success("Login successful!", {
           description: "Redirecting to dashboard...",
         });
@@ -108,6 +105,7 @@ export function LoginFormClient({
         // Redirect to dashboard
         router.push("/dashboard");
       } else {
+        // Handle error response
         let data;
         try {
           // Try to parse data for error message
@@ -115,29 +113,39 @@ export function LoginFormClient({
         } catch (jsonError) {
           // If JSON parsing fails, use status text or generic message
           const errorMessage = response.statusText || "Invalid email or password. Please try again.";
-          // Show error toast
           toast.error("Login failed", {
             description: errorMessage,
           });
-          setIsLoading(false); // Set loading to false on error
+          setIsLoading(false);
           return;
         }
 
-        // Show error toast
-        toast.error("Login failed", {
-          description:
-            data.error?.message ||
-            "Invalid email or password. Please try again.",
-        });
-        setIsLoading(false); // Set loading to false on error
+        // Check if it's the "account in use" error
+        const errorMessage = data.error?.message || "";
+        if (errorMessage.toLowerCase().includes("already in use")) {
+          toast.warning("Account already in use", {
+            description: "This account is currently logged in on another device or browser. Please try again later or contact support.",
+            duration: 6000,
+          });
+        } else {
+          // Show generic error toast
+          toast.error("Login failed", {
+            description: errorMessage || "Invalid email or password. Please try again.",
+          });
+        }
+        
+        // Make sure we stay on login page
+        setIsLoading(false);
+        // Clear any form state if needed
+        setPassword("");
       }
     } catch (error) {
       console.error("Login error:", error);
-      // Show error toast
       toast.error("Login failed", {
         description: "An error occurred. Please try again.",
       });
-      setIsLoading(false); // Set loading to false on error
+      setIsLoading(false);
+      setPassword("");
     }
   };
 

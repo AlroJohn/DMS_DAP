@@ -202,6 +202,23 @@ export class AuthService {
       throw new Error('User profile not found');
     }
 
+    // Check for existing active sessions
+    const existingActiveSessions = await prisma.userSession.findMany({
+      where: {
+        account_id: account.account_id,
+        is_active: true,
+        refresh_expires_at: {
+          gt: new Date(), // Check if refresh token hasn't expired
+        },
+      },
+    });
+
+    const hasActiveSession = existingActiveSessions.length > 0;
+    if (hasActiveSession) {
+      console.log(`[AuthService] Active session detected for email: ${credentials.email}`);
+      throw new Error('Account is already in use on another device or browser');
+    }
+
     // Get user permissions and roles from the role-based system
     const permissions = await this.permissionService.getUserPermissions(account.user.user_id);
     const roles = await this.permissionService.getUserRoles(account.user.user_id);
@@ -575,6 +592,23 @@ export class AuthService {
         throw new Error('User not found');
       }
 
+      // Check for existing active sessions
+      const existingActiveSessions = await prisma.userSession.findMany({
+        where: {
+          account_id: account.account_id,
+          is_active: true,
+          refresh_expires_at: {
+            gt: new Date(), // Check if refresh token hasn't expired
+          },
+        },
+      });
+
+      const hasActiveSession = existingActiveSessions.length > 0;
+      if (hasActiveSession) {
+        console.log(`[AuthService] Active session detected for account: ${account.account_id}`);
+        throw new Error('Account is already in use on another device or browser');
+      }
+
       // Get user permissions and roles from the role-based system
       const permissions = await this.permissionService.getUserPermissions(account.user!.user_id);
       const roles = await this.permissionService.getUserRoles(account.user!.user_id);
@@ -602,7 +636,25 @@ export class AuthService {
         updated_at: account.user!.updated_at
       };
 
-      return this.generateTokens(user, roleCodes);
+      const tokens = this.generateTokens(user, roleCodes);
+
+      // Create a user session
+      const refreshTokenExpires = new Date();
+      refreshTokenExpires.setDate(refreshTokenExpires.getDate() + 6); // 6 days validity
+
+      await prisma.userSession.create({
+        data: {
+          account_id: account.account_id,
+          session_token: tokens.token,
+          refresh_token: tokens.refreshToken,
+          expires_at: new Date(Date.now() + 30 * 60 * 1000), // 30 minutes for access token
+          refresh_expires_at: refreshTokenExpires, // 6 days for refresh token
+          last_activity: new Date(),
+          login_method: 'google', // OAuth login
+        },
+      });
+
+      return tokens;
     } catch (error) {
       console.error('Error generating tokens for user:', error);
       throw new Error('Failed to generate tokens');

@@ -81,7 +81,7 @@ export class AuthController {
     try {
       const { user, token, refreshToken } = await this.authService.login(credentials);
 
-      // Set HttpOnly cookies
+      // Set HttpOnly cookies only after successful login
       res.cookie('accessToken', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -97,6 +97,9 @@ export class AuthController {
 
       return sendSuccess(res, { user });
     } catch (error: any) {
+      // Make sure no cookies are set on error
+      res.clearCookie('accessToken');
+      res.clearCookie('refreshToken');
       return sendError(res, error.message, 401);
     }
   });
