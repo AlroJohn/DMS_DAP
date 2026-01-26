@@ -198,7 +198,19 @@ const Homepage = () => {
   };
 
   // Preview Content Component
-  const PreviewContent = ({ data }: { data: typeof cmsData }) => (
+  const PreviewContent = ({ data }: { data: typeof cmsData }) => {
+    if (cmsLoading) {
+      return (
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center space-y-4">
+            <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
+            <p className="text-muted-foreground">Loading home page content...</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
     <div className="space-y-4 p-4">
       {/* Company Logo & Welcome Section with Calendar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full ">
@@ -208,7 +220,7 @@ const Homepage = () => {
             {/* Logo */}
             <div className="flex-shrink-0">
               {data?.logo_url ? (
-                <div className="w-20 h-20 md:w-24 md:h-24 relative hover:scale-105 transition-transform duration-300">
+                <div className="w-24 h-24 md:w-32 md:h-32 relative hover:scale-105 transition-transform duration-300">
                   <Image
                     src={data.logo_url}
                     alt="Organization Logo"
@@ -218,8 +230,8 @@ const Homepage = () => {
                   />
                 </div>
               ) : (
-                <div className="w-20 h-20 md:w-24 md:h-24 bg-gradient-to-br from-primary via-primary/90 to-primary/80 rounded-2xl flex items-center justify-center shadow-xl hover:shadow-primary/50 transition-all duration-300 hover:scale-105">
-                  <FileText className="h-10 w-10 md:h-12 md:w-12 text-primary-foreground" />
+                <div className="w-24 h-24 md:w-32 md:h-32 bg-gradient-to-br from-primary via-primary/90 to-primary/80 rounded-2xl flex items-center justify-center shadow-xl hover:shadow-primary/50 transition-all duration-300 hover:scale-105">
+                  <FileText className="h-12 w-12 md:h-16 md:w-16 text-primary-foreground" />
                 </div>
               )}
             </div>
@@ -229,7 +241,7 @@ const Homepage = () => {
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-r from-primary via-blue-600 to-primary/70 bg-clip-text text-transparent drop-shadow-sm">
                 {data?.welcome_title || "Document Management System"}
               </h1>
-              <p className="text-sm md:text-base text-muted-foreground/90">
+              <p className="text-sm md:text-base text-muted-foreground/90 text-justify px-4 md:px-0 md:max-w-xl">
                 {data?.welcome_text ||
                   "Welcome to our organization's document management platform"}
               </p>
@@ -349,18 +361,17 @@ const Homepage = () => {
                   {data.video_url.includes("youtube.com") ||
                   data.video_url.includes("youtu.be") ? (
                     <iframe
-                      src={
-                        data.video_url.includes("watch?v=")
-                          ? data.video_url
-                              .replace("watch?v=", "embed/")
-                              .split("&")[0]
-                          : data.video_url.includes("youtu.be/")
-                            ? data.video_url.replace(
-                                "youtu.be/",
-                                "youtube.com/embed/",
-                              )
-                            : data.video_url
-                      }
+                      src={(() => {
+                        let videoId = "";
+                        if (data.video_url.includes("watch?v=")) {
+                          videoId = data.video_url.split("watch?v=")[1].split("&")[0];
+                        } else if (data.video_url.includes("youtu.be/")) {
+                          videoId = data.video_url.split("youtu.be/")[1].split("?")[0];
+                        } else if (data.video_url.includes("embed/")) {
+                          videoId = data.video_url.split("embed/")[1].split("?")[0];
+                        }
+                        return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=1&enablejsapi=1&rel=0`;
+                      })()}
                       className="w-full h-full"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                       allowFullScreen
@@ -369,6 +380,9 @@ const Homepage = () => {
                     <video
                       src={data.video_url}
                       controls
+                      autoPlay
+                      muted
+                      loop
                       className="w-full h-full"
                       playsInline
                     >
@@ -414,7 +428,7 @@ const Homepage = () => {
               </CardHeader>
               <CardContent className="p-4">
                 <div
-                  className="prose prose-sm max-w-none text-foreground prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-ol:list-decimal prose-ol:ml-4 prose-ul:list-disc prose-ul:ml-4 prose-li:text-foreground/90 prose-li:marker:text-foreground/70"
+                  className="prose prose-sm max-w-none text-foreground prose-headings:text-foreground [&_p]:text-foreground/90 [&_p]:leading-relaxed [&_p]:mb-3 [&_strong]:font-bold [&_strong]:text-foreground [&_b]:font-bold [&_b]:text-foreground [&_em]:italic [&_em]:text-foreground/90 [&_i]:italic [&_i]:text-foreground/90 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:text-foreground [&_h2]:mt-6 [&_h2]:mb-3 [&_blockquote]:border-l-4 [&_blockquote]:border-muted-foreground/30 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-foreground/80 [&_blockquote]:my-4 [&_ol]:list-decimal [&_ol]:ml-5 [&_ol]:my-3 [&_ol]:space-y-2 [&_ul]:list-disc [&_ul]:ml-5 [&_ul]:my-3 [&_ul]:space-y-2 [&_li]:text-foreground/90 [&_li]:leading-relaxed [&_li]:marker:text-foreground"
                   dangerouslySetInnerHTML={{ __html: data.vision }}
                 />
               </CardContent>
@@ -452,7 +466,7 @@ const Homepage = () => {
               </CardHeader>
               <CardContent className="p-4">
                 <div
-                  className="prose prose-sm max-w-none text-foreground prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground prose-ol:list-decimal prose-ol:ml-4 prose-ul:list-disc prose-ul:ml-4 prose-li:text-foreground/90 prose-li:marker:text-foreground/70"
+                  className="prose prose-sm max-w-none text-foreground prose-headings:text-foreground [&_p]:text-foreground/90 [&_p]:leading-relaxed [&_p]:mb-3 [&_strong]:font-bold [&_strong]:text-foreground [&_b]:font-bold [&_b]:text-foreground [&_em]:italic [&_em]:text-foreground/90 [&_i]:italic [&_i]:text-foreground/90 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:text-foreground [&_h2]:mt-6 [&_h2]:mb-3 [&_blockquote]:border-l-4 [&_blockquote]:border-muted-foreground/30 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-foreground/80 [&_blockquote]:my-4 [&_ol]:list-decimal [&_ol]:ml-5 [&_ol]:my-3 [&_ol]:space-y-2 [&_ul]:list-disc [&_ul]:ml-5 [&_ul]:my-3 [&_ul]:space-y-2 [&_li]:text-foreground/90 [&_li]:leading-relaxed [&_li]:marker:text-foreground"
                   dangerouslySetInnerHTML={{ __html: data.mission }}
                 />
               </CardContent>
@@ -479,7 +493,8 @@ const Homepage = () => {
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   // If not superadmin, show only preview
   if (!isSuperAdmin) {

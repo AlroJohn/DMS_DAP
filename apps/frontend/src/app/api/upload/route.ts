@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
-import { existsSync } from "fs";
 
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
+const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,31 +15,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create uploads directory if it doesn't exist
-    const uploadPath = path.join(UPLOAD_DIR, type || "general");
-    if (!existsSync(uploadPath)) {
-      await mkdir(uploadPath, { recursive: true });
+    // Get token from cookies for authentication
+    const accessToken = request.cookies.get("accessToken")?.value;
+
+    if (!accessToken) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
-    // Generate unique filename
-    const timestamp = Date.now();
-    const originalName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const filename = `${timestamp}-${originalName}`;
-    const filePath = path.join(uploadPath, filename);
+    // Forward request to backend API (home-cms specific endpoint)
+    const backendFormData = new FormData();
+    backendFormData.append("file", file);
+    backendFormData.append("type", type || "general");
 
-    // Convert file to buffer and save
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    await writeFile(filePath, buffer);
-
-    // Return the public URL
-    const publicUrl = `/uploads/${type || "general"}/${filename}`;
-
-    return NextResponse.json({
-      success: true,
-      url: publicUrl,
-      message: "File uploaded successfully",
+    const response = await fetch(`${BACKEND_API_URL}/api/home-cms/upload`, {
+      method: "POST",
+      headers: {
+        Cookie: `accessToken=${accessToken}`,
+      },
+      body: backendFormData,
     });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return NextResponse.json(
+        { success: false, message: result.message || "Upload failed" },
+        { status: response.status }
+      );
+    }
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Upload error:", error);
     return NextResponse.json(

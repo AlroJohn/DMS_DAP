@@ -1048,3 +1048,28 @@ model SidebarSettings {
   @@index([section_key])
   @@index([is_enabled])
 }
+
+model UploadedFile {
+  file_id         String   @id @default(uuid()) @db.Uuid
+  original_name   String
+  stored_name     String
+  file_path       String   // S3 key or local path
+  file_url        String   // Public URL
+  file_size       BigInt
+  mime_type       String
+  file_type       String   // logo, video, document, etc.
+  bucket_name     String   // S3 bucket name
+  storage_type    String   @default("s3") // s3, local, etc.
+  uploaded_by     String?  @db.Uuid
+  related_entity  String?  // e.g., "home_cms", "document", etc.
+  related_id      String?  @db.Uuid // ID of related entity
+  is_deleted      Boolean  @default(false)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @default(now()) @updatedAt
+  deleted_at      DateTime?
+
+  @@index([file_type])
+  @@index([related_entity, related_id])
+  @@index([uploaded_by])
+  @@index([is_deleted])
+}
