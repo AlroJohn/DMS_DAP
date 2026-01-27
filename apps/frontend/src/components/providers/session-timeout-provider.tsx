@@ -36,6 +36,7 @@ export function SessionTimeoutProvider({
       // Call logout API
       await fetch("/api/auth/logout", {
         method: "POST",
+        credentials: "include",
       });
 
       toast.info("Session expired. You have been logged out.");

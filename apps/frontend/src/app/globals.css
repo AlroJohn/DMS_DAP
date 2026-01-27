@@ -17,9 +17,9 @@
   --secondary-hover: #e6c95a;
   --secondary-active: #b89d28;
   --secondary-focus: #d4b85c;
-  --muted: #eada9a;
+  --muted: #eceae1;
   --muted-foreground: #495057;
-  --accent: #eada9a;
+  --accent: #edece7;
   --accent-foreground: #1d2891;
   --destructive: #dc3545;
   --destructive-foreground: #ffffff;
@@ -45,7 +45,12 @@
   --font-sans: var(--font-inter, "Inter", sans-serif);
   --font-display: var(--font-inter, "Inter", sans-serif);
   --font-serif: var(--font-playfair, "Playfair Display", serif);
-  --font-mono: var(--font-jetbrains-mono, "JetBrains Mono", "Fira Code", monospace);
+  --font-mono: var(
+    --font-jetbrains-mono,
+    "JetBrains Mono",
+    "Fira Code",
+    monospace
+  );
   --radius: 0.5rem;
   --shadow-x: 0;
   --shadow-y: 0.25rem;
@@ -55,11 +60,16 @@
   --shadow-color: #000000;
   --shadow-2xs: 0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.05);
   --shadow-xs: 0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.05);
-  --shadow-sm: 0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.10), 0 1px 2px -1px hsl(0 0% 0% / 0.10);
-  --shadow: 0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.10), 0 1px 2px -1px hsl(0 0% 0% / 0.10);
-  --shadow-md: 0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.10), 0 2px 4px -1px hsl(0 0% 0% / 0.10);
-  --shadow-lg: 0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.10), 0 4px 6px -1px hsl(0 0% 0% / 0.10);
-  --shadow-xl: 0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.10), 0 8px 10px -1px hsl(0 0% 0% / 0.10);
+  --shadow-sm:
+    0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow:
+    0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow-md:
+    0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
+  --shadow-lg:
+    0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
+  --shadow-xl:
+    0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
   --shadow-2xl: 0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.25);
   --tracking-normal: 0;
   --spacing: 0.25rem;
@@ -82,7 +92,7 @@
   --muted: #1a2a5a;
   --muted-foreground: #a0a0a0;
   --accent: #e6eef9;
-  --accent-foreground: #1C2790;
+  --accent-foreground: #1c2790;
   --destructive: #dc3545;
   --destructive-foreground: #ffffff;
   --border: #1a2a5a;
@@ -107,7 +117,12 @@
   --font-sans: var(--font-inter, "Inter", sans-serif);
   --font-display: var(--font-inter, "Inter", sans-serif);
   --font-serif: var(--font-playfair, "Playfair Display", serif);
-  --font-mono: var(--font-jetbrains-mono, "JetBrains Mono", "Fira Code", monospace);
+  --font-mono: var(
+    --font-jetbrains-mono,
+    "JetBrains Mono",
+    "Fira Code",
+    monospace
+  );
   --radius: 0.5rem;
   --shadow-x: 0;
   --shadow-y: 0.25rem;
@@ -117,11 +132,16 @@
   --shadow-color: #000000;
   --shadow-2xs: 0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.15);
   --shadow-xs: 0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.15);
-  --shadow-sm: 0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.30), 0 1px 2px -1px hsl(0 0% 0% / 0.30);
-  --shadow: 0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.30), 0 1px 2px -1px hsl(0 0% 0% / 0.30);
-  --shadow-md: 0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.30), 0 2px 4px -1px hsl(0 0% 0% / 0.30);
-  --shadow-lg: 0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.30), 0 4px 6px -1px hsl(0 0% 0% / 0.30);
-  --shadow-xl: 0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.30), 0 8px 10px -1px hsl(0 0% 0% / 0.30);
+  --shadow-sm:
+    0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.3), 0 1px 2px -1px hsl(0 0% 0% / 0.3);
+  --shadow:
+    0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.3), 0 1px 2px -1px hsl(0 0% 0% / 0.3);
+  --shadow-md:
+    0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.3), 0 2px 4px -1px hsl(0 0% 0% / 0.3);
+  --shadow-lg:
+    0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.3), 0 4px 6px -1px hsl(0 0% 0% / 0.3);
+  --shadow-xl:
+    0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.3), 0 8px 10px -1px hsl(0 0% 0% / 0.3);
   --shadow-2xl: 0 0.25rem 0.5rem 0 hsl(0 0% 0% / 0.75);
 }
 

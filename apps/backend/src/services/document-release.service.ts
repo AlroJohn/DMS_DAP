@@ -108,39 +108,44 @@ export class DocumentReleaseService {
                     select: { title: true }
                 });
 
-                // Send notification to each unique assigned user
-                for (const assignedUserId of uniqueUserIds) {
-                    console.log(`📧 [Document Release] Notifying user ${assignedUserId} about signature requirement`);
-                    
-                    // Verify user exists and is active
-                    const assignedUser = await prisma.user.findFirst({
+                const notifyPlaceholders = async () => {
+                    const userRecords = await prisma.user.findMany({
                         where: {
-                            user_id: assignedUserId,
-                            active: true
-                        }
+                            user_id: { in: uniqueUserIds },
+                            active: true,
+                        },
+                        select: { user_id: true },
                     });
 
-                    if (assignedUser) {
-                        try {
-                            await notificationService.createNotification(
-                                assignedUserId,
-                                'Signature Required',
-                                `You have been assigned to sign the document: ${documentDetails?.title || 'Untitled'}`,
-                                'signature',
-                                'signature_pending',
-                                {
-                                    documentId,
-                                    documentTitle: documentDetails?.title
-                                }
-                            );
-                            console.log(`✅ [Document Release] Notification sent to user ${assignedUserId}`);
-                        } catch (error) {
-                            console.error(`❌ [Document Release] Failed to notify user ${assignedUserId}:`, error);
+                    const activeUserSet = new Set(userRecords.map(u => u.user_id));
+                    const notificationPromises = uniqueUserIds.map((assignedUserId) => {
+                        if (!activeUserSet.has(assignedUserId)) {
+                            console.log(`⚠️ [Document Release] User ${assignedUserId} not found or inactive - skipping notification`);
+                            return Promise.resolve(null);
                         }
-                    } else {
-                        console.log(`⚠️ [Document Release] User ${assignedUserId} not found or inactive - skipping notification`);
-                    }
-                }
+                        console.log(`📧 [Document Release] Notifying user ${assignedUserId} about signature requirement`);
+                        return notificationService.createNotification(
+                            assignedUserId,
+                            'Signature Required',
+                            `You have been assigned to sign the document: ${documentDetails?.title || 'Untitled'}`,
+                            'signature',
+                            'signature_pending',
+                            {
+                                documentId,
+                                documentTitle: documentDetails?.title
+                            }
+                        )
+                        .then(() => {
+                            console.log(`✅ [Document Release] Notification sent to user ${assignedUserId}`);
+                        })
+                        .catch((error) => {
+                            console.error(`❌ [Document Release] Failed to notify user ${assignedUserId}:`, error);
+                        });
+                    });
+                    await Promise.all(notificationPromises);
+                };
+
+                await notifyPlaceholders();
 
                 // Log signature placeholder addition to document trail - create ONE consolidated trail entry
                 
@@ -454,14 +459,24 @@ export class DocumentReleaseService {
                     });
 
                     // Create notifications for each user in the receiving department
-                    for (const user of receivingDepartmentUsers) {
-                        await notificationService.createDocumentReleasedNotification(
-                            user.user_id,
-                            documentId,
-                            document.title,
-                            departmentId
-                        );
-                    }
+                    const notificationPromises = receivingDepartmentUsers.map((user) =>
+                        notificationService
+                            .createDocumentReleasedNotification(
+                                user.user_id,
+                                documentId,
+                                document.title,
+                                departmentId
+                            )
+                            .catch((error) => {
+                                console.error(
+                                    'Error creating notification for user in receiving department:',
+                                    user.user_id,
+                                    error
+                                );
+                            })
+                    );
+
+                    await Promise.allSettled(notificationPromises);
                 } catch (error) {
                     console.error('Error creating notifications for document release:', error);
                 }
@@ -490,29 +505,7 @@ export class DocumentReleaseService {
             });
 
             if (receivingDepartment) {
-                const releasingUserName = releasingUser ? `${releasingUser.first_name} ${releasingUser.last_name}` : 'A colleague';
-
-                // Send email to all users in the receiving department
-                for (const account of receivingDepartment.Account) {
-                    const user = account.user;
-                    // Skip sending the email back to the releasing user
-                    if (user && user.active && account.email && user.user_id !== userId) {
-                        const emailData: DocumentReleasedEmailData = {
-                            recipientEmail: account.email,
-                            recipientName: `${user.first_name} ${user.last_name}`,
-                            documentTitle: document.title,
-                            releasedBy: releasingUserName,
-                            fromDepartment: receivingDepartment.name,
-                            documentUrl: `${process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000'}/documents/${documentId}`,
-                            message: `A document has been released to your department by ${releasingUserName}.`
-                        };
-
-                        // Send email notification asynchronously
-                        emailService.sendDocumentReleasedEmail(emailData).catch(err => {
-                            console.error(`Failed to send document released email to ${account.email}:`, err);
-                        });
-                    }
-                }
+                console.log(`[DocumentReleaseService] Skipping department-wide email notifications for release to ${receivingDepartment.name}`);
             }
 
             return {

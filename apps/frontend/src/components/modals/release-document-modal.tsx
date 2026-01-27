@@ -223,14 +223,40 @@ export function ReleaseDocumentModal({
       console.log("📝 Release response status:", response.status);
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error("❌ Release error:", errorData);
-        throw new Error(errorData.error || "Failed to release document.");
+        const fallbackMessage = "Failed to release document.";
+        const errorText = await response.text();
+        if (errorText) {
+          try {
+            const errorData = JSON.parse(errorText);
+            console.error("❌ Release error:", errorData);
+            throw new Error(
+              errorData.error?.message || errorData.error || errorData.message || fallbackMessage,
+            );
+          } catch {
+            throw new Error(errorText);
+          }
+        }
+        throw new Error(fallbackMessage);
       }
 
-      const result = await response.json();
-      console.log("✅ Release success:", result);
-      return result;
+      const responseText = await response.text();
+      console.log("✅ Release success (text):", responseText);
+
+      if (!responseText) {
+        return null;
+      }
+
+      try {
+        const parsedResult = JSON.parse(responseText);
+        console.log("✅ Release success (parsed):", parsedResult);
+        return parsedResult;
+      } catch (parseError) {
+        console.warn("Release response was not valid JSON, falling back to text output.", {
+          parseError,
+          responseText,
+        });
+        return null;
+      }
     },
     onSuccess: () => {
       toast.success("Document released successfully!");

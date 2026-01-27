@@ -185,8 +185,13 @@ export class NotificationService {
       // Send email notification if enabled
       if (sendEmail) {
         console.log(`[NotificationService] Sending email notification to user ${userId}`);
-        await this.sendEmailNotification(userId, title, message, metadata);
-        console.log(`[NotificationService] Email notification sent successfully`);
+        this.sendEmailNotification(userId, title, message, metadata).catch((error) => {
+          console.error(
+            `[NotificationService] Email notification failed for user ${userId}:`,
+            error,
+          );
+        });
+        console.log(`[NotificationService] Email notification dispatched for user ${userId}`);
       }
 
       return notification;
