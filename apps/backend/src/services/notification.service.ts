@@ -1,8 +1,7 @@
 import { emitNotificationToUser } from '../socket';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { EmailService } from './email.service';
 
-const prisma = new PrismaClient();
 
 // Mapping of workflow events to notification preference names
 const NOTIFICATION_PREFERENCE_MAP: Record<string, { category: string; name: string }> = {

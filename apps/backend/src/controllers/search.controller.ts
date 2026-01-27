@@ -1,13 +1,13 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth-middleware';
 import { SearchService, SearchParams } from '../services/search.service';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
 /**
  * Search controller to handle search-related API requests
  */
 export class SearchController {
-  private static prisma = new PrismaClient();
+  // Using the imported prisma instance
 
   /**
    * Search documents based on query and filters
@@ -25,7 +25,7 @@ export class SearchController {
       console.log('User department ID:', userDepartmentId);
 
       // Check if user is ADMIN or SUPER_ADMIN (note: role codes in DB use underscore)
-      const isAdmin = userRoles.some(role => 
+      const isAdmin = userRoles.some(role =>
         role === 'ADMIN' || role === 'SUPER_ADMIN'
       );
 
@@ -116,7 +116,7 @@ export class SearchController {
 
       // Need to get the account ID from the user ID
       // The User model has account_id field that references the Account table
-      const user = await SearchController.prisma.user.findUnique({
+      const user = await prisma.user.findUnique({
         where: { user_id: userId },
         select: { account_id: true }
       });
@@ -130,12 +130,12 @@ export class SearchController {
         return;
       }
 
-      console.log('Saving search with params:', { 
-        userId, 
+      console.log('Saving search with params:', {
+        userId,
         accountId: user.account_id,
-        name, 
-        query, 
-        filters 
+        name,
+        query,
+        filters
       });
 
       // Now pass the account ID, not the user ID, to the service
@@ -173,7 +173,7 @@ export class SearchController {
 
       // Need to get the account ID from the user ID
       // The User model has account_id field that references the Account table
-      const user = await SearchController.prisma.user.findUnique({
+      const user = await prisma.user.findUnique({
         where: { user_id: userId },
         select: { account_id: true }
       });
@@ -222,7 +222,7 @@ export class SearchController {
 
       // Need to get the account ID from the user ID
       // The User model has account_id field that references the Account table
-      const user = await SearchController.prisma.user.findUnique({
+      const user = await prisma.user.findUnique({
         where: { user_id: userId },
         select: { account_id: true }
       });
@@ -279,7 +279,7 @@ export class SearchController {
 
       // Need to get the account ID from the user ID
       // The User model has account_id field that references the Account table
-      const user = await SearchController.prisma.user.findUnique({
+      const user = await prisma.user.findUnique({
         where: { user_id: userId },
         select: { account_id: true }
       });
@@ -337,7 +337,7 @@ export class SearchController {
 
       // Need to get the account ID from the user ID
       // The User model has account_id field that references the Account table
-      const user = await SearchController.prisma.user.findUnique({
+      const user = await prisma.user.findUnique({
         where: { user_id: userId },
         select: { account_id: true }
       });
@@ -404,7 +404,7 @@ export class SearchController {
 
       // Need to get the account ID from the user ID
       // The User model has account_id field that references the Account table
-      const user = await SearchController.prisma.user.findUnique({
+      const user = await prisma.user.findUnique({
         where: { user_id: userId },
         select: { account_id: true }
       });

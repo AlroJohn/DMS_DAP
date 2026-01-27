@@ -137,7 +137,7 @@ const parseVersion = (value?: string | null) => {
 
 const compareDocumentFilesByVersionDesc = (
   left: DocumentFileMetadata,
-  right: DocumentFileMetadata
+  right: DocumentFileMetadata,
 ) => {
   const leftParts = parseVersion(left.version);
   const rightParts = parseVersion(right.version);
@@ -193,21 +193,165 @@ export function SigningPdfViewer({
   const isAssignedToCurrentUser = useCallback(
     (assignedUserId?: string | null) =>
       !assignedUserId || assignedUserId === signeeId,
-    [signeeId]
+    [signeeId],
   );
   const pdfFiles = useMemo(
     () => files.filter((file) => isPdfLikeFile(file)),
-    [files]
+    [files],
   );
   const sortedPdfFiles = useMemo(
     () => [...pdfFiles].sort(compareDocumentFilesByVersionDesc),
-    [pdfFiles]
+    [pdfFiles],
   );
+
+  // Fetch placeholders
+  const { data: placeholders = [], isLoading: isLoadingPlaceholders } =
+    useQuery({
+      queryKey: ["signature-placeholders", documentId],
+      queryFn: async () => {
+        const response = await fetch(
+          `/api/document-signatures/documents/${documentId}/signature-placeholders`,
+        );
+        if (!response.ok)
+          throw new Error("Failed to fetch signature placeholders");
+        return response.json() as Promise<SignaturePlaceholder[]>;
+      },
+      enabled: !!documentId,
+    });
+
+  const {
+    data: textPlaceholders = [],
+    isLoading: isLoadingTextPlaceholders,
+    refetch: refetchTextPlaceholders,
+  } = useQuery({
+    queryKey: ["text-placeholders", documentId],
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/document-texts/documents/${documentId}/text-placeholders`,
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch text placeholders");
+      }
+      return response.json() as Promise<TextPlaceholder[]>;
+    },
+    enabled: !!documentId,
+  });
 
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
   const [selectedFileId, setSelectedFileId] = useState<string | null>(
-    initialFileId ?? sortedPdfFiles[0]?.id ?? null
+    initialFileId ?? sortedPdfFiles[0]?.id ?? null,
   );
+
+  // Group files by signature placeholder positions
+  const groupedFiles = useMemo(() => {
+    const groups: Array<{
+      id: string;
+      name: string;
+      files: DocumentFileMetadata[];
+      placeholderPositions: Array<{
+        page_number: number;
+        x_position: number;
+        y_position: number;
+        width: number;
+        height: number;
+      }>;
+    }> = [];
+
+    const processedFiles = new Set<string>();
+
+    for (const file of sortedPdfFiles) {
+      if (processedFiles.has(file.id)) continue;
+
+      // Get placeholders for this file
+      const filePlaceholders = placeholders.filter(
+        (p) => p.document_file_id === file.id,
+      );
+
+      // Look for other files with similar placeholders
+      const similarFiles = [file];
+      processedFiles.add(file.id);
+
+      for (const otherFile of sortedPdfFiles) {
+        if (otherFile.id === file.id || processedFiles.has(otherFile.id))
+          continue;
+
+        const otherPlaceholders = placeholders.filter(
+          (p) => p.document_file_id === otherFile.id,
+        );
+
+        // Compare if placeholders have similar positions
+        if (filePlaceholders.length === otherPlaceholders.length) {
+          let isSimilar = true;
+
+          // Sort placeholders by position for comparison
+          const sortedFilePlaceholders = [...filePlaceholders].sort(
+            (a, b) =>
+              a.page_number - b.page_number ||
+              a.x_position - b.x_position ||
+              a.y_position - b.y_position,
+          );
+
+          const sortedOtherPlaceholders = [...otherPlaceholders].sort(
+            (a, b) =>
+              a.page_number - b.page_number ||
+              a.x_position - b.x_position ||
+              a.y_position - b.y_position,
+          );
+
+          for (let i = 0; i < sortedFilePlaceholders.length; i++) {
+            const fp = sortedFilePlaceholders[i];
+            const op = sortedOtherPlaceholders[i];
+
+            // Check if positions are similar (with a small tolerance)
+            const EPSILON = 2; // Tolerance for position similarity
+
+            if (
+              fp.page_number !== op.page_number ||
+              Math.abs(fp.x_position - op.x_position) > EPSILON ||
+              Math.abs(fp.y_position - op.y_position) > EPSILON ||
+              Math.abs(fp.width - op.width) > EPSILON ||
+              Math.abs(fp.height - op.height) > EPSILON
+            ) {
+              isSimilar = false;
+              break;
+            }
+          }
+
+          if (isSimilar) {
+            similarFiles.push(otherFile);
+            processedFiles.add(otherFile.id);
+          }
+        }
+      }
+
+      // Create a group for similar files
+      if (similarFiles.length > 0) {
+        const firstFilePlaceholders = placeholders.filter(
+          (p) => p.document_file_id === similarFiles[0].id,
+        );
+
+        const placeholderPositions = firstFilePlaceholders.map((p) => ({
+          page_number: p.page_number,
+          x_position: p.x_position,
+          y_position: p.y_position,
+          width: p.width,
+          height: p.height,
+        }));
+
+        groups.push({
+          id: `group-${groups.length + 1}`,
+          name:
+            similarFiles.length === 1
+              ? similarFiles[0].name
+              : `${similarFiles[0].name} and ${similarFiles.length - 1} other${similarFiles.length > 2 ? "s" : ""}`,
+          files: similarFiles,
+          placeholderPositions,
+        });
+      }
+    }
+
+    return groups;
+  }, [sortedPdfFiles, placeholders]);
 
   useEffect(() => {
     if (!sortedPdfFiles.length) {
@@ -255,7 +399,9 @@ export function SigningPdfViewer({
     const hasInitial = initialFileId
       ? selectableFiles.some((file) => file.id === initialFileId)
       : false;
-    const nextId = hasInitial ? initialFileId : selectableFiles[0]?.id ?? null;
+    const nextId = hasInitial
+      ? initialFileId
+      : (selectableFiles[0]?.id ?? null);
 
     if (nextId && nextId !== selectedFileId) {
       setSelectedFileId(nextId);
@@ -314,7 +460,7 @@ export function SigningPdfViewer({
   useEffect(() => {
     if (!isSuccessModalOpen && shouldNavigateAfterSuccess) {
       setShouldNavigateAfterSuccess(false);
-      
+
       // If returnPath is provided, navigate there; otherwise call onSigned callback
       if (returnPath) {
         router.push(returnPath);
@@ -322,46 +468,20 @@ export function SigningPdfViewer({
         onSigned();
       }
     }
-  }, [isSuccessModalOpen, shouldNavigateAfterSuccess, onSigned, returnPath, router]);
+  }, [
+    isSuccessModalOpen,
+    shouldNavigateAfterSuccess,
+    onSigned,
+    returnPath,
+    router,
+  ]);
 
   // Fetch placeholders
-  const { data: placeholders = [], isLoading: isLoadingPlaceholders } =
-    useQuery({
-      queryKey: ["signature-placeholders", documentId],
-      queryFn: async () => {
-        const response = await fetch(
-          `/api/document-signatures/documents/${documentId}/signature-placeholders`
-        );
-        if (!response.ok)
-          throw new Error("Failed to fetch signature placeholders");
-        return response.json() as Promise<SignaturePlaceholder[]>;
-      },
-      enabled: !!documentId,
-    });
-
-  const {
-    data: textPlaceholders = [],
-    isLoading: isLoadingTextPlaceholders,
-    refetch: refetchTextPlaceholders,
-  } = useQuery({
-    queryKey: ["text-placeholders", documentId],
-    queryFn: async () => {
-      const response = await fetch(
-        `/api/document-texts/documents/${documentId}/text-placeholders`
-      );
-      if (!response.ok) {
-        throw new Error("Failed to fetch text placeholders");
-      }
-      return response.json() as Promise<TextPlaceholder[]>;
-    },
-    enabled: !!documentId,
-  });
-
   const { data: signatures = [], refetch: refetchSignatures } = useQuery({
     queryKey: ["document-signatures", documentId],
     queryFn: async () => {
       const response = await fetch(
-        `/api/document-signatures/documents/${documentId}/signatures`
+        `/api/document-signatures/documents/${documentId}/signatures`,
       );
       if (!response.ok) {
         throw new Error("Failed to fetch signatures");
@@ -510,7 +630,7 @@ export function SigningPdfViewer({
     const EPSILON = 0.5;
     return (
       source: SignaturePlaceholder,
-      targetFileIds: string[]
+      targetFileIds: string[],
     ): SignaturePlaceholder[] => {
       return placeholders.filter((placeholder) => {
         if (!targetFileIds.includes(placeholder.document_file_id)) return false;
@@ -535,11 +655,10 @@ export function SigningPdfViewer({
     const EPSILON = 0.5;
     return (
       source: TextPlaceholder,
-      targetFileIds: string[]
+      targetFileIds: string[],
     ): TextPlaceholder[] => {
       return textPlaceholders.filter((placeholder) => {
-        if (!targetFileIds.includes(placeholder.document_file_id))
-          return false;
+        if (!targetFileIds.includes(placeholder.document_file_id)) return false;
         if (placeholder.page_number !== source.page_number) return false;
         if (
           placeholder.assigned_user_id !== source.assigned_user_id ||
@@ -566,24 +685,24 @@ export function SigningPdfViewer({
   const fileTextPlaceholders = useMemo(() => {
     if (!selectedFileId) return [];
     return textPlaceholders.filter(
-      (p) => p.document_file_id === selectedFileId
+      (p) => p.document_file_id === selectedFileId,
     );
   }, [textPlaceholders, selectedFileId]);
 
   const actionableFilePlaceholders = useMemo(
     () =>
       filePlaceholders.filter((placeholder) =>
-        isAssignedToCurrentUser(placeholder.assigned_user_id)
+        isAssignedToCurrentUser(placeholder.assigned_user_id),
       ),
-    [filePlaceholders, isAssignedToCurrentUser]
+    [filePlaceholders, isAssignedToCurrentUser],
   );
 
   const actionableTextPlaceholders = useMemo(
     () =>
       fileTextPlaceholders.filter((placeholder) =>
-        isAssignedToCurrentUser(placeholder.assigned_user_id)
+        isAssignedToCurrentUser(placeholder.assigned_user_id),
       ),
-    [fileTextPlaceholders, isAssignedToCurrentUser]
+    [fileTextPlaceholders, isAssignedToCurrentUser],
   );
 
   const normalizedSignatures = useMemo(() => {
@@ -750,7 +869,7 @@ export function SigningPdfViewer({
           error?.message?.includes("Worker was destroyed")
         ) {
           console.warn(
-            "PDF render was cancelled or worker was destroyed during cleanup."
+            "PDF render was cancelled or worker was destroyed during cleanup.",
           );
         } else {
           console.error("Failed to render PDF for signature placement", error);
@@ -831,7 +950,7 @@ export function SigningPdfViewer({
       selectedPlaceholder,
       signeeId,
       socket,
-    ]
+    ],
   );
 
   const emitTextDraft = useCallback(
@@ -852,7 +971,7 @@ export function SigningPdfViewer({
       selectedTextPlaceholder,
       signeeId,
       socket,
-    ]
+    ],
   );
 
   const handleSaveDraft = () => {
@@ -893,7 +1012,7 @@ export function SigningPdfViewer({
     const pendingTextEntries = Object.entries(textValues).reduce(
       (acc, [placeholderId, value]) => {
         const placeholder = textPlaceholders.find(
-          (item) => item.placeholder_id === placeholderId
+          (item) => item.placeholder_id === placeholderId,
         );
         if (
           !placeholder ||
@@ -907,7 +1026,7 @@ export function SigningPdfViewer({
         }
         return acc;
       },
-      {} as Record<string, string>
+      {} as Record<string, string>,
     );
 
     if (
@@ -915,7 +1034,7 @@ export function SigningPdfViewer({
       Object.keys(pendingTextEntries).length === 0
     ) {
       toast.error(
-        "Save at least one signature or text entry before confirming."
+        "Save at least one signature or text entry before confirming.",
       );
       return;
     }
@@ -930,7 +1049,7 @@ export function SigningPdfViewer({
           headers: {
             "Cache-Control": "no-cache",
           },
-        }
+        },
       );
 
       if (!signaturesResponse.ok) {
@@ -969,25 +1088,25 @@ export function SigningPdfViewer({
         placeholders.map((placeholder) => [
           placeholder.placeholder_id,
           placeholder,
-        ])
+        ]),
       );
 
       const targetFileIds =
         selectedFileIds.length > 0
           ? selectedFileIds
           : selectedFileId
-          ? [selectedFileId]
-          : [];
+            ? [selectedFileId]
+            : [];
 
       for (const fileId of targetFileIds) {
         const targetFile = sortedPdfFiles.find((file) => file.id === fileId);
         if (!targetFile) continue;
 
         const filePlaceholdersForTarget = placeholders.filter(
-          (placeholder) => placeholder.document_file_id === fileId
+          (placeholder) => placeholder.document_file_id === fileId,
         );
         const fileTextPlaceholdersForTarget = textPlaceholders.filter(
-          (placeholder) => placeholder.document_file_id === fileId
+          (placeholder) => placeholder.document_file_id === fileId,
         );
         if (
           !filePlaceholdersForTarget.length &&
@@ -1012,11 +1131,11 @@ export function SigningPdfViewer({
           filePlaceholdersForTarget.map((placeholder) => [
             placeholder.placeholder_id,
             placeholder,
-          ])
+          ]),
         );
 
         const existingSignaturesForFile = normalizedSignaturesForPdf.filter(
-          (signature) => signature.fileId === fileId && signature.signatureData
+          (signature) => signature.fileId === fileId && signature.signatureData,
         );
 
         for (const signature of existingSignaturesForFile) {
@@ -1032,7 +1151,7 @@ export function SigningPdfViewer({
         }
 
         for (const [placeholderId, dataUrl] of Object.entries(
-          pendingSignatures
+          pendingSignatures,
         )) {
           const placeholder = filePlaceholderById.get(placeholderId);
           if (!placeholder) {
@@ -1069,7 +1188,7 @@ export function SigningPdfViewer({
           {
             method: "GET",
             credentials: "include",
-          }
+          },
         );
 
         if (!pdfResponse.ok) {
@@ -1177,7 +1296,7 @@ export function SigningPdfViewer({
             method: "PUT",
             credentials: "include",
             body: formData,
-          }
+          },
         );
 
         const uploadResult = await uploadResponse.json().catch(() => ({
@@ -1186,7 +1305,7 @@ export function SigningPdfViewer({
 
         if (!uploadResponse.ok || uploadResult.success === false) {
           throw new Error(
-            uploadResult.error?.message || "Failed to upload signed PDF."
+            uploadResult.error?.message || "Failed to upload signed PDF.",
           );
         }
       }
@@ -1217,19 +1336,19 @@ export function SigningPdfViewer({
                   height: placeholder.height,
                   signature_data: dataUrl,
                 }),
-              }
+              },
             );
 
             if (!response.ok) {
               const errorData = await response.json().catch(() => ({}));
               throw new Error(
-                errorData.error || "Failed to save signature record."
+                errorData.error || "Failed to save signature record.",
               );
             }
 
             return response.json().catch(() => null);
-          }
-        )
+          },
+        ),
       );
 
       // Save text placeholders to the database
@@ -1237,7 +1356,7 @@ export function SigningPdfViewer({
         async ([placeholderId, textValue]) => {
           // Find the placeholder to get its details
           const placeholder = [...textPlaceholders].find(
-            (p) => p.placeholder_id === placeholderId
+            (p) => p.placeholder_id === placeholderId,
           );
 
           if (!placeholder) return null;
@@ -1252,24 +1371,24 @@ export function SigningPdfViewer({
                 placeholder_id: placeholderId,
                 text_value: textValue,
               }),
-            }
+            },
           );
 
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             throw new Error(
-              errorData.error || "Failed to update text placeholder."
+              errorData.error || "Failed to update text placeholder.",
             );
           }
 
           return response.json().catch(() => null);
-        }
+        },
       );
 
       await Promise.all(textPlaceholderUpdates);
 
       toast.success(
-        "All signature and text drafts saved to the selected files."
+        "All signature and text drafts saved to the selected files.",
       );
 
       setPlacedSignatures({});
@@ -1287,8 +1406,8 @@ export function SigningPdfViewer({
           selectedFileIds.length > 0
             ? selectedFileIds
             : selectedFileId
-            ? [selectedFileId]
-            : [];
+              ? [selectedFileId]
+              : [];
         targetFileIdsForRooms.forEach((fileId) => {
           socket.emit("signature:save", {
             documentId,
@@ -1304,7 +1423,7 @@ export function SigningPdfViewer({
     } catch (error: any) {
       console.error("Failed to save signed PDF", error);
       toast.error(
-        error?.message || "Unable to save signed PDF. Please try again."
+        error?.message || "Unable to save signed PDF. Please try again.",
       );
     } finally {
       setIsSaving(false);
@@ -1390,38 +1509,171 @@ export function SigningPdfViewer({
                   Deselect all
                 </Button>
               </div>
+
+              {/* Grouped files display */}
               <div className="flex flex-wrap gap-2">
-                {sortedPdfFiles.map((file) => {
-                  const isSelected = selectedFileIds.includes(file.id);
+                {groupedFiles.map((group) => {
+                  const allGroupFilesSelected = group.files.every((file) =>
+                    selectedFileIds.includes(file.id),
+                  );
+                  const someGroupFilesSelected = group.files.some((file) =>
+                    selectedFileIds.includes(file.id),
+                  );
+
                   return (
                     <div
-                      key={file.id}
+                      key={group.id}
                       className={cn(
-                        "flex items-center gap-2 rounded border px-2 py-1 text-xs",
-                        isSelected
+                        "flex flex-col rounded border px-2 py-1 text-xs w-full",
+                        allGroupFilesSelected
                           ? "border-primary/60 bg-accent"
-                          : "border-muted"
+                          : "border-muted",
                       )}
                     >
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() =>
-                          handleToggleFileSelection(file.id)
-                        }
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setSelectedFileId(file.id)}
-                        className={cn(
-                          "max-w-[160px] truncate text-left",
-                          file.id === selectedFileId ? "font-semibold" : ""
-                        )}
-                      >
-                        {file.name}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={allGroupFilesSelected}
+                          indeterminate={
+                            someGroupFilesSelected && !allGroupFilesSelected
+                          }
+                          onCheckedChange={() => {
+                            if (allGroupFilesSelected) {
+                              // Deselect all files in the group
+                              setSelectedFileIds((prev) =>
+                                prev.filter(
+                                  (id) => !group.files.some((f) => f.id === id),
+                                ),
+                              );
+                            } else {
+                              // Select all files in the group
+                              const newSelectedIds = new Set([
+                                ...selectedFileIds,
+                              ]);
+                              group.files.forEach((file) =>
+                                newSelectedIds.add(file.id),
+                              );
+                              setSelectedFileIds(Array.from(newSelectedIds));
+                            }
+                          }}
+                        />
+                        <div className="flex-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Select the first file in the group
+                              setSelectedFileId(group.files[0].id);
+                            }}
+                            className={cn(
+                              "max-w-[160px] truncate text-left font-semibold",
+                              group.files.some((f) => f.id === selectedFileId)
+                                ? "text-primary"
+                                : "",
+                            )}
+                          >
+                            {group.name}
+                          </button>
+                          <div className="text-[10px] text-muted-foreground">
+                            {group.files.length} file
+                            {group.files.length > 1 ? "s" : ""}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Show individual files in the group */}
+                      <div className="ml-6 mt-1 flex flex-wrap gap-1">
+                        {group.files.map((file) => {
+                          const isSelected = selectedFileIds.includes(file.id);
+                          return (
+                            <div
+                              key={file.id}
+                              className={cn(
+                                "flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px]",
+                                isSelected
+                                  ? "border-primary/60 bg-primary/10"
+                                  : "border-muted",
+                              )}
+                            >
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() =>
+                                  handleToggleFileSelection(file.id)
+                                }
+                                className="h-3 w-3"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setSelectedFileId(file.id)}
+                                className={cn(
+                                  "truncate text-left",
+                                  file.id === selectedFileId
+                                    ? "font-medium"
+                                    : "",
+                                )}
+                              >
+                                {file.name}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 })}
+
+                {/* Files that don't belong to any group */}
+                {(() => {
+                  const ungroupedFiles = sortedPdfFiles.filter(
+                    (file) =>
+                      !groupedFiles.some((group) =>
+                        group.files.some((gf) => gf.id === file.id),
+                      ),
+                  );
+
+                  if (ungroupedFiles.length === 0) return null;
+
+                  return (
+                    <div className="w-full">
+                      <div className="text-xs font-medium text-muted-foreground mb-1">
+                        Individual Files
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {ungroupedFiles.map((file) => {
+                          const isSelected = selectedFileIds.includes(file.id);
+                          return (
+                            <div
+                              key={file.id}
+                              className={cn(
+                                "flex items-center gap-2 rounded border px-2 py-1 text-xs",
+                                isSelected
+                                  ? "border-primary/60 bg-accent"
+                                  : "border-muted",
+                              )}
+                            >
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() =>
+                                  handleToggleFileSelection(file.id)
+                                }
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setSelectedFileId(file.id)}
+                                className={cn(
+                                  "max-w-[160px] truncate text-left",
+                                  file.id === selectedFileId
+                                    ? "font-semibold"
+                                    : "",
+                                )}
+                              >
+                                {file.name}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}
@@ -1502,7 +1754,7 @@ export function SigningPdfViewer({
                   (() => {
                     const isSigned = signedPlaceholderIds.has(p.placeholder_id);
                     const isLocked = !isAssignedToCurrentUser(
-                      p.assigned_user_id
+                      p.assigned_user_id,
                     );
                     const remoteDraft = remoteSignatureDrafts[p.placeholder_id];
                     return (
@@ -1546,7 +1798,7 @@ export function SigningPdfViewer({
                         </div>
                       </Button>
                     );
-                  })()
+                  })(),
                 )
               )}
             </div>
@@ -1570,7 +1822,7 @@ export function SigningPdfViewer({
                   // Use the saved text from state if available, otherwise use stored text from API
                   const displayText = savedText || storedText;
                   const hasSavedText = Boolean(
-                    displayText && displayText.toLowerCase() !== "text"
+                    displayText && displayText.toLowerCase() !== "text",
                   );
                   const isLocked = !isAssignedToCurrentUser(p.assigned_user_id);
                   const remoteDraft = remoteTextDrafts[p.placeholder_id];
@@ -1647,7 +1899,7 @@ export function SigningPdfViewer({
                     .filter((p) => p.page_number === activePage)
                     .map((placeholder) => {
                       const signedData = signatureDataByPlaceholderId.get(
-                        placeholder.placeholder_id
+                        placeholder.placeholder_id,
                       );
                       const overlaySignature =
                         signedData ||
@@ -1660,10 +1912,10 @@ export function SigningPdfViewer({
                         remoteSignatureDrafts[placeholder.placeholder_id]
                           ?.dataUrl;
                       const isSigned = signedPlaceholderIds.has(
-                        placeholder.placeholder_id
+                        placeholder.placeholder_id,
                       );
                       const isLocked = !isAssignedToCurrentUser(
-                        placeholder.assigned_user_id
+                        placeholder.assigned_user_id,
                       );
                       const remoteSignatureUser =
                         remoteSignatureDrafts[placeholder.placeholder_id]
@@ -1685,8 +1937,8 @@ export function SigningPdfViewer({
                             isSigned
                               ? "border-emerald-500 bg-emerald-500/15 cursor-not-allowed"
                               : isLocked
-                              ? "border-slate-300 bg-slate-100/60 cursor-not-allowed"
-                              : "border-yellow-500 bg-yellow-500/20 hover:bg-yellow-500/40 cursor-pointer"
+                                ? "border-slate-300 bg-slate-100/60 cursor-not-allowed"
+                                : "border-yellow-500 bg-yellow-500/20 hover:bg-yellow-500/40 cursor-pointer",
                           )}
                           onClick={(e) => {
                             e.stopPropagation(); // Prevent bubbling
@@ -1708,8 +1960,8 @@ export function SigningPdfViewer({
                                 {isSigned
                                   ? "Signed"
                                   : isLocked
-                                  ? "Assigned"
-                                  : "Sign Here"}
+                                    ? "Assigned"
+                                    : "Sign Here"}
                               </span>
                               {!isSigned && remoteSignatureUser && (
                                 <span className="text-[10px] text-muted-foreground">
@@ -1734,10 +1986,10 @@ export function SigningPdfViewer({
                       const mergedText =
                         savedText || storedText || remoteText || "Text";
                       const hasMergedText = Boolean(
-                        mergedText && mergedText.toLowerCase() !== "text"
+                        mergedText && mergedText.toLowerCase() !== "text",
                       );
                       const isLocked = !isAssignedToCurrentUser(
-                        placeholder.assigned_user_id
+                        placeholder.assigned_user_id,
                       );
                       return (
                         <div
@@ -1755,8 +2007,8 @@ export function SigningPdfViewer({
                             hasMergedText
                               ? "border-amber-500/50 cursor-not-allowed"
                               : isLocked
-                              ? "border-slate-300 bg-slate-100/60 cursor-not-allowed"
-                              : "border-amber-500/70 cursor-pointer hover:border-amber-500"
+                                ? "border-slate-300 bg-slate-100/60 cursor-not-allowed"
+                                : "border-amber-500/70 cursor-pointer hover:border-amber-500",
                           )}
                           onClick={(event) => {
                             event.stopPropagation();
@@ -1825,12 +2077,12 @@ export function SigningPdfViewer({
               const targetIds = selectedFileIds.length
                 ? selectedFileIds
                 : selectedFileId
-                ? [selectedFileId]
-                : [];
+                  ? [selectedFileId]
+                  : [];
               if (targetIds.length > 1) {
                 const matches = findMatchingPlaceholders(
                   selectedPlaceholder,
-                  targetIds
+                  targetIds,
                 );
                 if (matches.length > 0) {
                   setPlacedSignatures((prev) => {
@@ -1868,8 +2120,8 @@ export function SigningPdfViewer({
                 selectedFileIds.length > 0
                   ? selectedFileIds
                   : selectedFileId
-                  ? [selectedFileId]
-                  : [];
+                    ? [selectedFileId]
+                    : [];
               const matchingPlaceholders = findMatchingTextPlaceholders(
                 selectedTextPlaceholder,
                 targetIds,

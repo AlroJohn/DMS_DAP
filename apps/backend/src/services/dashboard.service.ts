@@ -132,22 +132,22 @@ export class DashboardService {
             },
         };
 
-        const [createdCount, receivedCount] = await Promise.all([
-            prisma.document.count({
-                where: {
-                    ...departmentFilter,
-                    status: 'pending',
-                    created_at: { gte: startDate },
-                },
-            }),
-            prisma.document.count({
-                where: {
-                    ...departmentFilter,
-                    status: 'received',
-                    updated_at: { gte: startDate },
-                },
-            }),
-        ]);
+        // Execute queries sequentially to avoid connection exhaustion
+        const createdCount = await prisma.document.count({
+            where: {
+                ...departmentFilter,
+                status: 'pending',
+                created_at: { gte: startDate },
+            },
+        });
+
+        const receivedCount = await prisma.document.count({
+            where: {
+                ...departmentFilter,
+                status: 'received',
+                updated_at: { gte: startDate },
+            },
+        });
 
         return createdCount + receivedCount;
     }
@@ -291,73 +291,73 @@ export class DashboardService {
             },
         });
 
-        const performanceData = await Promise.all(
-            departments.map(async (dept) => {
-                // Count all trails where this department sent or received documents
-                const documentsProcessed = await prisma.documentTrail.count({
-                    where: {
-                        OR: [
-                            { from_department: dept.department_id },
-                            { to_department: dept.department_id },
-                        ],
-                    },
-                });
+        // Execute department performance calculations sequentially to avoid connection exhaustion
+        const performanceData = [];
+        for (const dept of departments) {
+            // Count all trails where this department sent or received documents
+            const documentsProcessed = await prisma.documentTrail.count({
+                where: {
+                    OR: [
+                        { from_department: dept.department_id },
+                        { to_department: dept.department_id },
+                    ],
+                },
+            });
 
-                // Count completed documents where this department is in workflow
-                const documents = await prisma.document.findMany({
-                    where: {
-                        status: { notIn: ['deleted'] },
-                    },
-                    select: {
-                        document_id: true,
-                        status: true,
-                        DocumentAdditionalDetails: {
-                            select: {
-                                work_flow_id: true,
-                            },
+            // Count completed documents where this department is in workflow
+            const documents = await prisma.document.findMany({
+                where: {
+                    status: { notIn: ['deleted'] },
+                },
+                select: {
+                    document_id: true,
+                    status: true,
+                    DocumentAdditionalDetails: {
+                        select: {
+                            work_flow_id: true,
                         },
                     },
-                });
+                },
+            });
 
-                let documentsInWorkflow = 0;
-                let completedInWorkflow = 0;
+            let documentsInWorkflow = 0;
+            let completedInWorkflow = 0;
 
-                documents.forEach((doc) => {
-                    const detail = doc.DocumentAdditionalDetails[0];
-                    if (!detail?.work_flow_id) return;
+            documents.forEach((doc) => {
+                const detail = doc.DocumentAdditionalDetails[0];
+                if (!detail?.work_flow_id) return;
 
-                    try {
-                        let workflowDepartments: string[] = [];
-                        const workflow = detail.work_flow_id;
+                try {
+                    let workflowDepartments: string[] = [];
+                    const workflow = detail.work_flow_id;
 
-                        if (typeof workflow === 'object' && workflow !== null) {
-                            workflowDepartments = Object.values(workflow)
-                                .map((val: any) => String(val || ''))
-                                .filter(Boolean);
-                        }
-
-                        if (workflowDepartments.includes(dept.department_id)) {
-                            documentsInWorkflow++;
-                            if (doc.status === 'completed') {
-                                completedInWorkflow++;
-                            }
-                        }
-                    } catch (e) {
-                        // Skip on error
+                    if (typeof workflow === 'object' && workflow !== null) {
+                        workflowDepartments = Object.values(workflow)
+                            .map((val: any) => String(val || ''))
+                            .filter(Boolean);
                     }
-                });
 
-                const efficiency = documentsInWorkflow > 0
-                    ? Math.round((completedInWorkflow / documentsInWorkflow) * 100)
-                    : 0;
+                    if (workflowDepartments.includes(dept.department_id)) {
+                        documentsInWorkflow++;
+                        if (doc.status === 'completed') {
+                            completedInWorkflow++;
+                        }
+                    }
+                } catch (e) {
+                    // Skip on error
+                }
+            });
 
-                return {
-                    name: dept.name,
-                    documentsProcessed,
-                    efficiency,
-                };
-            })
-        );
+            const efficiency = documentsInWorkflow > 0
+                ? Math.round((completedInWorkflow / documentsInWorkflow) * 100)
+                : 0;
+
+            performanceData.push({
+                name: dept.name,
+                documentsProcessed,
+                efficiency,
+            });
+        }
 
         // Sort by documents processed and return top 5
         return performanceData

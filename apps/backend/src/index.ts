@@ -64,6 +64,12 @@ import { securityHeaders, rateLimiter } from './middleware/security';
 import config from './config';
 import securityConfig from './config/security.config';
 
+// Import Prisma disconnect function and instance for health check
+import { disconnectPrisma, prisma } from './lib/prisma';
+
+// Import database connection monitor
+import { DbConnectionMonitor } from './utils/db-monitor';
+
 const app = express();
 const server = http.createServer(app);
 
@@ -198,14 +204,30 @@ if (config.logging.enableRequestLogging) {
 }
 
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: config.nodeEnv,
-    version: process.env.npm_package_version || '1.0.0',
-  });
+app.get('/health', async (req, res) => {
+  try {
+    // Test database connectivity
+    await prisma.$queryRaw`SELECT 1`;
+
+    res.json({
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: config.nodeEnv,
+      version: process.env.npm_package_version || '1.0.0',
+      database: 'connected'
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'ERROR',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: config.nodeEnv,
+      version: process.env.npm_package_version || '1.0.0',
+      database: 'disconnected',
+      error: (error as Error).message
+    });
+  }
 });
 
 // API routes - clean layered architecture
@@ -509,6 +531,11 @@ app.use(errorLogger);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
+// Start database connection monitor
+const dbMonitor = DbConnectionMonitor.getInstance(prisma);
+dbMonitor.setMaxConnections(8); // Set max connections to stay under server limits
+dbMonitor.startMonitoring(30000); // Monitor every 30 seconds
+
 // Start scheduled reports processor
 const scheduledReportsProcessor = new ScheduledReportsProcessor();
 scheduledReportsProcessor.start();
@@ -523,18 +550,22 @@ server.listen(config.port, () => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully');
+  dbMonitor.stopMonitoring();
   scheduledReportsProcessor.stop();
+  await disconnectPrisma();
   server.close(() => {
     console.log('Process terminated');
     process.exit(0);
   });
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully');
+  dbMonitor.stopMonitoring();
   scheduledReportsProcessor.stop();
+  await disconnectPrisma();
   server.close(() => {
     console.log('Process terminated');
     process.exit(0);

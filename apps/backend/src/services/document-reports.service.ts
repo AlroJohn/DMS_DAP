@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { DocumentFile } from '@prisma/client';
 
-const prisma = new PrismaClient();
 
 interface UsageReportStatistics {
   totalDocuments: number;

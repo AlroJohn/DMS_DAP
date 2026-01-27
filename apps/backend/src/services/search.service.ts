@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { Document, DocumentMetadata, DocumentAdditionalDetails, Department } from '@prisma/client';
 
-const prisma = new PrismaClient();
 
 // Define types for search parameters and results
 export interface SearchParams {

@@ -1,7 +1,6 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma, Prisma as PrismaType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-
-const prisma = new PrismaClient();
+import { prisma } from '../src/lib/prisma';
 
 async function main() {
   console.log('🌱 Starting database seeding for Super Admin...');
@@ -746,6 +745,8 @@ async function main() {
         .map((dept) => [dept.code, dept])
     );
 
+    const commonPassword = await bcrypt.hash('password123', 12);
+
     for (const [departmentCode, codes] of Object.entries(usersByDepartment)) {
       const dept = departmentsByCode.get(departmentCode);
       if (!dept) {
@@ -763,7 +764,7 @@ async function main() {
             where: { email },
             create: {
               email,
-              password: await bcrypt.hash('password123', 12),
+              password: commonPassword,
               email_verified: true,
               is_active: true,
               last_login: new Date(),
@@ -851,7 +852,7 @@ async function main() {
             where: { email },
             create: {
             email,
-            password: await bcrypt.hash('password123', 12),
+            password: commonPassword,
             email_verified: true,
             is_active: true,
             last_login: new Date(),
