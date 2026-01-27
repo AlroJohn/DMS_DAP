@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { NotificationService } from './notification.service';
 
-const prisma = new PrismaClient();
 const notificationService = new NotificationService();
 
 export class DocumentTrailsService {

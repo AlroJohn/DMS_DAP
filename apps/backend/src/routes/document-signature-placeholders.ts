@@ -1,11 +1,10 @@
 import express, { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { DocumentSignatureWorkflowService } from '../services/DocumentSignatureWorkflowService.service';
 import { auditService } from '../services/audit.service';
 import { NotificationService } from '../services/notification.service';
+import { prisma } from '../lib/prisma';
 
 const router = express.Router();
-const prisma = new PrismaClient();
 const notificationService = new NotificationService();
 
 // Endpoint to batch create signature placeholders (for adding multiple at once)
@@ -46,25 +45,21 @@ router.post('/documents/:documentId/signature-placeholders/batch', async (req: R
       select: { first_name: true, last_name: true, department_id: true }
     }) : null;
 
-    // Create all placeholders
-    const createdPlaceholders = await Promise.all(
-      placeholders.map(async (placeholder: any) => {
-        return await prisma.signaturePlaceholder.create({
-          data: {
-            document_id: documentId,
-            document_file_id: placeholder.document_file_id,
-            page_number: placeholder.page_number,
-            x_position: placeholder.x_position,
-            y_position: placeholder.y_position,
-            width: placeholder.width,
-            height: placeholder.height,
-            assigned_user_id: placeholder.assigned_user_id || null
-          }
-        });
-      })
-    );
+    // Batch create placeholders in one go
+    await prisma.signaturePlaceholder.createMany({
+      data: placeholders.map((placeholder: any) => ({
+        document_id: documentId,
+        document_file_id: placeholder.document_file_id,
+        page_number: placeholder.page_number,
+        x_position: placeholder.x_position,
+        y_position: placeholder.y_position,
+        width: placeholder.width,
+        height: placeholder.height,
+        assigned_user_id: placeholder.assigned_user_id || null
+      }))
+    });
 
-    console.log(`✅ [Batch Placeholder] Created ${createdPlaceholders.length} placeholders`);
+    console.log(`✅ [Batch Placeholder] Created ${placeholders.length} placeholders`);
 
     // Update or create ONE consolidated trail entry for all placeholders
     console.log(`📍 [Batch Placeholder] Checking if should create/update trail: user_id=${user_id}, creatingUser=${!!creatingUser}`);
@@ -160,7 +155,7 @@ router.post('/documents/:documentId/signature-placeholders/batch', async (req: R
     console.log(`📧 [Batch Placeholder] Sending notifications to assigned users`);
     const uniqueAssignedUserIds = new Set<string>();
     
-    createdPlaceholders.forEach(placeholder => {
+    placeholders.forEach(placeholder => {
       if (placeholder.assigned_user_id) {
         uniqueAssignedUserIds.add(placeholder.assigned_user_id);
       }
@@ -230,7 +225,7 @@ router.post('/documents/:documentId/signature-placeholders/batch', async (req: R
       console.log(`ℹ️  [Batch Placeholder] No assigned users to notify`);
     }
 
-    res.status(201).json(createdPlaceholders);
+    res.status(201).json(placeholders);
   } catch (error) {
     console.error('Error creating signature placeholders (batch):', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -288,6 +283,13 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
       return res.status(404).json({ error: 'Document file not found' });
     }
 
+    const creatingUser = user_id
+      ? await prisma.user.findUnique({
+          where: { user_id: user_id },
+          select: { first_name: true, last_name: true, department_id: true }
+        })
+      : null;
+
     if (assigned_user_id) {
       const assignedUser = await prisma.user.findUnique({
         where: { user_id: assigned_user_id }
@@ -313,12 +315,6 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
 
     // Log signature placeholder addition to document trail if user_id is provided
     if (user_id) {
-      // Get user who created the placeholder
-      const creatingUser = await prisma.user.findUnique({
-        where: { user_id: user_id },
-        select: { first_name: true, last_name: true, department_id: true }
-      });
-
       let placeholderDesc: string;
       
       // Build description without verbose prefixes

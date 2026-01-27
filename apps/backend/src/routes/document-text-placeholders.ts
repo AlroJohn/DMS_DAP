@@ -1,8 +1,7 @@
 import express, { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
 // Endpoint to get text placeholders for a document
 router.get('/documents/:documentId/text-placeholders', async (req: Request, res: Response) => {

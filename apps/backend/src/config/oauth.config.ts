@@ -1,9 +1,8 @@
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { AuthService } from '../services/auth.service';
 import crypto from 'crypto';
 
-const prisma = new PrismaClient();
 const authService = new AuthService();
 
 export const googleOAuthConfig = {

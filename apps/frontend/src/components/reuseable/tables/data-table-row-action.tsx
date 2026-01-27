@@ -106,7 +106,7 @@ export function DataTableRowActions<TData>({
   // State management
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(
-    null
+    null,
   );
   const [modalState, setModalState] = useState({
     view: false,
@@ -115,11 +115,11 @@ export function DataTableRowActions<TData>({
     checkoutFile: false,
   });
   const [checkoutAction, setCheckoutAction] = useState<"edit" | "signature">(
-    "edit"
+    "edit",
   );
 
   const [activeSignatureData, setActiveSignatureData] = useState<string | null>(
-    null
+    null,
   );
   const [viewDocumentModalOpen, setViewDocumentModalOpen] = useState(false);
   const [viewOcrModalOpen, setViewOcrModalOpen] = useState(false);
@@ -149,7 +149,7 @@ export function DataTableRowActions<TData>({
     router.push(
       query
         ? `/documents/${payload.documentId}?${query}`
-        : `/documents/${payload.documentId}`
+        : `/documents/${payload.documentId}`,
     );
   };
 
@@ -242,7 +242,7 @@ export function DataTableRowActions<TData>({
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(
-          errorData.error?.message || "Failed to complete document"
+          errorData.error?.message || "Failed to complete document",
         );
       }
 
@@ -287,7 +287,7 @@ export function DataTableRowActions<TData>({
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(
-          errorData.error?.message || "Failed to cancel document"
+          errorData.error?.message || "Failed to cancel document",
         );
       }
 
@@ -498,7 +498,7 @@ export function DataTableRowActions<TData>({
 
         <DropdownMenuContent
           align="end"
-          className="min-w-[160px] max-w-[300px]"
+          className="min-w-[240px] max-w-[350px] max-h-[300px] overflow-y-auto"
         >
           {/* Document View Actions */}
           {viewType === "document" && (
@@ -1023,13 +1023,13 @@ export function DataTableRowActions<TData>({
                   height: coords.height,
                   page_number: coords.page_number,
                 }),
-              }
+              },
             );
 
             if (!response.ok) {
               const errorData = await response.json();
               throw new Error(
-                errorData.error?.message || "Failed to sign document manually"
+                errorData.error?.message || "Failed to sign document manually",
               );
             }
 

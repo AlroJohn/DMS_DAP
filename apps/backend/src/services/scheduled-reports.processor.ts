@@ -1,11 +1,10 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { DocumentReportsService } from './document-reports.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import PDFDocument from 'pdfkit';
 
-const prisma = new PrismaClient();
 
 export class ScheduledReportsProcessor {
   private documentReportsService: DocumentReportsService;
