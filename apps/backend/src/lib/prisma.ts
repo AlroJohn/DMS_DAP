@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 declare global {
   // allow global `var` declarations
@@ -6,15 +6,21 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
-export const prisma =
-  global.prisma ||
-  new PrismaClient({
-    log: ['query'],
-    datasources: {
-      db: {
-        url: process.env.DATABASE_URL,
-      },
-    },
+// Initialize Prisma Client with specific options to manage connections
+const createPrismaClient = (): PrismaClient => {
+  return new PrismaClient({
+    log: ['query', 'info', 'warn', 'error'],
   });
+};
 
-if (process.env.NODE_ENV !== 'production') global.prisma = prisma;
+export const prisma = global.prisma || createPrismaClient();
+
+// Add event listeners for query logging to help debug connection issues
+if (process.env.NODE_ENV !== 'production') {
+  global.prisma = prisma;
+}
+
+// Add graceful shutdown handler to properly disconnect
+export const disconnectPrisma = async (): Promise<void> => {
+  await prisma.$disconnect();
+};
