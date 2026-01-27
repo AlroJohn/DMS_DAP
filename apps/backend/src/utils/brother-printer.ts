@@ -69,9 +69,9 @@ export function printBarcode(
       }
     };
 
-    // Listen for responses
-    io.on('printSuccess', successHandler);
-    io.on('printError', errorHandler);
+    // Listen for responses (use once to auto-remove listeners)
+    io.once('printSuccess', successHandler);
+    io.once('printError', errorHandler);
 
     // Set timeout
     setTimeout(() => {
@@ -130,9 +130,9 @@ export function printQRCode(
       }
     };
 
-    // Listen for responses
-    io.on('printSuccess', successHandler);
-    io.on('printError', errorHandler);
+    // Listen for responses (use once to auto-remove listeners)
+    io.once('printSuccess', successHandler);
+    io.once('printError', errorHandler);
 
     // Set timeout
     setTimeout(() => {

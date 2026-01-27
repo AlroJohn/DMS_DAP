@@ -291,6 +291,8 @@ io.on('connection', (socket) => {
   socket.on('printer:print', (data, callback) => {
     if (isPrinter) return;
     
+    console.log(`[BACKEND] 🔍 Received printer:print with printType: "${data?.printType}"`);
+    
     // Support both legacy payloadBase64 format and new barcode data format
     if (!data?.payloadBase64 && !data?.documentCode && !data?.printType) {
       callback?.({ success: false, error: 'Either payloadBase64 or documentCode is required' });
@@ -315,7 +317,7 @@ io.on('connection', (socket) => {
     const useUSB = process.env.USE_USB === 'true' || data.useUSB || false;
     const printerName = process.env.PRINTER_NAME || data.printer_name;
 
-    io.to(printerServiceRoom).emit('printJob', {
+    const printJobData = {
       app: 'dms',
       jobId,
       data: {
@@ -323,7 +325,7 @@ io.on('connection', (socket) => {
         payloadBase64: data.payloadBase64,
         printType: data.printType,
         documentCode: data.documentCode,
-        barcodeData: data.barcodeData || data.documentCode, // Support both field names
+        barcodeData: data.barcodeData || data.documentCode,
         organizationName: data.organizationName,
         labelFormat: data.labelFormat,
         printer_ip: resolvedPrinterIp,
@@ -332,7 +334,11 @@ io.on('connection', (socket) => {
         useUSB: useUSB,
         printer_name: printerName,
       },
-    });
+    };
+
+    console.log(`[BACKEND] 📤 Emitting to printer service with printType: "${printJobData.data.printType}"`);
+    
+    io.to(printerServiceRoom).emit('printJob', printJobData);
 
     callback?.({ success: true, jobId });
   });

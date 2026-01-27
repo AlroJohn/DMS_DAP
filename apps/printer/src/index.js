@@ -81,8 +81,27 @@ socket.on("disconnect", () => {
   console.log("❌ Disconnected from server");
 });
 
+// TRACK: Prevent duplicate print job processing
+const processedJobs = new Set();
+
 socket.on("printJob", async (job) => {
-  console.log(`\n📨 Received Print Job: ${job.jobId || 'unknown'}`);
+  const jobId = job.jobId || 'unknown';
+  
+  // Check if this job was already processed
+  if (processedJobs.has(jobId)) {
+    console.log(`⚠️  DUPLICATE DETECTED - Ignoring already processed job: ${jobId}`);
+    return;
+  }
+  
+  // Mark as processing
+  processedJobs.add(jobId);
+  
+  // Clean up old jobs after 1 minute to prevent memory leak
+  setTimeout(() => {
+    processedJobs.delete(jobId);
+  }, 60000);
+  
+  console.log(`\n📨 Received Print Job: ${jobId}`);
   console.log("Job data:", JSON.stringify(job.data, null, 2));
   
   try {
@@ -92,6 +111,8 @@ socket.on("printJob", async (job) => {
     const organizationName = requestData.organizationName || "Property of: DAP";
     const titleText = organizationName;
     const printType = requestData.printType || 'barcode'; // Default to barcode if not specified
+
+    console.log(`🔍 PRINTER DEBUG: printType="${printType}", will generate: ${printType === 'qrcode' ? 'QR CODE' : 'BARCODE'}`);
 
     if (!barcodeText) {
       console.error("❌ No barcode data provided in job");
@@ -108,10 +129,14 @@ socket.on("printJob", async (job) => {
     // 1. Generate PDF Label based on print type
     const pdfPath = path.join(__dirname, `temp_label_${Date.now()}.pdf`);
     
+    console.log(`⚙️ Calling generator for: ${printType}`);
+    
     if (printType === 'qrcode') {
+      console.log('✅ Generating QR CODE PDF...');
       await generateQRCodeLabelPDF(pdfPath, titleText, barcodeText);
       console.log(`✅ QR Code PDF Generated: ${pdfPath}`);
     } else {
+      console.log('✅ Generating BARCODE PDF...');
       await generateLabelPDF(pdfPath, titleText, barcodeText);
       console.log(`✅ Barcode PDF Generated: ${pdfPath}`);
     }
@@ -130,6 +155,8 @@ socket.on("printJob", async (job) => {
         paperSize: "Custom.68x425",  // 24mm x 150mm in points
         scale: "fit",  // Fit to paper size
         monochrome: true,  // Black and white for label printer
+        silent: true,  // Suppress printer dialog
+        win32: ['-print-settings "fit"']  // Additional Windows settings
     });
 
     console.log("✅ Print command sent successfully!");
@@ -172,89 +199,87 @@ socket.on("printJob", async (job) => {
  * Optimized for Brother PT-P710BT 24mm tape width
  */
 async function generateLabelPDF(filepath, title, barcodeText) {
+  console.log('🔧 [BARCODE GENERATOR] Starting barcode PDF generation...');
+  console.log('🔧 [BARCODE GENERATOR] Data:', { filepath, title, barcodeText });
+  
   return new Promise((resolve, reject) => {
-    // Create PDF with exact dimensions: 24mm width x 100mm height
-    // This matches the tape width (24mm constraint)
-    const pdfWidth = LABEL_HEIGHT_MM * PRO_MM_TO_PT; // 24mm width
-    const pdfHeight = LABEL_WIDTH_MM * PRO_MM_TO_PT; // 100mm height
+    // Barcode label length - 4 inches (100mm) for long barcode
+    const BARCODE_WIDTH_MM = 100; // Long label for barcode
+    const pdfWidth = LABEL_HEIGHT_MM * PRO_MM_TO_PT;  // 24mm width
+    const pdfHeight = BARCODE_WIDTH_MM * PRO_MM_TO_PT; // 100mm length
 
     const doc = new PDFDocument({
       size: [pdfWidth, pdfHeight],
       margin: 0,
-      layout: 'portrait' // Width=24mm, Height=100mm
+      layout: 'portrait'
     });
 
     const stream = fs.createWriteStream(filepath);
     doc.pipe(stream);
 
-    // Rotate content 90 degrees to print along the tape length
-    // This way the label reads correctly when tape comes out
-    doc.save();
-    doc.translate(pdfWidth, 0); 
-    doc.rotate(90);
-
-    // After rotation, we can draw in landscape orientation
-    const DRAW_WIDTH = PAGE_WIDTH; // 100mm effective width
-    const DRAW_HEIGHT = PAGE_HEIGHT; // 24mm effective height
-    
-    // 1. Organization/Title Text at the top
-    doc.fontSize(12); // Increased font size
-    doc.font('Helvetica-Bold');
-    doc.text(title, 15, 3, {
-        width: DRAW_WIDTH - 30,
-        align: 'left'
-    });
-
-    // 2. Generate and place CODE128 Barcode - MUCH BIGGER!
-    try {
-        const barcodeOptions = {
-            bcid: 'code128',       // CODE128 barcode format
-            text: barcodeText,
-            scale: 4,              // Increased scale for bigger barcode (was 2)
-            height: 18,            // Increased barcode height to 18mm (was 10mm)
-            includetext: true,     // Show text below barcode
-            textxalign: 'center',  // Center align the text
-            textsize: 12           // Increased text size (was 9)
-        };
-        
-        bwipjs.toBuffer(barcodeOptions, function(err, png) {
-            if (err) {
-                console.error("Barcode generation error:", err);
-                reject(err);
-                return;
-            }
-            
-            try {
-                // Place barcode below the title text - with more space
-                // Title is at y=3, approx 4-5mm height
-                // Place barcode at y=12 to have spacing
-                doc.image(png, 10, 12, {
-                    fit: [DRAW_WIDTH - 20, 80], // Larger fit area for bigger barcode
-                    align: 'center',
-                    valign: 'top'
-                });
-                
-                doc.restore();
-                doc.end();
-            } catch (imgErr) {
-                console.error("Image placement error:", imgErr);
-                reject(imgErr);
-            }
-        });
-
-    } catch (e) {
-        console.error("Barcode processing error:", e);
-        reject(e);
-    }
-
+    // Set up stream event listeners first
     stream.on('finish', () => {
+        console.log('🔧 [BARCODE GENERATOR] ✅ PDF stream finished successfully!');
         resolve(filepath);
     });
 
     stream.on('error', (err) => {
-        console.error("PDF stream error:", err);
+        console.error("🔧 [BARCODE GENERATOR] ❌ PDF stream error:", err);
         reject(err);
     });
+
+    try {
+      // Rotate content 90 degrees to print along the tape length
+      doc.save();
+      doc.translate(pdfWidth, 0); 
+      doc.rotate(90);
+
+      const DRAW_WIDTH = BARCODE_WIDTH_MM * PRO_MM_TO_PT; // 60mm effective width
+      const DRAW_HEIGHT = LABEL_HEIGHT_MM * PRO_MM_TO_PT; // 24mm effective height
+      
+      console.log('🔧 [BARCODE GENERATOR] Generating barcode image with bwipjs...');
+      
+      // Generate CODE128 Barcode - OPTIMIZED FOR SCANNER READABILITY
+      const barcodeOptions = {
+          bcid: 'code128',
+          text: barcodeText,
+          scale: 6,              // High quality but not too thick
+          height: 18,            // Good height for scanning
+          includetext: false,    // NO TEXT - just barcode bars
+          backgroundcolor: 'ffffff',  // Pure white background
+          barcolor: '000000'     // Pure black bars for maximum contrast
+      };
+      
+      bwipjs.toBuffer(barcodeOptions, function(err, png) {
+          if (err) {
+              console.error("🔧 [BARCODE GENERATOR] ❌ Barcode generation error:", err);
+              reject(err);
+              return;
+          }
+          
+          console.log('🔧 [BARCODE GENERATOR] ✅ Barcode image generated, placing on PDF...');
+          
+          try {
+              // Center the barcode vertically and horizontally, use most of the available space
+              doc.image(png, 5, 0, {
+                  fit: [DRAW_WIDTH - 10, DRAW_HEIGHT],
+                  align: 'center',
+                  valign: 'center'
+              });
+              
+              console.log('🔧 [BARCODE GENERATOR] ✅ Barcode placed, finalizing PDF...');
+              doc.restore();
+              doc.end();
+          } catch (imgErr) {
+              console.error("🔧 [BARCODE GENERATOR] ❌ Image placement error:", imgErr);
+              reject(imgErr);
+          }
+      });
+
+    } catch (e) {
+        console.error("🔧 [BARCODE GENERATOR] ❌ Barcode processing error:", e);
+        reject(e);
+    }
   });
 }
 
@@ -263,16 +288,19 @@ async function generateLabelPDF(filepath, title, barcodeText) {
  * Optimized for Brother PT-P710BT 24mm tape width
  */
 async function generateQRCodeLabelPDF(filepath, title, qrCodeData) {
+  console.log('🟦 [QR CODE GENERATOR] Starting QR code PDF generation...');
+  console.log('🟦 [QR CODE GENERATOR] Data:', { filepath, title, qrCodeData });
+  
   return new Promise(async (resolve, reject) => {
     try {
-      // Create PDF with exact dimensions: 24mm width x 100mm height
+      // Create PDF with exact dimensions: 24mm width x 30mm height
       const pdfWidth = LABEL_HEIGHT_MM * PRO_MM_TO_PT; // 24mm width
-      const pdfHeight = LABEL_WIDTH_MM * PRO_MM_TO_PT; // 100mm height
+      const pdfHeight = LABEL_WIDTH_MM * PRO_MM_TO_PT; // 30mm height
 
       const doc = new PDFDocument({
         size: [pdfWidth, pdfHeight],
         margin: 0,
-        layout: 'portrait' // Width=24mm, Height=100mm
+        layout: 'portrait'
       });
 
       const stream = fs.createWriteStream(filepath);
@@ -287,13 +315,15 @@ async function generateQRCodeLabelPDF(filepath, title, qrCodeData) {
       const DRAW_WIDTH = PAGE_WIDTH; // 30mm effective width
       const DRAW_HEIGHT = PAGE_HEIGHT; // 24mm effective height
       
+      console.log('🟦 [QR CODE GENERATOR] Generating QR code image...');
+      
       // Generate QR Code ONLY - no text!
       const qrOptions = {
-        errorCorrectionLevel: 'L',  // Low error correction = bigger/simpler QR code
+        errorCorrectionLevel: 'L',
         type: 'png',
         quality: 1,
-        margin: 0,  // No margin - maximize size
-        width: 800,  // Very high resolution
+        margin: 0,
+        width: 800,
         color: {
           dark: '#000000',
           light: '#FFFFFF'
@@ -302,30 +332,34 @@ async function generateQRCodeLabelPDF(filepath, title, qrCodeData) {
       
       const qrCodeBuffer = await QRCode.toBuffer(qrCodeData, qrOptions);
       
-      // Place QR code - MAXIMUM SIZE, FILL ENTIRE LABEL
-      const qrSize = DRAW_HEIGHT - 1; // Use full 24mm height (minus 1pt for safety)
-      const qrX = (DRAW_WIDTH - qrSize) / 2; // Horizontally centered
-      const qrY = 0.5; // Tiny margin from top
+      console.log('🟦 [QR CODE GENERATOR] ✅ QR code image generated, placing on PDF...');
+      
+      // Place QR code - MAXIMUM SIZE
+      const qrSize = DRAW_HEIGHT - 1;
+      const qrX = (DRAW_WIDTH - qrSize) / 2;
+      const qrY = 0.5;
       
       doc.image(qrCodeBuffer, qrX, qrY, {
         width: qrSize,
         height: qrSize
       });
       
+      console.log('🟦 [QR CODE GENERATOR] ✅ QR code placed, finalizing PDF...');
       doc.restore();
       doc.end();
 
       stream.on('finish', () => {
+        console.log('🟦 [QR CODE GENERATOR] ✅ PDF stream finished successfully!');
         resolve(filepath);
       });
 
       stream.on('error', (err) => {
-        console.error("PDF stream error:", err);
+        console.error("🟦 [QR CODE GENERATOR] ❌ PDF stream error:", err);
         reject(err);
       });
       
     } catch (e) {
-      console.error("QR Code generation error:", e);
+      console.error("🟦 [QR CODE GENERATOR] ❌ QR Code generation error:", e);
       reject(e);
     }
   });
