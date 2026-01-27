@@ -290,8 +290,10 @@ io.on('connection', (socket) => {
 
   socket.on('printer:print', (data, callback) => {
     if (isPrinter) return;
-    if (!data?.payloadBase64 || typeof data.payloadBase64 !== 'string') {
-      callback?.({ success: false, error: 'payloadBase64 is required' });
+    
+    // Support both legacy payloadBase64 format and new barcode data format
+    if (!data?.payloadBase64 && !data?.documentCode && !data?.printType) {
+      callback?.({ success: false, error: 'Either payloadBase64 or documentCode is required' });
       return;
     }
 
@@ -309,6 +311,9 @@ io.on('connection', (socket) => {
     console.log(`[${new Date().toISOString()}] Queued print job ${jobId}`);
     const resolvedPrinterIp = process.env.PRINTER_IP || data.printer_ip;
     const resolvedPrinterPort = process.env.PRINTER_PORT || data.printer_port;
+    const printerType = process.env.PRINTER_TYPE || data.printer_type || 'EPSON';
+    const useUSB = process.env.USE_USB === 'true' || data.useUSB || false;
+    const printerName = process.env.PRINTER_NAME || data.printer_name;
 
     io.to(printerServiceRoom).emit('printJob', {
       app: 'dms',
@@ -316,8 +321,16 @@ io.on('connection', (socket) => {
       data: {
         event: 'printing',
         payloadBase64: data.payloadBase64,
+        printType: data.printType,
+        documentCode: data.documentCode,
+        barcodeData: data.barcodeData || data.documentCode, // Support both field names
+        organizationName: data.organizationName,
+        labelFormat: data.labelFormat,
         printer_ip: resolvedPrinterIp,
         printer_port: resolvedPrinterPort,
+        printer_type: printerType,
+        useUSB: useUSB,
+        printer_name: printerName,
       },
     });
 

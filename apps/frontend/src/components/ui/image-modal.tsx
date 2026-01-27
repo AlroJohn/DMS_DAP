@@ -187,12 +187,15 @@ export function ImageModal({
     setIsPrinting(true);
 
     try {
-      const payload = await buildEscPosRaster();
-      const payloadBase64 = bytesToBase64(payload);
       const jobId =
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      
+      // For Brother label printer, send the barcode data directly
+      // Extract document code from title (e.g., "ADMIN-012626-A0001")
+      const documentCode = printTitle || title || alt || "";
+      
       await new Promise((resolve, reject) => {
         const timeout = window.setTimeout(() => {
           cleanup();
@@ -224,7 +227,12 @@ export function ImageModal({
           "printer:print",
           {
             jobId,
-            payloadBase64,
+            printType: isBarcode ? "barcode" : "qrcode",
+            documentCode: documentCode,
+            barcodeData: documentCode, // Also send as barcodeData for compatibility
+            organizationName: "Property of: DAP", // Full organization name for label
+            labelFormat: "brother-label", // Indicate this is for Brother label format
+            useUSB: true, // Explicitly indicate USB printing
           },
           (ack: { success?: boolean; error?: string } | undefined) => {
             if (!ack?.success) {
