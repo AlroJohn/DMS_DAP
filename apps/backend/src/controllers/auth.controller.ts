@@ -142,11 +142,15 @@ export class AuthController {
    */
   logout = asyncHandler(async (req: Request, res: Response) => {
     const { refreshToken } = req.cookies;
+    const accessTokenFromCookie = req.cookies.accessToken as string | undefined;
+    const authHeader = req.headers.authorization;
+    const accessTokenFromHeader = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice('Bearer '.length)
+      : undefined;
+    const accessToken = accessTokenFromCookie || accessTokenFromHeader;
 
     // Invalidate the session on the backend
-    if (refreshToken) {
-      await this.authService.logout(refreshToken);
-    }
+    await this.authService.logout(refreshToken, accessToken);
 
     // Clear HttpOnly cookies
     res.cookie('accessToken', '', {

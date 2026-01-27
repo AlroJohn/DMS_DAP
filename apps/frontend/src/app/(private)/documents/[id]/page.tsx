@@ -418,17 +418,44 @@ export default function DocumentDetailPage() {
           departmentId: data.departmentId,
           requestActions: data.requestActions,
           remarks: data.remarks,
-          signatures: data.signatures, // This matches the expected format in the backend
+          signatures: data.signatures,
           textPlaceholders: data.textPlaceholders,
         }),
       });
+
+      const responseText = await response.text();
+
+      console.log("📝 Release response status:", response.status);
+      console.log("📝 Release response body:", responseText);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.error || "Failed to release document with signatures.",
-        );
+        const fallbackMessage = "Failed to release document with signatures.";
+        if (responseText) {
+          try {
+            const errorData = JSON.parse(responseText);
+            throw new Error(
+              errorData.error?.message || errorData.error || errorData.message || fallbackMessage,
+            );
+          } catch {
+            throw new Error(responseText);
+          }
+        }
+        throw new Error(fallbackMessage);
       }
-      return response.json();
+
+      if (!responseText) {
+        return null;
+      }
+
+      try {
+        return JSON.parse(responseText);
+      } catch (error) {
+        console.warn("Release response was not valid JSON, falling back to text output.", {
+          error,
+          responseText,
+        });
+        return null;
+      }
     },
   });
 

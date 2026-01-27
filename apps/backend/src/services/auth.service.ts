@@ -274,22 +274,51 @@ export class AuthService {
   /**
    * Logout user and invalidate session
    */
-  async logout(refreshToken: string): Promise<void> {
-    if (!refreshToken) {
+  async logout(refreshToken?: string, accessToken?: string): Promise<void> {
+    if (!refreshToken && !accessToken) {
       return;
     }
 
-    // Find the session by the refresh token
-    const session = await prisma.userSession.findFirst({
-      where: { refresh_token: refreshToken },
-    });
+    if (accessToken) {
+      try {
+        const decoded = jwt.verify(accessToken, config.jwt.secret, {
+          ignoreExpiration: true,
+        }) as AuthTokenPayload;
+        const user = await prisma.user.findUnique({
+          where: { user_id: decoded.userId },
+          select: { account_id: true },
+        });
 
-    if (session) {
-      // Delete the session to invalidate it
-      await prisma.userSession.delete({
-        where: { session_id: session.session_id },
-      });
+        if (user?.account_id) {
+          await prisma.userSession.deleteMany({
+            where: { account_id: user.account_id },
+          });
+          return;
+        }
+      } catch (error) {
+        console.error('[AuthService] Logout token decode failed:', error);
+      }
     }
+
+    const orConditions: Array<{ refresh_token?: string; session_token?: string }> = [];
+
+    if (refreshToken) {
+      orConditions.push({ refresh_token: refreshToken });
+    }
+
+    if (accessToken) {
+      orConditions.push({ session_token: accessToken });
+    }
+
+    if (orConditions.length === 0) {
+      return;
+    }
+
+    await prisma.userSession.deleteMany({
+      where: {
+        OR: orConditions,
+      },
+    });
   }
 
   /**

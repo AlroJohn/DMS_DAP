@@ -38,8 +38,17 @@ export function useUsers() {
           return; // Early return to prevent further processing
         }
 
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to fetch users');
+        const fallbackMessage = 'Failed to fetch users';
+        const errorText = await response.text();
+        if (errorText) {
+          try {
+            const errorData = JSON.parse(errorText);
+            throw new Error(errorData.error?.message || errorData.error || errorData.message || fallbackMessage);
+          } catch {
+            throw new Error(errorText);
+          }
+        }
+        throw new Error(fallbackMessage);
       }
 
       const result = await response.json().catch(() => ({}));
