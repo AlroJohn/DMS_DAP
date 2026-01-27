@@ -44,10 +44,10 @@ export function NotificationSheet({ open, onOpenChange }: NotificationSheetProps
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md p-0 h-full">
-        <div className="flex flex-col h-full">
+      <SheetContent className="w-full sm:max-w-md p-0">
+        <div className="flex flex-col h-screen">
           {/* Header */}
-          <div className="flex items-start justify-between p-6 border-b">
+          <div className="flex items-start justify-between p-6 border-b flex-shrink-0">
             <div className="flex-1">
               <SheetTitle className="text-xl font-semibold">Notifications</SheetTitle>
               <SheetDescription className="mt-1">
@@ -67,7 +67,7 @@ export function NotificationSheet({ open, onOpenChange }: NotificationSheetProps
           </div>
 
           {/* Notifications List */}
-          <ScrollArea className="flex-1 px-4">
+          <ScrollArea className="flex-1 px-4 overflow-y-auto">
             <div className="space-y-3 py-4">
               {notifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
