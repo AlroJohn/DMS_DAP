@@ -32,6 +32,8 @@ const UserManagementPage = () => {
   const {
     users,
     filteredUsers,
+    invitations,
+    filteredInvitations,
     departments,
     roles,
     searchTerm,
@@ -59,6 +61,7 @@ const UserManagementPage = () => {
     deleteUser,
     toggleUserStatus,
     fetchUsers,
+    fetchInvitations,
   } = useUserManagement();
 
   // Pagination state for each tab
@@ -67,16 +70,11 @@ const UserManagementPage = () => {
   const [invitedPage, setInvitedPage] = React.useState(1);
   const [invitedItemsPerPage, setInvitedItemsPerPage] = React.useState(10);
 
-  // Separate users into verified and invited based on email verification
-  const { verifiedUsers, invitedUsers } = useMemo(() => {
-    const verified = filteredUsers.filter(user => user.account.email_verified);
-    const invited = filteredUsers.filter(user => !user.account.email_verified);
-    
+  // Use actual active users (not invitations)
+  const verifiedUsers = useMemo(() => {
     // Reset pagination when filters change
     setVerifiedPage(1);
-    setInvitedPage(1);
-    
-    return { verifiedUsers: verified, invitedUsers: invited };
+    return filteredUsers;
   }, [filteredUsers]);
 
   // Pagination for verified users
@@ -87,13 +85,13 @@ const UserManagementPage = () => {
     return verifiedUsers.slice(startIndex, endIndex);
   }, [verifiedUsers, verifiedPage, verifiedItemsPerPage]);
 
-  // Pagination for invited users
-  const invitedTotalPages = Math.ceil(invitedUsers.length / invitedItemsPerPage);
+  // Pagination for invited users (invitations)
+  const invitedTotalPages = Math.ceil(filteredInvitations.length / invitedItemsPerPage);
   const paginatedInvitedUsers = useMemo(() => {
     const startIndex = (invitedPage - 1) * invitedItemsPerPage;
     const endIndex = startIndex + invitedItemsPerPage;
-    return invitedUsers.slice(startIndex, endIndex);
-  }, [invitedUsers, invitedPage, invitedItemsPerPage]);
+    return filteredInvitations.slice(startIndex, endIndex);
+  }, [filteredInvitations, invitedPage, invitedItemsPerPage]);
 
   // Determine modal title/description depending on whether the user to delete is active
   const deletingUser = userToDelete ? users.find(u => u.user_id === userToDelete) : null;
@@ -247,6 +245,121 @@ const UserManagementPage = () => {
     </div>
   );
 
+  // Render invitation table
+  const renderInvitationTable = (invitationsList: typeof filteredInvitations, emptyMessage: string) => (
+    <div className="rounded-md border bg-card">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>User</TableHead>
+            <TableHead>Contact</TableHead>
+            <TableHead>Department</TableHead>
+            <TableHead>Role</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Expires</TableHead>
+            <TableHead className="text-center">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {invitationsList.length > 0 ? (
+            invitationsList.map((invitation) => {
+              const isExpired = new Date(invitation.expires_at) < new Date();
+              const isGoogleAccount = invitation.email.endsWith('@gmail.com') || invitation.email.endsWith('@googlemail.com');
+              
+              return (
+                <TableRow key={invitation.invitation_id}>
+                  <TableCell>
+                    <div className="flex flex-col gap-1.5 py-1 min-w-[180px]">
+                      <div className="font-medium">{`${invitation.first_name} ${invitation.last_name}`}</div>
+                      {isGoogleAccount && (
+                        <Badge variant="outline" className="w-fit text-xs border-blue-500 text-blue-600 px-1.5 py-0">
+                          Google Account
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1.5">
+                      <Mail className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+                      <span className="text-xs">{invitation.email}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1.5">
+                      <Building2 className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" />
+                      <span className="text-xs text-muted-foreground">{invitation.department.name}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className="text-xs font-medium px-1.5 py-0.5">
+                      {invitation.role.name}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={isExpired ? "destructive" : invitation.status === 'accepted' ? "secondary" : "outline"}
+                      className={isExpired ? "text-xs" : invitation.status === 'accepted' ? "text-xs text-green-600" : "w-fit text-xs border-amber-500 text-amber-600 px-1.5 py-0"}
+                    >
+                      {isExpired
+                        ? "Expired"
+                        : invitation.status
+                          ? invitation.status.charAt(0).toUpperCase() + invitation.status.slice(1)
+                          : "Pending"
+                      }
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(invitation.expires_at).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex justify-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {/* Resend invitation logic */}}
+                        title="Resend Invitation"
+                        className="h-8 w-8 p-0"
+                      >
+                        <Mail className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {/* Cancel invitation logic */}}
+                        title="Cancel Invitation"
+                        className="h-8 w-8 p-0"
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })
+          ) : (
+            <TableRow>
+              <TableCell
+                colSpan={7}
+                className="h-24 text-center"
+              >
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <p className="text-lg font-medium">No Results Found</p>
+                  <p className="text-xs">{emptyMessage}</p>
+                </div>
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </div>
+  );
+
   return (
     <div className="w-full flex h-full flex-col bg-background">
       {/* Modals */}
@@ -262,7 +375,10 @@ const UserManagementPage = () => {
       <CreateUserModal
         isOpen={isCreateModalOpen}
         onClose={closeCreateModal}
-        onSuccess={fetchUsers}
+        onSuccess={() => {
+          fetchUsers();
+          fetchInvitations();
+        }}
         departments={departments}
         roles={roles}
       />
@@ -368,7 +484,7 @@ const UserManagementPage = () => {
                 <UserPlus className="h-4 w-4" />
                 Invited Users
                 <Badge variant="secondary" className="ml-1 rounded-sm px-1 font-normal">
-                  {invitedUsers.length}
+                  {filteredInvitations.length}
                 </Badge>
               </TabsTrigger>
             </TabsList>
@@ -394,13 +510,13 @@ const UserManagementPage = () => {
 
             <TabsContent value="invited" className="mt-0">
               <div className="flex flex-col gap-4">
-                {renderUserTable(paginatedInvitedUsers, "There are no invited users at the moment")}
-                {invitedUsers.length > 0 && (
+                {renderInvitationTable(paginatedInvitedUsers, "There are no invited users at the moment")}
+                {filteredInvitations.length > 0 && (
                   <TablePagination
                     currentPage={invitedPage}
                     totalPages={invitedTotalPages}
                     itemsPerPage={invitedItemsPerPage}
-                    totalItems={invitedUsers.length}
+                    totalItems={filteredInvitations.length}
                     onPageChange={setInvitedPage}
                     onItemsPerPageChange={(value) => {
                       setInvitedItemsPerPage(value);
