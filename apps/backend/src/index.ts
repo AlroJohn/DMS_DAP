@@ -54,6 +54,7 @@ import accessHistoryRoutes from './routes/access-history.routes'; // Import acce
 import homeCMSRoutes from './routes/home-cms.routes'; // Import home CMS routes
 import sidebarSettingsRoutes from './routes/sidebar-settings.routes'; // Import sidebar settings routes
 import printerRoutes from './routes/printer.routes';
+import pendingSignaturesRoutes from './routes/pending-signatures.routes'; // Import pending signatures routes
 
 // Import middleware
 import { requestLogger, errorLogger } from './middleware/logging';
@@ -263,6 +264,7 @@ app.use('/api/notifications', notificationsRoutes); // Add notifications route
 app.use('/api/notification-preferences', notificationPreferencesRoutes); // Add notification preferences route
 app.use('/api/archive', archiveRoutes); // Add archive routes
 app.use('/api/dashboard', dashboardRoutes); // Add dashboard routes
+app.use('/api/pending-signatures', pendingSignaturesRoutes); // Add pending signatures routes
 app.use('/api/signatures', documentSignatureRoutes); // Add document signature routes
 app.use('/api/document-signatures', documentSignaturePlaceholderRoutes); // Add document signature placeholder routes
 app.use('/api/document-texts', documentTextPlaceholderRoutes); // Add document text placeholder routes

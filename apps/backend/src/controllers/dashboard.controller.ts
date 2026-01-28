@@ -20,4 +20,20 @@ export class DashboardController {
       res.status(500).json({ success: false, error: error.message });
     }
   };
+
+  /**
+   * Get dashboard quick access summary
+   * GET /api/dashboard/quick-access
+   */
+  getQuickAccess = async (req: AuthRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ success: false, error: 'Unauthorized' });
+      }
+      const summary = await this.dashboardService.getQuickAccessSummary(req.user.id);
+      res.json({ success: true, data: summary });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  };
 }
