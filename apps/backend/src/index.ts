@@ -55,6 +55,7 @@ import homeCMSRoutes from './routes/home-cms.routes'; // Import home CMS routes
 import sidebarSettingsRoutes from './routes/sidebar-settings.routes'; // Import sidebar settings routes
 import printerRoutes from './routes/printer.routes';
 import pendingSignaturesRoutes from './routes/pending-signatures.routes'; // Import pending signatures routes
+import scannerRoutes from './routes/scanner.routes'; // Import scanner routes
 
 // Import middleware
 import { requestLogger, errorLogger } from './middleware/logging';
@@ -275,6 +276,7 @@ app.use('/api', accessHistoryRoutes); // Add access history routes
 app.use('/api/home-cms', homeCMSRoutes); // Add home CMS routes
 app.use('/api/sidebar-settings', sidebarSettingsRoutes); // Add sidebar settings routes
 app.use('/api/printer', printerRoutes);
+app.use('/api/scanner', scannerRoutes); // Add scanner routes
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
