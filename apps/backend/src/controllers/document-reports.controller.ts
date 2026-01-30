@@ -504,3 +504,23 @@ export const getSigningHistory = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const getDocumentTypeAndProcessStats = async (req: Request, res: Response) => {
+  try {
+    const { dateRange } = req.query;
+    const report = await documentReportsService.getDocumentTypeAndProcessStats(
+      dateRange as string || '30days'
+    );
+    res.json({
+      success: true,
+      data: report
+    });
+  } catch (error) {
+    console.error('Error getting document type and process stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve document type and process statistics',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};

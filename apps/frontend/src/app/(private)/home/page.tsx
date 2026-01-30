@@ -17,17 +17,26 @@ import {
   Loader2,
   Upload as UploadIcon,
   Calendar as CalendarIcon,
+  FileSignature,
+  FileInput,
+  Send,
+  Activity,
+  ArrowRight,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useHomeCMS } from "@/hooks/use-home.cms";
+import { useQuickAccess } from "@/hooks/useQuickAccess";
 import TiptapEditor from "@/components/tiptap-editor";
 import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 const Homepage = () => {
   const { user } = useAuth();
   const { cmsData, loading: cmsLoading, saving, saveCMS } = useHomeCMS();
+  const { data: quickAccessData, isLoading: quickAccessLoading } = useQuickAccess();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("preview");
   const [formData, setFormData] = useState({
     logo_url: "",
@@ -212,6 +221,83 @@ const Homepage = () => {
 
     return (
     <div className="space-y-4 p-4">
+      {/* Quick Access Section */}
+      {!quickAccessLoading && quickAccessData && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
+          {/* Pending Signatures */}
+          <Card 
+            className="shadow-sm border hover:shadow-md transition-all cursor-pointer group hover:border-primary/50"
+            onClick={() => router.push("/workflows/pending-signatures")}
+          >
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0">
+                  <p className="text-xs text-muted-foreground">Pending Signatures</p>
+                  <p className="text-xl font-bold text-primary">
+                    {quickAccessData.pendingSignatures}
+                  </p>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                  <FileSignature className="h-4 w-4 text-primary" />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-1 mt-1.5">
+                <span className="text-[10px] text-muted-foreground group-hover:text-primary transition-colors">Click to proceed</span>
+                <ArrowRight className="h-3 w-3 text-muted-foreground group-hover:text-primary transition-colors" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Incoming Documents */}
+          <Card 
+            className="shadow-sm border hover:shadow-md transition-all cursor-pointer group hover:border-blue-500/50"
+            onClick={() => router.push("/documents/in-transit")}
+          >
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0">
+                  <p className="text-xs text-muted-foreground">Incoming Documents</p>
+                  <p className="text-xl font-bold text-blue-600">
+                    {quickAccessData.incomingDocuments}
+                  </p>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                  <FileInput className="h-4 w-4 text-blue-600" />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-1 mt-1.5">
+                <span className="text-[10px] text-muted-foreground group-hover:text-blue-600 transition-colors">Click to proceed</span>
+                <ArrowRight className="h-3 w-3 text-muted-foreground group-hover:text-blue-600 transition-colors" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Recent Activity */}
+          <Card 
+            className="shadow-sm border hover:shadow-md transition-all cursor-pointer group hover:border-orange-500/50"
+            onClick={() => router.push("reports/document-trailing")}
+          >
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0">
+                  <p className="text-xs text-muted-foreground">Recent Activity</p>
+                  <p className="text-xl font-bold text-orange-600">
+                    {quickAccessData.recentActivity}
+                  </p>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-orange-500/10 flex items-center justify-center group-hover:bg-orange-500/20 transition-colors">
+                  <Activity className="h-4 w-4 text-orange-600" />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-1 mt-1.5">
+                <span className="text-[10px] text-muted-foreground group-hover:text-orange-600 transition-colors">Click to proceed</span>
+                <ArrowRight className="h-3 w-3 text-muted-foreground group-hover:text-orange-600 transition-colors" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Company Logo & Welcome Section with Calendar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full ">
         {/* Combined Logo & Welcome Column */}

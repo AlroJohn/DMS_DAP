@@ -12,7 +12,8 @@ import {
   triggerScheduledReports,
   setReportForImmediateRun,
   regenerateScheduledReport,
-  getSigningHistory
+  getSigningHistory,
+  getDocumentTypeAndProcessStats
 } from '../controllers/document-reports.controller';
 import { authMiddleware } from '../middleware/auth-middleware';
 
@@ -56,5 +57,8 @@ router.get('/scheduled/:reportId/download', authMiddleware, downloadScheduledRep
 
 // Get signing history
 router.get('/signing', authMiddleware, getSigningHistory);
+
+// Get document type and process statistics
+router.get('/stats', authMiddleware, getDocumentTypeAndProcessStats);
 
 export default router;

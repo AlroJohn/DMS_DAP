@@ -1182,4 +1182,284 @@ export class DocumentReportsService {
       throw error;
     }
   }
+
+  /**
+   * Get statistics report grouped by document types and process types
+   */
+  async getDocumentTypeAndProcessStats(dateRange: string = '30days') {
+    try {
+      // Calculate date range based on input
+      const endDate = new Date();
+      let startDate = new Date();
+
+      switch(dateRange) {
+        case '7days':
+          startDate.setDate(endDate.getDate() - 7);
+          break;
+        case '30days':
+          startDate.setDate(endDate.getDate() - 30);
+          break;
+        case '90days':
+          startDate.setDate(endDate.getDate() - 90);
+          break;
+        case '1year':
+          startDate.setFullYear(endDate.getFullYear() - 1);
+          break;
+        default:
+          startDate.setDate(endDate.getDate() - 30);
+      }
+
+      // Get statistics by document type
+      const documentTypes = await prisma.documentType.findMany({
+        where: {
+          active: true
+        }
+      });
+
+      const documentTypeStats = await Promise.all(
+        documentTypes.map(async (type) => {
+          // Count total documents of this type
+          const totalCount = await prisma.document.count({
+            where: {
+              document_type: type.name,
+              deleted_at: null
+            }
+          });
+
+          // Count documents created in the date range
+          const recentCount = await prisma.document.count({
+            where: {
+              document_type: type.name,
+              deleted_at: null,
+              created_at: {
+                gte: startDate,
+                lte: endDate
+              }
+            }
+          });
+
+          // Get storage used by this document type
+          const filesForType = await prisma.documentFile.findMany({
+            where: {
+              Document: {
+                document_type: type.name,
+                deleted_at: null
+              }
+            },
+            select: {
+              file_size: true
+            }
+          });
+
+          const storageBytes = filesForType.reduce((sum, file) => sum + Number(file.file_size || 0), 0);
+          const storageGB = (storageBytes / (1024 * 1024 * 1024)).toFixed(2);
+
+          // Get average processing time (from creation to completion)
+          const completedDocs = await prisma.document.findMany({
+            where: {
+              document_type: type.name,
+              status: 'completed',
+              deleted_at: null,
+              created_at: {
+                gte: startDate,
+                lte: endDate
+              }
+            },
+            include: {
+              document_trails: {
+                orderBy: {
+                  action_date: 'desc'
+                },
+                take: 1
+              }
+            }
+          });
+
+          let avgProcessingTimeHours = 0;
+          if (completedDocs.length > 0) {
+            const totalProcessingTime = completedDocs.reduce((sum, doc) => {
+              if (doc.document_trails.length > 0) {
+                const completionTime = doc.document_trails[0].action_date.getTime();
+                const creationTime = doc.created_at.getTime();
+                return sum + (completionTime - creationTime);
+              }
+              return sum;
+            }, 0);
+            avgProcessingTimeHours = totalProcessingTime / completedDocs.length / (1000 * 60 * 60);
+          }
+
+          // Get most common status for this type
+          const statusCounts = await prisma.document.groupBy({
+            by: ['status'],
+            where: {
+              document_type: type.name,
+              deleted_at: null
+            },
+            _count: {
+              status: true
+            },
+            orderBy: {
+              _count: {
+                status: 'desc'
+              }
+            },
+            take: 1
+          });
+
+          const mostCommonStatus = statusCounts.length > 0 ? statusCounts[0].status : 'N/A';
+
+          return {
+            typeName: type.name,
+            typeDescription: type.description || '',
+            totalDocuments: totalCount,
+            recentDocuments: recentCount,
+            storageUsed: `${storageGB} GB`,
+            storageBytes: storageBytes,
+            avgProcessingTime: `${avgProcessingTimeHours.toFixed(1)} hours`,
+            mostCommonStatus: mostCommonStatus,
+            completedCount: completedDocs.length
+          };
+        })
+      );
+
+      // Get statistics by process/action type
+      const processTypes = await prisma.documentAction.findMany({
+        where: {
+          status: true
+        }
+      });
+
+      const processTypeStats = await Promise.all(
+        processTypes.map(async (action) => {
+          // Count total trails for this action
+          const totalCount = await prisma.documentTrail.count({
+            where: {
+              action_id: action.document_action_id
+            }
+          });
+
+          // Count trails in the date range
+          const recentCount = await prisma.documentTrail.count({
+            where: {
+              action_id: action.document_action_id,
+              action_date: {
+                gte: startDate,
+                lte: endDate
+              }
+            }
+          });
+
+          // Get unique users who performed this action
+          const uniqueUsers = await prisma.documentTrail.findMany({
+            where: {
+              action_id: action.document_action_id,
+              action_date: {
+                gte: startDate,
+                lte: endDate
+              }
+            },
+            distinct: ['user_id'],
+            select: {
+              user_id: true
+            }
+          });
+
+          // Get unique documents affected by this action
+          const uniqueDocuments = await prisma.documentTrail.findMany({
+            where: {
+              action_id: action.document_action_id,
+              action_date: {
+                gte: startDate,
+                lte: endDate
+              }
+            },
+            distinct: ['document_id'],
+            select: {
+              document_id: true
+            }
+          });
+
+          // Get average time between this action occurrences
+          const recentTrails = await prisma.documentTrail.findMany({
+            where: {
+              action_id: action.document_action_id,
+              action_date: {
+                gte: startDate,
+                lte: endDate
+              }
+            },
+            orderBy: {
+              action_date: 'asc'
+            },
+            select: {
+              action_date: true
+            }
+          });
+
+          let avgFrequencyDays = 0;
+          if (recentTrails.length > 1) {
+            const timeSpan = recentTrails[recentTrails.length - 1].action_date.getTime() - 
+                            recentTrails[0].action_date.getTime();
+            avgFrequencyDays = timeSpan / (recentTrails.length - 1) / (1000 * 60 * 60 * 24);
+          }
+
+          return {
+            actionName: action.action_name,
+            actionDescription: action.description || '',
+            senderTag: action.sender_tag || 'N/A',
+            recipientTag: action.recipient_tag || 'N/A',
+            totalOccurrences: totalCount,
+            recentOccurrences: recentCount,
+            uniqueUsers: uniqueUsers.length,
+            uniqueDocuments: uniqueDocuments.length,
+            avgFrequency: avgFrequencyDays > 0 ? `Every ${avgFrequencyDays.toFixed(1)} days` : 'N/A'
+          };
+        })
+      );
+
+      // Calculate overall summary statistics
+      const totalDocsByType = documentTypeStats.reduce((sum, stat) => sum + stat.totalDocuments, 0);
+      const totalStorageBytes = documentTypeStats.reduce((sum, stat) => sum + stat.storageBytes, 0);
+      const totalStorageGB = (totalStorageBytes / (1024 * 1024 * 1024)).toFixed(2);
+      const totalProcessActions = processTypeStats.reduce((sum, stat) => sum + stat.recentOccurrences, 0);
+
+      // Get top performing document types (by count)
+      const topDocumentTypes = [...documentTypeStats]
+        .sort((a, b) => b.totalDocuments - a.totalDocuments)
+        .slice(0, 5)
+        .map(stat => ({
+          name: stat.typeName,
+          count: stat.totalDocuments
+        }));
+
+      // Get top process actions (by occurrence)
+      const topProcessActions = [...processTypeStats]
+        .sort((a, b) => b.recentOccurrences - a.recentOccurrences)
+        .slice(0, 5)
+        .map(stat => ({
+          name: stat.actionName,
+          count: stat.recentOccurrences
+        }));
+
+      return {
+        summary: {
+          totalDocumentTypes: documentTypes.length,
+          totalDocuments: totalDocsByType,
+          totalStorageUsed: `${totalStorageGB} GB`,
+          totalProcessTypes: processTypes.length,
+          totalProcessActions: totalProcessActions,
+          dateRange: dateRange,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString()
+        },
+        documentTypeStatistics: documentTypeStats.sort((a, b) => b.totalDocuments - a.totalDocuments),
+        processTypeStatistics: processTypeStats.sort((a, b) => b.recentOccurrences - a.recentOccurrences),
+        topDocumentTypes: topDocumentTypes,
+        topProcessActions: topProcessActions
+      };
+    } catch (error) {
+      console.error('Error getting document type and process stats:', error);
+      throw error;
+    }
+  }
 }

@@ -9,4 +9,8 @@ router.get('/stats', authMiddleware, (req, res) =>
   dashboardController.getStats(req as AuthRequest, res)
 );
 
+router.get('/quick-access', authMiddleware, (req, res) =>
+  dashboardController.getQuickAccess(req as AuthRequest, res)
+);
+
 export default router;

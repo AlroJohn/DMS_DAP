@@ -440,4 +440,231 @@ export class DashboardService {
             inProgressWorkflows,
         };
     }
+
+    /**
+     * Get quick access summary for dashboard
+     */
+    async getQuickAccessSummary(userId: string) {
+        try {
+            const user = await prisma.user.findUnique({
+                where: { user_id: userId },
+                include: {
+                    account: true,
+                },
+            });
+
+            if (!user || !user.account) {
+                throw new Error("User or account not found");
+            }
+
+            const departmentId = user.account.department_id;
+
+            // Count pending signatures
+            const pendingSignaturesCount = await this.getPendingSignaturesCount(userId);
+
+            // Count incoming documents
+            const incomingDocumentsCount = await this.getIncomingDocumentsCount(
+                userId,
+                departmentId
+            );
+
+            // Count documents to release
+            const documentsToReleaseCount = await this.getDocumentsToReleaseCount(userId);
+
+            // Count recent activity (last 7 days)
+            const recentActivityCount = await this.getRecentActivityCount(userId);
+
+            return {
+                pendingSignatures: pendingSignaturesCount,
+                incomingDocuments: incomingDocumentsCount,
+                documentsToRelease: documentsToReleaseCount,
+                recentActivity: recentActivityCount,
+            };
+        } catch (error) {
+            console.error("Error fetching quick access summary:", error);
+            throw new Error("Failed to fetch quick access summary");
+        }
+    }
+
+    /**
+     * Get count of documents with pending signatures for a user
+     */
+    private async getPendingSignaturesCount(userId: string): Promise<number> {
+        try {
+            // Find signature placeholders assigned to this user
+            const placeholders = await prisma.signaturePlaceholder.findMany({
+                where: {
+                    OR: [
+                        { assigned_user_id: userId },
+                        { assigned_user_id: null },
+                    ],
+                },
+                select: {
+                    document_id: true,
+                },
+                distinct: ["document_id"],
+            });
+
+            const documentIds = [...new Set(placeholders.map((p) => p.document_id))];
+            let documentsWithPendingSignatures = 0;
+
+            for (const documentId of documentIds) {
+                const userPlaceholders = await prisma.signaturePlaceholder.findMany({
+                    where: {
+                        document_id: documentId,
+                        OR: [{ assigned_user_id: userId }, { assigned_user_id: null }],
+                    },
+                });
+
+                const userSignatures = await prisma.signedDocument.findMany({
+                    where: {
+                        document_id: documentId,
+                        signee_id: userId,
+                    },
+                });
+
+                if (userPlaceholders.length > userSignatures.length) {
+                    documentsWithPendingSignatures++;
+                }
+            }
+
+            return documentsWithPendingSignatures;
+        } catch (error) {
+            console.error("Error counting pending signatures:", error);
+            return 0;
+        }
+    }
+
+    /**
+     * Get count of incoming documents for user's department
+     */
+    private async getIncomingDocumentsCount(
+        userId: string,
+        departmentId: string | null
+    ): Promise<number> {
+        try {
+            if (!departmentId) {
+                return 0;
+            }
+
+            const releasedToThisDepartment = await prisma.documentTrail.findMany({
+                where: {
+                    to_department: departmentId,
+                    status: "released",
+                },
+                select: {
+                    document_id: true,
+                    created_at: true,
+                },
+                orderBy: {
+                    created_at: "desc",
+                },
+            });
+
+            const documentIds = new Set<string>();
+            const latestTrailMap = new Map<string, Date>();
+
+            for (const trail of releasedToThisDepartment) {
+                const docId = trail.document_id;
+                const trailDate = trail.created_at;
+
+                if (!latestTrailMap.has(docId) || trailDate > latestTrailMap.get(docId)!) {
+                    latestTrailMap.set(docId, trailDate);
+                }
+            }
+
+            for (const [docId, latestReleaseDate] of latestTrailMap) {
+                const receivedTrail = await prisma.documentTrail.findFirst({
+                    where: {
+                        document_id: docId,
+                        status: "received",
+                        to_department: departmentId,
+                        created_at: {
+                            gte: latestReleaseDate,
+                        },
+                    },
+                });
+
+                if (!receivedTrail) {
+                    documentIds.add(docId);
+                }
+            }
+
+            const count = await prisma.document.count({
+                where: {
+                    document_id: {
+                        in: Array.from(documentIds),
+                    },
+                    status: {
+                        in: ["intransit", "pending"],
+                        not: "received",
+                    },
+                },
+            });
+
+            return count;
+        } catch (error) {
+            console.error("Error counting incoming documents:", error);
+            return 0;
+        }
+    }
+
+    /**
+     * Get count of documents that user can release/forward
+     */
+    private async getDocumentsToReleaseCount(userId: string): Promise<number> {
+        try {
+            const account = await prisma.account.findFirst({
+                where: { user_id: userId },
+            });
+
+            if (!account) {
+                return 0;
+            }
+
+            const count = await prisma.document.count({
+                where: {
+                    document_trails: {
+                        some: {
+                            to_department: account.department_id,
+                            status: "received"
+                        }
+                    },
+                    status: {
+                        in: ["received", "pending"],
+                    },
+                },
+            });
+
+            return count;
+        } catch (error) {
+            console.error("Error counting documents to release:", error);
+            return 0;
+        }
+    }
+
+    /**
+     * Get count of recent activity (last 7 days)
+     */
+    private async getRecentActivityCount(userId: string): Promise<number> {
+        try {
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+            const count = await prisma.documentTrail.count({
+                where: {
+                    user_id: userId,
+                    created_at: {
+                        gte: sevenDaysAgo,
+                    },
+                },
+            });
+
+            return count;
+        } catch (error) {
+            console.error("Error counting recent activity:", error);
+            return 0;
+        }
+    }
 }
+
