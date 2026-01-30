@@ -435,13 +435,13 @@ async function main() {
         const isActionPerm = hasPrefix(permission.permission, permissionPrefix.document_action);
         const isNotificationPerm = hasPrefix(permission.permission, permissionPrefix.notification);
         const isReportPerm = hasPrefix(permission.permission, permissionPrefix.report);
-        
+
         // Allow document_type_read for users to view document types when creating/filtering documents
         const isTypeReadPerm = permStr === 'document_type_read';
         const isActionReadPerm = permStr === 'document_action_read';
         // Allow department_read for users to view departments when releasing documents
         const isDepartmentReadPerm = permStr === 'department_read';
-        
+
         return (isDocumentPerm && !isTypePerm && !isActionPerm) || isTypeReadPerm || isActionReadPerm || isDepartmentReadPerm || isNotificationPerm || isReportPerm;
       })
     );
@@ -456,7 +456,7 @@ async function main() {
         const isReportPerm = hasPrefix(permission.permission, permissionPrefix.report);
         const isUserPerm = hasPrefix(permission.permission, permissionPrefix.user);
         const isDepartmentReadPerm = permStr === 'department_read';
-        
+
         return isDocumentPerm || isNotificationPerm || isReportPerm || isUserPerm || isDepartmentReadPerm;
       })
     );
@@ -466,8 +466,8 @@ async function main() {
       allPermissions.filter(permission => {
         const permStr = normalizePermission(permission.permission);
         // Exclude only system_settings permissions (sidebar settings)
-        return permStr !== 'system_settings_read' && 
-               permStr !== 'system_settings_write';
+        return permStr !== 'system_settings_read' &&
+          permStr !== 'system_settings_write';
       })
     );
 
@@ -851,53 +851,53 @@ async function main() {
           const account = await tx.account.upsert({
             where: { email },
             create: {
-            email,
-            password: commonPassword,
-            email_verified: true,
-            is_active: true,
-            last_login: new Date(),
-            department_id: dept.department_id
-          },
-          update: {
-            department_id: dept.department_id,
-            is_active: true,
-            email_verified: true,
-            last_login: new Date()
-          }
-        });
+              email,
+              password: commonPassword,
+              email_verified: true,
+              is_active: true,
+              last_login: new Date(),
+              department_id: dept.department_id
+            },
+            update: {
+              department_id: dept.department_id,
+              is_active: true,
+              email_verified: true,
+              last_login: new Date()
+            }
+          });
 
-        const user = await tx.user.upsert({
-          where: { account_id: account.account_id },
-          create: {
-            account_id: account.account_id,
-            department_id: dept.department_id,
-            first_name: displayName,
-            last_name: 'Department Head',
-            user_name: userName,
-            active: true
-          },
-          update: {
-            department_id: dept.department_id,
-            active: true,
-            user_name: userName
-          }
-        });
+          const user = await tx.user.upsert({
+            where: { account_id: account.account_id },
+            create: {
+              account_id: account.account_id,
+              department_id: dept.department_id,
+              first_name: displayName,
+              last_name: 'Department Head',
+              user_name: userName,
+              active: true
+            },
+            update: {
+              department_id: dept.department_id,
+              active: true,
+              user_name: userName
+            }
+          });
 
-        const existingUserRole = await tx.userRole.findFirst({
-          where: {
-            user_id: user.user_id,
-            role_id: departmentHeadRole.role_id
-          }
-        });
+          const existingUserRole = await tx.userRole.findFirst({
+            where: {
+              user_id: user.user_id,
+              role_id: departmentHeadRole.role_id
+            }
+          });
 
           if (!existingUserRole) {
             await tx.userRole.create({
-            data: {
-              user_id: user.user_id,
-              role_id: departmentHeadRole.role_id,
-              assigned_by: superAdminAccount.account_id,
-              is_active: true
-            }
+              data: {
+                user_id: user.user_id,
+                role_id: departmentHeadRole.role_id,
+                assigned_by: superAdminAccount.account_id,
+                is_active: true
+              }
             });
           }
         });
