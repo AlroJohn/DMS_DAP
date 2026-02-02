@@ -299,12 +299,12 @@ async function main() {
         description: 'Global administrator with full system access'
       },
       {
-        name: 'Department Head',
+        name: 'President',
         code: 'DEPARTMENT_HEAD',
         description: 'Can access transactions for all users within the department'
       },
       {
-        name: 'User',
+        name: 'Secretary',
         code: 'USER',
         description: 'Standard user with access to own transactions'
       }
@@ -872,7 +872,7 @@ async function main() {
               account_id: account.account_id,
               department_id: dept.department_id,
               first_name: displayName,
-              last_name: 'Department Head',
+              last_name: 'President',
               user_name: userName,
               active: true
             },
