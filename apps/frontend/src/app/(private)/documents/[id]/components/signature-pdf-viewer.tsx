@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Rnd } from "react-rnd";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf";
 import { useQuery } from "@tanstack/react-query";
@@ -380,25 +380,10 @@ export function SignaturePdfViewer({
     "signature" | "text" | null
   >(null);
 
-  // State for rotation intervals
-  const [rotationIntervals, setRotationIntervals] = useState<Record<string, NodeJS.Timeout>>({});
-
   // State for rotation tracking
-  const [activeRotationElement, setActiveRotationElement] = useState<string | null>(null);
-  const [lastMousePos, setLastMousePos] = useState<{ x: number; y: number } | null>(null);
-
-  // Refs to keep track of current values
-  const boxesRef = useRef<SignatureBox[]>([]);
-  const textBoxesRef = useRef<TextBox[]>([]);
-
-  // Update refs whenever boxes or textBoxes change
-  useEffect(() => {
-    boxesRef.current = boxes;
-  }, [boxes]);
-
-  useEffect(() => {
-    textBoxesRef.current = textBoxes;
-  }, [textBoxes]);
+  const [activeRotationElement, setActiveRotationElement] = useState<
+    string | null
+  >(null);
 
   const RENDER_SCALE = useMemo(() => 1.2, []);
   const TEXT_FONT_OPTIONS = useMemo(
@@ -427,6 +412,7 @@ export function SignaturePdfViewer({
           y_position: number;
           width: number;
           height: number;
+          rotation?: number;
           assigned_user_id?: string | null;
           department_id?: string | null;
         }>
@@ -457,6 +443,7 @@ export function SignaturePdfViewer({
           font_size: number;
           font_color: string;
           text_value?: string | null;
+          rotation?: number;
           assigned_user_id?: string | null;
           department_id?: string | null;
         }>
@@ -841,84 +828,78 @@ export function SignaturePdfViewer({
     );
   };
 
-  // Function to start rotation interval
-  const startRotationInterval = (id: string, increment: number, isText: boolean) => {
-    // Clear any existing interval for this element
-    if (rotationIntervals[id]) {
-      clearInterval(rotationIntervals[id]);
-    }
-
-    // Create a new interval that rotates continuously
-    const interval = setInterval(() => {
-      if (isText) {
-        handleUpdateTextRotation(id, (textBoxes.find(b => b.id === id)?.rotation ?? 0) + increment);
-      } else {
-        handleUpdateRotation(id, (boxes.find(b => b.id === id)?.rotation ?? 0) + increment);
-      }
-    }, 50); // Rotate every 50ms for smooth experience
-
-    // Update the intervals record
-    setRotationIntervals(prev => ({
-      ...prev,
-      [id]: interval
-    }));
-  };
-
-  // Function to stop rotation interval
-  const stopRotationInterval = (id: string) => {
-    if (rotationIntervals[id]) {
-      clearInterval(rotationIntervals[id]);
-      setRotationIntervals(prev => {
-        const newIntervals = { ...prev };
-        delete newIntervals[id];
-        return newIntervals;
-      });
-    }
-  };
-
   // Function to start rotation based on mouse movement
-  const startMouseRotation = (id: string, isText: boolean, event: React.MouseEvent) => {
-    // Store the initial mouse position
-    setLastMousePos({ x: event.clientX, y: event.clientY });
+  const startMouseRotation = (
+    id: string,
+    isText: boolean,
+    event: React.MouseEvent,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Store the initial mouse position in a closure variable
+    let lastX = event.clientX;
+    let lastY = event.clientY;
+
     setActiveRotationElement(id);
 
     // Add mouse move and up listeners to the document
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!lastMousePos) return;
+      moveEvent.preventDefault();
 
       // Calculate the difference in mouse position
-      const deltaX = moveEvent.clientX - lastMousePos.x;
+      const deltaX = moveEvent.clientX - lastX;
 
       // Determine rotation direction based on mouse movement
       // Horizontal movement (deltaX) controls rotation
-      const rotationIncrement = deltaX * 0.3; // Sensitivity factor - reduced for smoother control
+      const rotationIncrement = deltaX * 0.5; // Sensitivity factor
 
       // Update the rotation
       if (isText) {
-        const currentRotation = textBoxesRef.current.find(b => b.id === id)?.rotation ?? 0;
-        handleUpdateTextRotation(id, currentRotation + rotationIncrement);
+        setTextBoxes((prev) =>
+          prev.map((box) =>
+            box.id === id
+              ? {
+                  ...box,
+                  rotation: normalizeRotation(
+                    (box.rotation ?? 0) + rotationIncrement,
+                  ),
+                }
+              : box,
+          ),
+        );
       } else {
-        const currentRotation = boxesRef.current.find(b => b.id === id)?.rotation ?? 0;
-        handleUpdateRotation(id, currentRotation + rotationIncrement);
+        setBoxes((prev) =>
+          prev.map((box) =>
+            box.id === id
+              ? {
+                  ...box,
+                  rotation: normalizeRotation(
+                    (box.rotation ?? 0) + rotationIncrement,
+                  ),
+                }
+              : box,
+          ),
+        );
       }
 
       // Update the last mouse position for the next calculation
-      setLastMousePos({ x: moveEvent.clientX, y: moveEvent.clientY });
+      lastX = moveEvent.clientX;
+      lastY = moveEvent.clientY;
     };
 
     const handleMouseUp = () => {
       // Remove the event listeners
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
 
       // Reset the active rotation element
       setActiveRotationElement(null);
-      setLastMousePos(null);
     };
 
     // Add event listeners to the document
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
   };
 
   const handleUpdateTextPosition = (id: string, x: number, y: number) => {
@@ -997,33 +978,6 @@ export function SignaturePdfViewer({
     // Remove from UI
     setTextBoxes((prev) => prev.filter((box) => box.id !== id));
   };
-
-  // Cleanup intervals when boxes or textBoxes change to prevent memory leaks
-  useEffect(() => {
-    // Find intervals for deleted boxes
-    const currentBoxIds = new Set([...boxes.map(b => b.id), ...textBoxes.map(b => b.id)]);
-    const intervalsToDelete = Object.keys(rotationIntervals).filter(id => !currentBoxIds.has(id));
-
-    intervalsToDelete.forEach(id => {
-      if (rotationIntervals[id]) {
-        clearInterval(rotationIntervals[id]);
-        setRotationIntervals(prev => {
-          const newIntervals = { ...prev };
-          delete newIntervals[id];
-          return newIntervals;
-        });
-      }
-    });
-  }, [boxes, textBoxes]);
-
-  // Cleanup intervals when component unmounts
-  useEffect(() => {
-    return () => {
-      Object.values(rotationIntervals).forEach(interval => {
-        clearInterval(interval);
-      });
-    };
-  }, []);
 
   const handleConfirm = () => {
     if (!selectedFileId) {
@@ -1310,7 +1264,13 @@ export function SignaturePdfViewer({
                         className="absolute overflow-visible"
                         style={{ zIndex: 1000 }}
                       >
-                        <div className="relative h-full w-full">
+                        <div
+                          className="relative h-full w-full"
+                          style={{
+                            transform: `rotate(${box.rotation ?? 0}deg)`,
+                            transformOrigin: "center",
+                          }}
+                        >
                           <div
                             className={cn(
                               "absolute inset-0 rounded-md border-2 shadow-sm",
@@ -1318,10 +1278,6 @@ export function SignaturePdfViewer({
                                 ? "border-emerald-500/70 bg-emerald-500/10"
                                 : "border-primary/70 bg-primary/10",
                             )}
-                            style={{
-                              transform: `rotate(${box.rotation ?? 0}deg)`,
-                              transformOrigin: "center",
-                            }}
                           />
                           {!box.isExisting && (
                             <div className="signature-box-drag-handle !z-[1000] absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
@@ -1413,7 +1369,13 @@ export function SignaturePdfViewer({
                         )}
                         style={{ zIndex: 1000 }}
                       >
-                        <div className="relative h-full w-full">
+                        <div
+                          className="relative h-full w-full"
+                          style={{
+                            transform: `rotate(${box.rotation ?? 0}deg)`,
+                            transformOrigin: "center",
+                          }}
+                        >
                           {!box.isExisting && (
                             <div className="text-box-drag-handle absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
                               <Move className="h-3 w-3" />
@@ -1437,8 +1399,6 @@ export function SignaturePdfViewer({
                               fontFamily: box.fontFamily,
                               fontSize: box.fontSize,
                               color: box.fontColor,
-                              transform: `rotate(${box.rotation ?? 0}deg)`,
-                              transformOrigin: "center",
                             }}
                           >
                             {box.isExisting
