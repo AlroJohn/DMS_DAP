@@ -362,90 +362,7 @@ model TextPlaceholder {
   @@index([department_id])
 }
 
-enum AuditActionType {
-  DOCUMENT_CREATED
-  DOCUMENT_UPDATED
-  DOCUMENT_DELETED
-  DOCUMENT_RESTORED
-  DOCUMENT_ARCHIVED
-  DOCUMENT_RELEASED
-  DOCUMENT_RECEIVED
-  DOCUMENT_DOWNLOADED
-  DOCUMENT_UPLOADED
-  DOCUMENT_SHARED
-  DOCUMENT_SIGNED
-  DOCUMENT_SIGNATURE_ADDED
-  DOCUMENT_SIGNATURE_REMOVED
-  DOCUMENT_CHECKED_OUT
-  DOCUMENT_CHECKED_IN
-  DOCUMENT_TRANSFERRED
-  DOCUMENT_TYPE_CHANGED
-  DOCUMENT_CLASSIFICATION_CHANGED
-  DOCUMENT_STATUS_CHANGED
-  DOCUMENT_METADATA_UPDATED
-  DOCUMENT_FILE_VERSION_CREATED
-  DOCUMENT_FILE_VERSION_DELETED
-  DOCUMENT_ACCESS_VIEWED
-  DOCUMENT_PERMISSION_CHANGED
-  DOCUMENT_DEPARTMENT_CHANGED
-  DOCUMENT_TITLE_CHANGED
-  DOCUMENT_DESCRIPTION_CHANGED
-  DOCUMENT_SECURITY_LEVEL_CHANGED
-  DOCUMENT_RETENTION_PERIOD_CHANGED
-  DOCUMENT_EXPIRED
-  DOCUMENT_AUTO_DELETED
-  DOCUMENT_MOVED_TO_RECYCLE_BIN
-  DOCUMENT_RESTORED_FROM_RECYCLE_BIN
-  DOCUMENT_PERMANENTLY_DELETED
-  DOCUMENT_BULK_OPERATION
-  DOCUMENT_ROUTING_STARTED
-  DOCUMENT_ROUTING_COMPLETED
-  DOCUMENT_CUSTODY_TRANSFERRED
-  DOCUMENT_CUSTODY_RECEIVED
-  DOCUMENT_VERIFICATION_STARTED
-  DOCUMENT_VERIFICATION_COMPLETED
-  DOCUMENT_VERIFICATION_FAILED
-  DOCUMENT_BLOCKCHAIN_INTEGRATION
-  DOCUMENT_WATERMARK_ADDED
-  DOCUMENT_WATERMARK_REMOVED
-  DOCUMENT_ENCRYPTION_APPLIED
-  DOCUMENT_ENCRYPTION_REMOVED
-  DOCUMENT_WATERMARK_UPDATED
-  DOCUMENT_SIGNATURE_PLACEHOLDER_ADDED
-  DOCUMENT_SIGNATURE_PLACEHOLDER_REMOVED
-  DOCUMENT_SIGNATURE_PLACEHOLDER_UPDATED
-  DOCUMENT_QR_CODE_GENERATED
-  DOCUMENT_BARCODE_GENERATED
-  DOCUMENT_CUSTOM_FIELD_UPDATED
-  DOCUMENT_WORKFLOW_STATUS_UPDATED
-  DOCUMENT_COMPLETION_STATUS_UPDATED
-  DOCUMENT_RECEIVE_STATUS_UPDATED
-  DOCUMENT_RELEASE_STATUS_UPDATED
-  DOCUMENT_SIGNATURE_STATUS_UPDATED
-  DOCUMENT_NOTIFICATION_SENT
-  DOCUMENT_EMAIL_SENT
-  DOCUMENT_PRINTED
-  DOCUMENT_EXPORTED
-  DOCUMENT_IMPORTED
-  DOCUMENT_MERGED
-  DOCUMENT_SPLIT
-  DOCUMENT_CONVERTED
-  DOCUMENT_COMPRESSED
-  DOCUMENT_EXTRACTED
-  DOCUMENT_BACKUP_CREATED
-  DOCUMENT_BACKUP_RESTORED
-  DOCUMENT_BACKUP_DELETED
-  DOCUMENT_AUDIT_EXPORTED
-  DOCUMENT_REPORT_GENERATED
-  DOCUMENT_SEARCH_PERFORMED
-  DOCUMENT_FILTER_APPLIED
-  DOCUMENT_SORT_ORDER_CHANGED
-  DOCUMENT_PAGINATION_CHANGED
-  DOCUMENT_BATCH_OPERATION_STARTED
-  DOCUMENT_BATCH_OPERATION_COMPLETED
-  DOCUMENT_BATCH_OPERATION_FAILED
-  DOCUMENT_CUSTOM_ACTION
-}
+
 
 model Notification {
   notification_id String    @id @default(uuid()) @db.Uuid
@@ -706,6 +623,186 @@ model PasswordResetToken {
   @@index([token])
   @@index([account_id])
   @@index([expires_at])
+}
+
+model ScheduledReport {
+  scheduled_report_id String    @id @default(uuid()) @db.Uuid
+  user_id             String    @db.Uuid
+  report_type         String // e.g., 'compliance', 'usage', 'version'
+  schedule_config     Json // stores frequency, day, time, etc.
+  next_run            DateTime
+  last_run            DateTime?
+  report_file_path    String? // Path to the generated report file
+  report_file_name    String? // Name of the generated report file
+  report_generated_at DateTime? // Timestamp when the report was generated
+  is_active           Boolean   @default(true)
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @default(now()) @updatedAt
+  user                User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  // Reverse relation is defined in the User model as scheduled_reports
+
+  @@index([user_id])
+  @@index([next_run])
+  @@index([is_active])
+  @@index([report_generated_at])
+}
+
+enum InvitationStatus {
+  pending
+  accepted
+  expired
+  cancelled
+}
+
+model HomeCMS {
+  cms_id        String   @id @default(uuid()) @db.Uuid
+  logo_url      String?
+  video_url     String?
+  vision        String?  @db.Text
+  mission       String?  @db.Text
+  welcome_title String?
+  welcome_text  String?  @db.Text
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @default(now()) @updatedAt
+  created_by    String   @db.Uuid
+  updated_by    String   @db.Uuid
+
+  @@index([is_active])
+}
+
+model SidebarSettings {
+  setting_id   String   @id @default(uuid()) @db.Uuid
+  section_key  String   @unique // home, dashboard, documents, management, search, notifications, reports
+  section_name String
+  is_enabled   Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @default(now()) @updatedAt
+
+  @@index([section_key])
+  @@index([is_enabled])
+}
+
+model UploadedFile {
+  file_id        String    @id @default(uuid()) @db.Uuid
+  original_name  String
+  stored_name    String
+  file_path      String // S3 key or local path
+  file_url       String // Public URL
+  file_size      BigInt
+  mime_type      String
+  file_type      String // logo, video, document, etc.
+  bucket_name    String // S3 bucket name
+  storage_type   String    @default("s3") // s3, local, etc.
+  uploaded_by    String?   @db.Uuid
+  related_entity String? // e.g., "home_cms", "document", etc.
+  related_id     String?   @db.Uuid // ID of related entity
+  is_deleted     Boolean   @default(false)
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @default(now()) @updatedAt
+  deleted_at     DateTime?
+
+  @@index([file_type])
+  @@index([related_entity, related_id])
+  @@index([uploaded_by])
+  @@index([is_deleted])
+}
+
+model ProcessType {
+  process_type_id String   @id @default(uuid()) @db.Uuid
+  code            String   @unique
+  name            String   @unique
+  description     String?
+  duration_value  Int?     // Duration value (number)
+  duration_unit   String?  @default("days") // Duration unit: 'days', 'hours', 'minutes'
+  is_active       Boolean  @default(true)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @default(now()) @updatedAt
+}
+
+enum AuditActionType {
+  DOCUMENT_CREATED
+  DOCUMENT_UPDATED
+  DOCUMENT_DELETED
+  DOCUMENT_RESTORED
+  DOCUMENT_ARCHIVED
+  DOCUMENT_RELEASED
+  DOCUMENT_RECEIVED
+  DOCUMENT_DOWNLOADED
+  DOCUMENT_UPLOADED
+  DOCUMENT_SHARED
+  DOCUMENT_SIGNED
+  DOCUMENT_SIGNATURE_ADDED
+  DOCUMENT_SIGNATURE_REMOVED
+  DOCUMENT_CHECKED_OUT
+  DOCUMENT_CHECKED_IN
+  DOCUMENT_TRANSFERRED
+  DOCUMENT_TYPE_CHANGED
+  DOCUMENT_CLASSIFICATION_CHANGED
+  DOCUMENT_STATUS_CHANGED
+  DOCUMENT_METADATA_UPDATED
+  DOCUMENT_FILE_VERSION_CREATED
+  DOCUMENT_FILE_VERSION_DELETED
+  DOCUMENT_ACCESS_VIEWED
+  DOCUMENT_PERMISSION_CHANGED
+  DOCUMENT_DEPARTMENT_CHANGED
+  DOCUMENT_TITLE_CHANGED
+  DOCUMENT_DESCRIPTION_CHANGED
+  DOCUMENT_SECURITY_LEVEL_CHANGED
+  DOCUMENT_RETENTION_PERIOD_CHANGED
+  DOCUMENT_EXPIRED
+  DOCUMENT_AUTO_DELETED
+  DOCUMENT_MOVED_TO_RECYCLE_BIN
+  DOCUMENT_RESTORED_FROM_RECYCLE_BIN
+  DOCUMENT_PERMANENTLY_DELETED
+  DOCUMENT_BULK_OPERATION
+  DOCUMENT_ROUTING_STARTED
+  DOCUMENT_ROUTING_COMPLETED
+  DOCUMENT_CUSTODY_TRANSFERRED
+  DOCUMENT_CUSTODY_RECEIVED
+  DOCUMENT_VERIFICATION_STARTED
+  DOCUMENT_VERIFICATION_COMPLETED
+  DOCUMENT_VERIFICATION_FAILED
+  DOCUMENT_BLOCKCHAIN_INTEGRATION
+  DOCUMENT_WATERMARK_ADDED
+  DOCUMENT_WATERMARK_REMOVED
+  DOCUMENT_ENCRYPTION_APPLIED
+  DOCUMENT_ENCRYPTION_REMOVED
+  DOCUMENT_WATERMARK_UPDATED
+  DOCUMENT_SIGNATURE_PLACEHOLDER_ADDED
+  DOCUMENT_SIGNATURE_PLACEHOLDER_REMOVED
+  DOCUMENT_SIGNATURE_PLACEHOLDER_UPDATED
+  DOCUMENT_QR_CODE_GENERATED
+  DOCUMENT_BARCODE_GENERATED
+  DOCUMENT_CUSTOM_FIELD_UPDATED
+  DOCUMENT_WORKFLOW_STATUS_UPDATED
+  DOCUMENT_COMPLETION_STATUS_UPDATED
+  DOCUMENT_RECEIVE_STATUS_UPDATED
+  DOCUMENT_RELEASE_STATUS_UPDATED
+  DOCUMENT_SIGNATURE_STATUS_UPDATED
+  DOCUMENT_NOTIFICATION_SENT
+  DOCUMENT_EMAIL_SENT
+  DOCUMENT_PRINTED
+  DOCUMENT_EXPORTED
+  DOCUMENT_IMPORTED
+  DOCUMENT_MERGED
+  DOCUMENT_SPLIT
+  DOCUMENT_CONVERTED
+  DOCUMENT_COMPRESSED
+  DOCUMENT_EXTRACTED
+  DOCUMENT_BACKUP_CREATED
+  DOCUMENT_BACKUP_RESTORED
+  DOCUMENT_BACKUP_DELETED
+  DOCUMENT_AUDIT_EXPORTED
+  DOCUMENT_REPORT_GENERATED
+  DOCUMENT_SEARCH_PERFORMED
+  DOCUMENT_FILTER_APPLIED
+  DOCUMENT_SORT_ORDER_CHANGED
+  DOCUMENT_PAGINATION_CHANGED
+  DOCUMENT_BATCH_OPERATION_STARTED
+  DOCUMENT_BATCH_OPERATION_COMPLETED
+  DOCUMENT_BATCH_OPERATION_FAILED
+  DOCUMENT_CUSTOM_ACTION
 }
 
 enum DocClassification {
@@ -1040,97 +1137,4 @@ enum SessionAction {
   session_expired
   force_logout
   concurrent_session
-}
-
-model ScheduledReport {
-  scheduled_report_id String    @id @default(uuid()) @db.Uuid
-  user_id             String    @db.Uuid
-  report_type         String // e.g., 'compliance', 'usage', 'version'
-  schedule_config     Json // stores frequency, day, time, etc.
-  next_run            DateTime
-  last_run            DateTime?
-  report_file_path    String? // Path to the generated report file
-  report_file_name    String? // Name of the generated report file
-  report_generated_at DateTime? // Timestamp when the report was generated
-  is_active           Boolean   @default(true)
-  created_at          DateTime  @default(now())
-  updated_at          DateTime  @default(now()) @updatedAt
-  user                User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  // Reverse relation is defined in the User model as scheduled_reports
-
-  @@index([user_id])
-  @@index([next_run])
-  @@index([is_active])
-  @@index([report_generated_at])
-}
-
-enum InvitationStatus {
-  pending
-  accepted
-  expired
-  cancelled
-}
-
-model HomeCMS {
-  cms_id        String   @id @default(uuid()) @db.Uuid
-  logo_url      String?
-  video_url     String?
-  vision        String?  @db.Text
-  mission       String?  @db.Text
-  welcome_title String?
-  welcome_text  String?  @db.Text
-  is_active     Boolean  @default(true)
-  created_at    DateTime @default(now())
-  updated_at    DateTime @default(now()) @updatedAt
-  created_by    String   @db.Uuid
-  updated_by    String   @db.Uuid
-
-  @@index([is_active])
-}
-
-model SidebarSettings {
-  setting_id   String   @id @default(uuid()) @db.Uuid
-  section_key  String   @unique // home, dashboard, documents, management, search, notifications, reports
-  section_name String
-  is_enabled   Boolean  @default(true)
-  created_at   DateTime @default(now())
-  updated_at   DateTime @default(now()) @updatedAt
-
-  @@index([section_key])
-  @@index([is_enabled])
-}
-
-model UploadedFile {
-  file_id        String    @id @default(uuid()) @db.Uuid
-  original_name  String
-  stored_name    String
-  file_path      String // S3 key or local path
-  file_url       String // Public URL
-  file_size      BigInt
-  mime_type      String
-  file_type      String // logo, video, document, etc.
-  bucket_name    String // S3 bucket name
-  storage_type   String    @default("s3") // s3, local, etc.
-  uploaded_by    String?   @db.Uuid
-  related_entity String? // e.g., "home_cms", "document", etc.
-  related_id     String?   @db.Uuid // ID of related entity
-  is_deleted     Boolean   @default(false)
-  created_at     DateTime  @default(now())
-  updated_at     DateTime  @default(now()) @updatedAt
-  deleted_at     DateTime?
-
-  @@index([file_type])
-  @@index([related_entity, related_id])
-  @@index([uploaded_by])
-  @@index([is_deleted])
-}
-
-model ProcessType {
-  process_type_id String   @id @default(uuid()) @db.Uuid
-  name            String   @unique
-  description     String?
-  duration_days   Int?     // Duration in days
-  is_active       Boolean  @default(true)
-  created_at      DateTime @default(now())
-  updated_at      DateTime @default(now()) @updatedAt
 }

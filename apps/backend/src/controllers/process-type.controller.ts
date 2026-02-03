@@ -3,12 +3,14 @@ import { createProcessType, updateProcessType, getAllProcessTypes, getProcessTyp
 
 export const createProcessTypeHandler = async (req: Request, res: Response) => {
   try {
-    const { name, description, duration_days, is_active } = req.body;
+    const { code, name, description, duration_value, duration_unit, is_active } = req.body;
     
     const processType = await createProcessType({
+      code,
       name,
       description,
-      duration_days: duration_days ? parseInt(duration_days) : undefined,
+      duration_value: duration_value ? parseInt(duration_value) : undefined,
+      duration_unit,
       is_active,
     });
     
@@ -45,12 +47,14 @@ export const getProcessTypeByIdHandler = async (req: Request, res: Response) => 
 export const updateProcessTypeHandler = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, description, duration_days, is_active } = req.body;
+    const { code, name, description, duration_value, duration_unit, is_active } = req.body;
     
     const processType = await updateProcessType(id, {
+      code,
       name,
       description,
-      duration_days: duration_days ? parseInt(duration_days) : undefined,
+      duration_value: duration_value ? parseInt(duration_value) : undefined,
+      duration_unit,
       is_active,
     });
     

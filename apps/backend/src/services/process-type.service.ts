@@ -1,9 +1,11 @@
 import { prisma } from '../lib/prisma';
 
 export const createProcessType = async (data: {
+  code: string;
   name: string;
   description?: string;
-  duration_days?: number;
+  duration_value?: number;
+  duration_unit?: string;
   is_active?: boolean;
 }) => {
   return await prisma.processType.create({
@@ -28,9 +30,11 @@ export const getProcessTypeById = async (id: string) => {
 export const updateProcessType = async (
   id: string,
   data: {
+    code?: string;
     name?: string;
     description?: string;
-    duration_days?: number;
+    duration_value?: number;
+    duration_unit?: string;
     is_active?: boolean;
   }
 ) => {
