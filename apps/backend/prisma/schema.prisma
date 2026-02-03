@@ -321,6 +321,7 @@ model SignaturePlaceholder {
   width            Float
   height           Float
   page_number      Int
+  rotation         Float        @default(0)
   created_at       DateTime     @default(now())
   documentFile     DocumentFile @relation(fields: [document_file_id], references: [file_id], onDelete: Cascade)
   document         Document     @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
@@ -348,6 +349,7 @@ model TextPlaceholder {
   font_size        Int
   font_color       String
   text_value       String?
+  rotation         Float        @default(0)
   created_at       DateTime     @default(now())
   documentFile     DocumentFile @relation(fields: [document_file_id], references: [file_id], onDelete: Cascade)
   document         Document     @relation(fields: [document_id], references: [document_id], onDelete: Cascade)

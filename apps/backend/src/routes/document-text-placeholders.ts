@@ -90,6 +90,7 @@ router.post('/documents/:documentId/text-placeholders', async (req: Request, res
         font_size,
         font_color,
         text_value,
+        rotation: 0,
         assigned_user_id: assigned_user_id || null,
         department_id: department_id || null
       }

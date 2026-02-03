@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { X, Loader2 } from "lucide-react";
 
 import {
   Dialog,
@@ -120,6 +120,7 @@ export function ReleaseDocumentModal({
   const [documentActions, setDocumentActions] = useState<DocumentAction[]>([]);
   const [loadingDepartments, setLoadingDepartments] = useState(false);
   const [loadingActions, setLoadingActions] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [sequenceEnabled, setSequenceEnabled] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
   const [selectedCenterId, setSelectedCenterId] = useState<string>("all");
@@ -474,24 +475,23 @@ export function ReleaseDocumentModal({
     const hasSignatureAction = data.requestActions.some((actionName) => {
       const normalized = actionName.toLowerCase();
       return (
-        normalized.includes("signature") ||
-        normalized.includes("for signature")
+        normalized.includes("signature") || normalized.includes("for signature")
       );
     });
 
     if (hasSignatureAction && onSignatureSetup && document) {
-      const signatureDepartmentIds = data.departmentIds.filter(
-        (departmentId) =>
-          (departmentActionMap[departmentId] || []).some((actionName) => {
-            const normalized = actionName.toLowerCase();
-            return (
-              normalized.includes("signature") ||
-              normalized.includes("for signature")
-            );
-          }),
+      const signatureDepartmentIds = data.departmentIds.filter((departmentId) =>
+        (departmentActionMap[departmentId] || []).some((actionName) => {
+          const normalized = actionName.toLowerCase();
+          return (
+            normalized.includes("signature") ||
+            normalized.includes("for signature")
+          );
+        }),
       );
 
       if (signatureDepartmentIds.length > 0) {
+        setIsRedirecting(true);
         onSignatureSetup({
           documentId: document.id,
           departmentIds: signatureDepartmentIds,
@@ -515,8 +515,6 @@ export function ReleaseDocumentModal({
     });
   };
 
-  if (!document) return null;
-
   const selectedCount = selectedDepartmentIds.length;
   const orderedSelection = useMemo(() => {
     if (!sequenceEnabled) return selectedDepartmentIds;
@@ -529,6 +527,7 @@ export function ReleaseDocumentModal({
     });
     return ordered;
   }, [orderedDepartmentIds, selectedDepartmentIds, sequenceEnabled]);
+
   const departmentNameById = useMemo(() => {
     const map = new Map<string, string>();
     groups.forEach((group) => {
@@ -543,6 +542,8 @@ export function ReleaseDocumentModal({
     });
     return map;
   }, [groups]);
+
+  if (!document) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -617,7 +618,7 @@ export function ReleaseDocumentModal({
                       <FormControl>
                         <div className="rounded-md border border-input p-4 space-y-4">
                           <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="space-y-1">
+                            <div className="space-y-1 min-w-0">
                               <Label className="text-xs uppercase text-muted-foreground">
                                 Group
                               </Label>
@@ -625,13 +626,16 @@ export function ReleaseDocumentModal({
                                 value={selectedGroupId}
                                 onValueChange={setSelectedGroupId}
                               >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select group" />
+                                <SelectTrigger className="w-full">
+                                  <SelectValue placeholder="Select group" className="truncate text-ellipsis overflow-hidden block w-full" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="all">All Groups</SelectItem>
+                                  <SelectItem value="all">
+                                    All Groups
+                                  </SelectItem>
                                   {groups.map((group) => (
                                     <SelectItem
+                                      className={`${group.name.length > 30 ? "line-clamp-2" : ""} overflow-hidden`}
                                       key={group.group_id}
                                       value={group.group_id}
                                     >
@@ -657,7 +661,9 @@ export function ReleaseDocumentModal({
                                   <SelectValue placeholder="Select center" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="all">All Centers</SelectItem>
+                                  <SelectItem value="all">
+                                    All Centers
+                                  </SelectItem>
                                   {activeGroup?.departments?.length ? (
                                     <SelectItem value="no-center">
                                       No Center
@@ -677,8 +683,47 @@ export function ReleaseDocumentModal({
                           </div>
 
                           <div className="space-y-2">
-                            <div className="text-xs uppercase text-muted-foreground">
-                              Departments
+                            <div className="flex items-center justify-between">
+                              <div className="text-xs uppercase text-muted-foreground">
+                                Departments
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-xs"
+                                onClick={() => {
+                                  const eligibleDepts = availableDepartments.filter(
+                                    (dept) => dept.department_id !== currentDepartmentId
+                                  );
+                                  const allSelected = eligibleDepts.every((dept) =>
+                                    selectedDepartmentIds.includes(dept.department_id)
+                                  );
+                                  if (allSelected) {
+                                    // Uncheck all
+                                    form.setValue("departmentIds", [], { shouldValidate: true });
+                                    setOrderedDepartmentIds([]);
+                                    setDepartmentActionMap({});
+                                  } else {
+                                    // Check all
+                                    const allIds = eligibleDepts.map((dept) => dept.department_id);
+                                    form.setValue("departmentIds", allIds, { shouldValidate: true });
+                                    updateOrderedDepartments(allIds);
+                                    const newMap: Record<string, string[]> = {};
+                                    allIds.forEach((id) => {
+                                      newMap[id] = departmentActionMap[id] || [];
+                                    });
+                                    setDepartmentActionMap(newMap);
+                                  }
+                                }}
+                                disabled={loadingDepartments || availableDepartments.length === 0}
+                              >
+                                {availableDepartments.filter(
+                                  (dept) => dept.department_id !== currentDepartmentId
+                                ).every((dept) => selectedDepartmentIds.includes(dept.department_id))
+                                  ? "Uncheck All"
+                                  : "Check All"}
+                              </Button>
                             </div>
                             <div className="rounded-md border bg-muted/20 p-3 max-h-48 overflow-auto space-y-2">
                               {loadingDepartments ? (
@@ -762,9 +807,7 @@ export function ReleaseDocumentModal({
                               <span className="text-sm font-medium">
                                 Departments
                               </span>
-                              <Badge variant="outline">
-                                {selectedCount}
-                              </Badge>
+                              <Badge variant="outline">{selectedCount}</Badge>
                             </div>
                             {selectedCount === 0 ? (
                               <p className="text-xs text-muted-foreground">
@@ -829,10 +872,7 @@ export function ReleaseDocumentModal({
                                               );
                                             const toIndex =
                                               next.indexOf(deptId);
-                                            if (
-                                              fromIndex < 0 ||
-                                              toIndex < 0
-                                            ) {
+                                            if (fromIndex < 0 || toIndex < 0) {
                                               return prev;
                                             }
                                             next.splice(fromIndex, 1);
@@ -928,9 +968,7 @@ export function ReleaseDocumentModal({
                                     key={action.document_action_id}
                                     draggable
                                     onDragStart={(event) => {
-                                      setDraggingActionName(
-                                        action.action_name,
-                                      );
+                                      setDraggingActionName(action.action_name);
                                       event.dataTransfer.setData(
                                         "text/plain",
                                         action.action_name,
@@ -1005,10 +1043,17 @@ export function ReleaseDocumentModal({
           </DialogClose>
           <Button
             type="submit"
-            disabled={isPending}
+            disabled={isPending || isRedirecting}
             form="release-document-form"
           >
-            {isPending ? "Releasing..." : "Release"}
+            {isPending || isRedirecting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {isRedirecting ? "Redirecting..." : "Releasing..."}
+              </>
+            ) : (
+              "Release"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

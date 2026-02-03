@@ -502,6 +502,7 @@ export default function DocumentDetailPage() {
           y_position: box.y / scaleY,
           width: box.width / scaleX,
           height: box.height / scaleY,
+          rotation: box.rotation ?? 0,
           assigned_user_id: departmentId ? null : box.assignedUserId || null,
           department_id: departmentId,
         }));
@@ -528,6 +529,7 @@ export default function DocumentDetailPage() {
           font_size: box.fontSize,
           font_color: box.fontColor,
           text_value: box.text?.trim() || "",
+          rotation: box.rotation ?? 0,
           assigned_user_id: departmentId ? null : box.assignedUserId || null,
           department_id: departmentId,
         }));

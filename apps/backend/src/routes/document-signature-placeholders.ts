@@ -55,6 +55,7 @@ router.post('/documents/:documentId/signature-placeholders/batch', async (req: R
         y_position: placeholder.y_position,
         width: placeholder.width,
         height: placeholder.height,
+        rotation: placeholder.rotation ?? 0,
         assigned_user_id: placeholder.assigned_user_id || null,
         department_id: placeholder.department_id || null
       }))

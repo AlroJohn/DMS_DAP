@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Rnd } from "react-rnd";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf";
 import { useQuery } from "@tanstack/react-query";
@@ -98,6 +98,7 @@ export interface TextBox {
   fontSize: number;
   fontColor: string;
   text?: string;
+  rotation?: number;
   isExisting?: boolean;
   assignedUserId?: string | null;
   assignedDepartmentIds?: string[];
@@ -221,8 +222,8 @@ export function SignaturePdfViewer({
       .map((group) => {
         const filteredCenters = (group.centers || [])
           .map((center) => {
-            const centerDepartments = (center.departments || []).filter((dept) =>
-              allowed.has(dept.department_id),
+            const centerDepartments = (center.departments || []).filter(
+              (dept) => allowed.has(dept.department_id),
             );
             if (!centerDepartments.length) return null;
             return { ...center, departments: centerDepartments };
@@ -379,6 +380,26 @@ export function SignaturePdfViewer({
     "signature" | "text" | null
   >(null);
 
+  // State for rotation intervals
+  const [rotationIntervals, setRotationIntervals] = useState<Record<string, NodeJS.Timeout>>({});
+
+  // State for rotation tracking
+  const [activeRotationElement, setActiveRotationElement] = useState<string | null>(null);
+  const [lastMousePos, setLastMousePos] = useState<{ x: number; y: number } | null>(null);
+
+  // Refs to keep track of current values
+  const boxesRef = useRef<SignatureBox[]>([]);
+  const textBoxesRef = useRef<TextBox[]>([]);
+
+  // Update refs whenever boxes or textBoxes change
+  useEffect(() => {
+    boxesRef.current = boxes;
+  }, [boxes]);
+
+  useEffect(() => {
+    textBoxesRef.current = textBoxes;
+  }, [textBoxes]);
+
   const RENDER_SCALE = useMemo(() => 1.2, []);
   const TEXT_FONT_OPTIONS = useMemo(
     () => ["Arial", "Times New Roman", "Courier New", "Georgia"],
@@ -498,7 +519,7 @@ export function SignaturePdfViewer({
           y: placeholder.y_position * scaleY,
           width: placeholder.width * scaleX,
           height: placeholder.height * scaleY,
-          rotation: 0,
+          rotation: placeholder.rotation ?? 0,
           isExisting: true,
           assignedUserId: placeholder.assigned_user_id || null,
           assignedDepartmentIds: placeholder.department_id
@@ -564,6 +585,7 @@ export function SignaturePdfViewer({
           fontSize: placeholder.font_size || DEFAULT_TEXT_SIZE,
           fontColor: placeholder.font_color || DEFAULT_TEXT_COLOR,
           text: placeholder.text_value || "",
+          rotation: placeholder.rotation ?? 0,
           isExisting: true,
           assignedUserId: placeholder.assigned_user_id || null,
           assignedDepartmentIds: placeholder.department_id
@@ -759,18 +781,18 @@ export function SignaturePdfViewer({
     const y = Math.min(Math.max(clickY - defaultHeight / 2, 0), maxY);
 
     if (placementMode === "signature") {
-        const newBox: SignatureBox = {
-          id: createId(),
-          pageNumber: targetPage.pageNumber,
-          x,
-          y,
-          width: defaultWidth,
-          height: defaultHeight,
-          rotation: 0,
-          isExisting: false,
-          assignedUserId: null,
-          assignedDepartmentIds: [...selectedDepartmentIds],
-        };
+      const newBox: SignatureBox = {
+        id: createId(),
+        pageNumber: targetPage.pageNumber,
+        x,
+        y,
+        width: defaultWidth,
+        height: defaultHeight,
+        rotation: 0,
+        isExisting: false,
+        assignedUserId: null,
+        assignedDepartmentIds: [...selectedDepartmentIds],
+      };
 
       setBoxes((prev) => [...prev, newBox]);
     } else {
@@ -785,6 +807,7 @@ export function SignaturePdfViewer({
         fontSize: DEFAULT_TEXT_SIZE,
         fontColor: DEFAULT_TEXT_COLOR,
         text: "",
+        rotation: 0,
         isExisting: false,
         assignedUserId: null,
         assignedDepartmentIds: [...selectedDepartmentIds],
@@ -805,11 +828,97 @@ export function SignaturePdfViewer({
   const handleUpdateRotation = (id: string, rotation: number) => {
     setBoxes((prev) =>
       prev.map((box) =>
-        box.id === id
-          ? { ...box, rotation: normalizeRotation(rotation) }
-          : box,
+        box.id === id ? { ...box, rotation: normalizeRotation(rotation) } : box,
       ),
     );
+  };
+
+  const handleUpdateTextRotation = (id: string, rotation: number) => {
+    setTextBoxes((prev) =>
+      prev.map((box) =>
+        box.id === id ? { ...box, rotation: normalizeRotation(rotation) } : box,
+      ),
+    );
+  };
+
+  // Function to start rotation interval
+  const startRotationInterval = (id: string, increment: number, isText: boolean) => {
+    // Clear any existing interval for this element
+    if (rotationIntervals[id]) {
+      clearInterval(rotationIntervals[id]);
+    }
+
+    // Create a new interval that rotates continuously
+    const interval = setInterval(() => {
+      if (isText) {
+        handleUpdateTextRotation(id, (textBoxes.find(b => b.id === id)?.rotation ?? 0) + increment);
+      } else {
+        handleUpdateRotation(id, (boxes.find(b => b.id === id)?.rotation ?? 0) + increment);
+      }
+    }, 50); // Rotate every 50ms for smooth experience
+
+    // Update the intervals record
+    setRotationIntervals(prev => ({
+      ...prev,
+      [id]: interval
+    }));
+  };
+
+  // Function to stop rotation interval
+  const stopRotationInterval = (id: string) => {
+    if (rotationIntervals[id]) {
+      clearInterval(rotationIntervals[id]);
+      setRotationIntervals(prev => {
+        const newIntervals = { ...prev };
+        delete newIntervals[id];
+        return newIntervals;
+      });
+    }
+  };
+
+  // Function to start rotation based on mouse movement
+  const startMouseRotation = (id: string, isText: boolean, event: React.MouseEvent) => {
+    // Store the initial mouse position
+    setLastMousePos({ x: event.clientX, y: event.clientY });
+    setActiveRotationElement(id);
+
+    // Add mouse move and up listeners to the document
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!lastMousePos) return;
+
+      // Calculate the difference in mouse position
+      const deltaX = moveEvent.clientX - lastMousePos.x;
+
+      // Determine rotation direction based on mouse movement
+      // Horizontal movement (deltaX) controls rotation
+      const rotationIncrement = deltaX * 0.3; // Sensitivity factor - reduced for smoother control
+
+      // Update the rotation
+      if (isText) {
+        const currentRotation = textBoxesRef.current.find(b => b.id === id)?.rotation ?? 0;
+        handleUpdateTextRotation(id, currentRotation + rotationIncrement);
+      } else {
+        const currentRotation = boxesRef.current.find(b => b.id === id)?.rotation ?? 0;
+        handleUpdateRotation(id, currentRotation + rotationIncrement);
+      }
+
+      // Update the last mouse position for the next calculation
+      setLastMousePos({ x: moveEvent.clientX, y: moveEvent.clientY });
+    };
+
+    const handleMouseUp = () => {
+      // Remove the event listeners
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+
+      // Reset the active rotation element
+      setActiveRotationElement(null);
+      setLastMousePos(null);
+    };
+
+    // Add event listeners to the document
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
   };
 
   const handleUpdateTextPosition = (id: string, x: number, y: number) => {
@@ -888,6 +997,33 @@ export function SignaturePdfViewer({
     // Remove from UI
     setTextBoxes((prev) => prev.filter((box) => box.id !== id));
   };
+
+  // Cleanup intervals when boxes or textBoxes change to prevent memory leaks
+  useEffect(() => {
+    // Find intervals for deleted boxes
+    const currentBoxIds = new Set([...boxes.map(b => b.id), ...textBoxes.map(b => b.id)]);
+    const intervalsToDelete = Object.keys(rotationIntervals).filter(id => !currentBoxIds.has(id));
+
+    intervalsToDelete.forEach(id => {
+      if (rotationIntervals[id]) {
+        clearInterval(rotationIntervals[id]);
+        setRotationIntervals(prev => {
+          const newIntervals = { ...prev };
+          delete newIntervals[id];
+          return newIntervals;
+        });
+      }
+    });
+  }, [boxes, textBoxes]);
+
+  // Cleanup intervals when component unmounts
+  useEffect(() => {
+    return () => {
+      Object.values(rotationIntervals).forEach(interval => {
+        clearInterval(interval);
+      });
+    };
+  }, []);
 
   const handleConfirm = () => {
     if (!selectedFileId) {
@@ -972,6 +1108,9 @@ export function SignaturePdfViewer({
   const activePageData = pages.find((p) => p.pageNumber === activePage);
   const applyingToCount = normalizedTargetFileIds.length || 1;
   const selectedDepartmentCount = selectedDepartmentIds.length;
+  const isRedirecting =
+    allowedDepartmentIds.length > 0 &&
+    (isLoadingFiles || isRendering || pages.length === 0);
 
   return (
     <Card className="h-full w-full min-h-[600px] flex flex-col border-primary/40">
@@ -980,9 +1119,14 @@ export function SignaturePdfViewer({
           <CardTitle className="flex items-center gap-2">
             Prepare Signature Positions
             <Badge variant="outline">For Signature</Badge>
-            {applyingToCount > 1 && (
+            {isRedirecting ? (
+              <span className="ml-2 flex items-center text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Redirecting...
+              </span>
+            ) : applyingToCount > 1 ? (
               <Badge variant="secondary">{applyingToCount} files</Badge>
-            )}
+            ) : null}
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1 max-w-xl">
             Add signature and text placeholders on the PDF. These positions will
@@ -999,7 +1143,8 @@ export function SignaturePdfViewer({
             disabled={
               (boxes.length === 0 && textBoxes.length === 0) ||
               isRendering ||
-              isConfirming
+              isConfirming ||
+              isRedirecting
             }
           >
             {isConfirming ? (
@@ -1089,17 +1234,17 @@ export function SignaturePdfViewer({
         </div>
 
         <div className="flex flex-col md:flex-row gap-3 flex-1 overflow-hidden">
-          <div className="flex-1 overflow-auto rounded-md bg-muted/20 min-h-[300px]">
+          <div className="flex-1 overflow-auto rounded-md bg-muted/20 min-h-[300px] pt-10">
             {isRendering || !activePageData ? (
               <div className="flex flex-col items-center gap-2 p-6 text-sm text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin" />
                 <span>Loading PDF page...</span>
               </div>
             ) : (
-              <div className="flex items-center justify-center min-w-full">
+              <div className="flex items-center justify-center min-w-full overflow-visible">
                 <div
                   className={cn(
-                    "relative",
+                    "relative overflow-visible",
                     placementMode && "cursor-crosshair",
                   )}
                   style={{
@@ -1162,7 +1307,7 @@ export function SignaturePdfViewer({
                         onClick={(event: { stopPropagation: () => any }) =>
                           event.stopPropagation()
                         }
-                        className="absolute"
+                        className="absolute overflow-visible"
                         style={{ zIndex: 1000 }}
                       >
                         <div className="relative h-full w-full">
@@ -1179,41 +1324,20 @@ export function SignaturePdfViewer({
                             }}
                           />
                           {!box.isExisting && (
-                            <div className="signature-box-drag-handle absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
+                            <div className="signature-box-drag-handle !z-[1000] absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
                               <Move className="h-3 w-3" />
                               Drag to position
-                              <span className="ml-1 flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  className="rounded-full border border-muted/50 bg-white/90 p-1 text-muted-foreground hover:text-foreground"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    handleUpdateRotation(
-                                      box.id,
-                                      (box.rotation ?? 0) - 15,
-                                    );
-                                  }}
-                                  onMouseDown={(event) => event.stopPropagation()}
-                                  aria-label="Rotate signature placeholder left"
-                                >
-                                  <RotateCcw className="h-3 w-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  className="rounded-full border border-muted/50 bg-white/90 p-1 text-muted-foreground hover:text-foreground"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    handleUpdateRotation(
-                                      box.id,
-                                      (box.rotation ?? 0) + 15,
-                                    );
-                                  }}
-                                  onMouseDown={(event) => event.stopPropagation()}
-                                  aria-label="Rotate signature placeholder right"
-                                >
-                                  <RotateCw className="h-3 w-3" />
-                                </button>
-                              </span>
+                              <button
+                                type="button"
+                                className="rounded-full border border-muted/50 bg-white/90 p-1 text-muted-foreground hover:text-foreground"
+                                onMouseDown={(event) => {
+                                  event.stopPropagation();
+                                  startMouseRotation(box.id, false, event);
+                                }}
+                                aria-label="Drag to rotate signature placeholder"
+                              >
+                                <RotateCw className="h-3 w-3" />
+                              </button>
                             </div>
                           )}
                           <div className="flex h-full w-full items-center justify-center text-[11px] font-medium text-primary">
@@ -1224,7 +1348,7 @@ export function SignaturePdfViewer({
                           {!box.isExisting && (
                             <button
                               type="button"
-                              className="absolute -right-2 -top-2 rounded-full bg-white p-1 text-destructive shadow"
+                              className="absolute -right-2 -top-2 z-[1001] rounded-full bg-white p-1 text-destructive shadow"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 handleRemove(box.id);
@@ -1237,10 +1361,10 @@ export function SignaturePdfViewer({
                       </Rnd>
                     ))}
 
-                    {textBoxesWithIndices
-                      .filter(({ box }) => box.pageNumber === activePage)
-                      .map(({ box, index }) => (
-                        <Rnd
+                  {textBoxesWithIndices
+                    .filter(({ box }) => box.pageNumber === activePage)
+                    .map(({ box, index }) => (
+                      <Rnd
                         key={box.id}
                         size={{ width: box.width, height: box.height }}
                         position={{ x: box.x, y: box.y }}
@@ -1277,23 +1401,34 @@ export function SignaturePdfViewer({
                             position.y,
                           );
                         }}
-                          onMouseDown={(event) => event.stopPropagation()}
-                          onClick={(event: { stopPropagation: () => any }) =>
-                            event.stopPropagation()
-                          }
-                          className={cn(
-                            "absolute rounded-md border-2 border-dashed shadow-sm bg-transparent",
-                            box.isExisting
-                              ? "border-amber-500/70"
-                              : "border-amber-500/80",
-                          )}
-                          style={{ zIndex: 1000 }}
-                        >
-                          <div className="relative h-full w-full">
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClick={(event: { stopPropagation: () => any }) =>
+                          event.stopPropagation()
+                        }
+                        className={cn(
+                          "absolute rounded-md border-2 border-dashed shadow-sm bg-transparent overflow-visible",
+                          box.isExisting
+                            ? "border-amber-500/70"
+                            : "border-amber-500/80",
+                        )}
+                        style={{ zIndex: 1000 }}
+                      >
+                        <div className="relative h-full w-full">
                           {!box.isExisting && (
                             <div className="text-box-drag-handle absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
                               <Move className="h-3 w-3" />
                               Drag text
+                              <button
+                                type="button"
+                                className="rounded-full border border-muted/50 bg-white/90 p-1 text-muted-foreground hover:text-foreground"
+                                onMouseDown={(event) => {
+                                  event.stopPropagation();
+                                  startMouseRotation(box.id, true, event);
+                                }}
+                                aria-label="Drag to rotate text placeholder"
+                              >
+                                <RotateCw className="h-3 w-3" />
+                              </button>
                             </div>
                           )}
                           <div
@@ -1302,6 +1437,8 @@ export function SignaturePdfViewer({
                               fontFamily: box.fontFamily,
                               fontSize: box.fontSize,
                               color: box.fontColor,
+                              transform: `rotate(${box.rotation ?? 0}deg)`,
+                              transformOrigin: "center",
                             }}
                           >
                             {box.isExisting
@@ -1311,7 +1448,7 @@ export function SignaturePdfViewer({
                           {!box.isExisting && (
                             <button
                               type="button"
-                              className="absolute -right-2 -top-2 rounded-full bg-white p-1 text-destructive shadow"
+                              className="absolute -right-2 -top-2 z-[1001] rounded-full bg-white p-1 text-destructive shadow"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 handleRemoveText(box.id);
@@ -1344,8 +1481,7 @@ export function SignaturePdfViewer({
                     </div>
                   ) : filteredGroups.length > 0 ? (
                     filteredGroups.map((group) => {
-                      const groupDepartmentIds =
-                        getGroupDepartmentIds(group);
+                      const groupDepartmentIds = getGroupDepartmentIds(group);
                       const groupChecked =
                         groupDepartmentIds.length > 0 &&
                         groupDepartmentIds.every((id) =>
@@ -1596,8 +1732,7 @@ export function SignaturePdfViewer({
                         {box.assignedDepartmentIds?.length
                           ? box.assignedDepartmentIds
                               .map(
-                                (id) =>
-                                  departmentNameById.get(id) || "Unknown",
+                                (id) => departmentNameById.get(id) || "Unknown",
                               )
                               .join(", ")
                           : box.assignedUserId
@@ -1743,8 +1878,7 @@ export function SignaturePdfViewer({
                         {box.assignedDepartmentIds?.length
                           ? box.assignedDepartmentIds
                               .map(
-                                (id) =>
-                                  departmentNameById.get(id) || "Unknown",
+                                (id) => departmentNameById.get(id) || "Unknown",
                               )
                               .join(", ")
                           : box.assignedUserId
