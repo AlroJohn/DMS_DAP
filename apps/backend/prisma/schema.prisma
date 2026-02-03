@@ -923,6 +923,10 @@ enum Permission {
   document_type_create
   document_type_edit
   document_type_delete
+  process_type_read
+  process_type_create
+  process_type_edit
+  process_type_delete
   department_read
   department_create
   department_edit
@@ -970,6 +974,7 @@ enum ResourceType {
   document_metadata
   document_upload
   document_type
+  process_type
   document_routing
   document_transfer
   document_custody
@@ -1118,4 +1123,14 @@ model UploadedFile {
   @@index([related_entity, related_id])
   @@index([uploaded_by])
   @@index([is_deleted])
+}
+
+model ProcessType {
+  process_type_id String   @id @default(uuid()) @db.Uuid
+  name            String   @unique
+  description     String?
+  duration_days   Int?     // Duration in days
+  is_active       Boolean  @default(true)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @default(now()) @updatedAt
 }
