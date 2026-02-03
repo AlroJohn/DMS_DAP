@@ -5,7 +5,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { X } from "lucide-react";
 
 import {
   Dialog,
@@ -24,6 +25,12 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -31,21 +38,37 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { DocumentListItem as Document } from "@/hooks/use-documents";
 import { useAuth } from "@/hooks/use-auth";
 import { ScrollArea } from "../ui/scroll-area";
 import { getAccessToken } from "@/lib/token-utils";
+import { cn } from "@/lib/utils";
 
 interface Department {
   department_id: string;
+  group_id: string;
+  center_id?: string | null;
   name: string;
   code: string;
   active: boolean;
+}
+
+interface Center {
+  center_id: string;
+  group_id: string;
+  name: string;
+  code: string;
+  active: boolean;
+  departments: Department[];
+}
+
+interface Group {
+  group_id: string;
+  name: string;
+  code: string;
+  active: boolean;
+  centers: Center[];
+  departments: Department[];
 }
 
 interface DocumentAction {
@@ -62,7 +85,9 @@ interface DocumentAction {
 }
 
 const releaseDocumentSchema = z.object({
-  departmentId: z.string().min(1, "Please select a department."),
+  departmentIds: z
+    .array(z.string())
+    .min(1, "Please select at least one department."),
   requestActions: z
     .array(z.string())
     .min(1, "Please select at least one action."),
@@ -77,7 +102,7 @@ interface ReleaseDocumentModalProps {
   onClose: () => void;
   onSignatureSetup?: (payload: {
     documentId: string;
-    departmentId: string;
+    departmentIds: string[];
     requestActions: string[];
     remarks?: string;
   }) => void;
@@ -90,19 +115,139 @@ export function ReleaseDocumentModal({
   onSignatureSetup,
 }: ReleaseDocumentModalProps) {
   const { user: currentUser } = useAuth();
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const currentDepartmentId = currentUser?.department_id;
+  const [groups, setGroups] = useState<Group[]>([]);
   const [documentActions, setDocumentActions] = useState<DocumentAction[]>([]);
   const [loadingDepartments, setLoadingDepartments] = useState(false);
   const [loadingActions, setLoadingActions] = useState(false);
+  const [sequenceEnabled, setSequenceEnabled] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
+  const [selectedCenterId, setSelectedCenterId] = useState<string>("all");
+  const [orderedDepartmentIds, setOrderedDepartmentIds] = useState<string[]>(
+    [],
+  );
+  const [draggingDepartmentId, setDraggingDepartmentId] = useState<
+    string | null
+  >(null);
+  const [draggingActionName, setDraggingActionName] = useState<string | null>(
+    null,
+  );
+  const [departmentActionMap, setDepartmentActionMap] = useState<
+    Record<string, string[]>
+  >({});
 
   const form = useForm<ReleaseDocumentForm>({
     resolver: zodResolver(releaseDocumentSchema),
     defaultValues: {
-      departmentId: "",
+      departmentIds: [],
       requestActions: [],
       remarks: "",
     },
   });
+
+  const selectedDepartmentIds = form.watch("departmentIds");
+  const activeGroup = useMemo(() => {
+    if (selectedGroupId === "all") return null;
+    return groups.find((group) => group.group_id === selectedGroupId) || null;
+  }, [groups, selectedGroupId]);
+
+  const availableCenters = useMemo(() => {
+    return activeGroup?.centers || [];
+  }, [activeGroup]);
+
+  useEffect(() => {
+    setSelectedCenterId("all");
+  }, [selectedGroupId]);
+
+  const availableDepartments = useMemo(() => {
+    const departmentMap = new Map<string, Department>();
+    const addDepartment = (dept: Department) => {
+      departmentMap.set(dept.department_id, dept);
+    };
+
+    if (selectedGroupId === "all") {
+      groups.forEach((group) => {
+        group.departments.forEach(addDepartment);
+        group.centers.forEach((center) => {
+          center.departments.forEach(addDepartment);
+        });
+      });
+    } else if (activeGroup) {
+      if (selectedCenterId === "all") {
+        activeGroup.departments.forEach(addDepartment);
+        activeGroup.centers.forEach((center) => {
+          center.departments.forEach(addDepartment);
+        });
+      } else if (selectedCenterId === "no-center") {
+        activeGroup.departments.forEach(addDepartment);
+      } else {
+        const center = activeGroup.centers.find(
+          (item) => item.center_id === selectedCenterId,
+        );
+        center?.departments.forEach(addDepartment);
+      }
+    }
+
+    return Array.from(departmentMap.values());
+  }, [groups, selectedGroupId, selectedCenterId, activeGroup]);
+
+  const updateOrderedDepartments = (nextIds: string[]) => {
+    setOrderedDepartmentIds((prev) => {
+      const next = prev.filter((id) => nextIds.includes(id));
+      nextIds.forEach((id) => {
+        if (!next.includes(id)) {
+          next.push(id);
+        }
+      });
+      return next;
+    });
+  };
+
+  const handleDepartmentToggle = (departmentId: string, checked: boolean) => {
+    if (departmentId === currentDepartmentId) return;
+    const current = new Set(form.getValues("departmentIds"));
+    if (checked) {
+      current.add(departmentId);
+    } else {
+      current.delete(departmentId);
+    }
+    const nextIds = Array.from(current);
+    form.setValue("departmentIds", nextIds, { shouldValidate: true });
+    updateOrderedDepartments(nextIds);
+    setDepartmentActionMap((prev) => {
+      if (checked) {
+        if (prev[departmentId]) return prev;
+        return { ...prev, [departmentId]: [] };
+      }
+      const next = { ...prev };
+      delete next[departmentId];
+      return next;
+    });
+  };
+
+  const handleAssignAction = (departmentId: string, actionName: string) => {
+    setDepartmentActionMap((prev) => {
+      const current = prev[departmentId] || [];
+      if (current.includes(actionName)) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [departmentId]: [...current, actionName],
+      };
+    });
+  };
+
+  const handleRemoveAssignedAction = (
+    departmentId: string,
+    actionName: string,
+  ) => {
+    setDepartmentActionMap((prev) => {
+      const current = prev[departmentId] || [];
+      const nextActions = current.filter((action) => action !== actionName);
+      return { ...prev, [departmentId]: nextActions };
+    });
+  };
 
   // Fetch departments and document actions when modal opens
   useEffect(() => {
@@ -110,7 +255,37 @@ export function ReleaseDocumentModal({
       fetchDepartments();
       fetchDocumentActions();
     }
+    if (!isOpen) {
+      form.reset();
+      setSequenceEnabled(false);
+      setOrderedDepartmentIds([]);
+      setDraggingDepartmentId(null);
+      setDraggingActionName(null);
+      setSelectedGroupId("all");
+      setSelectedCenterId("all");
+      setDepartmentActionMap({});
+    }
   }, [isOpen]);
+
+  useEffect(() => {
+    setDepartmentActionMap((prev) => {
+      const selectedSet = new Set(selectedDepartmentIds);
+      const next: Record<string, string[]> = {};
+      Object.entries(prev).forEach(([deptId, actions]) => {
+        if (selectedSet.has(deptId)) {
+          next[deptId] = actions;
+        }
+      });
+      return next;
+    });
+  }, [selectedDepartmentIds]);
+
+  useEffect(() => {
+    const nextActions = Array.from(
+      new Set(Object.values(departmentActionMap).flat()),
+    );
+    form.setValue("requestActions", nextActions, { shouldValidate: true });
+  }, [departmentActionMap, form]);
 
   const fetchDepartments = async () => {
     try {
@@ -128,7 +303,7 @@ export function ReleaseDocumentModal({
         headers["Authorization"] = `Bearer ${token}`;
       }
 
-      const response = await fetch("/api/admin/departments", {
+      const response = await fetch("/api/admin/departments?hierarchy=true", {
         credentials: "include",
         headers,
       });
@@ -136,13 +311,8 @@ export function ReleaseDocumentModal({
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
-          // Filter out the current user's department from the list of available departments
-          const filteredDepartments =
-            result.data?.filter(
-              (dept: Department) =>
-                dept.department_id !== currentUser?.department_id
-            ) || [];
-          setDepartments(filteredDepartments);
+          const groupData: Group[] = result.data?.groups || [];
+          setGroups(groupData);
         }
       }
     } catch (error) {
@@ -173,7 +343,7 @@ export function ReleaseDocumentModal({
         {
           credentials: "include",
           headers,
-        }
+        },
       );
 
       if (response.ok) {
@@ -195,10 +365,15 @@ export function ReleaseDocumentModal({
 
       // Prepare the payload to send the array of action names
       const payload = {
-        ...data,
+        departmentIds: data.departmentIds,
         release_action: data.requestActions,
+        requestActions: data.requestActions,
+        departmentActions: departmentActionMap,
         // Map the action names to action IDs if needed
         // For now, keeping the action names as selected by the user
+        remarks: data.remarks,
+        workflowSequenceEnabled: sequenceEnabled,
+        orderedDepartmentIds: sequenceEnabled ? data.departmentIds : undefined,
       };
 
       // Get token from localStorage or cookies
@@ -230,7 +405,10 @@ export function ReleaseDocumentModal({
             const errorData = JSON.parse(errorText);
             console.error("❌ Release error:", errorData);
             throw new Error(
-              errorData.error?.message || errorData.error || errorData.message || fallbackMessage,
+              errorData.error?.message ||
+                errorData.error ||
+                errorData.message ||
+                fallbackMessage,
             );
           } catch {
             throw new Error(errorText);
@@ -251,10 +429,13 @@ export function ReleaseDocumentModal({
         console.log("✅ Release success (parsed):", parsedResult);
         return parsedResult;
       } catch (parseError) {
-        console.warn("Release response was not valid JSON, falling back to text output.", {
-          parseError,
-          responseText,
-        });
+        console.warn(
+          "Release response was not valid JSON, falling back to text output.",
+          {
+            parseError,
+            responseText,
+          },
+        );
         return null;
       }
     },
@@ -271,7 +452,7 @@ export function ReleaseDocumentModal({
   const onSubmit = (data: ReleaseDocumentForm) => {
     // Validate that all selected actions are in the available document actions
     const allValidActions = data.requestActions.every((actionName) =>
-      documentActions.some((action) => action.action_name === actionName)
+      documentActions.some((action) => action.action_name === actionName),
     );
 
     if (!allValidActions && documentActions.length > 0) {
@@ -279,31 +460,93 @@ export function ReleaseDocumentModal({
       return;
     }
 
-    const hasSignatureAction = data.requestActions.some((actionName) =>
-      actionName.toLowerCase().includes("signature") ||
-      actionName.toLowerCase().includes("for signature")
+    const hasEmptyAssignments = data.departmentIds.some(
+      (departmentId) =>
+        !departmentActionMap[departmentId] ||
+        departmentActionMap[departmentId].length === 0,
     );
 
-    if (hasSignatureAction && onSignatureSetup && document) {
-      onSignatureSetup({
-        documentId: document.id,
-        departmentId: data.departmentId,
-        requestActions: data.requestActions,
-        remarks: data.remarks,
-      });
-      form.reset();
-      onClose();
+    if (hasEmptyAssignments) {
+      toast.error("Assign at least one action for each selected department.");
       return;
     }
 
-    releaseDocument(data);
+    const hasSignatureAction = data.requestActions.some((actionName) => {
+      const normalized = actionName.toLowerCase();
+      return (
+        normalized.includes("signature") ||
+        normalized.includes("for signature")
+      );
+    });
+
+    if (hasSignatureAction && onSignatureSetup && document) {
+      const signatureDepartmentIds = data.departmentIds.filter(
+        (departmentId) =>
+          (departmentActionMap[departmentId] || []).some((actionName) => {
+            const normalized = actionName.toLowerCase();
+            return (
+              normalized.includes("signature") ||
+              normalized.includes("for signature")
+            );
+          }),
+      );
+
+      if (signatureDepartmentIds.length > 0) {
+        onSignatureSetup({
+          documentId: document.id,
+          departmentIds: signatureDepartmentIds,
+          requestActions: data.requestActions,
+          remarks: data.remarks,
+        });
+        form.reset();
+        onClose();
+        return;
+      }
+    }
+
+    const orderedIds =
+      sequenceEnabled && orderedDepartmentIds.length > 0
+        ? orderedDepartmentIds
+        : data.departmentIds;
+
+    releaseDocument({
+      ...data,
+      departmentIds: orderedIds,
+    });
   };
 
   if (!document) return null;
 
+  const selectedCount = selectedDepartmentIds.length;
+  const orderedSelection = useMemo(() => {
+    if (!sequenceEnabled) return selectedDepartmentIds;
+    const selectedSet = new Set(selectedDepartmentIds);
+    const ordered = orderedDepartmentIds.filter((id) => selectedSet.has(id));
+    selectedDepartmentIds.forEach((id) => {
+      if (!ordered.includes(id)) {
+        ordered.push(id);
+      }
+    });
+    return ordered;
+  }, [orderedDepartmentIds, selectedDepartmentIds, sequenceEnabled]);
+  const departmentNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    groups.forEach((group) => {
+      group.departments.forEach((dept) => {
+        map.set(dept.department_id, dept.name);
+      });
+      group.centers.forEach((center) => {
+        center.departments.forEach((dept) => {
+          map.set(dept.department_id, dept.name);
+        });
+      });
+    });
+    return map;
+  }, [groups]);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col p-0">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="sticky top-0 z-10 p-6 pb-4">
           <DialogTitle>Release Document</DialogTitle>
           <DialogDescription>
@@ -367,107 +610,367 @@ export function ReleaseDocumentModal({
               <div className="w-full grid grid-cols-1 gap-4">
                 <FormField
                   control={form.control}
-                  name="departmentId"
-                  render={({ field }) => (
-                    <FormItem className="w-full grid grid-cols-4 items-center gap-4">
+                  name="departmentIds"
+                  render={() => (
+                    <FormItem className="w-full">
                       <FormLabel>Release To</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl className="w-full">
-                          <SelectTrigger className="w-full col-span-3">
-                            <SelectValue
-                              placeholder={
-                                currentUser?.department_id
-                                  ? "Select a different department"
-                                  : "Select a department"
-                              }
-                            />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="max-h-52">
-                          {loadingDepartments ? (
-                            <SelectItem value="loading" disabled>
-                              Loading departments...
-                            </SelectItem>
-                          ) : departments.length > 0 ? (
-                            departments.map((dep) => (
-                              <SelectItem
-                                key={dep.department_id}
-                                value={dep.department_id}
+                      <FormControl>
+                        <div className="rounded-md border border-input p-4 space-y-4">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-1">
+                              <Label className="text-xs uppercase text-muted-foreground">
+                                Group
+                              </Label>
+                              <Select
+                                value={selectedGroupId}
+                                onValueChange={setSelectedGroupId}
                               >
-                                {dep.name}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="no-departments" disabled>
-                              {currentUser?.department_id
-                                ? "No other departments available"
-                                : "No departments available"}
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select group" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="all">All Groups</SelectItem>
+                                  {groups.map((group) => (
+                                    <SelectItem
+                                      key={group.group_id}
+                                      value={group.group_id}
+                                    >
+                                      {group.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs uppercase text-muted-foreground">
+                                Center
+                              </Label>
+                              <Select
+                                value={selectedCenterId}
+                                onValueChange={setSelectedCenterId}
+                                disabled={
+                                  selectedGroupId === "all" ||
+                                  availableCenters.length === 0
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select center" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="all">All Centers</SelectItem>
+                                  {activeGroup?.departments?.length ? (
+                                    <SelectItem value="no-center">
+                                      No Center
+                                    </SelectItem>
+                                  ) : null}
+                                  {availableCenters.map((center) => (
+                                    <SelectItem
+                                      key={center.center_id}
+                                      value={center.center_id}
+                                    >
+                                      {center.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="text-xs uppercase text-muted-foreground">
+                              Departments
+                            </div>
+                            <div className="rounded-md border bg-muted/20 p-3 max-h-48 overflow-auto space-y-2">
+                              {loadingDepartments ? (
+                                <div className="text-sm text-muted-foreground">
+                                  Loading options...
+                                </div>
+                              ) : availableDepartments.length > 0 ? (
+                                availableDepartments.map((dept) => (
+                                  <label
+                                    key={dept.department_id}
+                                    className="flex items-center gap-2 text-sm"
+                                  >
+                                    <Checkbox
+                                      checked={selectedDepartmentIds.includes(
+                                        dept.department_id,
+                                      )}
+                                      disabled={
+                                        dept.department_id ===
+                                        currentDepartmentId
+                                      }
+                                      onCheckedChange={(checked) =>
+                                        handleDepartmentToggle(
+                                          dept.department_id,
+                                          checked === true,
+                                        )
+                                      }
+                                    />
+                                    {dept.name}
+                                  </label>
+                                ))
+                              ) : (
+                                <div className="text-sm text-muted-foreground">
+                                  No departments available for the selected
+                                  filters.
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
+                <div className="text-xs text-muted-foreground">
+                  {selectedCount > 0
+                    ? `This will notify ${selectedCount} department${
+                        selectedCount === 1 ? "" : "s"
+                      }.`
+                    : "Select targets to preview recipients."}
+                </div>
+
+                {selectedCount > 1 && (
+                  <div className="rounded-md border border-input p-3 space-y-2">
+                    <label className="flex items-center gap-2 text-sm font-medium">
+                      <Checkbox
+                        checked={sequenceEnabled}
+                        onCheckedChange={(checked) =>
+                          setSequenceEnabled(checked === true)
+                        }
+                      />
+                      Enable workflow sequence
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      When enabled, drag departments to set the routing order.
+                    </p>
+                  </div>
+                )}
+
                 <FormField
                   control={form.control}
                   name="requestActions"
-                  render={({ field }) => (
+                  render={() => (
                     <FormItem>
-                      <FormLabel>Request Action(s)</FormLabel>
-                      <div className="rounded-md border border-input p-4">
-                        {loadingActions ? (
-                          <div className="py-2 text-sm text-muted-foreground">
-                            Loading actions...
-                          </div>
-                        ) : documentActions.length > 0 ? (
-                          documentActions.map((action) => {
-                            return (
-                              <div
-                                key={action.document_action_id}
-                                className="flex items-center space-x-2 py-1"
-                              >
-                                <Checkbox
-                                  id={`action-${action.document_action_id}`}
-                                  checked={field.value?.includes(
-                                    action.action_name
-                                  )}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      field.onChange([
-                                        ...(field.value || []),
-                                        action.action_name,
-                                      ]);
-                                    } else {
-                                      field.onChange(
-                                        field.value?.filter(
-                                          (value: string) =>
-                                            value !== action.action_name
-                                        )
-                                      );
-                                    }
-                                  }}
-                                />
-                                <Label
-                                  htmlFor={`action-${action.document_action_id}`}
-                                  className="text-sm font-normal cursor-pointer"
-                                >
-                                  {action.action_name}
-                                </Label>
+                      <FormLabel>Action Assignment</FormLabel>
+                      <FormControl>
+                        <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+                          <div className="rounded-md border border-input p-3 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">
+                                Departments
+                              </span>
+                              <Badge variant="outline">
+                                {selectedCount}
+                              </Badge>
+                            </div>
+                            {selectedCount === 0 ? (
+                              <p className="text-xs text-muted-foreground">
+                                Select departments to assign actions.
+                              </p>
+                            ) : (
+                              <div className="space-y-2">
+                                {orderedSelection.map((deptId, index) => {
+                                  const assignedActions =
+                                    departmentActionMap[deptId] || [];
+                                  return (
+                                    <div
+                                      key={deptId}
+                                      draggable={sequenceEnabled}
+                                      onDragStart={(event) => {
+                                        if (!sequenceEnabled) return;
+                                        setDraggingDepartmentId(deptId);
+                                        event.dataTransfer.setData(
+                                          "application/x-department",
+                                          deptId,
+                                        );
+                                        event.dataTransfer.effectAllowed =
+                                          "move";
+                                      }}
+                                      onDragEnd={() =>
+                                        setDraggingDepartmentId(null)
+                                      }
+                                      onDragOver={(event) => {
+                                        if (
+                                          draggingActionName ||
+                                          (sequenceEnabled &&
+                                            draggingDepartmentId)
+                                        ) {
+                                          event.preventDefault();
+                                        }
+                                      }}
+                                      onDrop={(event) => {
+                                        event.preventDefault();
+                                        const actionName =
+                                          draggingActionName ||
+                                          event.dataTransfer.getData(
+                                            "text/plain",
+                                          );
+                                        if (actionName) {
+                                          handleAssignAction(
+                                            deptId,
+                                            actionName,
+                                          );
+                                          setDraggingActionName(null);
+                                          return;
+                                        }
+                                        if (
+                                          sequenceEnabled &&
+                                          draggingDepartmentId &&
+                                          draggingDepartmentId !== deptId
+                                        ) {
+                                          setOrderedDepartmentIds((prev) => {
+                                            const next = [...prev];
+                                            const fromIndex =
+                                              next.indexOf(
+                                                draggingDepartmentId,
+                                              );
+                                            const toIndex =
+                                              next.indexOf(deptId);
+                                            if (
+                                              fromIndex < 0 ||
+                                              toIndex < 0
+                                            ) {
+                                              return prev;
+                                            }
+                                            next.splice(fromIndex, 1);
+                                            next.splice(
+                                              toIndex,
+                                              0,
+                                              draggingDepartmentId,
+                                            );
+                                            return next;
+                                          });
+                                          setDraggingDepartmentId(null);
+                                        }
+                                      }}
+                                      className={cn(
+                                        "rounded border px-3 py-2 space-y-2",
+                                        draggingDepartmentId === deptId
+                                          ? "border-primary bg-primary/5"
+                                          : "border-muted",
+                                      )}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm font-medium">
+                                            {departmentNameById.get(deptId) ||
+                                              "Unknown department"}
+                                          </span>
+                                          {sequenceEnabled && (
+                                            <Badge
+                                              variant="secondary"
+                                              className="text-[11px]"
+                                            >
+                                              {index + 1}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        <span className="text-xs text-muted-foreground">
+                                          Drop actions
+                                        </span>
+                                      </div>
+                                      {assignedActions.length ? (
+                                        <div className="flex flex-wrap gap-2">
+                                          {assignedActions.map((action) => (
+                                            <Badge
+                                              key={`${deptId}-${action}`}
+                                              variant="outline"
+                                              className="flex items-center gap-1"
+                                            >
+                                              <span>{action}</span>
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  handleRemoveAssignedAction(
+                                                    deptId,
+                                                    action,
+                                                  )
+                                                }
+                                                className="rounded-full p-0.5 hover:bg-muted"
+                                              >
+                                                <X className="h-3 w-3" />
+                                              </button>
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <p className="text-xs text-muted-foreground">
+                                          No actions assigned yet.
+                                        </p>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
-                            );
-                          })
-                        ) : (
-                          <div className="py-2 text-sm text-muted-foreground">
-                            No actions available
+                            )}
                           </div>
-                        )}
-                      </div>
+
+                          <div className="rounded-md border border-input p-3 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">
+                                Actions
+                              </span>
+                              <Badge variant="outline">
+                                {documentActions.length}
+                              </Badge>
+                            </div>
+                            {loadingActions ? (
+                              <div className="py-2 text-sm text-muted-foreground">
+                                Loading actions...
+                              </div>
+                            ) : documentActions.length > 0 ? (
+                              <div className="space-y-2">
+                                {documentActions.map((action) => (
+                                  <div
+                                    key={action.document_action_id}
+                                    draggable
+                                    onDragStart={(event) => {
+                                      setDraggingActionName(
+                                        action.action_name,
+                                      );
+                                      event.dataTransfer.setData(
+                                        "text/plain",
+                                        action.action_name,
+                                      );
+                                      event.dataTransfer.effectAllowed = "copy";
+                                    }}
+                                    onDragEnd={() =>
+                                      setDraggingActionName(null)
+                                    }
+                                    className={cn(
+                                      "flex items-center justify-between rounded border px-3 py-2 text-sm",
+                                      draggingActionName === action.action_name
+                                        ? "border-primary bg-primary/5"
+                                        : "border-muted",
+                                    )}
+                                  >
+                                    <div>
+                                      <div className="font-medium">
+                                        {action.action_name}
+                                      </div>
+                                      {action.description && (
+                                        <div className="text-xs text-muted-foreground">
+                                          {action.description}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">
+                                      Drag
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="py-2 text-sm text-muted-foreground">
+                                No actions available
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -46,6 +46,7 @@ export interface SignaturePlaceholder {
   height: number;
   page_number: number;
   assigned_user_id?: string | null;
+  department_id?: string | null;
 }
 
 export interface TextPlaceholder {
@@ -62,6 +63,7 @@ export interface TextPlaceholder {
   font_color: string;
   text_value?: string | null;
   assigned_user_id?: string | null;
+  department_id?: string | null;
 }
 
 interface SigningPdfViewerProps {
@@ -178,6 +180,11 @@ export function SigningPdfViewer({
   const router = useRouter();
   const { user } = useAuth();
   const signeeId = user?.user_id || user?.id;
+  const currentDepartmentId =
+    (user as { department_id?: string })?.department_id ||
+    (user as { department?: { department_id?: string } })?.department
+      ?.department_id ||
+    null;
   const { socket } = useSocket();
   const [presence, setPresence] = useState<
     Array<{ userId: string; name: string; departmentId?: string | null }>
@@ -191,9 +198,11 @@ export function SigningPdfViewer({
   const signatureDraftTimerRef = useRef<NodeJS.Timeout | null>(null);
   const textDraftTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isAssignedToCurrentUser = useCallback(
-    (assignedUserId?: string | null) =>
-      !assignedUserId || assignedUserId === signeeId,
-    [signeeId],
+    (assignedUserId?: string | null, departmentId?: string | null) =>
+      assignedUserId === signeeId ||
+      (!assignedUserId &&
+        (!departmentId || departmentId === currentDepartmentId)),
+    [currentDepartmentId, signeeId],
   );
   const pdfFiles = useMemo(
     () => files.filter((file) => isPdfLikeFile(file)),
@@ -637,7 +646,10 @@ export function SigningPdfViewer({
         if (placeholder.page_number !== source.page_number) return false;
         if (
           placeholder.assigned_user_id !== source.assigned_user_id ||
-          !isAssignedToCurrentUser(placeholder.assigned_user_id)
+          !isAssignedToCurrentUser(
+            placeholder.assigned_user_id,
+            placeholder.department_id,
+          )
         ) {
           return false;
         }
@@ -662,7 +674,10 @@ export function SigningPdfViewer({
         if (placeholder.page_number !== source.page_number) return false;
         if (
           placeholder.assigned_user_id !== source.assigned_user_id ||
-          !isAssignedToCurrentUser(placeholder.assigned_user_id)
+          !isAssignedToCurrentUser(
+            placeholder.assigned_user_id,
+            placeholder.department_id,
+          )
         ) {
           return false;
         }
@@ -692,7 +707,10 @@ export function SigningPdfViewer({
   const actionableFilePlaceholders = useMemo(
     () =>
       filePlaceholders.filter((placeholder) =>
-        isAssignedToCurrentUser(placeholder.assigned_user_id),
+        isAssignedToCurrentUser(
+          placeholder.assigned_user_id,
+          placeholder.department_id,
+        ),
       ),
     [filePlaceholders, isAssignedToCurrentUser],
   );
@@ -700,7 +718,10 @@ export function SigningPdfViewer({
   const actionableTextPlaceholders = useMemo(
     () =>
       fileTextPlaceholders.filter((placeholder) =>
-        isAssignedToCurrentUser(placeholder.assigned_user_id),
+        isAssignedToCurrentUser(
+          placeholder.assigned_user_id,
+          placeholder.department_id,
+        ),
       ),
     [fileTextPlaceholders, isAssignedToCurrentUser],
   );
@@ -920,7 +941,12 @@ export function SigningPdfViewer({
   }, [actionableFilePlaceholders, pages.length]); // Run when placeholders or pages load
 
   const handlePlaceholderClick = (placeholder: SignaturePlaceholder) => {
-    if (!isAssignedToCurrentUser(placeholder.assigned_user_id)) {
+    if (
+      !isAssignedToCurrentUser(
+        placeholder.assigned_user_id,
+        placeholder.department_id,
+      )
+    ) {
       toast.error("This placeholder is assigned to another user.");
       return;
     }
@@ -1016,7 +1042,10 @@ export function SigningPdfViewer({
         );
         if (
           !placeholder ||
-          !isAssignedToCurrentUser(placeholder.assigned_user_id)
+          !isAssignedToCurrentUser(
+            placeholder.assigned_user_id,
+            placeholder.department_id,
+          )
         ) {
           return acc;
         }
@@ -1755,6 +1784,7 @@ export function SigningPdfViewer({
                     const isSigned = signedPlaceholderIds.has(p.placeholder_id);
                     const isLocked = !isAssignedToCurrentUser(
                       p.assigned_user_id,
+                      p.department_id,
                     );
                     const remoteDraft = remoteSignatureDrafts[p.placeholder_id];
                     return (
@@ -1824,7 +1854,10 @@ export function SigningPdfViewer({
                   const hasSavedText = Boolean(
                     displayText && displayText.toLowerCase() !== "text",
                   );
-                  const isLocked = !isAssignedToCurrentUser(p.assigned_user_id);
+                  const isLocked = !isAssignedToCurrentUser(
+                    p.assigned_user_id,
+                    p.department_id,
+                  );
                   const remoteDraft = remoteTextDrafts[p.placeholder_id];
 
                   return (
@@ -1916,6 +1949,7 @@ export function SigningPdfViewer({
                       );
                       const isLocked = !isAssignedToCurrentUser(
                         placeholder.assigned_user_id,
+                        placeholder.department_id,
                       );
                       const remoteSignatureUser =
                         remoteSignatureDrafts[placeholder.placeholder_id]
@@ -1990,6 +2024,7 @@ export function SigningPdfViewer({
                       );
                       const isLocked = !isAssignedToCurrentUser(
                         placeholder.assigned_user_id,
+                        placeholder.department_id,
                       );
                       return (
                         <div

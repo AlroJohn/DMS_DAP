@@ -12,6 +12,13 @@ export interface SharedDocument {
   status?: string;
   activity?: string;
   activityTime?: string;
+  workflowSequenceEnabled?: boolean;
+  nextDepartmentId?: string | null;
+  nextDepartmentName?: string | null;
+  originDepartmentId?: string | null;
+  originDepartmentName?: string | null;
+  isLastInSequence?: boolean;
+  isInSequence?: boolean;
   checkedOutBy?: {
     id: string;
     name: string;

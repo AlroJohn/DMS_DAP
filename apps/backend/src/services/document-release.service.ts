@@ -9,6 +9,33 @@ import { auditService } from './audit.service';
 export class DocumentReleaseService {
     prisma = prisma; // Expose prisma instance for use in controllers
 
+    private parseWorkflowSequence(value: unknown): string[] {
+        if (!value) return [];
+        if (Array.isArray(value)) {
+            return value.map((entry) => String(entry)).filter(Boolean);
+        }
+        if (typeof value === 'string') {
+            try {
+                const parsed = JSON.parse(value);
+                if (Array.isArray(parsed)) {
+                    return parsed.map((entry) => String(entry)).filter(Boolean);
+                }
+                if (parsed && typeof parsed === 'object') {
+                    return Object.values(parsed).map((entry) => String(entry)).filter(Boolean);
+                }
+            } catch (error) {
+                console.error('[DocumentReleaseService.parseWorkflowSequence] Error parsing workflow JSON:', error);
+            }
+            return [];
+        }
+        if (typeof value === 'object') {
+            return Object.values(value as Record<string, unknown>)
+                .map((entry) => String(entry))
+                .filter(Boolean);
+        }
+        return [];
+    }
+
     /**
      * Release a document to another department
      */
@@ -26,6 +53,7 @@ export class DocumentReleaseService {
             width: number;
             height: number;
             assigned_user_id?: string | null;
+            department_id?: string | null;
         }[],
         textPlaceholders?: {
             document_file_id: string;
@@ -39,7 +67,14 @@ export class DocumentReleaseService {
             font_color: string;
             text_value: string;
             assigned_user_id?: string | null;
-        }[]
+            department_id?: string | null;
+        }[],
+        options?: {
+            workflowSequenceEnabled?: boolean;
+            orderedDepartmentIds?: string[];
+            releaseActionSummary?: string[];
+            releaseActionByDepartment?: Record<string, string[]>;
+        }
     ) {
         // Validate UUID format
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -83,6 +118,7 @@ export class DocumentReleaseService {
                     width: sig.width,
                     height: sig.height,
                     assigned_user_id: sig.assigned_user_id || null,
+                    department_id: sig.department_id || departmentId,
                 }));
 
                 await prisma.signaturePlaceholder.createMany({
@@ -96,9 +132,17 @@ export class DocumentReleaseService {
                 const assignedUserIds = signatures
                     .map(sig => sig.assigned_user_id)
                     .filter((id): id is string => !!id);
+                const assignedDepartmentIds = signatures
+                    .map(sig => sig.department_id)
+                    .filter((id): id is string => !!id);
 
                 // Get unique user IDs
                 const uniqueUserIds = [...new Set(assignedUserIds)];
+                const uniqueDepartmentIds = [
+                    ...new Set(
+                        assignedDepartmentIds.length ? assignedDepartmentIds : [departmentId]
+                    )
+                ];
 
                 console.log(`📧 [Document Release] Unique assigned users: ${uniqueUserIds.length}`, uniqueUserIds);
 
@@ -143,6 +187,34 @@ export class DocumentReleaseService {
                         });
                     });
                     await Promise.all(notificationPromises);
+
+                    if (uniqueDepartmentIds.length > 0) {
+                        const deptUsers = await prisma.user.findMany({
+                            where: {
+                                department_id: { in: uniqueDepartmentIds },
+                                active: true
+                            },
+                            select: { user_id: true }
+                        });
+                        const deptUserIds = [...new Set(deptUsers.map(u => u.user_id))];
+                        const deptNotificationPromises = deptUserIds.map((deptUserId) => {
+                            return notificationService.createNotification(
+                                deptUserId,
+                                'Signature Required',
+                                `You have been assigned to sign the document: ${documentDetails?.title || 'Untitled'}`,
+                                'signature',
+                                'signature_pending',
+                                {
+                                    documentId,
+                                    documentTitle: documentDetails?.title
+                                }
+                            )
+                            .catch((error) => {
+                                console.error(`❌ [Document Release] Failed to notify department user ${deptUserId}:`, error);
+                            });
+                        });
+                        await Promise.all(deptNotificationPromises);
+                    }
                 };
 
                 await notifyPlaceholders();
@@ -169,6 +241,22 @@ export class DocumentReleaseService {
                 
                 // Collect assigned user information
                 const assignedUsers: string[] = [];
+                const departmentNameCache = new Map<string, string>();
+                const getDepartmentName = async (deptId?: string | null) => {
+                    if (!deptId) return null;
+                    if (departmentNameCache.has(deptId)) {
+                        return departmentNameCache.get(deptId) || null;
+                    }
+                    const dept = await prisma.department.findUnique({
+                        where: { department_id: deptId },
+                        select: { name: true }
+                    });
+                    const name = dept?.name || null;
+                    if (name) {
+                        departmentNameCache.set(deptId, name);
+                    }
+                    return name;
+                };
                 for (let i = 0; i < signatures.length; i++) {
                     const sig = signatures[i];
                     
@@ -199,7 +287,11 @@ export class DocumentReleaseService {
                             assignedUsers.push(`Placeholder ${i + 1}: Unknown User`);
                         }
                     } else {
-                        assignedUsers.push(`Placeholder ${i + 1}: Open (any user in ${toDeptName?.name || 'target department'})`);
+                        const targetDeptName =
+                            (await getDepartmentName(sig.department_id)) ||
+                            toDeptName?.name ||
+                            'target department';
+                        assignedUsers.push(`Placeholder ${i + 1}: Open (any user in ${targetDeptName})`);
                     }
                 }
                 
@@ -241,6 +333,7 @@ export class DocumentReleaseService {
                     font_color: textPlaceholder.font_color,
                     text_value: textPlaceholder.text_value,
                     assigned_user_id: textPlaceholder.assigned_user_id || null,
+                    department_id: textPlaceholder.department_id || departmentId,
                 }));
 
                 await prisma.textPlaceholder.createMany({
@@ -251,6 +344,13 @@ export class DocumentReleaseService {
             // Get the current workflow
             const currentDetail = document.DocumentAdditionalDetails?.[0];
             let currentWorkflow: any = {};
+            const workflowSequenceEnabled =
+                options?.workflowSequenceEnabled === true ||
+                currentDetail?.workflow_sequence_enabled === true;
+            let workflowSequence = this.parseWorkflowSequence(currentDetail?.work_flow_id);
+            const orderedDepartmentIds = (options?.orderedDepartmentIds || [])
+                .map((entry) => String(entry))
+                .filter(Boolean);
 
             if (currentDetail && currentDetail.work_flow_id) {
                 try {
@@ -272,47 +372,100 @@ export class DocumentReleaseService {
                 : requestAction
                   ? [requestAction]
                   : [];
+            const releaseActionsSummary =
+                options?.releaseActionSummary && options.releaseActionSummary.length > 0
+                    ? options.releaseActionSummary
+                    : releaseActions;
+            const releaseActionByDepartment = options?.releaseActionByDepartment;
 
-            // Check if the department is already in the workflow by looking at all values
-            const workflowDepartments = Object.values(currentWorkflow);
-            if (!workflowDepartments.includes(departmentId)) {
-                // Determine the next position in the workflow (first, second, third, etc.)
-                let nextPosition = 'second'; // default to second if 'first' exists
-                if ('first' in currentWorkflow) {
-                    // Count existing positions to determine the next key
-                    const keys = Object.keys(currentWorkflow).sort();
-                    if (keys.length > 0) {
-                        // Find the highest positioned key and get the next one
-                        const lastKey = keys[keys.length - 1];
-                        const positionMatch = lastKey.match(/(\d+)$/); // Look for numeric suffix like "step1", "step2", etc.
-                        if (positionMatch) {
-                            const lastNumber = parseInt(positionMatch[1]);
-                            nextPosition = `step${lastNumber + 1}`;
-                        } else {
-                            // If using names like "first", "second", etc., try to follow the sequence
-                            if (lastKey === 'first') {
-                                nextPosition = 'second';
-                            } else if (lastKey === 'second') {
-                                nextPosition = 'third';
-                            } else if (lastKey === 'third') {
-                                nextPosition = 'fourth';
-                            } else if (lastKey === 'fourth') {
-                                nextPosition = 'fifth';
-                            } else {
-                                // For other cases, just append a number to "step"
-                                nextPosition = `step${keys.length + 1}`;
-                            }
-                        }
+            if (workflowSequenceEnabled) {
+                const baseSequence = orderedDepartmentIds.length
+                    ? orderedDepartmentIds
+                    : workflowSequence;
+                const nextSequence: string[] = [];
+                if (releasingUser.department_id) {
+                    nextSequence.push(releasingUser.department_id);
+                }
+                baseSequence.forEach((dept) => {
+                    if (!nextSequence.includes(dept)) {
+                        nextSequence.push(dept);
                     }
-                } else {
-                    // If 'first' doesn't exist, use 'first' as the position (this would be an edge case)
-                    nextPosition = 'first';
+                });
+
+                workflowSequence = nextSequence;
+
+                const currentIndex = workflowSequence.indexOf(
+                    releasingUser.department_id || ''
+                );
+                if (currentIndex === -1) {
+                    return {
+                        success: false,
+                        error: 'Your department is not part of the workflow sequence.'
+                    };
                 }
 
-                // Add the destination department to the workflow with the next position
-                currentWorkflow[nextPosition] = departmentId;
+                const expectedNextDepartment =
+                    workflowSequence[currentIndex + 1] || null;
+                const originDepartmentId =
+                    workflowSequence.length > 0 ? workflowSequence[0] : null;
+
+                if (!expectedNextDepartment) {
+                    if (originDepartmentId && departmentId === originDepartmentId) {
+                        // Allow return to origin after final step.
+                    } else {
+                        return {
+                            success: false,
+                            error: 'No next department in workflow sequence.'
+                        };
+                    }
+                } else if (expectedNextDepartment !== departmentId) {
+                    return {
+                        success: false,
+                        error: 'Release is not allowed for this department in the current sequence.'
+                    };
+                }
             } else {
-                // Department already in workflow, skipping
+                // Check if the department is already in the workflow by looking at all values
+                const workflowDepartments = Object.values(currentWorkflow);
+                if (!workflowDepartments.includes(departmentId)) {
+                    // Determine the next position in the workflow (first, second, third, etc.)
+                    let nextPosition = 'second'; // default to second if 'first' exists
+                    if ('first' in currentWorkflow) {
+                        // Count existing positions to determine the next key
+                        const keys = Object.keys(currentWorkflow).sort();
+                        if (keys.length > 0) {
+                            // Find the highest positioned key and get the next one
+                            const lastKey = keys[keys.length - 1];
+                            const positionMatch = lastKey.match(/(\d+)$/); // Look for numeric suffix like "step1", "step2", etc.
+                            if (positionMatch) {
+                                const lastNumber = parseInt(positionMatch[1]);
+                                nextPosition = `step${lastNumber + 1}`;
+                            } else {
+                                // If using names like "first", "second", etc., try to follow the sequence
+                                if (lastKey === 'first') {
+                                    nextPosition = 'second';
+                                } else if (lastKey === 'second') {
+                                    nextPosition = 'third';
+                                } else if (lastKey === 'third') {
+                                    nextPosition = 'fourth';
+                                } else if (lastKey === 'fourth') {
+                                    nextPosition = 'fifth';
+                                } else {
+                                    // For other cases, just append a number to "step"
+                                    nextPosition = `step${keys.length + 1}`;
+                                }
+                            }
+                        }
+                    } else {
+                        // If 'first' doesn't exist, use 'first' as the position (this would be an edge case)
+                        nextPosition = 'first';
+                    }
+
+                    // Add the destination department to the workflow with the next position
+                    currentWorkflow[nextPosition] = departmentId;
+                } else {
+                    // Department already in workflow, skipping
+                }
             }
 
             // Update document status to intransit (being routed)
@@ -344,9 +497,15 @@ export class DocumentReleaseService {
                 await prisma.documentAdditionalDetails.update({
                     where: { detail_id: currentDetail.detail_id },
                     data: {
-                        work_flow_id: currentWorkflow as any,
+                        work_flow_id: workflowSequenceEnabled
+                            ? (workflowSequence as any)
+                            : (currentWorkflow as any),
+                        workflow_sequence_enabled: workflowSequenceEnabled,
                         remarks: remarks || currentDetail.remarks,
-                        release_action: releaseActions,
+                        release_action: releaseActionsSummary,
+                        ...(releaseActionByDepartment
+                            ? { release_action_by_department: releaseActionByDepartment as any }
+                            : {}),
                         updated_at: new Date()
                     }
                 });
@@ -366,32 +525,44 @@ export class DocumentReleaseService {
                 });
 
                 if (user && user.account?.account_id) {
-                    const newWorkflow = {
-                        first: user.department_id,
-                        second: departmentId
-                    };
+                    const newWorkflow = workflowSequenceEnabled
+                        ? [user.department_id, departmentId].filter(Boolean)
+                        : {
+                              first: user.department_id,
+                              second: departmentId
+                          };
 
                     await prisma.documentAdditionalDetails.create({
                         data: {
                             document_id: documentId,
                             work_flow_id: newWorkflow as any,
+                            workflow_sequence_enabled: workflowSequenceEnabled,
                             remarks: remarks || null,
-                            release_action: releaseActions,
+                            release_action: releaseActionsSummary,
+                            ...(releaseActionByDepartment
+                                ? { release_action_by_department: releaseActionByDepartment as any }
+                                : {}),
                             account_id: user.account.account_id // Store the releasing user's account ID
                         }
                     });
                 } else {
                     // Fallback - just add the receiving department if we can't get the user's department
-                    const newWorkflow = {
-                        first: departmentId // This shouldn't happen in normal flow, but as a fallback
-                    };
+                    const newWorkflow = workflowSequenceEnabled
+                        ? [departmentId].filter(Boolean)
+                        : {
+                              first: departmentId // This shouldn't happen in normal flow, but as a fallback
+                          };
 
                     await prisma.documentAdditionalDetails.create({
                         data: {
                             document_id: documentId,
                             work_flow_id: newWorkflow as any,
+                            workflow_sequence_enabled: workflowSequenceEnabled,
                             remarks: remarks || null,
-                            release_action: releaseActions,
+                            release_action: releaseActionsSummary,
+                            ...(releaseActionByDepartment
+                                ? { release_action_by_department: releaseActionByDepartment as any }
+                                : {}),
                             account_id: user?.account?.account_id || null // Try to store account_id if available
                         }
                     });
@@ -564,7 +735,8 @@ export class DocumentReleaseService {
       const latestTransitTrail = await prisma.documentTrail.findFirst({
         where: {
           document_id: documentId,
-          status: 'intransit'
+          status: 'intransit',
+          to_department: user.department_id
         },
         orderBy: {
           created_at: 'desc'
@@ -575,8 +747,8 @@ export class DocumentReleaseService {
         }
       });
 
-      if (latestTransitTrail?.to_department && latestTransitTrail.to_department !== user.department_id) {
-        console.error('[DocumentReleaseService.receiveDocument] Error: Document is not assigned to this user\'s department. Assigned to:', latestTransitTrail.to_department, 'User department:', user.department_id);
+      if (!latestTransitTrail) {
+        console.error('[DocumentReleaseService.receiveDocument] Error: Document is not assigned to this user\'s department. User department:', user.department_id);
         return { success: false, error: 'Document is not assigned to your department' };
       }
 
@@ -638,7 +810,8 @@ export class DocumentReleaseService {
       const latestTransitTrailForCheck = await prisma.documentTrail.findFirst({
         where: {
           document_id: documentId,
-          status: 'intransit'
+          status: 'intransit',
+          to_department: user.department_id
         },
         orderBy: {
           created_at: 'desc'
@@ -648,8 +821,8 @@ export class DocumentReleaseService {
         }
       });
 
-      if (latestTransitTrailForCheck?.to_department && latestTransitTrailForCheck.to_department !== user.department_id && !isSharedToUser) {
-        console.error('[DocumentReleaseService.receiveDocument] Error: Document is not assigned to this user\'s department. Assigned to:', latestTransitTrailForCheck.to_department, 'User department:', user.department_id);
+      if (!latestTransitTrailForCheck && !isSharedToUser) {
+        console.error('[DocumentReleaseService.receiveDocument] Error: Document is not assigned to this user\'s department. User department:', user.department_id);
         return { success: false, error: 'Document is not assigned to your department' };
       }
 

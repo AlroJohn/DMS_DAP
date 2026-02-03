@@ -70,17 +70,53 @@ model User {
 }
 
 model Department {
-  department_id String           @id @default(uuid()) @db.Uuid
-  name          String
-  code          String           @unique
-  active        Boolean          @default(true)
-  created_at    DateTime         @default(now())
-  created_by    String           @db.Uuid
-  updated_at    DateTime         @default(now()) @updatedAt
-  Account       Account[]
-  from_trails   DocumentTrail[]  @relation("FromDepartment")
-  to_trails     DocumentTrail[]  @relation("ToDepartment")
-  invitations   UserInvitation[]
+  department_id         String                 @id @default(uuid()) @db.Uuid
+  group_id              String                 @db.Uuid
+  center_id             String?                @db.Uuid
+  name                  String
+  code                  String                 @unique
+  active                Boolean                @default(true)
+  created_at            DateTime               @default(now())
+  created_by            String                 @db.Uuid
+  updated_at            DateTime               @default(now()) @updatedAt
+  group                 Group                  @relation(fields: [group_id], references: [group_id])
+  center                Center?                @relation(fields: [center_id], references: [center_id])
+  Account               Account[]
+  from_trails           DocumentTrail[]        @relation("FromDepartment")
+  to_trails             DocumentTrail[]        @relation("ToDepartment")
+  invitations           UserInvitation[]
+  signaturePlaceholders SignaturePlaceholder[]
+  textPlaceholders      TextPlaceholder[]
+
+  @@index([group_id])
+  @@index([center_id])
+}
+
+model Group {
+  group_id    String       @id @default(uuid()) @db.Uuid
+  name        String
+  code        String       @unique
+  active      Boolean      @default(true)
+  created_at  DateTime     @default(now())
+  created_by  String       @db.Uuid
+  updated_at  DateTime     @default(now()) @updatedAt
+  centers     Center[]
+  departments Department[]
+}
+
+model Center {
+  center_id   String       @id @default(uuid()) @db.Uuid
+  group_id    String       @db.Uuid
+  name        String
+  code        String       @unique
+  active      Boolean      @default(true)
+  created_at  DateTime     @default(now())
+  created_by  String       @db.Uuid
+  updated_at  DateTime     @default(now()) @updatedAt
+  group       Group        @relation(fields: [group_id], references: [group_id])
+  departments Department[]
+
+  @@index([group_id])
 }
 
 model Document {
@@ -119,29 +155,31 @@ model OCR_Json {
 }
 
 model DocumentAdditionalDetails {
-  detail_id               String    @id @default(uuid()) @db.Uuid
-  document_id             String    @db.Uuid
-  received_by             String?   @db.Uuid
-  work_flow_id            Json? // Workflow route for department IDs (array or object); first entry is the originating/owner department.
-  received_by_departments Json? // Array of user IDs that have received/acknowledged this document: [first:"user_id_1", second:"user_id_2"...]. first element is the originating department user.
-  work_flow_status        Json? // Object tracking the status of each document in the workflow: {created:("at:"datetime", status:"pending"), released_1:("at:"datetime", status:"intransit"), released_2:("at:"datetime", status:"intransit")..., received:("at:"datetime", status:"received"), completed:("at:"datetime", status:"completed")}
-  blockchain_project_uuid String?
-  blockchain_tx_hash      String?
-  blockchain_status       String?
-  blockchain_redirect_url String?
-  signed_at               DateTime?
-  signed_by               String?   @db.Uuid
-  remarks                 String?
-  release_action          String[]
-  deleted_by              String?   @db.Uuid
-  restored_by             String?   @db.Uuid
-  created_at              DateTime  @default(now())
-  updated_at              DateTime  @default(now()) @updatedAt
-  deleted_at              DateTime?
-  restored_at             DateTime?
-  account_id              String?   @db.Uuid
-  Document                Document  @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
-  created_by_account      Account?  @relation("DocumentDetailsCreatedBy", fields: [account_id], references: [account_id])
+  detail_id                 String    @id @default(uuid()) @db.Uuid
+  document_id               String    @db.Uuid
+  received_by               String?   @db.Uuid
+  work_flow_id              Json? // Workflow route for department IDs (array or object); first entry is the originating/owner department.
+  workflow_sequence_enabled Boolean   @default(false)
+  received_by_departments   Json? // Array of user IDs that have received/acknowledged this document: [first:"user_id_1", second:"user_id_2"...]. first element is the originating department user.
+  work_flow_status          Json? // Object tracking the status of each document in the workflow: {created:("at:"datetime", status:"pending"), released_1:("at:"datetime", status:"intransit"), released_2:("at:"datetime", status:"intransit")..., received:("at:"datetime", status:"received"), completed:("at:"datetime", status:"completed")}
+  blockchain_project_uuid   String?
+  blockchain_tx_hash        String?
+  blockchain_status         String?
+  blockchain_redirect_url   String?
+  signed_at                 DateTime?
+  signed_by                 String?   @db.Uuid
+  remarks                   String?
+  release_action            String[]
+  release_action_by_department Json?
+  deleted_by                String?   @db.Uuid
+  restored_by               String?   @db.Uuid
+  created_at                DateTime  @default(now())
+  updated_at                DateTime  @default(now()) @updatedAt
+  deleted_at                DateTime?
+  restored_at               DateTime?
+  account_id                String?   @db.Uuid
+  Document                  Document  @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
+  created_by_account        Account?  @relation("DocumentDetailsCreatedBy", fields: [account_id], references: [account_id])
 
   @@index([document_id])
   @@index([account_id])
@@ -277,6 +315,7 @@ model SignaturePlaceholder {
   document_id      String       @db.Uuid
   document_file_id String       @db.Uuid
   assigned_user_id String?      @db.Uuid
+  department_id    String?      @db.Uuid
   x_position       Float
   y_position       Float
   width            Float
@@ -286,10 +325,12 @@ model SignaturePlaceholder {
   documentFile     DocumentFile @relation(fields: [document_file_id], references: [file_id], onDelete: Cascade)
   document         Document     @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
   assigned_user    User?        @relation("SignaturePlaceholderAssignee", fields: [assigned_user_id], references: [user_id], onDelete: SetNull)
+  department       Department?  @relation(fields: [department_id], references: [department_id], onDelete: SetNull)
 
   @@index([document_id])
   @@index([document_file_id])
   @@index([assigned_user_id])
+  @@index([department_id])
 }
 
 model TextPlaceholder {
@@ -297,6 +338,7 @@ model TextPlaceholder {
   document_id      String       @db.Uuid
   document_file_id String       @db.Uuid
   assigned_user_id String?      @db.Uuid
+  department_id    String?      @db.Uuid
   x_position       Float
   y_position       Float
   width            Float
@@ -310,10 +352,12 @@ model TextPlaceholder {
   documentFile     DocumentFile @relation(fields: [document_file_id], references: [file_id], onDelete: Cascade)
   document         Document     @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
   assigned_user    User?        @relation("TextPlaceholderAssignee", fields: [assigned_user_id], references: [user_id], onDelete: SetNull)
+  department       Department?  @relation(fields: [department_id], references: [department_id], onDelete: SetNull)
 
   @@index([document_id])
   @@index([document_file_id])
   @@index([assigned_user_id])
+  @@index([department_id])
 }
 
 enum AuditActionType {
@@ -1050,23 +1094,23 @@ model SidebarSettings {
 }
 
 model UploadedFile {
-  file_id         String   @id @default(uuid()) @db.Uuid
-  original_name   String
-  stored_name     String
-  file_path       String   // S3 key or local path
-  file_url        String   // Public URL
-  file_size       BigInt
-  mime_type       String
-  file_type       String   // logo, video, document, etc.
-  bucket_name     String   // S3 bucket name
-  storage_type    String   @default("s3") // s3, local, etc.
-  uploaded_by     String?  @db.Uuid
-  related_entity  String?  // e.g., "home_cms", "document", etc.
-  related_id      String?  @db.Uuid // ID of related entity
-  is_deleted      Boolean  @default(false)
-  created_at      DateTime @default(now())
-  updated_at      DateTime @default(now()) @updatedAt
-  deleted_at      DateTime?
+  file_id        String    @id @default(uuid()) @db.Uuid
+  original_name  String
+  stored_name    String
+  file_path      String // S3 key or local path
+  file_url       String // Public URL
+  file_size      BigInt
+  mime_type      String
+  file_type      String // logo, video, document, etc.
+  bucket_name    String // S3 bucket name
+  storage_type   String    @default("s3") // s3, local, etc.
+  uploaded_by    String?   @db.Uuid
+  related_entity String? // e.g., "home_cms", "document", etc.
+  related_id     String?   @db.Uuid // ID of related entity
+  is_deleted     Boolean   @default(false)
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @default(now()) @updatedAt
+  deleted_at     DateTime?
 
   @@index([file_type])
   @@index([related_entity, related_id])

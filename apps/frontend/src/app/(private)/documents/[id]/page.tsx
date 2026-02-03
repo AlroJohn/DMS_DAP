@@ -395,6 +395,7 @@ export default function DocumentDetailPage() {
         width: number;
         height: number;
         assigned_user_id?: string | null;
+        department_id?: string | null;
       }[];
       textPlaceholders?: {
         document_file_id: string;
@@ -408,6 +409,7 @@ export default function DocumentDetailPage() {
         font_color: string;
         text_value: string;
         assigned_user_id?: string | null;
+        department_id?: string | null;
       }[];
     }) => {
       const response = await fetch(`/api/documents/${documentId}/release`, {
@@ -485,28 +487,37 @@ export default function DocumentDetailPage() {
     );
 
     const signaturePlaceholders = normalizedTargetIds.flatMap((targetFileId) =>
-      boxes.map((box) => {
+      boxes.flatMap((box) => {
         const scale = pageScales?.[box.pageNumber];
         const scaleX = scale?.scaleX ?? DEFAULT_SCALE;
         const scaleY = scale?.scaleY ?? DEFAULT_SCALE;
-        return {
+        const departments =
+          box.assignedDepartmentIds && box.assignedDepartmentIds.length > 0
+            ? box.assignedDepartmentIds
+            : [null];
+        return departments.map((departmentId) => ({
           document_file_id: targetFileId,
           page_number: box.pageNumber,
           x_position: box.x / scaleX, // Adjust for scale
           y_position: box.y / scaleY,
           width: box.width / scaleX,
           height: box.height / scaleY,
-          assigned_user_id: box.assignedUserId || null,
-        };
+          assigned_user_id: departmentId ? null : box.assignedUserId || null,
+          department_id: departmentId,
+        }));
       }),
     );
 
     const textPlaceholders = normalizedTargetIds.flatMap((targetFileId) =>
-      textBoxes.map((box) => {
+      textBoxes.flatMap((box) => {
         const scale = pageScales?.[box.pageNumber];
         const scaleX = scale?.scaleX ?? DEFAULT_SCALE;
         const scaleY = scale?.scaleY ?? DEFAULT_SCALE;
-        return {
+        const departments =
+          box.assignedDepartmentIds && box.assignedDepartmentIds.length > 0
+            ? box.assignedDepartmentIds
+            : [null];
+        return departments.map((departmentId) => ({
           document_file_id: targetFileId,
           page_number: box.pageNumber,
           x_position: box.x / scaleX,
@@ -517,8 +528,9 @@ export default function DocumentDetailPage() {
           font_size: box.fontSize,
           font_color: box.fontColor,
           text_value: box.text?.trim() || "",
-          assigned_user_id: box.assignedUserId || null,
-        };
+          assigned_user_id: departmentId ? null : box.assignedUserId || null,
+          department_id: departmentId,
+        }));
       }),
     );
 
@@ -531,6 +543,7 @@ export default function DocumentDetailPage() {
         width: number;
         height: number;
         assigned_user_id?: string | null;
+        department_id?: string | null;
       }>,
     ) => {
       // Try both user_id and id properties to get the user ID
@@ -586,6 +599,7 @@ export default function DocumentDetailPage() {
         font_color: string;
         text_value: string;
         assigned_user_id?: string | null;
+        department_id?: string | null;
       }>,
     ) => {
       await Promise.all(
@@ -1162,10 +1176,20 @@ export default function DocumentDetailPage() {
       <ReleaseDocumentModal
         isOpen={isReleaseModalOpen}
         onClose={() => setIsReleaseModalOpen(false)}
-        onSignatureSetup={({ departmentId, requestActions, remarks }) => {
+        onSignatureSetup={({ departmentIds, requestActions, remarks }) => {
           const params = new URLSearchParams(searchParams?.toString() || "");
           params.set("mode", "signature");
-          params.set("releaseDepartmentId", departmentId);
+          const [primaryDepartmentId] = departmentIds;
+          if (primaryDepartmentId) {
+            params.set("releaseDepartmentId", primaryDepartmentId);
+          } else {
+            params.delete("releaseDepartmentId");
+          }
+          if (departmentIds.length > 0) {
+            params.set("releaseDepartmentIds", departmentIds.join(","));
+          } else {
+            params.delete("releaseDepartmentIds");
+          }
           params.set("releaseActions", requestActions.join(","));
           if (remarks) {
             params.set("releaseRemarks", remarks);

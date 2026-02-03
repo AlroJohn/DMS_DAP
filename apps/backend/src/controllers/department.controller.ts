@@ -13,7 +13,15 @@ export class DepartmentController {
   // Get all departments with pagination
   async getAllDepartments(req: Request, res: Response) {
     try {
-      const { page = 1, limit = 10, search = '' } = req.query;
+      const { page = 1, limit = 10, search = '', hierarchy = 'false' } = req.query;
+
+      if (String(hierarchy).toLowerCase() === 'true') {
+        const result = await this.departmentService.getDepartmentHierarchy();
+        return res.json({
+          success: true,
+          data: result
+        });
+      }
 
       const pageNum = parseInt(page as string, 10);
       const limitNum = parseInt(limit as string, 10);
@@ -66,13 +74,14 @@ export class DepartmentController {
   async createDepartment(req: Request, res: Response) {
     try {
       const authReq = req as AuthRequest;
-      const { name, code } = req.body;
+      const { name, code, group_id, groupId, center_id, centerId } = req.body;
+      const resolvedGroupId = group_id ?? groupId ?? null;
 
       // Validation
-      if (!name || !code) {
+      if (!name || !code || !resolvedGroupId) {
         return res.status(400).json({
           success: false,
-          message: 'Name and code are required'
+          message: 'Name, code, and group are required'
         });
       }
 
@@ -80,7 +89,9 @@ export class DepartmentController {
         const department = await this.departmentService.createDepartment(
           name, 
           code.toUpperCase(), 
-          authReq.user?.id || '00000000-0000-0000-0000-000000000000' // This would be the user ID
+          authReq.user?.id || '00000000-0000-0000-0000-000000000000', // This would be the user ID
+          resolvedGroupId,
+          center_id ?? centerId ?? null
         );
 
         res.status(201).json({
@@ -118,7 +129,7 @@ export class DepartmentController {
   async updateDepartment(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { name, code, active } = req.body;
+      const { name, code, active, group_id, groupId, center_id, centerId } = req.body;
 
       // Validation
       if (!name || !code || active === undefined) {
@@ -129,7 +140,14 @@ export class DepartmentController {
       }
 
       try {
-        const updatedDepartment = await this.departmentService.updateDepartment(id, name, code.toUpperCase(), active);
+        const updatedDepartment = await this.departmentService.updateDepartment(
+          id,
+          name,
+          code.toUpperCase(),
+          active,
+          group_id ?? groupId ?? undefined,
+          center_id ?? centerId
+        );
 
         res.json({
           success: true,

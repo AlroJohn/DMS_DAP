@@ -40,6 +40,32 @@ interface SharedDocument {
 }
 
 export class SharedDocumentService {
+  private parseWorkflowSequence(value: unknown): string[] {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      return value.map((entry) => String(entry)).filter(Boolean);
+    }
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          return parsed.map((entry) => String(entry)).filter(Boolean);
+        }
+        if (parsed && typeof parsed === 'object') {
+          return Object.values(parsed).map((entry) => String(entry)).filter(Boolean);
+        }
+      } catch (error) {
+        console.error('[SharedDocumentService.parseWorkflowSequence] Error parsing workflow JSON:', error);
+      }
+      return [];
+    }
+    if (typeof value === 'object') {
+      return Object.values(value as Record<string, unknown>)
+        .map((entry) => String(entry))
+        .filter(Boolean);
+    }
+    return [];
+  }
   /**
    * Get documents that have been shared to the current user (documents where user is specifically in received_by_users)
    */
@@ -282,27 +308,7 @@ export class SharedDocumentService {
           let contactOrganization = 'N/A';
 
           if (detail && detail.work_flow_id) {
-            let workflowDepartments: string[] = [];
-
-            if (typeof detail.work_flow_id === 'object' && detail.work_flow_id !== null) {
-              // New format: object with keys like "first", "second", etc.
-              workflowDepartments = Object.values(detail.work_flow_id);
-            } else if (typeof detail.work_flow_id === 'string') {
-              // Could be either a JSON string of an array or a JSON string of an object
-              const parsed = JSON.parse(detail.work_flow_id);
-              if (Array.isArray(parsed)) {
-                workflowDepartments = parsed;
-              } else {
-                // If it's an object, get its values
-                workflowDepartments = Object.values(parsed);
-              }
-            } else if (Array.isArray(detail.work_flow_id)) {
-              // Old format: array
-              workflowDepartments = detail.work_flow_id;
-            } else {
-              // Unexpected format
-              workflowDepartments = [];
-            }
+            const workflowDepartments = this.parseWorkflowSequence(detail.work_flow_id);
 
             if (workflowDepartments.length > 0) {
               const originatorDeptId = workflowDepartments[0];  // The "first" department is the originator
@@ -316,6 +322,41 @@ export class SharedDocumentService {
               }
             }
           }
+
+          const workflowSequenceEnabled = detail?.workflow_sequence_enabled === true;
+          const workflowSequence = this.parseWorkflowSequence(detail?.work_flow_id);
+          const originDepartmentId =
+            workflowSequenceEnabled && workflowSequence.length > 0
+              ? workflowSequence[0]
+              : null;
+          const isInSequence = workflowSequenceEnabled
+            ? workflowSequence.includes(user.department_id)
+            : false;
+          const currentSequenceIndex = isInSequence
+            ? workflowSequence.indexOf(user.department_id)
+            : -1;
+          const nextDepartmentId =
+            workflowSequenceEnabled && currentSequenceIndex >= 0
+              ? workflowSequence[currentSequenceIndex + 1] || null
+              : null;
+          const isLastInSequence =
+            workflowSequenceEnabled &&
+            currentSequenceIndex >= 0 &&
+            currentSequenceIndex === workflowSequence.length - 1;
+          const nextDepartment =
+            nextDepartmentId
+              ? await prisma.department.findUnique({
+                  where: { department_id: nextDepartmentId },
+                  select: { name: true }
+                })
+              : null;
+          const originDepartment =
+            originDepartmentId
+              ? await prisma.department.findUnique({
+                  where: { department_id: originDepartmentId },
+                  select: { name: true }
+                })
+              : null;
 
           // Get the DocumentType name based on the stored type ID
           let documentTypeName = 'General'; // Default to 'General' if type is not found
@@ -411,6 +452,13 @@ export class SharedDocumentService {
             activityTime: new Date(doc.created_at).toLocaleString(),
             checkedOutBy,
             checkedOutAt,
+            workflowSequenceEnabled,
+            nextDepartmentId,
+            nextDepartmentName: nextDepartment?.name || null,
+            originDepartmentId,
+            originDepartmentName: originDepartment?.name || null,
+            isLastInSequence,
+            isInSequence,
           };
         })
       );

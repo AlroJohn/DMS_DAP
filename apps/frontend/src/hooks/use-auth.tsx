@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 interface AuthContextType {
   isAuthenticated: boolean
   user: any | null
-  login: () => void // Function to trigger re-fetch after login
+  login: () => Promise<void> // Function to trigger re-fetch after login
   logout: () => void
   isLoading: boolean
 }
@@ -22,7 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fetchUserData();
   }, [])
 
-  const fetchUserData = async () => {
+  const fetchUserData = async (options?: { forceLoading?: boolean }) => {
     // Prevent multiple simultaneous requests
     if (isFetchingUser) {
       console.log('User data fetch already in progress, skipping...')
@@ -30,6 +30,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setIsFetchingUser(true)
+    if (options?.forceLoading) {
+      setIsLoading(true)
+    }
     try {
       // The browser will automatically send HttpOnly cookies to /api/auth/me
       const response = await fetch('/api/auth/me', {
@@ -67,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = () => {
     // After a successful login (which sets HttpOnly cookies), re-fetch user data
     console.log('Login successful, re-fetching user data...')
-    fetchUserData()
+    return fetchUserData({ forceLoading: true })
   }
 
   const logout = async () => {

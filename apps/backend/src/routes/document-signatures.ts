@@ -73,7 +73,8 @@ router.post('/documents/:documentId/signatures', upload.none(), async (req: Requ
       height,
       document_file_id,
       user_id,
-      assigned_user_id
+      assigned_user_id,
+      department_id
     } = req.body;
 
     // Verify document exists
@@ -104,6 +105,16 @@ router.post('/documents/:documentId/signatures', upload.none(), async (req: Requ
       }
     }
 
+    if (department_id) {
+      const department = await prisma.department.findUnique({
+        where: { department_id }
+      });
+
+      if (!department) {
+        return res.status(404).json({ error: 'Department not found' });
+      }
+    }
+
     // Create signature placeholder
     const signaturePlaceholder = await prisma.signaturePlaceholder.create({
       data: {
@@ -114,7 +125,8 @@ router.post('/documents/:documentId/signatures', upload.none(), async (req: Requ
         y_position: parseFloat(y_position),
         width: parseFloat(width),
         height: parseFloat(height),
-        assigned_user_id: assigned_user_id || null
+        assigned_user_id: assigned_user_id || null,
+        department_id: department_id || null
       }
     });
 
@@ -168,12 +180,30 @@ router.post('/documents/:documentId/signatures', upload.none(), async (req: Requ
                 select: { name: true }
               }))?.name || 'Unknown Department'
             : 'Unknown Department';
-          
+
+          const targetDeptName = department_id
+            ? (await prisma.department.findUnique({
+                where: { department_id: department_id },
+                select: { name: true }
+              }))?.name || 'Unknown Department'
+            : null;
+
           placeholderDesc = `Added by: ${creatingUser.first_name} ${creatingUser.last_name}\n`;
           placeholderDesc += `Department: ${deptName}\n\n`;
-          placeholderDesc += `ASSIGNED TO:\nPlaceholder 1: Open (any user can sign) - Page ${page_number}`;
+          placeholderDesc += `ASSIGNED TO:\nPlaceholder 1: Open${
+            targetDeptName ? ` (${targetDeptName})` : ' (any user can sign)'
+          } - Page ${page_number}`;
         } else {
-          placeholderDesc = `ASSIGNED TO:\nPlaceholder 1: Open (any user can sign) - Page ${page_number}`;
+          const targetDeptName = department_id
+            ? (await prisma.department.findUnique({
+                where: { department_id: department_id },
+                select: { name: true }
+              }))?.name || 'Unknown Department'
+            : null;
+
+          placeholderDesc = `ASSIGNED TO:\nPlaceholder 1: Open${
+            targetDeptName ? ` (${targetDeptName})` : ' (any user can sign)'
+          } - Page ${page_number}`;
         }
       }
 
