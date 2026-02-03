@@ -7,13 +7,14 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const token = request.cookies.get('token')?.value;
+    const cookies = request.headers.get('cookie');
     
     const response = await fetch(`${BACKEND_URL}/api/process-type/${params.id}`, {
       headers: {
-        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
+        ...(cookies && { 'Cookie': cookies })
       },
+      credentials: 'include',
     });
 
     const data = await response.json();
@@ -31,15 +32,16 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const token = request.cookies.get('token')?.value;
+    const cookies = request.headers.get('cookie');
     const body = await request.json();
     
     const response = await fetch(`${BACKEND_URL}/api/process-type/${params.id}`, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
+        ...(cookies && { 'Cookie': cookies })
       },
+      credentials: 'include',
       body: JSON.stringify(body),
     });
 
@@ -58,14 +60,15 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const token = request.cookies.get('token')?.value;
+    const cookies = request.headers.get('cookie');
     
     const response = await fetch(`${BACKEND_URL}/api/process-type/${params.id}`, {
       method: 'DELETE',
       headers: {
-        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
+        ...(cookies && { 'Cookie': cookies })
       },
+      credentials: 'include',
     });
 
     const data = await response.json();
