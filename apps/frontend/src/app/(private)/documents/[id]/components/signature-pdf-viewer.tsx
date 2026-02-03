@@ -141,6 +141,16 @@ const normalizeRotation = (value: number) => {
   return normalized < 0 ? normalized + 360 : normalized;
 };
 
+// Calculate the effective bounding box dimensions after rotation
+const getRotatedBounds = (width: number, height: number, rotation: number) => {
+  const rad = ((rotation || 0) * Math.PI) / 180;
+  const cos = Math.abs(Math.cos(rad));
+  const sin = Math.abs(Math.sin(rad));
+  const rotatedWidth = width * cos + height * sin;
+  const rotatedHeight = width * sin + height * cos;
+  return { width: rotatedWidth, height: rotatedHeight };
+};
+
 export function SignaturePdfViewer({
   documentId,
   files,
@@ -808,23 +818,143 @@ export function SignaturePdfViewer({
 
   const handleUpdatePosition = (id: string, x: number, y: number) => {
     setBoxes((prev) =>
-      prev.map((box) => (box.id === id ? { ...box, x, y } : box)),
+      prev.map((box) => {
+        if (box.id !== id) return box;
+
+        const page = pages.find((p) => p.pageNumber === box.pageNumber);
+        if (!page) return { ...box, x, y };
+
+        // Calculate rotated bounding box
+        const rotation = (box.rotation ?? 0) % 360;
+        const radians = (rotation * Math.PI) / 180;
+        const cos = Math.abs(Math.cos(radians));
+        const sin = Math.abs(Math.sin(radians));
+        const rotatedWidth = box.width * cos + box.height * sin;
+        const rotatedHeight = box.width * sin + box.height * cos;
+
+        // Calculate center point
+        const centerX = x + box.width / 2;
+        const centerY = y + box.height / 2;
+
+        // Clamp center to keep rotated box within bounds
+        const minCenterX = rotatedWidth / 2;
+        const maxCenterX = page.width - rotatedWidth / 2;
+        const minCenterY = rotatedHeight / 2;
+        const maxCenterY = page.height - rotatedHeight / 2;
+
+        const clampedCenterX = Math.min(
+          Math.max(centerX, minCenterX),
+          maxCenterX,
+        );
+        const clampedCenterY = Math.min(
+          Math.max(centerY, minCenterY),
+          maxCenterY,
+        );
+
+        // Convert back to top-left position
+        const clampedX = clampedCenterX - box.width / 2;
+        const clampedY = clampedCenterY - box.height / 2;
+
+        return { ...box, x: clampedX, y: clampedY };
+      }),
     );
   };
 
   const handleUpdateRotation = (id: string, rotation: number) => {
     setBoxes((prev) =>
-      prev.map((box) =>
-        box.id === id ? { ...box, rotation: normalizeRotation(rotation) } : box,
-      ),
+      prev.map((box) => {
+        if (box.id !== id) return box;
+
+        const normalizedRotation = normalizeRotation(rotation);
+        const page = pages.find((p) => p.pageNumber === box.pageNumber);
+        if (!page) return { ...box, rotation: normalizedRotation };
+
+        // Calculate new rotated bounding box
+        const radians = (normalizedRotation * Math.PI) / 180;
+        const cos = Math.abs(Math.cos(radians));
+        const sin = Math.abs(Math.sin(radians));
+        const rotatedWidth = box.width * cos + box.height * sin;
+        const rotatedHeight = box.width * sin + box.height * cos;
+
+        // Calculate current center
+        const centerX = box.x + box.width / 2;
+        const centerY = box.y + box.height / 2;
+
+        // Clamp center to keep rotated box within bounds
+        const minCenterX = rotatedWidth / 2;
+        const maxCenterX = page.width - rotatedWidth / 2;
+        const minCenterY = rotatedHeight / 2;
+        const maxCenterY = page.height - rotatedHeight / 2;
+
+        const clampedCenterX = Math.min(
+          Math.max(centerX, minCenterX),
+          maxCenterX,
+        );
+        const clampedCenterY = Math.min(
+          Math.max(centerY, minCenterY),
+          maxCenterY,
+        );
+
+        // Convert back to top-left position
+        const clampedX = clampedCenterX - box.width / 2;
+        const clampedY = clampedCenterY - box.height / 2;
+
+        return {
+          ...box,
+          rotation: normalizedRotation,
+          x: clampedX,
+          y: clampedY,
+        };
+      }),
     );
   };
 
   const handleUpdateTextRotation = (id: string, rotation: number) => {
     setTextBoxes((prev) =>
-      prev.map((box) =>
-        box.id === id ? { ...box, rotation: normalizeRotation(rotation) } : box,
-      ),
+      prev.map((box) => {
+        if (box.id !== id) return box;
+
+        const normalizedRotation = normalizeRotation(rotation);
+        const page = pages.find((p) => p.pageNumber === box.pageNumber);
+        if (!page) return { ...box, rotation: normalizedRotation };
+
+        // Calculate new rotated bounding box
+        const radians = (normalizedRotation * Math.PI) / 180;
+        const cos = Math.abs(Math.cos(radians));
+        const sin = Math.abs(Math.sin(radians));
+        const rotatedWidth = box.width * cos + box.height * sin;
+        const rotatedHeight = box.width * sin + box.height * cos;
+
+        // Calculate current center
+        const centerX = box.x + box.width / 2;
+        const centerY = box.y + box.height / 2;
+
+        // Clamp center to keep rotated box within bounds
+        const minCenterX = rotatedWidth / 2;
+        const maxCenterX = page.width - rotatedWidth / 2;
+        const minCenterY = rotatedHeight / 2;
+        const maxCenterY = page.height - rotatedHeight / 2;
+
+        const clampedCenterX = Math.min(
+          Math.max(centerX, minCenterX),
+          maxCenterX,
+        );
+        const clampedCenterY = Math.min(
+          Math.max(centerY, minCenterY),
+          maxCenterY,
+        );
+
+        // Convert back to top-left position
+        const clampedX = clampedCenterX - box.width / 2;
+        const clampedY = clampedCenterY - box.height / 2;
+
+        return {
+          ...box,
+          rotation: normalizedRotation,
+          x: clampedX,
+          y: clampedY,
+        };
+      }),
     );
   };
 
@@ -904,7 +1034,45 @@ export function SignaturePdfViewer({
 
   const handleUpdateTextPosition = (id: string, x: number, y: number) => {
     setTextBoxes((prev) =>
-      prev.map((box) => (box.id === id ? { ...box, x, y } : box)),
+      prev.map((box) => {
+        if (box.id !== id) return box;
+
+        const page = pages.find((p) => p.pageNumber === box.pageNumber);
+        if (!page) return { ...box, x, y };
+
+        // Calculate rotated bounding box
+        const rotation = (box.rotation ?? 0) % 360;
+        const radians = (rotation * Math.PI) / 180;
+        const cos = Math.abs(Math.cos(radians));
+        const sin = Math.abs(Math.sin(radians));
+        const rotatedWidth = box.width * cos + box.height * sin;
+        const rotatedHeight = box.width * sin + box.height * cos;
+
+        // Calculate center point
+        const centerX = x + box.width / 2;
+        const centerY = y + box.height / 2;
+
+        // Clamp center to keep rotated box within bounds
+        const minCenterX = rotatedWidth / 2;
+        const maxCenterX = page.width - rotatedWidth / 2;
+        const minCenterY = rotatedHeight / 2;
+        const maxCenterY = page.height - rotatedHeight / 2;
+
+        const clampedCenterX = Math.min(
+          Math.max(centerX, minCenterX),
+          maxCenterX,
+        );
+        const clampedCenterY = Math.min(
+          Math.max(centerY, minCenterY),
+          maxCenterY,
+        );
+
+        // Convert back to top-left position
+        const clampedX = clampedCenterX - box.width / 2;
+        const clampedY = clampedCenterY - box.height / 2;
+
+        return { ...box, x: clampedX, y: clampedY };
+      }),
     );
   };
 
@@ -916,9 +1084,57 @@ export function SignaturePdfViewer({
     y: number,
   ) => {
     setBoxes((prev) =>
-      prev.map((box) =>
-        box.id === id ? { ...box, width, height, x, y } : box,
-      ),
+      prev.map((box) => {
+        if (box.id !== id) return box;
+
+        const page = pages.find((p) => p.pageNumber === box.pageNumber);
+        if (!page) return { ...box, width, height, x, y };
+
+        // Ensure minimum size
+        const minWidth = 50;
+        const minHeight = 30;
+        const clampedWidth = Math.max(minWidth, width);
+        const clampedHeight = Math.max(minHeight, height);
+
+        // Calculate rotated bounding box with new dimensions
+        const rotation = (box.rotation ?? 0) % 360;
+        const radians = (rotation * Math.PI) / 180;
+        const cos = Math.abs(Math.cos(radians));
+        const sin = Math.abs(Math.sin(radians));
+        const rotatedWidth = clampedWidth * cos + clampedHeight * sin;
+        const rotatedHeight = clampedWidth * sin + clampedHeight * cos;
+
+        // Calculate center point
+        const centerX = x + clampedWidth / 2;
+        const centerY = y + clampedHeight / 2;
+
+        // Clamp center to keep rotated box within bounds
+        const minCenterX = rotatedWidth / 2;
+        const maxCenterX = page.width - rotatedWidth / 2;
+        const minCenterY = rotatedHeight / 2;
+        const maxCenterY = page.height - rotatedHeight / 2;
+
+        const clampedCenterX = Math.min(
+          Math.max(centerX, minCenterX),
+          maxCenterX,
+        );
+        const clampedCenterY = Math.min(
+          Math.max(centerY, minCenterY),
+          maxCenterY,
+        );
+
+        // Convert back to top-left position
+        const clampedX = clampedCenterX - clampedWidth / 2;
+        const clampedY = clampedCenterY - clampedHeight / 2;
+
+        return {
+          ...box,
+          width: clampedWidth,
+          height: clampedHeight,
+          x: clampedX,
+          y: clampedY,
+        };
+      }),
     );
   };
 
@@ -930,9 +1146,57 @@ export function SignaturePdfViewer({
     y: number,
   ) => {
     setTextBoxes((prev) =>
-      prev.map((box) =>
-        box.id === id ? { ...box, width, height, x, y } : box,
-      ),
+      prev.map((box) => {
+        if (box.id !== id) return box;
+
+        const page = pages.find((p) => p.pageNumber === box.pageNumber);
+        if (!page) return { ...box, width, height, x, y };
+
+        // Ensure minimum size
+        const minWidth = 50;
+        const minHeight = 30;
+        const clampedWidth = Math.max(minWidth, width);
+        const clampedHeight = Math.max(minHeight, height);
+
+        // Calculate rotated bounding box with new dimensions
+        const rotation = (box.rotation ?? 0) % 360;
+        const radians = (rotation * Math.PI) / 180;
+        const cos = Math.abs(Math.cos(radians));
+        const sin = Math.abs(Math.sin(radians));
+        const rotatedWidth = clampedWidth * cos + clampedHeight * sin;
+        const rotatedHeight = clampedWidth * sin + clampedHeight * cos;
+
+        // Calculate center point
+        const centerX = x + clampedWidth / 2;
+        const centerY = y + clampedHeight / 2;
+
+        // Clamp center to keep rotated box within bounds
+        const minCenterX = rotatedWidth / 2;
+        const maxCenterX = page.width - rotatedWidth / 2;
+        const minCenterY = rotatedHeight / 2;
+        const maxCenterY = page.height - rotatedHeight / 2;
+
+        const clampedCenterX = Math.min(
+          Math.max(centerX, minCenterX),
+          maxCenterX,
+        );
+        const clampedCenterY = Math.min(
+          Math.max(centerY, minCenterY),
+          maxCenterY,
+        );
+
+        // Convert back to top-left position
+        const clampedX = clampedCenterX - clampedWidth / 2;
+        const clampedY = clampedCenterY - clampedHeight / 2;
+
+        return {
+          ...box,
+          width: clampedWidth,
+          height: clampedHeight,
+          x: clampedX,
+          y: clampedY,
+        };
+      }),
     );
   };
 
@@ -1224,7 +1488,6 @@ export function SignaturePdfViewer({
                         key={box.id}
                         size={{ width: box.width, height: box.height }}
                         position={{ x: box.x, y: box.y }}
-                        bounds="parent"
                         minWidth={50}
                         minHeight={30}
                         disableDragging={
@@ -1324,7 +1587,6 @@ export function SignaturePdfViewer({
                         key={box.id}
                         size={{ width: box.width, height: box.height }}
                         position={{ x: box.x, y: box.y }}
-                        bounds="parent"
                         minWidth={60}
                         minHeight={30}
                         disableDragging={

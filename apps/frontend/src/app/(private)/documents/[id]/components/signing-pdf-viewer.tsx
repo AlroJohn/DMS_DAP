@@ -4,7 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf";
 import { useQuery } from "@tanstack/react-query";
-import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
+import {
+  PDFDocument,
+  StandardFonts,
+  rgb,
+  degrees,
+  type PDFFont,
+} from "pdf-lib";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,6 +53,7 @@ export interface SignaturePlaceholder {
   page_number: number;
   assigned_user_id?: string | null;
   department_id?: string | null;
+  rotation?: number;
 }
 
 export interface TextPlaceholder {
@@ -64,6 +71,7 @@ export interface TextPlaceholder {
   text_value?: string | null;
   assigned_user_id?: string | null;
   department_id?: string | null;
+  rotation?: number;
 }
 
 interface SigningPdfViewerProps {
@@ -1153,6 +1161,7 @@ export function SigningPdfViewer({
             width: number;
             height: number;
             dataUrl: string;
+            rotation?: number;
           }
         >();
 
@@ -1169,6 +1178,16 @@ export function SigningPdfViewer({
 
         for (const signature of existingSignaturesForFile) {
           const key = `${signature.pageNumber}-${signature.x}-${signature.y}-${signature.width}-${signature.height}`;
+          const matchingPlaceholder = filePlaceholdersForTarget.find((p) => {
+            const EPSILON = 0.5;
+            return (
+              p.page_number === signature.pageNumber &&
+              Math.abs(p.x_position - signature.x) <= EPSILON &&
+              Math.abs(p.y_position - signature.y) <= EPSILON &&
+              Math.abs(p.width - signature.width) <= EPSILON &&
+              Math.abs(p.height - signature.height) <= EPSILON
+            );
+          });
           signatureEntries.set(key, {
             pageNumber: signature.pageNumber,
             x: signature.x,
@@ -1176,6 +1195,7 @@ export function SigningPdfViewer({
             width: signature.width,
             height: signature.height,
             dataUrl: signature.signatureData || "",
+            rotation: matchingPlaceholder?.rotation ?? 0,
           });
         }
 
@@ -1195,6 +1215,7 @@ export function SigningPdfViewer({
             width: placeholder.width,
             height: placeholder.height,
             dataUrl,
+            rotation: placeholder.rotation ?? 0,
           });
         }
 
@@ -1242,6 +1263,10 @@ export function SigningPdfViewer({
 
           const renderWidth = signature.width;
           const renderHeight = signature.height;
+          const rotation = signature.rotation ?? 0;
+
+          // Convert from top-left coordinates (UI) to bottom-left (PDF)
+          // For unrotated: x stays same, y inverts
           const x = signature.x;
           const y = pageHeight - signature.y - renderHeight;
 
@@ -1266,12 +1291,44 @@ export function SigningPdfViewer({
             ? await pdfDoc.embedPng(sigBytes)
             : await pdfDoc.embedJpg(sigBytes);
 
-          page.drawImage(image, {
-            x,
-            y,
-            width: renderWidth,
-            height: renderHeight,
-          });
+          // pdf-lib rotates around bottom-left corner
+          // To match CSS rotation around center, we need to adjust position
+          if (rotation !== 0) {
+            const radians = (rotation * Math.PI) / 180;
+            const cos = Math.cos(radians);
+            const sin = Math.sin(radians);
+
+            // Calculate center of the box in UI coordinates
+            const centerX = signature.x + renderWidth / 2;
+            const centerY = signature.y + renderHeight / 2;
+
+            // After rotation, calculate where bottom-left should be to keep center fixed
+            const rotatedX =
+              centerX - (renderWidth * cos - renderHeight * sin) / 2;
+            const rotatedY =
+              centerY - (renderWidth * sin + renderHeight * cos) / 2;
+
+            // Convert to PDF coordinates
+            const pdfX = rotatedX;
+            const pdfY =
+              pageHeight - rotatedY - (renderWidth * sin + renderHeight * cos);
+
+            page.drawImage(image, {
+              x: pdfX,
+              y: pdfY,
+              width: renderWidth,
+              height: renderHeight,
+              rotate: degrees(rotation),
+            });
+          } else {
+            // No rotation - use simple coordinates
+            page.drawImage(image, {
+              x,
+              y,
+              width: renderWidth,
+              height: renderHeight,
+            });
+          }
         }
 
         for (const entry of textEntries) {
@@ -1279,6 +1336,7 @@ export function SigningPdfViewer({
           const { width: pageWidth, height: pageHeight } = page.getSize();
           const boxWidth = entry.placeholder.width;
           const boxHeight = entry.placeholder.height;
+          const rotation = entry.placeholder.rotation ?? 0;
           const fontName = resolvePdfFont(entry.placeholder.font_family);
           const font = await getFont(fontName);
           const baseSize = Math.max(6, entry.placeholder.font_size || 12);
@@ -1289,25 +1347,59 @@ export function SigningPdfViewer({
               : baseSize;
           const textWidth = font.widthOfTextAtSize(entry.text, size);
           const textHeight = font.heightAtSize(size);
-          const x = entry.placeholder.x_position + (boxWidth - textWidth) / 2;
-          const y =
-            pageHeight -
-            entry.placeholder.y_position -
-            boxHeight +
-            (boxHeight - textHeight) / 2;
-          const { r, g, b } = hexToRgb(entry.placeholder.font_color);
 
           if (boxWidth > pageWidth || boxHeight > pageHeight) {
             throw new Error("Text placement is outside the page bounds.");
           }
 
-          page.drawText(entry.text, {
-            x,
-            y,
-            size,
-            font,
-            color: rgb(r / 255, g / 255, b / 255),
-          });
+          const { r, g, b } = hexToRgb(entry.placeholder.font_color);
+
+          // Center text within the box
+          const textX =
+            entry.placeholder.x_position + (boxWidth - textWidth) / 2;
+          const textY =
+            entry.placeholder.y_position + (boxHeight - textHeight) / 2;
+
+          if (rotation !== 0) {
+            // For rotated text, calculate position similar to images
+            const radians = (rotation * Math.PI) / 180;
+            const cos = Math.cos(radians);
+            const sin = Math.sin(radians);
+
+            // Center of the text box in UI coordinates
+            const centerX = textX + textWidth / 2;
+            const centerY = textY + textHeight / 2;
+
+            // Adjust for pdf-lib's bottom-left rotation point
+            const rotatedX = centerX - (textWidth * cos - textHeight * sin) / 2;
+            const rotatedY = centerY - (textWidth * sin + textHeight * cos) / 2;
+
+            // Convert to PDF coordinates (bottom-left origin)
+            const pdfX = rotatedX;
+            const pdfY =
+              pageHeight - rotatedY - (textWidth * sin + textHeight * cos);
+
+            page.drawText(entry.text, {
+              x: pdfX,
+              y: pdfY,
+              size,
+              font,
+              color: rgb(r / 255, g / 255, b / 255),
+              rotate: degrees(rotation),
+            });
+          } else {
+            // No rotation - use standard coordinates
+            const x = textX;
+            const y = pageHeight - textY - textHeight;
+
+            page.drawText(entry.text, {
+              x,
+              y,
+              size,
+              font,
+              color: rgb(r / 255, g / 255, b / 255),
+            });
+          }
         }
 
         const pdfBytes: Uint8Array = await pdfDoc.save();
@@ -1965,6 +2057,8 @@ export function SigningPdfViewer({
                             width: placeholder.width * pageScaleX,
                             height: placeholder.height * pageScaleY,
                             zIndex: 10, // Ensure it's on top
+                            transform: `rotate(${placeholder.rotation ?? 0}deg)`,
+                            transformOrigin: "center",
                           }}
                           className={cn(
                             "group rounded-md border-2 border-dashed transition-all flex items-center justify-center",
@@ -2036,6 +2130,8 @@ export function SigningPdfViewer({
                             width: placeholder.width * pageScaleX,
                             height: placeholder.height * pageScaleY,
                             zIndex: 8,
+                            transform: `rotate(${placeholder.rotation ?? 0}deg)`,
+                            transformOrigin: "center",
                           }}
                           className={cn(
                             "rounded-md border-2 border-dashed bg-transparent flex items-center justify-center",
