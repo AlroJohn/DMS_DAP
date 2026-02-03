@@ -329,7 +329,7 @@ function getSettingDescription(sectionKey: string): string {
     documents:
       "Document management including owned, shared, and archived documents",
     management:
-      "System management for document types, actions, departments, users, and roles",
+      "System management for document types, actions, process types, departments, users, and roles",
     search: "Document search and saved searches",
     notifications: "System notifications and alerts",
     "sidebar settings": "Control sidebar section visibility (superadmin only)",

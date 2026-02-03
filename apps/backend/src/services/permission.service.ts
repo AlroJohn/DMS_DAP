@@ -309,4 +309,18 @@ export class PermissionService {
   async canViewDocuments(userId: string): Promise<boolean> {
     return this.hasPermission(userId, 'document_read');
   }
+
+  /**
+   * Check if user can manage process types
+   */
+  async canManageProcessTypes(userId: string): Promise<boolean> {
+    return this.hasAnyPermission(userId, ['process_type_create', 'process_type_edit', 'process_type_delete']);
+  }
+
+  /**
+   * Check if user can view process types
+   */
+  async canViewProcessTypes(userId: string): Promise<boolean> {
+    return this.hasPermission(userId, 'process_type_read');
+  }
 }

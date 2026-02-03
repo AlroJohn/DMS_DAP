@@ -267,7 +267,11 @@ async function main() {
       { id: 'document_action_read', description: 'View document action types' },
       { id: 'document_action_create', description: 'Create document action types' },
       { id: 'document_action_edit', description: 'Edit document action types' },
-      { id: 'document_action_delete', description: 'Delete document action types' }
+      { id: 'document_action_delete', description: 'Delete document action types' },
+      { id: 'process_type_read', description: 'View process types' },
+      { id: 'process_type_create', description: 'Create process types' },
+      { id: 'process_type_edit', description: 'Edit process types' },
+      { id: 'process_type_delete', description: 'Delete process types' }
     ];
 
     // Create permissions that don't exist yet (outside transaction to avoid timeout)
@@ -404,6 +408,7 @@ async function main() {
       document: 'document_',
       document_type: 'document_type_',
       document_action: 'document_action_',
+      process_type: 'process_type_',
       notification: 'notification_',
       report: 'report_',
       user: 'user_',
@@ -477,7 +482,7 @@ async function main() {
       })
     );
 
-    // PRESIDENT Role: Documents, Search, Reports, Notification, Management (Types, Actions, Users only)
+    // PRESIDENT Role: Documents, Search, Reports, Notification, Management (Types, Actions, Users only - NO process_type)
     const departmentHeadPermissions = uniquePermissionIds(
       allPermissions.filter(permission => {
         const permStr = normalizePermission(permission.permission);

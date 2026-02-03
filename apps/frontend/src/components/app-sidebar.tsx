@@ -112,6 +112,10 @@ const data = {
           url: "/management/document-action",
         },
         {
+          title: "Process Types",
+          url: "/management/process-type",
+        },
+        {
           title: "Departments",
           url: "/management/department",
         },
@@ -382,6 +386,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           const managementPermissions = [
             "document_type_read",
             "document_action_read",
+            "process_type_read",
             "department_read",
             "user_read",
             "role_read",
@@ -396,6 +401,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               }
               if (subItem.url?.includes("/document-action")) {
                 return hasPermission(user, "document_action_read");
+              }
+              if (subItem.url?.includes("/process-type")) {
+                return hasPermission(user, "process_type_read");
               }
               if (subItem.url?.includes("/department")) {
                 // Hide Departments for SECRETARY role (they have permission for API access but not sidebar access)
