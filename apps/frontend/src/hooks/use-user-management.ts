@@ -135,7 +135,7 @@ export const useUserManagement = () => {
     hasRole('ADMIN1') ||
     hasRole('ADMIN2') ||
     hasRole('ADMIN3');
-  const isDepartmentHead = hasRole('DEPARTMENT_HEAD');
+  const isDepartmentHead = hasRole('PRESIDENT');
   const canReadUsers = Boolean(currentUser?.permissions?.includes('user_read'));
 
   const userHasRole = (user: User, roleCode: string) => {

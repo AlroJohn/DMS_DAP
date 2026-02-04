@@ -112,6 +112,10 @@ const data = {
           url: "/management/document-action",
         },
         {
+          title: "Process Types",
+          url: "/management/process-type",
+        },
+        {
           title: "Departments",
           url: "/management/department",
         },
@@ -382,6 +386,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           const managementPermissions = [
             "document_type_read",
             "document_action_read",
+            "process_type_read",
             "department_read",
             "user_read",
             "role_read",
@@ -397,9 +402,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               if (subItem.url?.includes("/document-action")) {
                 return hasPermission(user, "document_action_read");
               }
+              if (subItem.url?.includes("/process-type")) {
+                return hasPermission(user, "process_type_read");
+              }
               if (subItem.url?.includes("/department")) {
-                // Hide Departments for USER role (they have permission for API access but not sidebar access)
-                const isUserRole = user?.roles?.some((role: any) => role.code === "USER");
+                // Hide Departments for SECRETARY role (they have permission for API access but not sidebar access)
+                const isUserRole = user?.roles?.some((role: any) => role.code === "SECRETARY");
                 return hasPermission(user, "department_read") && !isUserRole;
               }
               if (subItem.url?.includes("/user-management")) {

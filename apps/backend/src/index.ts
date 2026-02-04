@@ -31,6 +31,7 @@ import permissionRoutes from './routes/permission.routes';
 import departmentRoutes from './routes/department.route';
 import documentTypeRoutes from './routes/document-type.route';
 import documentActionRoutes from './routes/document-action.route';
+import processTypeRoutes from './routes/process-type.routes';
 import userRoutes from './routes/user.routes';
 import doconChainRoutes from './routes/doconchain.routes';
 import searchRoutes from './routes/search.routes';
@@ -248,6 +249,7 @@ app.use('/api/admin/permissions', permissionRoutes);
 app.use('/api/admin/departments', departmentRoutes);
 app.use('/api/admin/document-types', documentTypeRoutes);
 app.use('/api/admin/document-actions', documentActionRoutes);
+app.use('/api/process-type', processTypeRoutes);
 // Document sharing user search - separate route for document sharing
 import userSearchRoutes from './routes/user-search.routes';
 

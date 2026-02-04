@@ -13,8 +13,9 @@ async function main() {
       'superadmin3@dms.com',
     ];
     const seededSuperAdminEmails: string[] = [];
-    const seededUserAccountEmails: string[] = [];
-    const seededDepartmentHeadEmails: string[] = [];
+    const seededAdminAccountEmails: string[] = [];
+    const seededPresidentAccountEmails: string[] = [];
+    const seededSecretaryAccountEmails: string[] = [];
     // Step 1: Clear existing superadmin if exists
     console.log('🧹 Checking for existing superadmin...');
     for (const email of superAdminEmails) {
@@ -93,13 +94,39 @@ async function main() {
     let tempDepartment = await prisma.department.findFirst();
 
     if (!tempDepartment) {
+      // Ensure base groups exist for department assignment
+      const baseGroups = [
+        { name: 'Administration', code: 'ADMIN' },
+        { name: 'Office of the President', code: 'OPG' },
+        { name: 'Corporate Affairs Group', code: 'CAG' },
+        { name: 'Graduate School of Public and Development Management', code: 'GSPDM' },
+        { name: 'Program Operations Group', code: 'POG' },
+        { name: 'Services Group', code: 'SG' }
+      ];
+      for (const group of baseGroups) {
+        await prisma.group.upsert({
+          where: { code: group.code },
+          update: {},
+          create: {
+            name: group.name,
+            code: group.code,
+            active: true,
+            created_by: '00000000-0000-0000-0000-000000000000'
+          }
+        });
+      }
+      const defaultGroup = await prisma.group.findUnique({ where: { code: 'ADMIN' } });
+      if (!defaultGroup) {
+        throw new Error('OPG group not found for temp department creation');
+      }
       tempDepartment = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const dept = await tx.department.create({
           data: {
             name: 'Administration',
             code: 'ADMIN',
             active: true,
-            created_by: '00000000-0000-0000-0000-000000000000'  // Will be a placeholder
+            created_by: '00000000-0000-0000-0000-000000000000',  // Will be a placeholder
+            group_id: defaultGroup.group_id
           }
         });
         console.log('✅ Created temporary department');
@@ -109,7 +136,7 @@ async function main() {
       console.log('✅ Using existing department');
     }
 
-    // Step 3: Create the Super Admin account and user
+    // Step 4: Create the Super Admin account and user
     console.log('👑 Creating Super Admin account...');
     const superAdminPassword = await bcrypt.hash('admin123', 12); // Use strong password in production
 
@@ -143,12 +170,16 @@ async function main() {
         where: { department_id: tempDepartment.department_id },
         data: { created_by: account.account_id }
       });
+      await tx.group.updateMany({
+        where: { created_by: '00000000-0000-0000-0000-000000000000' },
+        data: { created_by: account.account_id }
+      });
 
       return account;
     });
     seededSuperAdminEmails.push(superAdminAccount.email);
 
-    // Step 4: Create permission definitions if they don't exist
+    // Step 5: Create permission definitions if they don't exist
     console.log('🔐 Creating permission definitions...');
 
     // Define all permissions with friendly descriptions
@@ -236,7 +267,11 @@ async function main() {
       { id: 'document_action_read', description: 'View document action types' },
       { id: 'document_action_create', description: 'Create document action types' },
       { id: 'document_action_edit', description: 'Edit document action types' },
-      { id: 'document_action_delete', description: 'Delete document action types' }
+      { id: 'document_action_delete', description: 'Delete document action types' },
+      { id: 'process_type_read', description: 'View process types' },
+      { id: 'process_type_create', description: 'Create process types' },
+      { id: 'process_type_edit', description: 'Edit process types' },
+      { id: 'process_type_delete', description: 'Delete process types' }
     ];
 
     // Create permissions that don't exist yet (outside transaction to avoid timeout)
@@ -266,7 +301,7 @@ async function main() {
       }
     }
 
-    // Step 5: Create Super Admin role
+    // Step 6: Create Super Admin role
     console.log('👥 Creating Super Admin role...');
     let superAdminRole = await prisma.role.findUnique({
       where: { code: 'SUPER_ADMIN' }
@@ -290,7 +325,7 @@ async function main() {
     } else {
       console.log('✅ Using existing Super Admin role');
     }
-    // Step 5b: Create core system roles
+    // Step 6b: Create core system roles
     console.log('?? Creating core system roles...');
     const coreRoles = [
       {
@@ -299,13 +334,13 @@ async function main() {
         description: 'Global administrator with full system access'
       },
       {
-        name: 'Department Head',
-        code: 'DEPARTMENT_HEAD',
+        name: 'President',
+        code: 'PRESIDENT',
         description: 'Can access transactions for all users within the department'
       },
       {
-        name: 'User',
-        code: 'USER',
+        name: 'Secretary',
+        code: 'SECRETARY',
         description: 'Standard user with access to own transactions'
       }
     ];
@@ -330,7 +365,7 @@ async function main() {
       }
     }
 
-    // Step 6: Get all permissions and assign them to Super Admin role
+    // Step 7: Get all permissions and assign them to Super Admin role
     console.log('🔗 Assigning all permissions to Super Admin role...');
     const allPermissions = await prisma.permissionDefinition.findMany({
       where: { is_active: true }
@@ -367,12 +402,13 @@ async function main() {
       }
     });
 
-    // Step 6b: Assign permissions to core roles
+    // Step 7b: Assign permissions to core roles
     console.log('📋 Assigning permissions to core roles...');
     const permissionPrefix = {
       document: 'document_',
       document_type: 'document_type_',
       document_action: 'document_action_',
+      process_type: 'process_type_',
       notification: 'notification_',
       report: 'report_',
       user: 'user_',
@@ -425,7 +461,7 @@ async function main() {
       console.log(`✅ Assigned ${permissionIds.length} permissions to ${roleCode}`);
     };
 
-    // USER Role: Documents, Search, Reports, Notification (exclude management permissions except read-only)
+    // SECRETARY Role: Documents, Search, Reports, Notification (exclude management permissions except read-only)
     const userPermissions = uniquePermissionIds(
       allPermissions.filter(permission => {
         const permStr = normalizePermission(permission.permission);
@@ -446,7 +482,7 @@ async function main() {
       })
     );
 
-    // DEPARTMENT_HEAD Role: Documents, Search, Reports, Notification, Management (Types, Actions, Users only)
+    // PRESIDENT Role: Documents, Search, Reports, Notification, Management (Types, Actions, Users only - NO process_type)
     const departmentHeadPermissions = uniquePermissionIds(
       allPermissions.filter(permission => {
         const permStr = normalizePermission(permission.permission);
@@ -471,11 +507,11 @@ async function main() {
       })
     );
 
-    await assignPermissionsToRole('USER', userPermissions);
-    await assignPermissionsToRole('DEPARTMENT_HEAD', departmentHeadPermissions);
+    await assignPermissionsToRole('SECRETARY', userPermissions);
+    await assignPermissionsToRole('PRESIDENT', departmentHeadPermissions);
     await assignPermissionsToRole('ADMINISTRATOR', administratorPermissions);
 
-    // Step 7: Get Super Admin user and assign role
+    // Step 8: Get Super Admin user and assign role
     const superAdminUser = await prisma.user.findFirst({
       where: { account_id: superAdminAccount.account_id }
     });
@@ -545,7 +581,7 @@ async function main() {
     console.log('- API access (read, write, delete, admin)');
     console.log('- Notification management (read, send, manage)');
 
-    // Step 7b: Create additional Super Admin accounts
+    // Step 8b: Create additional Super Admin accounts
     if (superAdminEmails.length > 1) {
       console.log('\n👑 Creating additional Super Admin accounts...');
     }
@@ -592,39 +628,166 @@ async function main() {
       seededSuperAdminEmails.push(extraAccount.account.email);
     }
 
-    // Step 8: Create additional departments for realistic workflow
-    console.log('\n🏢 Creating additional departments for workflow simulation...');
-    const additionalDepartments = [
-      { name: 'Office of the President', code: 'OPG' },
-      { name: 'Corporate Affairs Group', code: 'CAG' },
-      { name: 'Graduate School of Public and Development Management', code: 'GSPDM' },
-      { name: 'Program Operations Group', code: 'POG' },
-      { name: 'Services Group', code: 'SG' }
+    // Step 9: Create groups, centers, and departments for workflow simulation
+    console.log('\n🏢 Creating groups, centers, and departments for workflow simulation...');
+    const groupDefinitions = [
+      {
+        name: 'Administration',
+        code: 'ADMIN',
+        departments: [],
+        centers: []
+      },
+      {
+        name: 'Office of the President',
+        code: 'OPG',
+        departments: [
+          'OPCEO',
+          'APO DAPSec',
+          'BOARDSEC',
+          'COF',
+          'DRDO',
+          'LSO',
+          'OAR',
+          'OAR-Linang'
+        ],
+        centers: []
+      },
+      {
+        name: 'Corporate Affairs Group',
+        code: 'CAG',
+        departments: [
+          'OVP-CAG',
+          'IAS',
+          'DAPCC',
+          'DAPCC-EMS',
+          'DAPCC-FBS',
+          'DAPCC-FMSO',
+          'DAPCC-RFS',
+          'DAPCC-SS',
+          'IMC',
+          'IMSO',
+          'PMSO'
+        ],
+        centers: []
+      },
+      {
+        name: 'Graduate School of Public and Development Management',
+        code: 'GSPDM',
+        departments: [
+          'DEAN-GSPDM',
+          'LIBRARY',
+          'HGSPC',
+          'SDRLGC',
+          'SGDC'
+        ],
+        centers: []
+      },
+      {
+        name: 'Program Operations Group',
+        code: 'POG',
+        departments: ['OSVP-P'],
+        centers: [
+          { code: 'CCD', departments: ['OVP-CCD', 'AAO', 'JEDO', 'SEDO'] },
+          { code: 'CSF', departments: ['CSF'] },
+          { code: 'CFG', departments: ['OVP-CFG', 'AO25SEC', 'COE-PSP', 'LGDO', 'OMO', 'PRO'] },
+          { code: 'DSM', departments: ['DSM'] },
+          { code: 'PDC', departments: ['OVP-PDC', 'AIDO', 'GQMP', 'MGRP', 'PDRO', 'PQTO', 'TMO'] },
+          { code: 'SHDP', departments: ['SHDP', 'HDU', 'ESDU'] }
+        ]
+      },
+      {
+        name: 'Services Group',
+        code: 'SG',
+        departments: ['OSVP-S'],
+        centers: [
+          { code: 'AD', departments: ['ODM-AD', 'BacSec', 'CDRD', 'CS', 'GSD', 'ICTD', 'LD'] },
+          { code: 'FD', departments: ['ODM-FD', 'AD', 'BD', 'TD'] },
+          { code: 'HRMDD', departments: ['ODM-HRMDD', 'HRD', 'HRM'] }
+        ]
+      }
     ];
 
-    const createdDepartments = [tempDepartment]; // Start with the existing department
-    for (const dept of additionalDepartments) {
-      const existingDept = await prisma.department.findUnique({
-        where: { code: dept.code }
-      });
+    const createdDepartments = [tempDepartment];
+    const createdCenters = new Map<string, any>();
 
-      if (!existingDept) {
-        const newDept = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-          const deptCreated = await tx.department.create({
-            data: {
-              name: dept.name,
-              code: dept.code,
+    for (const groupDef of groupDefinitions) {
+      const group = await prisma.group.upsert({
+        where: { code: groupDef.code },
+        update: {
+          name: groupDef.name,
+          active: true
+        },
+        create: {
+          name: groupDef.name,
+          code: groupDef.code,
+          active: true,
+          created_by: superAdminAccount.account_id
+        }
+      });
+      for (const centerDef of groupDef.centers) {
+        const center = await prisma.center.upsert({
+          where: { code: centerDef.code },
+          update: {
+            name: centerDef.code,
+            active: true,
+            group_id: group.group_id
+          },
+          create: {
+            name: centerDef.code,
+            code: centerDef.code,
+            active: true,
+            group_id: group.group_id,
+            created_by: superAdminAccount.account_id
+          }
+        });
+        createdCenters.set(centerDef.code, center);
+      }
+
+      for (const deptCode of groupDef.departments) {
+        const department = await prisma.department.upsert({
+          where: { code: deptCode },
+          update: {
+            name: deptCode,
+            active: true,
+            group_id: group.group_id,
+            center_id: null
+          },
+          create: {
+            name: deptCode,
+            code: deptCode,
+            active: true,
+            created_by: superAdminAccount.account_id,
+            group_id: group.group_id
+          }
+        });
+        createdDepartments.push(department);
+      }
+
+      for (const centerDef of groupDef.centers) {
+        const center = createdCenters.get(centerDef.code);
+        if (!center) {
+          continue;
+        }
+        for (const deptCode of centerDef.departments) {
+          const department = await prisma.department.upsert({
+            where: { code: deptCode },
+            update: {
+              name: deptCode,
               active: true,
-              created_by: superAdminAccount.account_id
+              group_id: group.group_id,
+              center_id: center.center_id
+            },
+            create: {
+              name: deptCode,
+              code: deptCode,
+              active: true,
+              created_by: superAdminAccount.account_id,
+              group_id: group.group_id,
+              center_id: center.center_id
             }
           });
-          console.log(`✅ Created department: ${deptCreated.name}`);
-          return deptCreated;
-        });
-        createdDepartments.push(newDept);
-      } else {
-        createdDepartments.push(existingDept);
-        console.log(`✅ Using existing department: ${existingDept.name}`);
+          createdDepartments.push(department);
+        }
       }
     }
 
@@ -655,88 +818,20 @@ async function main() {
     }
 
     // Step 10: Create sample users for different departments
-    console.log('\n👥 Creating user accounts with USER role...');
-    const userRole = await prisma.role.findUnique({
-      where: { code: 'USER' }
+    console.log('\n👥 Creating accounts for groups, centers, and departments...');
+    const adminRole = await prisma.role.findUnique({
+      where: { code: 'ADMINISTRATOR' }
+    });
+    const presidentRole = await prisma.role.findUnique({
+      where: { code: 'PRESIDENT' }
+    });
+    const secretaryRole = await prisma.role.findUnique({
+      where: { code: 'SECRETARY' }
     });
 
-    if (!userRole) {
-      throw new Error('USER role not found. Ensure roles are seeded before users.');
+    if (!adminRole || !presidentRole || !secretaryRole) {
+      throw new Error('Required roles not found. Ensure roles are seeded before users.');
     }
-
-    const usersByDepartment: Record<string, string[]> = {
-      OPG: [
-        'OPCEO',
-        'APO DAPSec',
-        'BOARDSEC',
-        'COF',
-        'DRDO',
-        'LSO',
-        'OAR',
-        'OAR-Linang'
-      ],
-      CAG: [
-        'OVP-CAG',
-        'IAS',
-        'DAPCC',
-        'DAPCC-EMS',
-        'DAPCC-FBS',
-        'DAPCC-FMSO',
-        'DAPCC-RFS',
-        'DAPCC-SS',
-        'IMC',
-        'IMSO',
-        'PMSO'
-      ],
-      GSPDM: [
-        'DEAN-GSPDM',
-        'LIBRARY',
-        'HGSPC',
-        'SDRLGC',
-        'SGDC'
-      ],
-      POG: [
-        'OSVP-P',
-        'OVP-CCD',
-        'AAO',
-        'JEDO',
-        'SEDO',
-        'CSF',
-        'OVP-CFG',
-        'AO25SEC',
-        'COE-PSP',
-        'LGDO',
-        'OMO',
-        'PRO',
-        'DSM',
-        'OVP-PDC',
-        'AIDO',
-        'MGR',
-        'PDRO',
-        'PQTO',
-        'TMO',
-        'SHDP',
-        'HDU',
-        'ESDU'
-      ],
-      SG: [
-        'OSVP-S',
-        'ODM-AD',
-        'BacSec',
-        'CDRD',
-        'CS',
-        'GSD',
-        'ICTD',
-        'LD',
-        'ODM-FD',
-        'AD',
-        'BD',
-        'TD',
-        'ODM-HRMDD',
-        'HRD',
-        'HRM'
-      ]
-    };
 
     const createdUsers = [];
     const departmentsByCode = new Map(
@@ -746,163 +841,139 @@ async function main() {
     );
 
     const commonPassword = await bcrypt.hash('password123', 12);
+    const normalizeCode = (code: string) => code.toLowerCase().replace(/\s+/g, '');
 
-    for (const [departmentCode, codes] of Object.entries(usersByDepartment)) {
-      const dept = departmentsByCode.get(departmentCode);
-      if (!dept) {
-        console.log(`⚠️ Department not found for code ${departmentCode}, skipping users.`);
-        continue;
-      }
-
-      for (const code of codes) {
-        const email = `${code}`.toLowerCase().replace(/\s+/g, '') + '@dms.com';
-        const displayName = code.toUpperCase();
-        const userName = email.split('@')[0];
-
-        const userAccount = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-          const account = await tx.account.upsert({
-            where: { email },
-            create: {
-              email,
-              password: commonPassword,
-              email_verified: true,
-              is_active: true,
-              last_login: new Date(),
-              department_id: dept.department_id
-            },
-            update: {
-              department_id: dept.department_id,
-              is_active: true,
-              email_verified: true,
-              last_login: new Date()
-            }
-          });
-
-          const user = await tx.user.upsert({
-            where: { account_id: account.account_id },
-            create: {
-              account_id: account.account_id,
-              department_id: dept.department_id,
-              first_name: displayName,
-              last_name: 'User',
-              user_name: userName,
-              active: true
-            },
-            update: {
-              department_id: dept.department_id,
-              active: true,
-              user_name: userName
-            }
-          });
-
-          const existingUserRole = await tx.userRole.findFirst({
-            where: {
-              user_id: user.user_id,
-              role_id: userRole.role_id
-            }
-          });
-
-          if (!existingUserRole) {
-            await tx.userRole.create({
-              data: {
-                user_id: user.user_id,
-                role_id: userRole.role_id,
-                assigned_by: superAdminAccount.account_id,
-                is_active: true
-              }
-            });
+    const upsertAccountWithRole = async (params: {
+      email: string;
+      departmentId: string;
+      firstName: string;
+      lastName: string;
+      roleId: string;
+    }) => {
+      const userAccount = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        const account = await tx.account.upsert({
+          where: { email: params.email },
+          create: {
+            email: params.email,
+            password: commonPassword,
+            email_verified: true,
+            is_active: true,
+            last_login: new Date(),
+            department_id: params.departmentId
+          },
+          update: {
+            department_id: params.departmentId,
+            is_active: true,
+            email_verified: true,
+            last_login: new Date()
           }
-
-          return { account, user };
         });
 
-        createdUsers.push(userAccount.user);
-        seededUserAccountEmails.push(email);
-      }
-    }
+        const userName = params.email.split('@')[0];
+        const user = await tx.user.upsert({
+          where: { account_id: account.account_id },
+          create: {
+            account_id: account.account_id,
+            department_id: params.departmentId,
+            first_name: params.firstName,
+            last_name: params.lastName,
+            user_name: userName,
+            active: true
+          },
+          update: {
+            department_id: params.departmentId,
+            active: true,
+            user_name: userName
+          }
+        });
 
-    console.log('\n👥 Creating department head users...');
-    const departmentHeadRole = await prisma.role.findUnique({
-      where: { code: 'DEPARTMENT_HEAD' }
-    });
+        const existingUserRole = await tx.userRole.findFirst({
+          where: {
+            user_id: user.user_id,
+            role_id: params.roleId
+          }
+        });
 
-    if (!departmentHeadRole) {
-      throw new Error('DEPARTMENT_HEAD role not found. Ensure roles are seeded before users.');
-    }
+        if (!existingUserRole) {
+          await tx.userRole.create({
+            data: {
+              user_id: user.user_id,
+              role_id: params.roleId,
+              assigned_by: superAdminAccount.account_id,
+              is_active: true
+            }
+          });
+        }
 
-    const departmentHeadsByDepartment: Record<string, string[]> = {
-      POG: ['CCD', 'CSF', 'CFG', 'DSM', 'PDC', 'SHDP'],
-      SG: ['AD', 'FD', 'HRMDD']
+        return { account, user };
+      });
+
+      createdUsers.push(userAccount.user);
+      return userAccount.account.email;
     };
 
-    for (const [departmentCode, codes] of Object.entries(departmentHeadsByDepartment)) {
-      const dept = departmentsByCode.get(departmentCode);
-      if (!dept) {
-        console.log(`⚠️ Department not found for code ${departmentCode}, skipping department heads.`);
-        continue;
-      }
+    for (const groupDef of groupDefinitions) {
+      const groupAdminEmail = `${groupDef.code.toLowerCase()}-admin@dms.com`;
+      const groupDepartmentCode = groupDef.departments[0] ||
+        groupDef.centers.flatMap((centerDef) => centerDef.departments)[0];
+      const groupDepartment = groupDepartmentCode
+        ? departmentsByCode.get(groupDepartmentCode)
+        : tempDepartment;
 
-      for (const code of codes) {
-        const email = `${code}`.toLowerCase().replace(/\s+/g, '') + '-dh@dms.com';
-        const displayName = code.toUpperCase();
-        const userName = email.split('@')[0];
-
-        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-          const account = await tx.account.upsert({
-            where: { email },
-            create: {
-              email,
-              password: commonPassword,
-              email_verified: true,
-              is_active: true,
-              last_login: new Date(),
-              department_id: dept.department_id
-            },
-            update: {
-              department_id: dept.department_id,
-              is_active: true,
-              email_verified: true,
-              last_login: new Date()
-            }
-          });
-
-          const user = await tx.user.upsert({
-            where: { account_id: account.account_id },
-            create: {
-              account_id: account.account_id,
-              department_id: dept.department_id,
-              first_name: displayName,
-              last_name: 'Department Head',
-              user_name: userName,
-              active: true
-            },
-            update: {
-              department_id: dept.department_id,
-              active: true,
-              user_name: userName
-            }
-          });
-
-          const existingUserRole = await tx.userRole.findFirst({
-            where: {
-              user_id: user.user_id,
-              role_id: departmentHeadRole.role_id
-            }
-          });
-
-          if (!existingUserRole) {
-            await tx.userRole.create({
-              data: {
-                user_id: user.user_id,
-                role_id: departmentHeadRole.role_id,
-                assigned_by: superAdminAccount.account_id,
-                is_active: true
-              }
-            });
-          }
+      if (groupDepartment) {
+        const email = await upsertAccountWithRole({
+          email: groupAdminEmail,
+          departmentId: groupDepartment.department_id,
+          firstName: groupDef.code,
+          lastName: 'Admin',
+          roleId: adminRole.role_id
         });
-        seededDepartmentHeadEmails.push(email);
+        seededAdminAccountEmails.push(email);
       }
+
+      for (const centerDef of groupDef.centers) {
+        const centerAdminEmail = `${centerDef.code.toLowerCase()}-admin@dms.com`;
+        const centerDepartmentCode = centerDef.departments[0];
+        const centerDepartment = centerDepartmentCode
+          ? departmentsByCode.get(centerDepartmentCode)
+          : groupDepartment;
+        if (!centerDepartment) {
+          continue;
+        }
+
+        const email = await upsertAccountWithRole({
+          email: centerAdminEmail,
+          departmentId: centerDepartment.department_id,
+          firstName: centerDef.code,
+          lastName: 'Admin',
+          roleId: adminRole.role_id
+        });
+        seededAdminAccountEmails.push(email);
+      }
+    }
+
+    for (const [departmentCode, dept] of departmentsByCode.entries()) {
+      const normalized = normalizeCode(departmentCode);
+      const presidentEmail = `${normalized}-president@dms.com`;
+      const secretaryEmail = `${normalized}-secretary@dms.com`;
+
+      const presidentAccountEmail = await upsertAccountWithRole({
+        email: presidentEmail,
+        departmentId: dept.department_id,
+        firstName: departmentCode,
+        lastName: 'President',
+        roleId: presidentRole.role_id
+      });
+      seededPresidentAccountEmails.push(presidentAccountEmail);
+
+      const secretaryAccountEmail = await upsertAccountWithRole({
+        email: secretaryEmail,
+        departmentId: dept.department_id,
+        firstName: departmentCode,
+        lastName: 'Secretary',
+        roleId: secretaryRole.role_id
+      });
+      seededSecretaryAccountEmails.push(secretaryAccountEmail);
     }
 
     // Step 11: Create some document actions for testing
@@ -964,8 +1035,9 @@ async function main() {
 
     console.log('\n🧾 Seeded account summary:');
     console.log(`- Super Admin accounts: ${seededSuperAdminEmails.join(', ') || 'none'}`);
-    console.log(`- User accounts: ${seededUserAccountEmails.length}`);
-    console.log(`- Department Head accounts: ${seededDepartmentHeadEmails.length}`);
+    console.log(`- Admin accounts: ${seededAdminAccountEmails.length}`);
+    console.log(`- President accounts: ${seededPresidentAccountEmails.length}`);
+    console.log(`- Secretary accounts: ${seededSecretaryAccountEmails.length}`);
 
   } catch (error) {
     console.error('❌ Error during seeding:', error);

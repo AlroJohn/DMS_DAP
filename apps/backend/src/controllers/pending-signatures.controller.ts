@@ -19,12 +19,25 @@ export class PendingSignaturesController {
         });
       }
 
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { department_id: true }
+      });
+
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized"
+        });
+      }
+
       // Find signature placeholders assigned to this user
       const placeholders = await prisma.signaturePlaceholder.findMany({
         where: {
           OR: [
             { assigned_user_id: userId },
-            { assigned_user_id: null },
+            { assigned_user_id: null, department_id: user.department_id },
+            { assigned_user_id: null, department_id: null }
           ],
         },
         select: {
@@ -68,7 +81,11 @@ export class PendingSignaturesController {
         const userPlaceholders = await prisma.signaturePlaceholder.count({
           where: {
             document_id: documentId,
-            OR: [{ assigned_user_id: userId }, { assigned_user_id: null }],
+            OR: [
+              { assigned_user_id: userId },
+              { assigned_user_id: null, department_id: user.department_id },
+              { assigned_user_id: null, department_id: null }
+            ],
           },
         });
 

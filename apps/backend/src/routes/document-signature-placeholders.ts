@@ -55,7 +55,9 @@ router.post('/documents/:documentId/signature-placeholders/batch', async (req: R
         y_position: placeholder.y_position,
         width: placeholder.width,
         height: placeholder.height,
-        assigned_user_id: placeholder.assigned_user_id || null
+        rotation: placeholder.rotation ?? 0,
+        assigned_user_id: placeholder.assigned_user_id || null,
+        department_id: placeholder.department_id || null
       }))
     });
 
@@ -111,7 +113,15 @@ router.post('/documents/:documentId/signature-placeholders/batch', async (req: R
             : '';
           assignedUsers.push(`Placeholder ${i + 1}: ${placeholder.assigned_user.first_name} ${placeholder.assigned_user.last_name}${assignedUserDeptName ? ` (${assignedUserDeptName})` : ''}`);
         } else {
-          assignedUsers.push(`Placeholder ${i + 1}: Open (any user can sign)`);
+          const placeholderDeptName = placeholder.department_id
+            ? (await prisma.department.findUnique({
+                where: { department_id: placeholder.department_id },
+                select: { name: true }
+              }))?.name || ''
+            : '';
+          assignedUsers.push(
+            `Placeholder ${i + 1}: Open${placeholderDeptName ? ` (${placeholderDeptName})` : ' (any user can sign)'}`
+          );
         }
       }
       
@@ -151,13 +161,16 @@ router.post('/documents/:documentId/signature-placeholders/batch', async (req: R
       console.log(`⚠️  [Batch Placeholder] Skipping trail entry - user_id: ${user_id}, creatingUser: ${!!creatingUser}`);
     }
 
-    // Send notifications to assigned users
-    console.log(`📧 [Batch Placeholder] Sending notifications to assigned users`);
+    // Send notifications to assigned users or departments
+    console.log(`📧 [Batch Placeholder] Sending notifications to assigned users/departments`);
     const uniqueAssignedUserIds = new Set<string>();
+    const uniqueDepartmentIds = new Set<string>();
     
     placeholders.forEach(placeholder => {
       if (placeholder.assigned_user_id) {
         uniqueAssignedUserIds.add(placeholder.assigned_user_id);
+      } else if (placeholder.department_id) {
+        uniqueDepartmentIds.add(placeholder.department_id);
       }
     });
 
@@ -225,6 +238,52 @@ router.post('/documents/:documentId/signature-placeholders/batch', async (req: R
       console.log(`ℹ️  [Batch Placeholder] No assigned users to notify`);
     }
 
+    if (uniqueDepartmentIds.size > 0) {
+      const documentTitle = document.title || `Document ${documentId}`;
+      const departmentUsers = await prisma.user.findMany({
+        where: {
+          department_id: { in: Array.from(uniqueDepartmentIds) },
+          active: true
+        },
+        select: {
+          user_id: true,
+          department_id: true
+        }
+      });
+
+      const departmentUserIds = Array.from(
+        new Set(departmentUsers.map((user) => user.user_id))
+      );
+
+      console.log(`📧 [Batch Placeholder] Notifying ${departmentUserIds.length} department users`);
+
+      await Promise.all(
+        departmentUserIds.map((userId) =>
+          notificationService
+            .createNotification(
+              userId,
+              'Signature Required',
+              `You have been assigned to sign the document: ${documentTitle}`,
+              'workflow',
+              'signature_pending',
+              {
+                documentId,
+                documentTitle,
+                createdBy: creatingUser
+                  ? `${creatingUser.first_name} ${creatingUser.last_name}`
+                  : 'System'
+              }
+            )
+            .catch((error) => {
+              console.error(
+                `❌ [Batch Placeholder] Failed to notify department user ${userId}:`,
+                error
+              );
+            })
+        )
+      );
+    }
+
     res.status(201).json(placeholders);
   } catch (error) {
     console.error('Error creating signature placeholders (batch):', error);
@@ -263,7 +322,8 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
       width,
       height,
       user_id,
-      assigned_user_id
+      assigned_user_id,
+      department_id
     } = req.body;
 
     // Verify document and file exist
@@ -300,6 +360,16 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
       }
     }
 
+    if (department_id) {
+      const department = await prisma.department.findUnique({
+        where: { department_id }
+      });
+
+      if (!department) {
+        return res.status(404).json({ error: 'Department not found' });
+      }
+    }
+
     const placeholder = await prisma.signaturePlaceholder.create({
       data: {
         document_id: documentId,
@@ -309,7 +379,8 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
         y_position,
         width,
         height,
-        assigned_user_id: assigned_user_id || null
+        assigned_user_id: assigned_user_id || null,
+        department_id: department_id || null
       }
     });
 
@@ -357,12 +428,30 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
                 select: { name: true }
               }))?.name || 'Unknown Department'
             : 'Unknown Department';
-          
+
+          const targetDeptName = department_id
+            ? (await prisma.department.findUnique({
+                where: { department_id: department_id },
+                select: { name: true }
+              }))?.name || 'Unknown Department'
+            : null;
+
           placeholderDesc = `Added by: ${creatingUser.first_name} ${creatingUser.last_name}\n`;
           placeholderDesc += `Department: ${deptName}\n\n`;
-          placeholderDesc += `ASSIGNED TO:\nPlaceholder 1: Open (any user can sign)`;
+          placeholderDesc += `ASSIGNED TO:\nPlaceholder 1: Open${
+            targetDeptName ? ` (${targetDeptName})` : ' (any user can sign)'
+          }`;
         } else {
-          placeholderDesc = `ASSIGNED TO:\nPlaceholder 1: Open (any user can sign)`;
+          const targetDeptName = department_id
+            ? (await prisma.department.findUnique({
+                where: { department_id: department_id },
+                select: { name: true }
+              }))?.name || 'Unknown Department'
+            : null;
+
+          placeholderDesc = `ASSIGNED TO:\nPlaceholder 1: Open${
+            targetDeptName ? ` (${targetDeptName})` : ' (any user can sign)'
+          }`;
         }
       }
 
@@ -373,7 +462,7 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
       });
     }
 
-    // Send notification to assigned user if specified
+    // Send notification to assigned user or department
     if (assigned_user_id) {
       try {
         console.log(`📧 [Single Placeholder] Attempting to send notification to user ${assigned_user_id}`);
@@ -422,6 +511,48 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
         console.error(`❌ [Single Placeholder] Failed to send notification to user ${assigned_user_id}:`, notificationError);
         console.error(`❌ [Single Placeholder] Error details:`, notificationError instanceof Error ? notificationError.message : String(notificationError));
         // Continue even if notification fails
+      }
+    } else if (department_id) {
+      try {
+        const documentTitle = document.title || `Document ${documentId}`;
+        const departmentUsers = await prisma.user.findMany({
+          where: {
+            department_id: department_id,
+            active: true
+          },
+          select: { user_id: true }
+        });
+
+        await Promise.all(
+          departmentUsers.map((deptUser) =>
+            notificationService
+              .createNotification(
+                deptUser.user_id,
+                'Signature Required',
+                `You have been assigned to sign the document: ${documentTitle}`,
+                'workflow',
+                'signature_pending',
+                {
+                  documentId,
+                  documentTitle,
+                  createdBy: creatingUser
+                    ? `${creatingUser.first_name} ${creatingUser.last_name}`
+                    : 'System'
+                }
+              )
+              .catch((notificationError) => {
+                console.error(
+                  `❌ [Single Placeholder] Failed to notify department user ${deptUser.user_id}:`,
+                  notificationError
+                );
+              })
+          )
+        );
+      } catch (notificationError) {
+        console.error(
+          `❌ [Single Placeholder] Failed to send department notifications:`,
+          notificationError
+        );
       }
     }
 

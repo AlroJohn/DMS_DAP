@@ -58,6 +58,9 @@ const getPermissionGroup = (permission: PermissionDefinition) => {
   if (permissionName.startsWith("permission_")) {
     return "permission";
   }
+  if (permissionName.startsWith("process_type_")) {
+    return "process_type";
+  }
   if (permissionName.startsWith("system_")) {
     return "system";
   }

@@ -44,7 +44,11 @@ export const AlertModal: React.FC<AlertModalProps> = ({
             </Button>
           </AlertDialogCancel>
           <AlertDialogAction asChild>
-            <Button variant="destructive" disabled={loading} onClick={onConfirm}>
+            <Button
+              variant="destructive"
+              disabled={loading}
+              onClick={onConfirm}
+            >
               {loading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}

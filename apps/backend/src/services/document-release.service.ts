@@ -26,6 +26,7 @@ export class DocumentReleaseService {
             width: number;
             height: number;
             assigned_user_id?: string | null;
+            department_id?: string | null;
         }[],
         textPlaceholders?: {
             document_file_id: string;
@@ -39,7 +40,12 @@ export class DocumentReleaseService {
             font_color: string;
             text_value: string;
             assigned_user_id?: string | null;
-        }[]
+            department_id?: string | null;
+        }[],
+        options?: {
+            releaseActionSummary?: string[];
+            releaseActionByDepartment?: Record<string, string[]>;
+        }
     ) {
         // Validate UUID format
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -83,6 +89,7 @@ export class DocumentReleaseService {
                     width: sig.width,
                     height: sig.height,
                     assigned_user_id: sig.assigned_user_id || null,
+                    department_id: sig.department_id || departmentId,
                 }));
 
                 await prisma.signaturePlaceholder.createMany({
@@ -96,9 +103,17 @@ export class DocumentReleaseService {
                 const assignedUserIds = signatures
                     .map(sig => sig.assigned_user_id)
                     .filter((id): id is string => !!id);
+                const assignedDepartmentIds = signatures
+                    .map(sig => sig.department_id)
+                    .filter((id): id is string => !!id);
 
                 // Get unique user IDs
                 const uniqueUserIds = [...new Set(assignedUserIds)];
+                const uniqueDepartmentIds = [
+                    ...new Set(
+                        assignedDepartmentIds.length ? assignedDepartmentIds : [departmentId]
+                    )
+                ];
 
                 console.log(`📧 [Document Release] Unique assigned users: ${uniqueUserIds.length}`, uniqueUserIds);
 
@@ -143,6 +158,34 @@ export class DocumentReleaseService {
                         });
                     });
                     await Promise.all(notificationPromises);
+
+                    if (uniqueDepartmentIds.length > 0) {
+                        const deptUsers = await prisma.user.findMany({
+                            where: {
+                                department_id: { in: uniqueDepartmentIds },
+                                active: true
+                            },
+                            select: { user_id: true }
+                        });
+                        const deptUserIds = [...new Set(deptUsers.map(u => u.user_id))];
+                        const deptNotificationPromises = deptUserIds.map((deptUserId) => {
+                            return notificationService.createNotification(
+                                deptUserId,
+                                'Signature Required',
+                                `You have been assigned to sign the document: ${documentDetails?.title || 'Untitled'}`,
+                                'signature',
+                                'signature_pending',
+                                {
+                                    documentId,
+                                    documentTitle: documentDetails?.title
+                                }
+                            )
+                            .catch((error) => {
+                                console.error(`❌ [Document Release] Failed to notify department user ${deptUserId}:`, error);
+                            });
+                        });
+                        await Promise.all(deptNotificationPromises);
+                    }
                 };
 
                 await notifyPlaceholders();
@@ -169,6 +212,22 @@ export class DocumentReleaseService {
                 
                 // Collect assigned user information
                 const assignedUsers: string[] = [];
+                const departmentNameCache = new Map<string, string>();
+                const getDepartmentName = async (deptId?: string | null) => {
+                    if (!deptId) return null;
+                    if (departmentNameCache.has(deptId)) {
+                        return departmentNameCache.get(deptId) || null;
+                    }
+                    const dept = await prisma.department.findUnique({
+                        where: { department_id: deptId },
+                        select: { name: true }
+                    });
+                    const name = dept?.name || null;
+                    if (name) {
+                        departmentNameCache.set(deptId, name);
+                    }
+                    return name;
+                };
                 for (let i = 0; i < signatures.length; i++) {
                     const sig = signatures[i];
                     
@@ -199,7 +258,11 @@ export class DocumentReleaseService {
                             assignedUsers.push(`Placeholder ${i + 1}: Unknown User`);
                         }
                     } else {
-                        assignedUsers.push(`Placeholder ${i + 1}: Open (any user in ${toDeptName?.name || 'target department'})`);
+                        const targetDeptName =
+                            (await getDepartmentName(sig.department_id)) ||
+                            toDeptName?.name ||
+                            'target department';
+                        assignedUsers.push(`Placeholder ${i + 1}: Open (any user in ${targetDeptName})`);
                     }
                 }
                 
@@ -241,6 +304,7 @@ export class DocumentReleaseService {
                     font_color: textPlaceholder.font_color,
                     text_value: textPlaceholder.text_value,
                     assigned_user_id: textPlaceholder.assigned_user_id || null,
+                    department_id: textPlaceholder.department_id || departmentId,
                 }));
 
                 await prisma.textPlaceholder.createMany({
@@ -272,6 +336,11 @@ export class DocumentReleaseService {
                 : requestAction
                   ? [requestAction]
                   : [];
+            const releaseActionsSummary =
+                options?.releaseActionSummary && options.releaseActionSummary.length > 0
+                    ? options.releaseActionSummary
+                    : releaseActions;
+            const releaseActionByDepartment = options?.releaseActionByDepartment;
 
             // Check if the department is already in the workflow by looking at all values
             const workflowDepartments = Object.values(currentWorkflow);
@@ -344,9 +413,12 @@ export class DocumentReleaseService {
                 await prisma.documentAdditionalDetails.update({
                     where: { detail_id: currentDetail.detail_id },
                     data: {
-                        work_flow_id: currentWorkflow as any,
+                        work_flow_id: (currentWorkflow as any),
                         remarks: remarks || currentDetail.remarks,
-                        release_action: releaseActions,
+                        release_action: releaseActionsSummary,
+                        ...(releaseActionByDepartment
+                            ? { release_action_by_department: releaseActionByDepartment as any }
+                            : {}),
                         updated_at: new Date()
                     }
                 });
@@ -376,7 +448,10 @@ export class DocumentReleaseService {
                             document_id: documentId,
                             work_flow_id: newWorkflow as any,
                             remarks: remarks || null,
-                            release_action: releaseActions,
+                            release_action: releaseActionsSummary,
+                            ...(releaseActionByDepartment
+                                ? { release_action_by_department: releaseActionByDepartment as any }
+                                : {}),
                             account_id: user.account.account_id // Store the releasing user's account ID
                         }
                     });
@@ -391,7 +466,10 @@ export class DocumentReleaseService {
                             document_id: documentId,
                             work_flow_id: newWorkflow as any,
                             remarks: remarks || null,
-                            release_action: releaseActions,
+                            release_action: releaseActionsSummary,
+                            ...(releaseActionByDepartment
+                                ? { release_action_by_department: releaseActionByDepartment as any }
+                                : {}),
                             account_id: user?.account?.account_id || null // Try to store account_id if available
                         }
                     });
@@ -564,7 +642,8 @@ export class DocumentReleaseService {
       const latestTransitTrail = await prisma.documentTrail.findFirst({
         where: {
           document_id: documentId,
-          status: 'intransit'
+          status: 'intransit',
+          to_department: user.department_id
         },
         orderBy: {
           created_at: 'desc'
@@ -575,8 +654,8 @@ export class DocumentReleaseService {
         }
       });
 
-      if (latestTransitTrail?.to_department && latestTransitTrail.to_department !== user.department_id) {
-        console.error('[DocumentReleaseService.receiveDocument] Error: Document is not assigned to this user\'s department. Assigned to:', latestTransitTrail.to_department, 'User department:', user.department_id);
+      if (!latestTransitTrail) {
+        console.error('[DocumentReleaseService.receiveDocument] Error: Document is not assigned to this user\'s department. User department:', user.department_id);
         return { success: false, error: 'Document is not assigned to your department' };
       }
 
@@ -638,7 +717,8 @@ export class DocumentReleaseService {
       const latestTransitTrailForCheck = await prisma.documentTrail.findFirst({
         where: {
           document_id: documentId,
-          status: 'intransit'
+          status: 'intransit',
+          to_department: user.department_id
         },
         orderBy: {
           created_at: 'desc'
@@ -648,8 +728,8 @@ export class DocumentReleaseService {
         }
       });
 
-      if (latestTransitTrailForCheck?.to_department && latestTransitTrailForCheck.to_department !== user.department_id && !isSharedToUser) {
-        console.error('[DocumentReleaseService.receiveDocument] Error: Document is not assigned to this user\'s department. Assigned to:', latestTransitTrailForCheck.to_department, 'User department:', user.department_id);
+      if (!latestTransitTrailForCheck && !isSharedToUser) {
+        console.error('[DocumentReleaseService.receiveDocument] Error: Document is not assigned to this user\'s department. User department:', user.department_id);
         return { success: false, error: 'Document is not assigned to your department' };
       }
 

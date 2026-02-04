@@ -4,17 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Rnd } from "react-rnd";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,10 +18,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { DocumentFileMetadata } from "@/hooks/use-document-files";
 import { cn } from "@/lib/utils";
-import { ChevronsUpDown, Loader2, Move, X } from "lucide-react";
+import {
+  ChevronsUpDown,
+  Loader2,
+  Move,
+  RotateCcw,
+  RotateCw,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
-import { useUsers } from "@/hooks/use-users";
+import { getAccessToken } from "@/lib/token-utils";
 
 const PDFJS_WORKER_CDN =
   process.env.NEXT_PUBLIC_PDFJS_WORKER_URL ||
@@ -45,6 +47,33 @@ interface PdfPageRender {
   pdfHeight: number;
 }
 
+interface Department {
+  department_id: string;
+  group_id: string;
+  center_id?: string | null;
+  name: string;
+  code: string;
+  active: boolean;
+}
+
+interface Center {
+  center_id: string;
+  group_id: string;
+  name: string;
+  code: string;
+  active: boolean;
+  departments: Department[];
+}
+
+interface Group {
+  group_id: string;
+  name: string;
+  code: string;
+  active: boolean;
+  centers: Center[];
+  departments: Department[];
+}
+
 export interface SignatureBox {
   id: string;
   pageNumber: number;
@@ -52,8 +81,10 @@ export interface SignatureBox {
   y: number;
   width: number;
   height: number;
+  rotation?: number;
   isExisting?: boolean;
   assignedUserId?: string | null;
+  assignedDepartmentIds?: string[];
 }
 
 export interface TextBox {
@@ -67,8 +98,10 @@ export interface TextBox {
   fontSize: number;
   fontColor: string;
   text?: string;
+  rotation?: number;
   isExisting?: boolean;
   assignedUserId?: string | null;
+  assignedDepartmentIds?: string[];
 }
 
 interface SignaturePdfViewerProps {
@@ -103,6 +136,21 @@ const createId = () => {
   return Math.random().toString(36).slice(2);
 };
 
+const normalizeRotation = (value: number) => {
+  const normalized = value % 360;
+  return normalized < 0 ? normalized + 360 : normalized;
+};
+
+// Calculate the effective bounding box dimensions after rotation
+const getRotatedBounds = (width: number, height: number, rotation: number) => {
+  const rad = ((rotation || 0) * Math.PI) / 180;
+  const cos = Math.abs(Math.cos(rad));
+  const sin = Math.abs(Math.sin(rad));
+  const rotatedWidth = width * cos + height * sin;
+  const rotatedHeight = width * sin + height * cos;
+  return { width: rotatedWidth, height: rotatedHeight };
+};
+
 export function SignaturePdfViewer({
   documentId,
   files,
@@ -114,73 +162,175 @@ export function SignaturePdfViewer({
   onConfirm,
 }: SignaturePdfViewerProps) {
   const { user } = useAuth();
-  const { users, isLoading: isLoadingUsers } = useUsers();
+  const searchParams = useSearchParams();
   const currentDepartmentId =
     (user as { department_id?: string })?.department_id ||
     (user as { department?: { department_id?: string } })?.department
       ?.department_id ||
     null;
-
-  const departments = useMemo(() => {
-    if (!users?.length) return [];
-    const unique = new Map<string, string>();
-    users.forEach((u) => {
-      if (!u.department_id) return;
-      unique.set(u.department_id, u.department_name || "Unknown");
-    });
-    return Array.from(unique.entries()).map(([id, name]) => ({
-      id,
-      name,
-    }));
-  }, [users]);
-
-  const [selectedDepartmentId, setSelectedDepartmentId] = useState<
-    string | null
-  >(currentDepartmentId);
-  const [selectedAssigneeId, setSelectedAssigneeId] = useState<string | null>(
-    user?.user_id || null,
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loadingDepartments, setLoadingDepartments] = useState(false);
+  const [selectedDepartmentIds, setSelectedDepartmentIds] = useState<string[]>(
+    [],
   );
 
-  const usersForDepartment = useMemo(() => {
-    if (!users?.length || !selectedDepartmentId) return [];
-    return users.filter((u) => u.department_id === selectedDepartmentId);
-  }, [users, selectedDepartmentId]);
-
-  const userNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    users?.forEach((u) => {
-      const fullName = `${u.first_name} ${u.last_name}`.trim();
-      map.set(u.user_id, fullName || u.email);
-    });
-    return map;
-  }, [users]);
-
-  useEffect(() => {
-    if (!departments.length) return;
-    setSelectedDepartmentId((prev) => {
-      if (prev) return prev;
-      return currentDepartmentId || departments[0]?.id || null;
-    });
-  }, [currentDepartmentId, departments]);
-
-  useEffect(() => {
-    if (!usersForDepartment.length) {
-      setSelectedAssigneeId(null);
-      return;
+  const allowedDepartmentIds = useMemo(() => {
+    const ids = new Set<string>();
+    const single = searchParams?.get("releaseDepartmentId");
+    const list =
+      searchParams?.get("releaseDepartmentIds") ||
+      searchParams?.get("releaseDepartments");
+    if (single) ids.add(single);
+    if (list) {
+      list
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .forEach((value) => ids.add(value));
     }
-    setSelectedAssigneeId((prev) => {
-      if (prev && usersForDepartment.some((u) => u.user_id === prev)) {
-        return prev;
+    return Array.from(ids);
+  }, [searchParams]);
+
+  const fetchDepartments = async () => {
+    try {
+      setLoadingDepartments(true);
+      const token = getAccessToken();
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const response = await fetch("/api/admin/departments?hierarchy=true", {
+        credentials: "include",
+        headers,
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setGroups(result.data?.groups || []);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching departments:", error);
+    } finally {
+      setLoadingDepartments(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDepartments();
+  }, []);
+
+  const filteredGroups = useMemo(() => {
+    if (!allowedDepartmentIds.length) return groups;
+    const allowed = new Set(allowedDepartmentIds);
+
+    return groups
+      .map((group) => {
+        const filteredCenters = (group.centers || [])
+          .map((center) => {
+            const centerDepartments = (center.departments || []).filter(
+              (dept) => allowed.has(dept.department_id),
+            );
+            if (!centerDepartments.length) return null;
+            return { ...center, departments: centerDepartments };
+          })
+          .filter(Boolean) as Center[];
+
+        const filteredDepartments = (group.departments || []).filter((dept) =>
+          allowed.has(dept.department_id),
+        );
+
+        if (!filteredCenters.length && !filteredDepartments.length) {
+          return null;
+        }
+
+        return {
+          ...group,
+          centers: filteredCenters,
+          departments: filteredDepartments,
+        };
+      })
+      .filter(Boolean) as Group[];
+  }, [allowedDepartmentIds, groups]);
+
+  const allDepartmentIds = useMemo(() => {
+    const ids: string[] = [];
+    filteredGroups.forEach((group) => {
+      group.departments.forEach((dept) => ids.push(dept.department_id));
+      group.centers.forEach((center) => {
+        center.departments.forEach((dept) => ids.push(dept.department_id));
+      });
+    });
+    return ids;
+  }, [filteredGroups]);
+
+  useEffect(() => {
+    if (!filteredGroups.length) return;
+    setSelectedDepartmentIds((prev) => {
+      if (allowedDepartmentIds.length) {
+        const allowedSet = new Set(allowedDepartmentIds);
+        const next = allDepartmentIds.filter((id) => allowedSet.has(id));
+        return next.length ? next : prev;
+      }
+      if (prev.length) {
+        return prev.filter((id) => allDepartmentIds.includes(id));
       }
       if (
-        user?.user_id &&
-        usersForDepartment.some((u) => u.user_id === user.user_id)
+        currentDepartmentId &&
+        allDepartmentIds.includes(currentDepartmentId)
       ) {
-        return user.user_id;
+        return [currentDepartmentId];
       }
-      return usersForDepartment[0]?.user_id || null;
+      return [];
     });
-  }, [usersForDepartment, user?.user_id]);
+  }, [
+    allDepartmentIds,
+    allowedDepartmentIds,
+    currentDepartmentId,
+    filteredGroups,
+  ]);
+
+  const departmentNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    filteredGroups.forEach((group) => {
+      group.departments.forEach((dept) => {
+        map.set(dept.department_id, dept.name);
+      });
+      group.centers.forEach((center) => {
+        center.departments.forEach((dept) => {
+          map.set(dept.department_id, dept.name);
+        });
+      });
+    });
+    return map;
+  }, [filteredGroups]);
+
+  const getGroupDepartmentIds = (group: Group) => {
+    const groupDepartments = [
+      ...(group.departments || []),
+      ...group.centers.flatMap((center) => center.departments || []),
+    ];
+    return groupDepartments.map((dept) => dept.department_id);
+  };
+
+  const getCenterDepartmentIds = (center: Center) =>
+    (center.departments || []).map((dept) => dept.department_id);
+
+  const toggleSelection = (ids: string[], checked: boolean) => {
+    setSelectedDepartmentIds((prev) => {
+      const current = new Set(prev);
+      if (checked) {
+        ids.forEach((id) => current.add(id));
+      } else {
+        ids.forEach((id) => current.delete(id));
+      }
+      return Array.from(current);
+    });
+  };
   const pdfFiles = useMemo(
     () => files.filter((file) => isPdfLikeFile(file)),
     [files],
@@ -240,6 +390,11 @@ export function SignaturePdfViewer({
     "signature" | "text" | null
   >(null);
 
+  // State for rotation tracking
+  const [activeRotationElement, setActiveRotationElement] = useState<
+    string | null
+  >(null);
+
   const RENDER_SCALE = useMemo(() => 1.2, []);
   const TEXT_FONT_OPTIONS = useMemo(
     () => ["Arial", "Times New Roman", "Courier New", "Georgia"],
@@ -267,7 +422,9 @@ export function SignaturePdfViewer({
           y_position: number;
           width: number;
           height: number;
+          rotation?: number;
           assigned_user_id?: string | null;
+          department_id?: string | null;
         }>
       >;
     },
@@ -296,7 +453,9 @@ export function SignaturePdfViewer({
           font_size: number;
           font_color: string;
           text_value?: string | null;
+          rotation?: number;
           assigned_user_id?: string | null;
+          department_id?: string | null;
         }>
       >;
     },
@@ -357,8 +516,12 @@ export function SignaturePdfViewer({
           y: placeholder.y_position * scaleY,
           width: placeholder.width * scaleX,
           height: placeholder.height * scaleY,
+          rotation: placeholder.rotation ?? 0,
           isExisting: true,
           assignedUserId: placeholder.assigned_user_id || null,
+          assignedDepartmentIds: placeholder.department_id
+            ? [placeholder.department_id]
+            : undefined,
         };
       });
 
@@ -419,8 +582,12 @@ export function SignaturePdfViewer({
           fontSize: placeholder.font_size || DEFAULT_TEXT_SIZE,
           fontColor: placeholder.font_color || DEFAULT_TEXT_COLOR,
           text: placeholder.text_value || "",
+          rotation: placeholder.rotation ?? 0,
           isExisting: true,
           assignedUserId: placeholder.assigned_user_id || null,
+          assignedDepartmentIds: placeholder.department_id
+            ? [placeholder.department_id]
+            : undefined,
         };
       });
 
@@ -592,8 +759,8 @@ export function SignaturePdfViewer({
     if (!placementMode || !pages.length) return;
     const targetPage = pages.find((p) => p.pageNumber === activePage);
     if (!targetPage) return;
-    if (!selectedAssigneeId) {
-      toast.error("Select a user to assign this placeholder.");
+    if (!selectedDepartmentIds.length) {
+      toast.error("Select at least one department to assign this placeholder.");
       return;
     }
 
@@ -618,8 +785,10 @@ export function SignaturePdfViewer({
         y,
         width: defaultWidth,
         height: defaultHeight,
+        rotation: 0,
         isExisting: false,
-        assignedUserId: selectedAssigneeId,
+        assignedUserId: null,
+        assignedDepartmentIds: [...selectedDepartmentIds],
       };
 
       setBoxes((prev) => [...prev, newBox]);
@@ -635,8 +804,10 @@ export function SignaturePdfViewer({
         fontSize: DEFAULT_TEXT_SIZE,
         fontColor: DEFAULT_TEXT_COLOR,
         text: "",
+        rotation: 0,
         isExisting: false,
-        assignedUserId: selectedAssigneeId,
+        assignedUserId: null,
+        assignedDepartmentIds: [...selectedDepartmentIds],
       };
 
       setTextBoxes((prev) => [...prev, newTextBox]);
@@ -647,13 +818,261 @@ export function SignaturePdfViewer({
 
   const handleUpdatePosition = (id: string, x: number, y: number) => {
     setBoxes((prev) =>
-      prev.map((box) => (box.id === id ? { ...box, x, y } : box)),
+      prev.map((box) => {
+        if (box.id !== id) return box;
+
+        const page = pages.find((p) => p.pageNumber === box.pageNumber);
+        if (!page) return { ...box, x, y };
+
+        // Calculate rotated bounding box
+        const rotation = (box.rotation ?? 0) % 360;
+        const radians = (rotation * Math.PI) / 180;
+        const cos = Math.abs(Math.cos(radians));
+        const sin = Math.abs(Math.sin(radians));
+        const rotatedWidth = box.width * cos + box.height * sin;
+        const rotatedHeight = box.width * sin + box.height * cos;
+
+        // Calculate center point
+        const centerX = x + box.width / 2;
+        const centerY = y + box.height / 2;
+
+        // Clamp center to keep rotated box within bounds
+        const minCenterX = rotatedWidth / 2;
+        const maxCenterX = page.width - rotatedWidth / 2;
+        const minCenterY = rotatedHeight / 2;
+        const maxCenterY = page.height - rotatedHeight / 2;
+
+        const clampedCenterX = Math.min(
+          Math.max(centerX, minCenterX),
+          maxCenterX,
+        );
+        const clampedCenterY = Math.min(
+          Math.max(centerY, minCenterY),
+          maxCenterY,
+        );
+
+        // Convert back to top-left position
+        const clampedX = clampedCenterX - box.width / 2;
+        const clampedY = clampedCenterY - box.height / 2;
+
+        return { ...box, x: clampedX, y: clampedY };
+      }),
     );
+  };
+
+  const handleUpdateRotation = (id: string, rotation: number) => {
+    setBoxes((prev) =>
+      prev.map((box) => {
+        if (box.id !== id) return box;
+
+        const normalizedRotation = normalizeRotation(rotation);
+        const page = pages.find((p) => p.pageNumber === box.pageNumber);
+        if (!page) return { ...box, rotation: normalizedRotation };
+
+        // Calculate new rotated bounding box
+        const radians = (normalizedRotation * Math.PI) / 180;
+        const cos = Math.abs(Math.cos(radians));
+        const sin = Math.abs(Math.sin(radians));
+        const rotatedWidth = box.width * cos + box.height * sin;
+        const rotatedHeight = box.width * sin + box.height * cos;
+
+        // Calculate current center
+        const centerX = box.x + box.width / 2;
+        const centerY = box.y + box.height / 2;
+
+        // Clamp center to keep rotated box within bounds
+        const minCenterX = rotatedWidth / 2;
+        const maxCenterX = page.width - rotatedWidth / 2;
+        const minCenterY = rotatedHeight / 2;
+        const maxCenterY = page.height - rotatedHeight / 2;
+
+        const clampedCenterX = Math.min(
+          Math.max(centerX, minCenterX),
+          maxCenterX,
+        );
+        const clampedCenterY = Math.min(
+          Math.max(centerY, minCenterY),
+          maxCenterY,
+        );
+
+        // Convert back to top-left position
+        const clampedX = clampedCenterX - box.width / 2;
+        const clampedY = clampedCenterY - box.height / 2;
+
+        return {
+          ...box,
+          rotation: normalizedRotation,
+          x: clampedX,
+          y: clampedY,
+        };
+      }),
+    );
+  };
+
+  const handleUpdateTextRotation = (id: string, rotation: number) => {
+    setTextBoxes((prev) =>
+      prev.map((box) => {
+        if (box.id !== id) return box;
+
+        const normalizedRotation = normalizeRotation(rotation);
+        const page = pages.find((p) => p.pageNumber === box.pageNumber);
+        if (!page) return { ...box, rotation: normalizedRotation };
+
+        // Calculate new rotated bounding box
+        const radians = (normalizedRotation * Math.PI) / 180;
+        const cos = Math.abs(Math.cos(radians));
+        const sin = Math.abs(Math.sin(radians));
+        const rotatedWidth = box.width * cos + box.height * sin;
+        const rotatedHeight = box.width * sin + box.height * cos;
+
+        // Calculate current center
+        const centerX = box.x + box.width / 2;
+        const centerY = box.y + box.height / 2;
+
+        // Clamp center to keep rotated box within bounds
+        const minCenterX = rotatedWidth / 2;
+        const maxCenterX = page.width - rotatedWidth / 2;
+        const minCenterY = rotatedHeight / 2;
+        const maxCenterY = page.height - rotatedHeight / 2;
+
+        const clampedCenterX = Math.min(
+          Math.max(centerX, minCenterX),
+          maxCenterX,
+        );
+        const clampedCenterY = Math.min(
+          Math.max(centerY, minCenterY),
+          maxCenterY,
+        );
+
+        // Convert back to top-left position
+        const clampedX = clampedCenterX - box.width / 2;
+        const clampedY = clampedCenterY - box.height / 2;
+
+        return {
+          ...box,
+          rotation: normalizedRotation,
+          x: clampedX,
+          y: clampedY,
+        };
+      }),
+    );
+  };
+
+  // Function to start rotation based on mouse movement
+  const startMouseRotation = (
+    id: string,
+    isText: boolean,
+    event: React.MouseEvent,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Store the initial mouse position in a closure variable
+    let lastX = event.clientX;
+    let lastY = event.clientY;
+
+    setActiveRotationElement(id);
+
+    // Add mouse move and up listeners to the document
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      moveEvent.preventDefault();
+
+      // Calculate the difference in mouse position
+      const deltaX = moveEvent.clientX - lastX;
+
+      // Determine rotation direction based on mouse movement
+      // Horizontal movement (deltaX) controls rotation
+      const rotationIncrement = deltaX * 0.5; // Sensitivity factor
+
+      // Update the rotation
+      if (isText) {
+        setTextBoxes((prev) =>
+          prev.map((box) =>
+            box.id === id
+              ? {
+                  ...box,
+                  rotation: normalizeRotation(
+                    (box.rotation ?? 0) + rotationIncrement,
+                  ),
+                }
+              : box,
+          ),
+        );
+      } else {
+        setBoxes((prev) =>
+          prev.map((box) =>
+            box.id === id
+              ? {
+                  ...box,
+                  rotation: normalizeRotation(
+                    (box.rotation ?? 0) + rotationIncrement,
+                  ),
+                }
+              : box,
+          ),
+        );
+      }
+
+      // Update the last mouse position for the next calculation
+      lastX = moveEvent.clientX;
+      lastY = moveEvent.clientY;
+    };
+
+    const handleMouseUp = () => {
+      // Remove the event listeners
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+
+      // Reset the active rotation element
+      setActiveRotationElement(null);
+    };
+
+    // Add event listeners to the document
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
   };
 
   const handleUpdateTextPosition = (id: string, x: number, y: number) => {
     setTextBoxes((prev) =>
-      prev.map((box) => (box.id === id ? { ...box, x, y } : box)),
+      prev.map((box) => {
+        if (box.id !== id) return box;
+
+        const page = pages.find((p) => p.pageNumber === box.pageNumber);
+        if (!page) return { ...box, x, y };
+
+        // Calculate rotated bounding box
+        const rotation = (box.rotation ?? 0) % 360;
+        const radians = (rotation * Math.PI) / 180;
+        const cos = Math.abs(Math.cos(radians));
+        const sin = Math.abs(Math.sin(radians));
+        const rotatedWidth = box.width * cos + box.height * sin;
+        const rotatedHeight = box.width * sin + box.height * cos;
+
+        // Calculate center point
+        const centerX = x + box.width / 2;
+        const centerY = y + box.height / 2;
+
+        // Clamp center to keep rotated box within bounds
+        const minCenterX = rotatedWidth / 2;
+        const maxCenterX = page.width - rotatedWidth / 2;
+        const minCenterY = rotatedHeight / 2;
+        const maxCenterY = page.height - rotatedHeight / 2;
+
+        const clampedCenterX = Math.min(
+          Math.max(centerX, minCenterX),
+          maxCenterX,
+        );
+        const clampedCenterY = Math.min(
+          Math.max(centerY, minCenterY),
+          maxCenterY,
+        );
+
+        // Convert back to top-left position
+        const clampedX = clampedCenterX - box.width / 2;
+        const clampedY = clampedCenterY - box.height / 2;
+
+        return { ...box, x: clampedX, y: clampedY };
+      }),
     );
   };
 
@@ -665,9 +1084,57 @@ export function SignaturePdfViewer({
     y: number,
   ) => {
     setBoxes((prev) =>
-      prev.map((box) =>
-        box.id === id ? { ...box, width, height, x, y } : box,
-      ),
+      prev.map((box) => {
+        if (box.id !== id) return box;
+
+        const page = pages.find((p) => p.pageNumber === box.pageNumber);
+        if (!page) return { ...box, width, height, x, y };
+
+        // Ensure minimum size
+        const minWidth = 50;
+        const minHeight = 30;
+        const clampedWidth = Math.max(minWidth, width);
+        const clampedHeight = Math.max(minHeight, height);
+
+        // Calculate rotated bounding box with new dimensions
+        const rotation = (box.rotation ?? 0) % 360;
+        const radians = (rotation * Math.PI) / 180;
+        const cos = Math.abs(Math.cos(radians));
+        const sin = Math.abs(Math.sin(radians));
+        const rotatedWidth = clampedWidth * cos + clampedHeight * sin;
+        const rotatedHeight = clampedWidth * sin + clampedHeight * cos;
+
+        // Calculate center point
+        const centerX = x + clampedWidth / 2;
+        const centerY = y + clampedHeight / 2;
+
+        // Clamp center to keep rotated box within bounds
+        const minCenterX = rotatedWidth / 2;
+        const maxCenterX = page.width - rotatedWidth / 2;
+        const minCenterY = rotatedHeight / 2;
+        const maxCenterY = page.height - rotatedHeight / 2;
+
+        const clampedCenterX = Math.min(
+          Math.max(centerX, minCenterX),
+          maxCenterX,
+        );
+        const clampedCenterY = Math.min(
+          Math.max(centerY, minCenterY),
+          maxCenterY,
+        );
+
+        // Convert back to top-left position
+        const clampedX = clampedCenterX - clampedWidth / 2;
+        const clampedY = clampedCenterY - clampedHeight / 2;
+
+        return {
+          ...box,
+          width: clampedWidth,
+          height: clampedHeight,
+          x: clampedX,
+          y: clampedY,
+        };
+      }),
     );
   };
 
@@ -679,9 +1146,57 @@ export function SignaturePdfViewer({
     y: number,
   ) => {
     setTextBoxes((prev) =>
-      prev.map((box) =>
-        box.id === id ? { ...box, width, height, x, y } : box,
-      ),
+      prev.map((box) => {
+        if (box.id !== id) return box;
+
+        const page = pages.find((p) => p.pageNumber === box.pageNumber);
+        if (!page) return { ...box, width, height, x, y };
+
+        // Ensure minimum size
+        const minWidth = 50;
+        const minHeight = 30;
+        const clampedWidth = Math.max(minWidth, width);
+        const clampedHeight = Math.max(minHeight, height);
+
+        // Calculate rotated bounding box with new dimensions
+        const rotation = (box.rotation ?? 0) % 360;
+        const radians = (rotation * Math.PI) / 180;
+        const cos = Math.abs(Math.cos(radians));
+        const sin = Math.abs(Math.sin(radians));
+        const rotatedWidth = clampedWidth * cos + clampedHeight * sin;
+        const rotatedHeight = clampedWidth * sin + clampedHeight * cos;
+
+        // Calculate center point
+        const centerX = x + clampedWidth / 2;
+        const centerY = y + clampedHeight / 2;
+
+        // Clamp center to keep rotated box within bounds
+        const minCenterX = rotatedWidth / 2;
+        const maxCenterX = page.width - rotatedWidth / 2;
+        const minCenterY = rotatedHeight / 2;
+        const maxCenterY = page.height - rotatedHeight / 2;
+
+        const clampedCenterX = Math.min(
+          Math.max(centerX, minCenterX),
+          maxCenterX,
+        );
+        const clampedCenterY = Math.min(
+          Math.max(centerY, minCenterY),
+          maxCenterY,
+        );
+
+        // Convert back to top-left position
+        const clampedX = clampedCenterX - clampedWidth / 2;
+        const clampedY = clampedCenterY - clampedHeight / 2;
+
+        return {
+          ...box,
+          width: clampedWidth,
+          height: clampedHeight,
+          x: clampedX,
+          y: clampedY,
+        };
+      }),
     );
   };
 
@@ -739,11 +1254,13 @@ export function SignaturePdfViewer({
 
     const newBoxes = boxes.filter((box) => !box.isExisting);
     const newTextBoxes = textBoxes.filter((box) => !box.isExisting);
-    const hasUnassigned = [...newBoxes, ...newTextBoxes].some(
-      (box) => !box.assignedUserId,
+    const hasUnassignedDepartments = [...newBoxes, ...newTextBoxes].some(
+      (box) => !box.assignedDepartmentIds?.length,
     );
-    if (hasUnassigned) {
-      toast.error("Assign a user to each new placeholder before confirming.");
+    if (hasUnassignedDepartments) {
+      toast.error(
+        "Assign at least one department to each new placeholder before confirming.",
+      );
       return;
     }
     if (newBoxes.length === 0 && newTextBoxes.length === 0) {
@@ -808,6 +1325,10 @@ export function SignaturePdfViewer({
 
   const activePageData = pages.find((p) => p.pageNumber === activePage);
   const applyingToCount = normalizedTargetFileIds.length || 1;
+  const selectedDepartmentCount = selectedDepartmentIds.length;
+  const isRedirecting =
+    allowedDepartmentIds.length > 0 &&
+    (isLoadingFiles || isRendering || pages.length === 0);
 
   return (
     <Card className="h-full w-full min-h-[600px] flex flex-col border-primary/40">
@@ -816,9 +1337,14 @@ export function SignaturePdfViewer({
           <CardTitle className="flex items-center gap-2">
             Prepare Signature Positions
             <Badge variant="outline">For Signature</Badge>
-            {applyingToCount > 1 && (
+            {isRedirecting ? (
+              <span className="ml-2 flex items-center text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Redirecting...
+              </span>
+            ) : applyingToCount > 1 ? (
               <Badge variant="secondary">{applyingToCount} files</Badge>
-            )}
+            ) : null}
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1 max-w-xl">
             Add signature and text placeholders on the PDF. These positions will
@@ -835,7 +1361,8 @@ export function SignaturePdfViewer({
             disabled={
               (boxes.length === 0 && textBoxes.length === 0) ||
               isRendering ||
-              isConfirming
+              isConfirming ||
+              isRedirecting
             }
           >
             {isConfirming ? (
@@ -925,17 +1452,17 @@ export function SignaturePdfViewer({
         </div>
 
         <div className="flex flex-col md:flex-row gap-3 flex-1 overflow-hidden">
-          <div className="flex-1 overflow-auto rounded-md bg-muted/20 min-h-[300px]">
+          <div className="flex-1 overflow-auto rounded-md bg-muted/20 min-h-[300px] pt-10">
             {isRendering || !activePageData ? (
               <div className="flex flex-col items-center gap-2 p-6 text-sm text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin" />
                 <span>Loading PDF page...</span>
               </div>
             ) : (
-              <div className="flex items-center justify-center min-w-full">
+              <div className="flex items-center justify-center min-w-full overflow-visible">
                 <div
                   className={cn(
-                    "relative",
+                    "relative overflow-visible",
                     placementMode && "cursor-crosshair",
                   )}
                   style={{
@@ -961,7 +1488,6 @@ export function SignaturePdfViewer({
                         key={box.id}
                         size={{ width: box.width, height: box.height }}
                         position={{ x: box.x, y: box.y }}
-                        bounds="parent"
                         minWidth={50}
                         minHeight={30}
                         disableDragging={
@@ -998,18 +1524,39 @@ export function SignaturePdfViewer({
                         onClick={(event: { stopPropagation: () => any }) =>
                           event.stopPropagation()
                         }
-                        className={cn(
-                          "absolute rounded-md border-2 shadow-sm",
-                          box.isExisting
-                            ? "border-emerald-500/70 bg-emerald-500/10"
-                            : "border-primary/70 bg-primary/10",
-                        )}
+                        className="absolute overflow-visible"
+                        style={{ zIndex: 1000 }}
                       >
-                        <div className="relative h-full w-full">
+                        <div
+                          className="relative h-full w-full"
+                          style={{
+                            transform: `rotate(${box.rotation ?? 0}deg)`,
+                            transformOrigin: "center",
+                          }}
+                        >
+                          <div
+                            className={cn(
+                              "absolute inset-0 rounded-md border-2 shadow-sm",
+                              box.isExisting
+                                ? "border-emerald-500/70 bg-emerald-500/10"
+                                : "border-primary/70 bg-primary/10",
+                            )}
+                          />
                           {!box.isExisting && (
-                            <div className="signature-box-drag-handle absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
+                            <div className="signature-box-drag-handle !z-[1000] absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
                               <Move className="h-3 w-3" />
                               Drag to position
+                              <button
+                                type="button"
+                                className="rounded-full border border-muted/50 bg-white/90 p-1 text-muted-foreground hover:text-foreground"
+                                onMouseDown={(event) => {
+                                  event.stopPropagation();
+                                  startMouseRotation(box.id, false, event);
+                                }}
+                                aria-label="Drag to rotate signature placeholder"
+                              >
+                                <RotateCw className="h-3 w-3" />
+                              </button>
                             </div>
                           )}
                           <div className="flex h-full w-full items-center justify-center text-[11px] font-medium text-primary">
@@ -1020,7 +1567,7 @@ export function SignaturePdfViewer({
                           {!box.isExisting && (
                             <button
                               type="button"
-                              className="absolute -right-2 -top-2 rounded-full bg-white p-1 text-destructive shadow"
+                              className="absolute -right-2 -top-2 z-[1001] rounded-full bg-white p-1 text-destructive shadow"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 handleRemove(box.id);
@@ -1040,7 +1587,6 @@ export function SignaturePdfViewer({
                         key={box.id}
                         size={{ width: box.width, height: box.height }}
                         position={{ x: box.x, y: box.y }}
-                        bounds="parent"
                         minWidth={60}
                         minHeight={30}
                         disableDragging={
@@ -1078,17 +1624,35 @@ export function SignaturePdfViewer({
                           event.stopPropagation()
                         }
                         className={cn(
-                          "absolute rounded-md border-2 border-dashed shadow-sm bg-transparent",
+                          "absolute rounded-md border-2 border-dashed shadow-sm bg-transparent overflow-visible",
                           box.isExisting
                             ? "border-amber-500/70"
                             : "border-amber-500/80",
                         )}
+                        style={{ zIndex: 1000 }}
                       >
-                        <div className="relative h-full w-full">
+                        <div
+                          className="relative h-full w-full"
+                          style={{
+                            transform: `rotate(${box.rotation ?? 0}deg)`,
+                            transformOrigin: "center",
+                          }}
+                        >
                           {!box.isExisting && (
                             <div className="text-box-drag-handle absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
                               <Move className="h-3 w-3" />
                               Drag text
+                              <button
+                                type="button"
+                                className="rounded-full border border-muted/50 bg-white/90 p-1 text-muted-foreground hover:text-foreground"
+                                onMouseDown={(event) => {
+                                  event.stopPropagation();
+                                  startMouseRotation(box.id, true, event);
+                                }}
+                                aria-label="Drag to rotate text placeholder"
+                              >
+                                <RotateCw className="h-3 w-3" />
+                              </button>
                             </div>
                           )}
                           <div
@@ -1106,7 +1670,7 @@ export function SignaturePdfViewer({
                           {!box.isExisting && (
                             <button
                               type="button"
-                              className="absolute -right-2 -top-2 rounded-full bg-white p-1 text-destructive shadow"
+                              className="absolute -right-2 -top-2 z-[1001] rounded-full bg-white p-1 text-destructive shadow"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 handleRemoveText(box.id);
@@ -1126,82 +1690,169 @@ export function SignaturePdfViewer({
           <div className="w-full md:w-72 flex flex-col gap-3">
             <div className="rounded-md border bg-background p-3 text-sm space-y-2">
               <div className="flex items-center justify-between">
-                <span className="font-medium">Assignee</span>
-                {isLoadingUsers && (
+                <span className="font-medium">Department</span>
+                {loadingDepartments && (
                   <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                 )}
               </div>
               <div className="space-y-2">
-                <div className="space-y-1">
-                  <span className="text-[11px] uppercase text-muted-foreground">
-                    Department
-                  </span>
-                  <Select
-                    value={selectedDepartmentId || ""}
-                    onValueChange={(value) => {
-                      setSelectedDepartmentId(value);
-                      setSelectedAssigneeId(null);
-                    }}
-                    disabled={isLoadingUsers || departments.length === 0}
-                  >
-                    <SelectTrigger className="h-8 text-xs w-full max-h-56 overflow-y-auto">
-                      <SelectValue
-                        placeholder={
-                          isLoadingUsers
-                            ? "Loading departments..."
-                            : "Select department"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments.map((department) => (
-                        <SelectItem
-                          key={department.id}
-                          value={department.id}
-                          className="text-xs"
-                        >
-                          {department.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[11px] uppercase text-muted-foreground">
-                    User
-                  </span>
-                  <Select
-                    value={selectedAssigneeId || ""}
-                    onValueChange={(value) => setSelectedAssigneeId(value)}
-                    disabled={
-                      !selectedDepartmentId || !usersForDepartment.length
-                    }
-                  >
-                    <SelectTrigger className="h-8 text-xs w-full max-h-56 overflow-y-auto">
-                      <SelectValue
-                        placeholder={
-                          selectedDepartmentId
-                            ? "Select user"
-                            : "Select department first"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {usersForDepartment.map((deptUser) => (
-                        <SelectItem
-                          key={deptUser.user_id}
-                          value={deptUser.user_id}
-                          className="text-xs"
-                        >
-                          {`${deptUser.first_name} ${deptUser.last_name}`.trim()}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="rounded-md border border-input p-3 space-y-3 max-h-64 overflow-auto">
+                  {loadingDepartments ? (
+                    <div className="text-xs text-muted-foreground">
+                      Loading options...
+                    </div>
+                  ) : filteredGroups.length > 0 ? (
+                    filteredGroups.map((group) => {
+                      const groupDepartmentIds = getGroupDepartmentIds(group);
+                      const groupChecked =
+                        groupDepartmentIds.length > 0 &&
+                        groupDepartmentIds.every((id) =>
+                          selectedDepartmentIds.includes(id),
+                        );
+                      const groupIndeterminate =
+                        !groupChecked &&
+                        groupDepartmentIds.some((id) =>
+                          selectedDepartmentIds.includes(id),
+                        );
+
+                      return (
+                        <div key={group.group_id} className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              checked={
+                                groupChecked
+                                  ? true
+                                  : groupIndeterminate
+                                    ? "indeterminate"
+                                    : false
+                              }
+                              onCheckedChange={(checked) =>
+                                toggleSelection(
+                                  groupDepartmentIds,
+                                  checked === true,
+                                )
+                              }
+                            />
+                            <span className="text-sm font-semibold">
+                              Group: {group.name}
+                            </span>
+                          </div>
+
+                          {group.centers.length > 0 && (
+                            <div className="space-y-2 pl-6">
+                              <div className="text-[11px] uppercase text-muted-foreground">
+                                Center:
+                              </div>
+                              {group.centers.map((center) => {
+                                const centerDepartmentIds =
+                                  getCenterDepartmentIds(center);
+                                const centerChecked =
+                                  centerDepartmentIds.length > 0 &&
+                                  centerDepartmentIds.every((id) =>
+                                    selectedDepartmentIds.includes(id),
+                                  );
+                                const centerIndeterminate =
+                                  !centerChecked &&
+                                  centerDepartmentIds.some((id) =>
+                                    selectedDepartmentIds.includes(id),
+                                  );
+                                return (
+                                  <div
+                                    key={center.center_id}
+                                    className="space-y-2"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Checkbox
+                                        checked={
+                                          centerChecked
+                                            ? true
+                                            : centerIndeterminate
+                                              ? "indeterminate"
+                                              : false
+                                        }
+                                        onCheckedChange={(checked) =>
+                                          toggleSelection(
+                                            centerDepartmentIds,
+                                            checked === true,
+                                          )
+                                        }
+                                      />
+                                      <span className="text-sm font-medium">
+                                        {center.name}
+                                      </span>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-2 pl-6">
+                                      <div className="text-[11px] uppercase text-muted-foreground">
+                                        Offices/Department:
+                                      </div>
+                                      {center.departments.map((dept) => (
+                                        <label
+                                          key={dept.department_id}
+                                          className="flex items-center gap-2 text-sm"
+                                        >
+                                          <Checkbox
+                                            checked={selectedDepartmentIds.includes(
+                                              dept.department_id,
+                                            )}
+                                            onCheckedChange={(checked) =>
+                                              toggleSelection(
+                                                [dept.department_id],
+                                                checked === true,
+                                              )
+                                            }
+                                          />
+                                          {dept.name}
+                                        </label>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {group.departments.length > 0 && (
+                            <div className="grid grid-cols-1 gap-2 pl-6">
+                              <div className="text-[11px] uppercase text-muted-foreground">
+                                Offices/Department:
+                              </div>
+                              {group.departments.map((dept) => (
+                                <label
+                                  key={dept.department_id}
+                                  className="flex items-center gap-2 text-sm"
+                                >
+                                  <Checkbox
+                                    checked={selectedDepartmentIds.includes(
+                                      dept.department_id,
+                                    )}
+                                    onCheckedChange={(checked) =>
+                                      toggleSelection(
+                                        [dept.department_id],
+                                        checked === true,
+                                      )
+                                    }
+                                  />
+                                  {dept.name}
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-xs text-muted-foreground">
+                      No groups available
+                    </div>
+                  )}
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                New placeholders will be assigned to this user.
+                {selectedDepartmentCount > 0
+                  ? `Selected ${selectedDepartmentCount} department${
+                      selectedDepartmentCount === 1 ? "" : "s"
+                    }. New placeholders will be assigned to these departments.`
+                  : "Select departments to assign new placeholders."}
               </p>
             </div>
 
@@ -1225,7 +1876,9 @@ export function SignaturePdfViewer({
                 className="mt-1 w-full"
                 variant="outline"
                 onClick={handleAddBox}
-                disabled={isRendering || !pages.length || !selectedAssigneeId}
+                disabled={
+                  isRendering || !pages.length || !selectedDepartmentIds.length
+                }
               >
                 {placementMode === "signature"
                   ? "Cancel Placement"
@@ -1253,7 +1906,9 @@ export function SignaturePdfViewer({
                 className="mt-1 w-full"
                 variant="outline"
                 onClick={handleAddTextBox}
-                disabled={isRendering || !pages.length || !selectedAssigneeId}
+                disabled={
+                  isRendering || !pages.length || !selectedDepartmentIds.length
+                }
               >
                 {placementMode === "text" ? "Cancel Placement" : "Add Text Box"}
               </Button>
@@ -1296,9 +1951,15 @@ export function SignaturePdfViewer({
                       </div>
                       <p className="text-[11px] text-muted-foreground">
                         Assigned to:{" "}
-                        {box.assignedUserId
-                          ? userNameById.get(box.assignedUserId) || "Unknown"
-                          : "Unassigned"}
+                        {box.assignedDepartmentIds?.length
+                          ? box.assignedDepartmentIds
+                              .map(
+                                (id) => departmentNameById.get(id) || "Unknown",
+                              )
+                              .join(", ")
+                          : box.assignedUserId
+                            ? "Legacy user assignment"
+                            : "Open"}
                       </p>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
@@ -1383,6 +2044,26 @@ export function SignaturePdfViewer({
                             }}
                           />
                         </div>
+                        <div className="col-span-2">
+                          <label className="text-xs text-muted-foreground">
+                            Rotation (degrees)
+                          </label>
+                          <input
+                            type="number"
+                            className="w-full rounded border bg-background px-2 py-1 text-xs"
+                            value={Math.round(box.rotation ?? 0)}
+                            step="5"
+                            disabled={
+                              box.isExisting && !hasDepartmentPermission
+                            }
+                            onChange={(e) =>
+                              handleUpdateRotation(
+                                box.id,
+                                Number(e.target.value),
+                              )
+                            }
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1416,9 +2097,15 @@ export function SignaturePdfViewer({
                       </div>
                       <p className="text-[11px] text-muted-foreground">
                         Assigned to:{" "}
-                        {box.assignedUserId
-                          ? userNameById.get(box.assignedUserId) || "Unknown"
-                          : "Unassigned"}
+                        {box.assignedDepartmentIds?.length
+                          ? box.assignedDepartmentIds
+                              .map(
+                                (id) => departmentNameById.get(id) || "Unknown",
+                              )
+                              .join(", ")
+                          : box.assignedUserId
+                            ? "Legacy user assignment"
+                            : "Open"}
                       </p>
                       <div className="grid grid-cols-2 gap-2">
                         <div>

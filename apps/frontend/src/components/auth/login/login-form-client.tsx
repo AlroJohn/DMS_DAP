@@ -100,9 +100,9 @@ export function LoginFormClient({
         await new Promise(resolve => setTimeout(resolve, 500));
 
         // Trigger the login function from useAuth to re-fetch user data and update state
-        login();
+        await login();
 
-        // Redirect to dashboard
+        // Redirect to dashboard after auth state is refreshed
         router.push("/dashboard");
       } else {
         // Handle error response

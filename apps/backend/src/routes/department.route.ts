@@ -39,4 +39,9 @@ router.patch('/:id/toggle-status',
   departmentController.toggleDepartmentStatus.bind(departmentController)
 );
 
+router.get('/:id/users', 
+  requirePermission('department_read'),
+  departmentController.getUsersByDepartment.bind(departmentController)
+);
+
 export default router;

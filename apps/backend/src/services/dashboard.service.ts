@@ -472,7 +472,7 @@ export class DashboardService {
             const documentsToReleaseCount = await this.getDocumentsToReleaseCount(userId);
 
             // Count recent activity (last 7 days)
-            const recentActivityCount = await this.getRecentActivityCount(userId);
+            const recentActivityCount = await this.getUserRecentActivityCount(userId);
 
             return {
                 pendingSignatures: pendingSignaturesCount,
@@ -491,12 +491,22 @@ export class DashboardService {
      */
     private async getPendingSignaturesCount(userId: string): Promise<number> {
         try {
+            const user = await prisma.user.findUnique({
+                where: { user_id: userId },
+                select: { department_id: true }
+            });
+
+            if (!user) {
+                return 0;
+            }
+
             // Find signature placeholders assigned to this user
             const placeholders = await prisma.signaturePlaceholder.findMany({
                 where: {
                     OR: [
                         { assigned_user_id: userId },
-                        { assigned_user_id: null },
+                        { assigned_user_id: null, department_id: user.department_id },
+                        { assigned_user_id: null, department_id: null },
                     ],
                 },
                 select: {
@@ -512,7 +522,11 @@ export class DashboardService {
                 const userPlaceholders = await prisma.signaturePlaceholder.findMany({
                     where: {
                         document_id: documentId,
-                        OR: [{ assigned_user_id: userId }, { assigned_user_id: null }],
+                        OR: [
+                            { assigned_user_id: userId },
+                            { assigned_user_id: null, department_id: user.department_id },
+                            { assigned_user_id: null, department_id: null }
+                        ],
                     },
                 });
 
@@ -614,11 +628,12 @@ export class DashboardService {
      */
     private async getDocumentsToReleaseCount(userId: string): Promise<number> {
         try {
-            const account = await prisma.account.findFirst({
+            const user = await prisma.user.findUnique({
                 where: { user_id: userId },
+                select: { account: { select: { department_id: true } } }
             });
 
-            if (!account) {
+            if (!user || !user.account) {
                 return 0;
             }
 
@@ -626,7 +641,7 @@ export class DashboardService {
                 where: {
                     document_trails: {
                         some: {
-                            to_department: account.department_id,
+                            to_department: user.account.department_id,
                             status: "received"
                         }
                     },
@@ -644,9 +659,9 @@ export class DashboardService {
     }
 
     /**
-     * Get count of recent activity (last 7 days)
+     * Get count of recent activity for a user (last 7 days)
      */
-    private async getRecentActivityCount(userId: string): Promise<number> {
+    private async getUserRecentActivityCount(userId: string): Promise<number> {
         try {
             const sevenDaysAgo = new Date();
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);

@@ -2673,22 +2673,30 @@ export class DocumentService {
    * Creates signed documents based on existing placeholders for a user.
    */
   async signDocumentFromPlaceholders(documentId: string, userId: string, signatureData: string): Promise<{ signedCount: number }> {
-    // 1. Find all placeholders for the given document.
-    const placeholders = await prisma.signaturePlaceholder.findMany({
-      where: { document_id: documentId },
-    });
-
-    if (placeholders.length === 0) {
-      throw new Error('No signature placeholders found for this document.');
-    }
-
-    // 2. Get the user.
+    // 1. Get the user.
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
+      select: { user_id: true, department_id: true }
     });
 
     if (!user) {
       throw new Error('User not found.');
+    }
+
+    // 2. Find placeholders assigned to the user or their department.
+    const placeholders = await prisma.signaturePlaceholder.findMany({
+      where: {
+        document_id: documentId,
+        OR: [
+          { assigned_user_id: userId },
+          { assigned_user_id: null, department_id: user.department_id },
+          { assigned_user_id: null, department_id: null },
+        ],
+      },
+    });
+
+    if (placeholders.length === 0) {
+      throw new Error('No signature placeholders found for this document.');
     }
 
     // 3. Prepare data for SignedDocument records.

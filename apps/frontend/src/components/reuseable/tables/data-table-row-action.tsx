@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import { ViewDocumentsModal } from "@/components/reuseable/view-details-documents/view-documents";
 import { ViewOcrDataModal } from "@/components/modals/view-ocr-data-modal";
-
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -123,34 +122,12 @@ export function DataTableRowActions<TData>({
   );
   const [viewDocumentModalOpen, setViewDocumentModalOpen] = useState(false);
   const [viewOcrModalOpen, setViewOcrModalOpen] = useState(false);
-
   const document = row.original as Document;
 
   // Event handlers
   const handleAction = (e: React.MouseEvent, action: () => void) => {
     e.stopPropagation();
     action();
-  };
-
-  const handleSignatureSetup = (payload: {
-    documentId: string;
-    departmentId: string;
-    requestActions: string[];
-    remarks?: string;
-  }) => {
-    const params = new URLSearchParams();
-    params.set("mode", "signature");
-    params.set("releaseDepartmentId", payload.departmentId);
-    params.set("releaseActions", payload.requestActions.join(","));
-    if (payload.remarks) {
-      params.set("releaseRemarks", payload.remarks);
-    }
-    const query = params.toString();
-    router.push(
-      query
-        ? `/documents/${payload.documentId}?${query}`
-        : `/documents/${payload.documentId}`,
-    );
   };
 
   const handleCopyCode = () => {
@@ -480,7 +457,6 @@ export function DataTableRowActions<TData>({
   const showCancel = canCancel && isInTransit; // Cancel only shows for in-transit status
   const showArchive = canArchive;
   const showDelete = canDelete;
-
   return (
     <>
       <DropdownMenu>
@@ -498,7 +474,7 @@ export function DataTableRowActions<TData>({
 
         <DropdownMenuContent
           align="end"
-          className="min-w-[240px] max-w-[350px] max-h-[300px] overflow-y-auto"
+          className="min-w-[240px] max-w-[350px] max-h-[3f00px] overflow-y-auto"
         >
           {/* Document View Actions */}
           {viewType === "document" && (
@@ -862,11 +838,13 @@ export function DataTableRowActions<TData>({
                 </DropdownMenuItem>
               )}
 
-              {/* Release - always available in shared view */}
-              <DropdownMenuItem onClick={(e) => handleAction(e, handleRelease)}>
-                <Send className="mr-2 h-4 w-4" />
-                Release
-              </DropdownMenuItem>
+              {/* Release - shared view */}
+              {showRelease && (
+                <DropdownMenuItem onClick={(e) => handleAction(e, handleRelease)}>
+                  <Send className="mr-2 h-4 w-4" />
+                  Release
+                </DropdownMenuItem>
+              )}
             </>
           )}
 
@@ -1051,10 +1029,6 @@ export function DataTableRowActions<TData>({
       <ReleaseDocumentModal
         isOpen={modalState.release}
         onClose={() => toggleModal("release", false)}
-        onSignatureSetup={(payload) => {
-          toggleModal("release", false);
-          handleSignatureSetup(payload);
-        }}
         document={selectedDocument}
       />
 

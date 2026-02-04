@@ -1,5 +1,4 @@
 import { prisma } from '../lib/prisma';
-import { Department } from '@prisma/client';
 import { io } from '../index'; // For real-time notifications
 
 export class DepartmentService {
@@ -26,6 +25,8 @@ export class DepartmentService {
         take: limit,
         orderBy: { created_at: 'desc' },
         include: {
+          group: true,
+          center: true,
           Account: {
             select: {
               email: true,
@@ -60,6 +61,8 @@ export class DepartmentService {
     return await prisma.department.findUnique({
       where: { department_id: id },
       include: {
+        group: true,
+        center: true,
         Account: {
           select: {
             email: true,
@@ -79,7 +82,13 @@ export class DepartmentService {
   /**
    * Create a new department
    */
-  async createDepartment(name: string, code: string, userId: string) {
+  async createDepartment(
+    name: string,
+    code: string,
+    userId: string,
+    groupId?: string | null,
+    centerId?: string | null
+  ) {
     // Check if department code already exists
     const existingDepartment = await prisma.department.findUnique({
       where: { code: code.toUpperCase() }
@@ -99,11 +108,18 @@ export class DepartmentService {
       throw new Error('User not found');
     }
 
+    const resolvedGroupId = groupId ?? null;
+    if (!resolvedGroupId) {
+      throw new Error('Group is required for department creation');
+    }
+
     const department = await prisma.department.create({
       data: {
         name,
         code: code.toUpperCase(), // Store codes in uppercase for consistency
-        created_by: user.account_id
+        created_by: user.account_id,
+        group_id: resolvedGroupId,
+        center_id: centerId ?? null
       }
     });
 
@@ -121,7 +137,14 @@ export class DepartmentService {
   /**
    * Update a department
    */
-  async updateDepartment(id: string, name: string, code: string, active: boolean) {
+  async updateDepartment(
+    id: string,
+    name: string,
+    code: string,
+    active: boolean,
+    groupId?: string | null,
+    centerId?: string | null
+  ) {
     // Check if department exists
     const existingDepartment = await prisma.department.findUnique({
       where: { department_id: id }
@@ -150,7 +173,9 @@ export class DepartmentService {
       data: {
         name,
         code: code.toUpperCase(),
-        active
+        active,
+        group_id: groupId ?? existingDepartment.group_id,
+        center_id: centerId === undefined ? existingDepartment.center_id : centerId
       }
     });
 
@@ -279,5 +304,78 @@ export class DepartmentService {
     }
 
     return updatedDepartment;
+  }
+
+  /**
+   * Get users by department ID
+   */
+  async getUsersByDepartmentId(departmentId: string) {
+    const users = await prisma.account.findMany({
+      where: {
+        department_id: departmentId,
+        deleted_at: null,
+      },
+      select: {
+        account_id: true,
+        email: true,
+        user: {
+          select: {
+            first_name: true,
+            last_name: true,
+          }
+        },
+        AccountRole: {
+          select: {
+            role: {
+              select: {
+                role_id: true,
+                name: true,
+                code: true,
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        user: {
+          first_name: 'asc'
+        }
+      }
+    });
+
+    return users.map(user => ({
+      account_id: user.account_id,
+      email: user.email,
+      name: `${user.user?.first_name || ''} ${user.user?.last_name || ''}`.trim() || user.email,
+      department_id: departmentId,
+      roles: user.AccountRole.map(ar => ar.role)
+    }));
+  }
+  /**
+   * Get department hierarchy (groups -> centers -> departments)
+   */
+  async getDepartmentHierarchy() {
+    const groups = await prisma.group.findMany({
+      where: { active: true },
+      orderBy: { name: 'asc' },
+      include: {
+        centers: {
+          where: { active: true },
+          orderBy: { name: 'asc' },
+          include: {
+            departments: {
+              where: { active: true },
+              orderBy: { name: 'asc' }
+            }
+          }
+        },
+        departments: {
+          where: { active: true, center_id: null },
+          orderBy: { name: 'asc' }
+        }
+      }
+    });
+
+    return { groups };
   }
 }

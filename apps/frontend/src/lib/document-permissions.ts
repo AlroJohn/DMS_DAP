@@ -154,6 +154,9 @@ export function canEditDocumentDetails(user: User | null, document: Document): b
   // Users with view-only roles cannot edit
   if (hasViewOnlyRole(user)) return false;
 
+  // Cannot edit completed documents
+  if (document.status?.toLowerCase() === 'completed') return false;
+
   // Check if document is owned by user's department
   const isDocumentOwned = isDocumentOwnedByUserDepartment(document, user);
 
@@ -173,6 +176,9 @@ export function canEditDocument(user: User | null, document: Document): boolean 
 
   // Users with view-only roles cannot edit
   if (hasViewOnlyRole(user)) return false;
+
+  // Cannot edit completed documents
+  if (document.status?.toLowerCase() === 'completed') return false;
 
   // Check if document is owned by user's department
   const isDocumentOwned = isDocumentOwnedByUserDepartment(document, user);
@@ -205,6 +211,9 @@ export function canSignDocument(user: User | null, document: Document): boolean 
   // Users with view-only roles cannot sign
   if (hasViewOnlyRole(user)) return false;
 
+  // Cannot sign completed documents
+  if (document.status?.toLowerCase() === 'completed') return false;
+
   // Check if document is owned by user's department
   const isDocumentOwned = isDocumentOwnedByUserDepartment(document, user);
 
@@ -223,6 +232,9 @@ export function canReleaseDocument(user: User | null, document: Document): boole
 
   // Users with view-only roles cannot release
   if (hasViewOnlyRole(user)) return false;
+
+  // Cannot release completed documents
+  if (document.status?.toLowerCase() === 'completed') return false;
 
   // Check if document is owned by user's department
   const isDocumentOwned = isDocumentOwnedByUserDepartment(document, user);
@@ -254,6 +266,9 @@ export function canCompleteDocument(user: User | null, document: Document): bool
 
   // Users with view-only roles cannot complete
   if (hasViewOnlyRole(user)) return false;
+
+  // Cannot complete already completed documents
+  if (document.status?.toLowerCase() === 'completed') return false;
 
   // If a user has explicit transfer receive permissions, they can complete documents
   if (hasPermission(user, 'document_transfer_receive')) return true;
@@ -311,6 +326,9 @@ export function canDeleteDocument(user: User | null, document: Document): boolea
 
   // Users with view-only roles cannot delete
   if (hasViewOnlyRole(user)) return false;
+
+  // Cannot delete completed documents
+  if (document.status?.toLowerCase() === 'completed') return false;
 
   // Check if document is owned by user's department
   const isDocumentOwned = isDocumentOwnedByUserDepartment(document, user);

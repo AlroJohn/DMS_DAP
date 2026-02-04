@@ -19,8 +19,11 @@ export class DocumentReleaseController {
     const { id } = req.params;
     const {
       departmentId,
+      departmentIds,
       requestAction,
       requestActions,
+      departmentActions,
+      departmentActionMap,
       remarks,
       signatures,
       textPlaceholders,
@@ -28,40 +31,121 @@ export class DocumentReleaseController {
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id) || !uuidRegex.test(departmentId)) {
-      console.log('📍 [DocumentReleaseController.releaseDocument] Invalid document ID or department ID format:', id, departmentId);
-      return sendError(res, 'Invalid document ID or department ID format', 400);
+    if (!uuidRegex.test(id)) {
+      console.log('📍 [DocumentReleaseController.releaseDocument] Invalid document ID format:', id);
+      return sendError(res, 'Invalid document ID format', 400);
     }
 
-    // Check if requestActions is provided (array), otherwise fallback to requestAction (single)
-    const actions = requestActions ? requestActions : requestAction;
-    if (!actions) {
+    const normalizedDepartmentActions =
+      (departmentActions && typeof departmentActions === 'object'
+        ? departmentActions
+        : departmentActionMap && typeof departmentActionMap === 'object'
+          ? departmentActionMap
+          : null) as Record<string, string[]> | null;
+
+    const normalizedDepartmentIds = Array.isArray(departmentIds)
+      ? departmentIds
+      : departmentId
+        ? [departmentId]
+        : [];
+    const uniqueDepartmentIds = Array.from(new Set(normalizedDepartmentIds));
+
+    if (uniqueDepartmentIds.length === 0) {
+      return sendError(res, 'departmentId or departmentIds is required', 400);
+    }
+
+    const invalidDepartmentIds = uniqueDepartmentIds.filter((deptId) => !uuidRegex.test(deptId));
+    if (invalidDepartmentIds.length > 0) {
+      console.log('📍 [DocumentReleaseController.releaseDocument] Invalid department ID format:', invalidDepartmentIds);
+      return sendError(res, 'Invalid department ID format', 400);
+    }
+    if (uniqueDepartmentIds.length > 1 && (signatures?.length || textPlaceholders?.length)) {
+      return sendError(res, 'Signatures/placeholders require a single target department', 400);
+    }
+
+    let releaseActionsSummary: string[] | string | undefined =
+      requestActions ? requestActions : requestAction;
+
+    if (normalizedDepartmentActions) {
+      const missingDepartments = normalizedDepartmentIds.filter(
+        (deptId) =>
+          !normalizedDepartmentActions[deptId] ||
+          !Array.isArray(normalizedDepartmentActions[deptId]) ||
+          normalizedDepartmentActions[deptId].length === 0
+      );
+
+      if (missingDepartments.length > 0) {
+        return sendError(
+          res,
+          'Each selected department must have at least one action assigned',
+          400
+        );
+      }
+
+      const invalidDepartmentKeys = Object.keys(normalizedDepartmentActions).filter(
+        (deptId) => !normalizedDepartmentIds.includes(deptId)
+      );
+
+      if (invalidDepartmentKeys.length > 0) {
+        return sendError(res, 'departmentActions contains invalid department IDs', 400);
+      }
+
+      const unionActions = Array.from(
+        new Set(
+          Object.values(normalizedDepartmentActions)
+            .flat()
+            .map((action) => String(action))
+            .filter(Boolean)
+        )
+      );
+
+      if (unionActions.length === 0) {
+        return sendError(res, 'departmentActions cannot be empty', 400);
+      }
+
+      releaseActionsSummary = unionActions;
+    }
+
+    if (!releaseActionsSummary) {
       return sendError(res, 'Either requestAction or requestActions is required', 400);
     }
 
-    // If requestActions is an array, validate it's not empty
-    if (Array.isArray(actions) && actions.length === 0) {
+    if (Array.isArray(releaseActionsSummary) && releaseActionsSummary.length === 0) {
       return sendError(res, 'requestActions cannot be empty', 400);
     }
 
+    console.log('📍 [DocumentReleaseController.releaseDocument] Target departments:', uniqueDepartmentIds.length);
     console.log('📍 [DocumentReleaseController.releaseDocument] Signatures received:', signatures?.length || 0);
     console.log('📍 [DocumentReleaseController.releaseDocument] Signatures data:', JSON.stringify(signatures, null, 2));
 
-    const result = await this.documentReleaseService.releaseDocument(
-      id,
-      departmentId,
-      actions, // Could be string or string[]
-      remarks,
-      authReq.user.id,
-      signatures,
-      textPlaceholders
-    );
+    const results = [];
+    for (const targetDepartmentId of uniqueDepartmentIds) {
+      const actionsForDepartment = normalizedDepartmentActions
+        ? normalizedDepartmentActions[targetDepartmentId] || releaseActionsSummary
+        : releaseActionsSummary;
+      const result = await this.documentReleaseService.releaseDocument(
+        id,
+        targetDepartmentId,
+        actionsForDepartment, // Could be string or string[]
+        remarks,
+        authReq.user.id,
+        signatures,
+        textPlaceholders,
+        {
+          releaseActionSummary: Array.isArray(releaseActionsSummary)
+            ? releaseActionsSummary
+            : [String(releaseActionsSummary)],
+          releaseActionByDepartment: normalizedDepartmentActions || undefined
+        }
+      );
 
-    if (!result.success) {
-      return sendError(res, result.error || 'Failed to release document', 500);
+      if (!result.success) {
+        return sendError(res, result.error || 'Failed to release document', 500);
+      }
+      results.push(result.data);
     }
 
-    return sendSuccess(res, result.data, 200);
+    return sendSuccess(res, { message: 'Document released successfully', targets: results }, 200);
   });
 
   /**
@@ -106,7 +190,8 @@ export class DocumentReleaseController {
       const latestTransitTrail = await this.documentReleaseService['prisma'].documentTrail.findFirst({
         where: {
           document_id: id,
-          status: 'intransit'
+          status: 'intransit',
+          to_department: user.department_id
         },
         orderBy: {
           created_at: 'desc'
@@ -116,8 +201,8 @@ export class DocumentReleaseController {
         }
       });
 
-      if (latestTransitTrail?.to_department && latestTransitTrail.to_department !== user.department_id) {
-        return sendError(res, `Document is assigned to department: ${latestTransitTrail.to_department}, not your department: ${user.department_id}`, 403);
+      if (!latestTransitTrail) {
+        return sendError(res, `Document is not assigned to your department: ${user.department_id}`, 403);
       }
 
       // Check if user's department is in the workflow
@@ -194,7 +279,8 @@ export class DocumentReleaseController {
     const latestTransitTrail = await this.documentReleaseService['prisma'].documentTrail.findFirst({
       where: {
         document_id: documentId,
-        status: 'intransit'
+        status: 'intransit',
+        to_department: user.department_id
       },
       orderBy: {
         created_at: 'desc'
@@ -204,7 +290,7 @@ export class DocumentReleaseController {
       }
     });
 
-    if (latestTransitTrail?.to_department && latestTransitTrail.to_department !== user.department_id) {
+    if (!latestTransitTrail) {
       return false;
     }
 
