@@ -246,7 +246,7 @@ export class InvitationService {
         }
       });
 
-      // Generate JWT tokens for automatic login
+      // Generate JWT tokens for automatic login (session-based)
       const jwt = require('jsonwebtoken');
       const accessToken = jwt.sign(
         {
@@ -254,8 +254,7 @@ export class InvitationService {
           email: account.email,
           user_id: account.user?.user_id
         },
-        process.env.JWT_SECRET || config.jwt.secret,
-        { expiresIn: config.jwt.expiresIn }
+        process.env.JWT_SECRET || config.jwt.secret
       );
 
       const refreshToken = jwt.sign(
@@ -263,8 +262,7 @@ export class InvitationService {
           userId: account.user?.user_id,
           email: account.email
         },
-        process.env.JWT_REFRESH_SECRET || config.jwt.refreshSecret || config.jwt.secret,
-        { expiresIn: config.jwt.refreshExpiresIn }
+        process.env.JWT_REFRESH_SECRET || config.jwt.refreshSecret || config.jwt.secret
       );
 
       return {

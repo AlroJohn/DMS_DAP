@@ -1,9 +1,16 @@
 "use client";
-import React, { useEffect, useRef, type HTMLAttributes } from 'react';
-import { Renderer, Program, Mesh, Triangle, Color, type OGLRenderingContext } from 'ogl';
-import { useTheme } from 'next-themes';
+import React, { useEffect, useRef, type HTMLAttributes } from "react";
+import {
+  Renderer,
+  Program,
+  Mesh,
+  Triangle,
+  Color,
+  type OGLRenderingContext,
+} from "ogl";
+import { useTheme } from "next-themes";
 
-interface ThreadsProps extends Omit<HTMLAttributes<HTMLDivElement>, 'color'> {
+interface ThreadsProps extends Omit<HTMLAttributes<HTMLDivElement>, "color"> {
   color?: [number, number, number];
   amplitude?: number;
   distance?: number;
@@ -139,12 +146,12 @@ const Threads: React.FC<ThreadsProps> = ({
   const { theme, resolvedTheme } = useTheme();
 
   // Determine final color: default based on theme if not provided
-  const isDark = (theme ?? resolvedTheme) === 'dark';
+  const isDark = (theme ?? resolvedTheme) === "dark";
   const finalColor: [number, number, number] = color
     ? color
     : isDark
-    ? [1, 1, 1]
-    : [0, 0, 0];
+      ? [1, 1, 1]
+      : [0, 0, 0];
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -152,30 +159,34 @@ const Threads: React.FC<ThreadsProps> = ({
 
     const canUseWebGL = () => {
       try {
-        const canvas = document.createElement('canvas');
-        return Boolean(canvas.getContext('webgl2') || canvas.getContext('webgl'));
+        const canvas = document.createElement("canvas");
+        return Boolean(
+          canvas.getContext("webgl2") || canvas.getContext("webgl"),
+        );
       } catch {
         return false;
       }
     };
 
     if (!canUseWebGL()) {
-      console.warn('WebGL context not available. Threads animation disabled.');
+      console.warn("WebGL context not available. Threads animation disabled.");
       return;
     }
 
     let renderer: Renderer | null = null;
     let gl: OGLRenderingContext | null = null;
-    
+
     try {
       renderer = new Renderer({ alpha: true });
       gl = renderer.gl;
-      
+
       if (!gl) {
-        console.warn('WebGL context not available. Threads animation disabled.');
+        console.warn(
+          "WebGL context not available. Threads animation disabled.",
+        );
         return;
       }
-      
+
       gl.clearColor(0, 0, 0, 0);
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -183,7 +194,10 @@ const Threads: React.FC<ThreadsProps> = ({
         container.appendChild(gl.canvas);
       }
     } catch (error) {
-      console.warn('Failed to initialize WebGL renderer. Threads animation disabled.', error);
+      console.warn(
+        "Failed to initialize WebGL renderer. Threads animation disabled.",
+        error,
+      );
       return;
     }
 
@@ -194,13 +208,17 @@ const Threads: React.FC<ThreadsProps> = ({
       uniforms: {
         iTime: { value: 0 },
         iResolution: {
-          value: new Color(gl.canvas.width, gl.canvas.height, gl.canvas.width / gl.canvas.height)
+          value: new Color(
+            gl.canvas.width,
+            gl.canvas.height,
+            gl.canvas.width / gl.canvas.height,
+          ),
         },
         uColor: { value: new Color(...finalColor) },
         uAmplitude: { value: amplitude },
         uDistance: { value: distance },
-        uMouse: { value: new Float32Array([0.5, 0.5]) }
-      }
+        uMouse: { value: new Float32Array([0.5, 0.5]) },
+      },
     });
 
     const mesh = new Mesh(gl, { geometry, program });
@@ -213,7 +231,7 @@ const Threads: React.FC<ThreadsProps> = ({
       program.uniforms.iResolution.value.g = clientHeight;
       program.uniforms.iResolution.value.b = clientWidth / clientHeight;
     }
-    window.addEventListener('resize', resize);
+    window.addEventListener("resize", resize);
     resize();
 
     const currentMouse = [0.5, 0.5];
@@ -229,8 +247,8 @@ const Threads: React.FC<ThreadsProps> = ({
       targetMouse = [0.5, 0.5];
     }
     if (enableMouseInteraction) {
-      container.addEventListener('mousemove', handleMouseMove);
-      container.addEventListener('mouseleave', handleMouseLeave);
+      container.addEventListener("mousemove", handleMouseMove);
+      container.addEventListener("mouseleave", handleMouseLeave);
     }
 
     function update(t: number) {
@@ -253,21 +271,27 @@ const Threads: React.FC<ThreadsProps> = ({
     animationFrameId.current = requestAnimationFrame(update);
 
     return () => {
-      if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-      window.removeEventListener('resize', resize);
+      if (animationFrameId.current)
+        cancelAnimationFrame(animationFrameId.current);
+      window.removeEventListener("resize", resize);
 
       if (enableMouseInteraction) {
-        container.removeEventListener('mousemove', handleMouseMove);
-        container.removeEventListener('mouseleave', handleMouseLeave);
+        container.removeEventListener("mousemove", handleMouseMove);
+        container.removeEventListener("mouseleave", handleMouseLeave);
       }
-      if (gl?.canvas instanceof HTMLCanvasElement && container.contains(gl.canvas)) {
+      if (
+        gl?.canvas instanceof HTMLCanvasElement &&
+        container.contains(gl.canvas)
+      ) {
         container.removeChild(gl.canvas);
       }
-      gl?.getExtension('WEBGL_lose_context')?.loseContext();
+      gl?.getExtension("WEBGL_lose_context")?.loseContext();
     };
   }, [finalColor, amplitude, distance, enableMouseInteraction]);
 
-  return <div ref={containerRef} className="w-full h-full relative" {...rest} />;
+  return (
+    <div ref={containerRef} className="w-full h-full relative" {...rest} />
+  );
 };
 
 export default Threads;

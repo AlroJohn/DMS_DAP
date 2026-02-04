@@ -24,6 +24,7 @@ export class DocumentReleaseController {
       requestActions,
       departmentActions,
       departmentActionMap,
+      userIds,
       remarks,
       signatures,
       textPlaceholders,
@@ -129,6 +130,7 @@ export class DocumentReleaseController {
         actionsForDepartment, // Could be string or string[]
         remarks,
         authReq.user.id,
+        userIds, // Pass userIds to service
         signatures,
         textPlaceholders,
         {

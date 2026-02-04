@@ -181,6 +181,7 @@ export class DocumentTrailsService {
     from_department?: string;
     to_department?: string;
     user_id?: string;
+    assigned_to_user_id?: string | null;
     status: string;
     remarks?: string;
   }) {
@@ -200,6 +201,7 @@ export class DocumentTrailsService {
           from_department: data.from_department,
           to_department: data.to_department,
           user_id: data.user_id,
+          assigned_to_user_id: data.assigned_to_user_id,
           status: data.status,
           remarks: processedRemarks,
           action_date: new Date(), // Explicitly set action date to current time

@@ -55,6 +55,7 @@ model User {
   created_at                      DateTime                   @default(now())
   updated_at                      DateTime                   @default(now()) @updatedAt
   document_trails                 DocumentTrail[]
+  assigned_document_trails        DocumentTrail[]            @relation("AssignedRecipient")
   notifications                   Notification[]
   notification_subscriptions      NotificationSubscription[]
   notification_preferences        NotificationPreference[]
@@ -217,22 +218,26 @@ model DocumentAction {
 }
 
 model DocumentTrail {
-  trail_id        String          @id @default(uuid()) @db.Uuid
-  document_id     String          @db.Uuid
-  action_id       String?         @db.Uuid
-  from_department String?         @db.Uuid
-  to_department   String?         @db.Uuid
-  user_id         String?         @db.Uuid
-  action_date     DateTime        @default(now())
-  status          String
-  remarks         String?
-  created_at      DateTime        @default(now())
-  updated_at      DateTime        @default(now()) @updatedAt
-  documentAction  DocumentAction? @relation(fields: [action_id], references: [document_action_id])
-  document        Document        @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
-  fromDept        Department?     @relation("FromDepartment", fields: [from_department], references: [department_id])
-  toDept          Department?     @relation("ToDepartment", fields: [to_department], references: [department_id])
-  user            User?           @relation(fields: [user_id], references: [user_id])
+  trail_id           String          @id @default(uuid()) @db.Uuid
+  document_id        String          @db.Uuid
+  action_id          String?         @db.Uuid
+  from_department    String?         @db.Uuid
+  to_department      String?         @db.Uuid
+  user_id            String?         @db.Uuid
+  assigned_to_user_id String?        @db.Uuid
+  action_date        DateTime        @default(now())
+  status             String
+  remarks            String?
+  created_at         DateTime        @default(now())
+  updated_at         DateTime        @default(now()) @updatedAt
+  documentAction     DocumentAction? @relation(fields: [action_id], references: [document_action_id])
+  document           Document        @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
+  fromDept           Department?     @relation("FromDepartment", fields: [from_department], references: [department_id])
+  toDept             Department?     @relation("ToDepartment", fields: [to_department], references: [department_id])
+  user               User?           @relation(fields: [user_id], references: [user_id])
+  assignedToUser     User?           @relation("AssignedRecipient", fields: [assigned_to_user_id], references: [user_id])
+
+  @@index([assigned_to_user_id])
 }
 
 model DocumentMetadata {

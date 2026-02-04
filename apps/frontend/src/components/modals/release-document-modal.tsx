@@ -279,7 +279,7 @@ export function ReleaseDocumentModal({
         headers["Authorization"] = `Bearer ${token}`;
       }
 
-      const response = await fetch(`/api/departments/${departmentId}/users`, {
+      const response = await fetch(`/api/admin/departments/${departmentId}/users`, {
         method: "GET",
         credentials: "include",
         headers,

@@ -18,6 +18,7 @@ export class DocumentReleaseService {
         requestAction: string | string[], // Can be a single action or an array of actions
         remarks: string | undefined,
         userId: string,
+        assignedUserIds?: string[], // Optional array of user IDs who can receive the document
         signatures?: {
             document_file_id: string;
             page_number: number;
@@ -393,17 +394,34 @@ export class DocumentReleaseService {
                 }
             });
 
-            // Create a document trail entry for the release
+            // Create document trail entries - one for each assigned user, or one for the department if no specific users
             const documentTrailsService = new DocumentTrailsService();
             try {
-                await documentTrailsService.createDocumentTrail({
-                    document_id: documentId,
-                    from_department: releasingUser?.department_id,
-                    to_department: departmentId,
-                    user_id: userId,
-                    status: 'intransit',
-                    remarks: remarks || `Document released from ${releasingUser?.department_id} to ${departmentId}`
-                });
+                if (assignedUserIds && assignedUserIds.length > 0) {
+                    // Create a trail entry for each assigned user
+                    for (const assignedUserId of assignedUserIds) {
+                        await documentTrailsService.createDocumentTrail({
+                            document_id: documentId,
+                            from_department: releasingUser?.department_id,
+                            to_department: departmentId,
+                            user_id: userId,
+                            assigned_to_user_id: assignedUserId,
+                            status: 'intransit',
+                            remarks: remarks || `Document released to specific user`
+                        });
+                    }
+                } else {
+                    // No specific users assigned - release to entire department
+                    await documentTrailsService.createDocumentTrail({
+                        document_id: documentId,
+                        from_department: releasingUser?.department_id,
+                        to_department: departmentId,
+                        user_id: userId,
+                        assigned_to_user_id: null,
+                        status: 'intransit',
+                        remarks: remarks || `Document released to department`
+                    });
+                }
             } catch (error) {
                 console.error('Error creating document trail for document release:', error);
             }

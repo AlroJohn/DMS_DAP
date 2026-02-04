@@ -81,18 +81,16 @@ export class AuthController {
     try {
       const { user, token, refreshToken } = await this.authService.login(credentials);
 
-      // Set HttpOnly cookies only after successful login
+      // Session cookies: expire when browser closes
       res.cookie('accessToken', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: parseExpiresIn(config.jwt.expiresIn), // Use helper function
       });
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: parseExpiresIn(config.jwt.refreshExpiresIn),
       });
 
       return sendSuccess(res, { user });
@@ -117,18 +115,16 @@ export class AuthController {
     try {
       const { token, refreshToken } = await this.authService.refreshToken(currentRefreshToken);
 
-      // Set new HttpOnly cookies
+      // Session cookies: expire when browser closes
       res.cookie('accessToken', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: parseExpiresIn(config.jwt.expiresIn), // Use helper function
       });
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: parseExpiresIn(config.jwt.refreshExpiresIn),
       });
 
       return sendSuccess(res, { message: 'Tokens refreshed successfully' });

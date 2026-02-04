@@ -491,14 +491,12 @@ export class AuthService {
       roles: roleCodes || []
     };
 
-    const token = jwt.sign(payload, config.jwt.secret, {
-      expiresIn: config.jwt.expiresIn
-    } as jwt.SignOptions);
+    // Session-based tokens: no expiration unless browser closes
+    const token = jwt.sign(payload, config.jwt.secret);
 
     const refreshToken = jwt.sign(
       { userId: user.id },
-      config.jwt.refreshSecret || config.jwt.secret,
-      { expiresIn: config.jwt.refreshExpiresIn } as jwt.SignOptions
+      config.jwt.refreshSecret || config.jwt.secret
     );
 
     return { token, refreshToken };
