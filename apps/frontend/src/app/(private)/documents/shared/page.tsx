@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { SignatureCaptureModal } from "@/components/modals/signature-capture-modal";
 import { toast } from "sonner";
 import { SharedDocument } from "@dms/types";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function SharedDocumentsPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -26,6 +27,7 @@ export default function SharedDocumentsPage() {
   const [isSignModalOpen, setIsSignModalOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] =
     useState<SharedDocument | null>(null);
+  const [activeTab, setActiveTab] = useState("active");
 
   const handleSignClick = (document: SharedDocument) => {
     setSelectedDocument(document);
@@ -157,10 +159,18 @@ export default function SharedDocumentsPage() {
       error.includes("401") ||
       error.includes("Unauthorized"));
 
+  // Filter documents based on active tab
+  const filteredDocuments = useMemo(() => {
+    if (activeTab === "completed") {
+      return sanitizedDocuments.filter(doc => doc.status?.toLowerCase() === "completed");
+    }
+    // Active tab shows all non-completed documents (received, pending, shared, etc.)
+    return sanitizedDocuments.filter(doc => doc.status?.toLowerCase() !== "completed");
+  }, [sanitizedDocuments, activeTab]);
+
   return (
     <>
       <div className="flex h-full flex-col p-4 gap-4 bg-background">
-        <div className="flex flex-col gap-1.5"></div>
         {error && !isAuthError && (
           <div className="mb-4">
             <Alert variant="destructive">
@@ -183,14 +193,35 @@ export default function SharedDocumentsPage() {
             </Alert>
           </div>
         )}
-        <DataTable
-          columns={columns}
-          data={sanitizedDocuments}
-          selection={true}
-          viewType="shared"
-          isLoading={isLoading}
-          onSign={handleSignClick}
-        />
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col h-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="active">Active</TabsTrigger>
+            <TabsTrigger value="completed">Completed</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="active" className="flex-1 mt-0">
+            <DataTable
+              columns={columns}
+              data={filteredDocuments}
+              selection={true}
+              viewType="shared"
+              isLoading={isLoading}
+              onSign={handleSignClick}
+            />
+          </TabsContent>
+
+          <TabsContent value="completed" className="flex-1 mt-0">
+            <DataTable
+              columns={columns}
+              data={filteredDocuments}
+              selection={true}
+              viewType="shared"
+              isLoading={isLoading}
+              onSign={handleSignClick}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
       {selectedDocument && (
         <SignatureCaptureModal

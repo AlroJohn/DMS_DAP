@@ -6,12 +6,14 @@ import { useDocuments } from "@/hooks/use-documents";
 import { useSocket } from "@/components/providers/providers";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function DocumentsPage() {
   const { documents, isLoading, error, refetch } = useDocuments(1, 50);
   const { socket } = useSocket();
   const mountedRef = useRef(false);
+  const [activeTab, setActiveTab] = useState("active");
 
   // Mark component as mounted and clean up on unmount
   useEffect(() => {
@@ -108,6 +110,15 @@ export default function DocumentsPage() {
   // Check if the error is authentication-related
   const isAuthError = error && error.includes("Authentication required");
 
+  // Filter documents based on active tab
+  const filteredDocuments = useMemo(() => {
+    if (activeTab === "completed") {
+      return mappedDocuments.filter(doc => doc.status?.toLowerCase() === "completed");
+    }
+    // Active tab shows all non-completed documents
+    return mappedDocuments.filter(doc => doc.status?.toLowerCase() !== "completed");
+  }, [mappedDocuments, activeTab]);
+
   return (
     <div className="p-4 w-full flex h-full flex-col bg-background">
       {error && !isAuthError && (
@@ -130,20 +141,47 @@ export default function DocumentsPage() {
           </Alert>
         </div>
       )}
-      <DataTable
-        columns={columns}
-        data={mappedDocuments}
-        selection={true}
-        excludedFilters={["documentId"]}
-        showUploadButton={true}
-        viewType="document"
-        initialState={{
-          columnVisibility: {
-            dates: false,
-          },
-        }}
-        isLoading={isLoading}
-      />
+      
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col h-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="active">Active</TabsTrigger>
+          <TabsTrigger value="completed">Completed</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="active" className="flex-1 mt-0">
+          <DataTable
+            columns={columns}
+            data={filteredDocuments}
+            selection={true}
+            excludedFilters={["documentId"]}
+            showUploadButton={true}
+            viewType="document"
+            initialState={{
+              columnVisibility: {
+                dates: false,
+              },
+            }}
+            isLoading={isLoading}
+          />
+        </TabsContent>
+
+        <TabsContent value="completed" className="flex-1 mt-0">
+          <DataTable
+            columns={columns}
+            data={filteredDocuments}
+            selection={true}
+            excludedFilters={["documentId"]}
+            showUploadButton={false}
+            viewType="document"
+            initialState={{
+              columnVisibility: {
+                dates: false,
+              },
+            }}
+            isLoading={isLoading}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

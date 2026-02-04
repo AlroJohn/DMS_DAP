@@ -122,6 +122,7 @@ export function DataTableRowActions<TData>({
   );
   const [viewDocumentModalOpen, setViewDocumentModalOpen] = useState(false);
   const [viewOcrModalOpen, setViewOcrModalOpen] = useState(false);
+  const [showCompleteAlert, setShowCompleteAlert] = useState(false);
   const document = row.original as Document;
 
   // Event handlers
@@ -204,9 +205,10 @@ export function DataTableRowActions<TData>({
     toggleModal("release", true);
   };
 
-  const handleComplete = async () => {
+  const handleCompleteConfirm = async () => {
     try {
       setIsLoading(true);
+      setShowCompleteAlert(false);
 
       const response = await fetch(`/api/documents/${document.id}/complete`, {
         method: "POST",
@@ -230,6 +232,10 @@ export function DataTableRowActions<TData>({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleComplete = () => {
+    setShowCompleteAlert(true);
   };
 
   const handleCancel = async () => {
@@ -360,8 +366,11 @@ export function DataTableRowActions<TData>({
           const errorData = await response.json();
           errorMessage =
             errorData.error?.message || errorData.message || errorMessage;
+          console.error("Archive error response:", errorData);
         } catch (parseError) {
+          const responseText = await response.text().catch(() => "Unable to read response");
           errorMessage = `Server error: ${response.status} ${response.statusText}`;
+          console.error("Archive error status:", response.status, "Response:", responseText);
         }
         throw new Error(errorMessage);
       }
@@ -1060,6 +1069,24 @@ export function DataTableRowActions<TData>({
         onOpenChange={setViewOcrModalOpen}
         documentId={document.id}
       />
+
+      {/* Complete Confirmation Alert Dialog */}
+      <AlertDialog open={showCompleteAlert} onOpenChange={setShowCompleteAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Complete Document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to mark this document as completed? This action will update the document status to completed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCompleteConfirm} disabled={isLoading}>
+              {isLoading ? "Completing..." : "Complete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Signature Capture Modal */}
     </>
