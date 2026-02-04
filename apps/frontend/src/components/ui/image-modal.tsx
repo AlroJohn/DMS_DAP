@@ -24,8 +24,8 @@ export function ImageModal({
   title,
   alt,
 }: ImageModalProps) {
-  const label = (title || alt || "").toString();
-  const isBarcode = /barcod/i.test(label);
+  // Determine if this is a barcode or QR code based on alt text (more reliable)
+  const isBarcode = /barcode/i.test(alt);
   const printTitle = /qr\s*code|barcode/i.test(title || "")
     ? (alt || title || "").toString()
     : (title || alt || "").toString();
@@ -187,23 +187,35 @@ export function ImageModal({
     setIsPrinting(true);
 
     try {
-      const payload = await buildEscPosRaster();
-      const payloadBase64 = bytesToBase64(payload);
       const jobId =
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      
+      // For Brother label printer, send the barcode data directly
+      // Extract document code from title (e.g., "ADMIN-012626-A0001")
+      const documentCode = printTitle || title || alt || "";
+      
+      // Debug: Log what type we're printing
+      console.log(`🖨️ Print Type Detection:`, {
+        alt,
+        title,
+        isBarcode,
+        printType: isBarcode ? "barcode" : "qrcode",
+        documentCode
+      });
+      
       await new Promise((resolve, reject) => {
-        const timeout = window.setTimeout(() => {
-          cleanup();
-          reject(new Error("Printer response timed out"));
-        }, 15000);
-
         const cleanup = () => {
           window.clearTimeout(timeout);
           socket.off("printSuccess", onSuccess);
           socket.off("printError", onError);
         };
+
+        const timeout = window.setTimeout(() => {
+          cleanup();
+          reject(new Error("Printer response timed out"));
+        }, 15000);
 
         const onSuccess = (data: any) => {
           if (data?.jobId !== jobId) return;
@@ -217,14 +229,20 @@ export function ImageModal({
           reject(new Error(data?.error || "Printer error"));
         };
 
-        socket.on("printSuccess", onSuccess);
-        socket.on("printError", onError);
+        // Use once() to automatically remove listeners after first event
+        socket.once("printSuccess", onSuccess);
+        socket.once("printError", onError);
 
         socket.emit(
           "printer:print",
           {
             jobId,
-            payloadBase64,
+            printType: isBarcode ? "barcode" : "qrcode",
+            documentCode: documentCode,
+            barcodeData: documentCode, // Also send as barcodeData for compatibility
+            organizationName: "Property of: DAP", // Full organization name for label
+            labelFormat: "brother-label", // Indicate this is for Brother label format
+            useUSB: true, // Explicitly indicate USB printing
           },
           (ack: { success?: boolean; error?: string } | undefined) => {
             if (!ack?.success) {
