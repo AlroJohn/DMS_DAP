@@ -49,9 +49,37 @@ interface Role {
   description?: string;
 }
 
+interface Invitation {
+  invitation_id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  status: string;
+  created_at: string;
+  expires_at: string;
+  department: {
+    department_id: string;
+    name: string;
+    code: string;
+  };
+  role: {
+    role_id: string;
+    name: string;
+    code: string;
+  };
+  invited_by_account?: {
+    user?: {
+      first_name: string;
+      last_name: string;
+    };
+  };
+}
+
 interface UserManagementState {
   users: User[];
   filteredUsers: User[];
+  invitations: Invitation[];
+  filteredInvitations: Invitation[];
   departments: Department[];
   roles: Role[];
   searchTerm: string;
@@ -72,6 +100,8 @@ export const useUserManagement = () => {
   const [state, setState] = useState<UserManagementState>({
     users: [],
     filteredUsers: [],
+    invitations: [],
+    filteredInvitations: [],
     departments: [],
     roles: [],
     searchTerm: '',
@@ -218,9 +248,10 @@ export const useUserManagement = () => {
       const data = await response.json();
 
       if (data.success) {
-        const scopedRoles = isSuperAdmin
-          ? data.data
-          : data.data.filter((role: Role) => role.code !== 'SUPER_ADMIN');
+        const rolesList = data.data || [];
+        const scopedRoles = isSuperAdmin 
+          ? rolesList 
+          : rolesList.filter((role: Role) => role.code !== 'SUPER_ADMIN');
         setState(prev => ({ ...prev, roles: scopedRoles }));
       }
     } catch (error) {
@@ -228,6 +259,31 @@ export const useUserManagement = () => {
       console.error("Error fetching roles:", errorMessage);
     }
   }, [isSuperAdmin, currentUser?.permissions]);
+
+  const fetchInvitations = useCallback(async () => {
+    try {
+      const canReadUsers = Boolean(currentUser?.permissions?.includes('user_read'));
+      if (!canReadUsers) {
+        setState(prev => ({ ...prev, invitations: [] }));
+        return;
+      }
+      const token = getToken();
+      
+      const response = await fetch("/api/admin/invitations", {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setState(prev => ({ ...prev, invitations: data.data || [] }));
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred while fetching invitations';
+      console.error("Error fetching invitations:", errorMessage);
+    }
+  }, [currentUser?.permissions]);
 
   const toggleUserStatus = async (id: string) => {
     try {
@@ -333,10 +389,31 @@ export const useUserManagement = () => {
   }, [state.searchTerm, state.filterDepartment, state.filterStatus, state.users]);
 
   useEffect(() => {
+    let filtered = state.invitations;
+
+    if (state.searchTerm) {
+      filtered = filtered.filter(
+        (invitation) =>
+          invitation.first_name.toLowerCase().includes(state.searchTerm.toLowerCase()) ||
+          invitation.last_name.toLowerCase().includes(state.searchTerm.toLowerCase()) ||
+          invitation.email.toLowerCase().includes(state.searchTerm.toLowerCase()) ||
+          invitation.department.name.toLowerCase().includes(state.searchTerm.toLowerCase())
+      );
+    }
+
+    if (state.filterDepartment !== "all") {
+      filtered = filtered.filter((invitation) => invitation.department.department_id === state.filterDepartment);
+    }
+
+    setState(prev => ({ ...prev, filteredInvitations: filtered }));
+  }, [state.searchTerm, state.filterDepartment, state.invitations]);
+
+  useEffect(() => {
     fetchUsers();
     fetchDepartments();
     fetchRoles();
-  }, [fetchUsers, fetchDepartments, fetchRoles]);
+    fetchInvitations();
+  }, [fetchUsers, fetchDepartments, fetchRoles, fetchInvitations]);
 
   const setSearchTerm = (term: string) => setState(prev => ({ ...prev, searchTerm: term }));
   const setFilterDepartment = (dept: string) => setState(prev => ({ ...prev, filterDepartment: dept }));
@@ -358,6 +435,8 @@ export const useUserManagement = () => {
     // State
     users: state.users,
     filteredUsers: state.filteredUsers,
+    invitations: state.invitations,
+    filteredInvitations: state.filteredInvitations,
     departments: state.departments,
     roles: state.roles,
     searchTerm: state.searchTerm,
@@ -387,5 +466,6 @@ export const useUserManagement = () => {
     deleteUser,
     toggleUserStatus,
     fetchUsers,
+    fetchInvitations,
   };
 };

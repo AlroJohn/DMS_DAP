@@ -765,7 +765,7 @@ export default function DocumentDetailPage() {
 
   if (isSignatureModeOpen) {
     return (
-      <div className="w-full flex flex-col gap-2 p-1 md:p-2 lg:p-4 w-full pb-2">
+      <div className="w-full flex flex-col gap-2 p-1 md:p-2 lg:p-4 pb-2">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-lg font-bold tracking-tight">

@@ -96,6 +96,15 @@ export class EmailService {
         pass: process.env.SMTP_PASS || ''
       }
     });
+
+    // Log SMTP configuration (without password)
+    console.log('Email Service initialized with configuration:', {
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_SECURE === 'true',
+      user: process.env.SMTP_USER || '',
+      from: process.env.SMTP_FROM || process.env.SMTP_USER
+    });
   }
 
   /**
@@ -125,6 +134,7 @@ export class EmailService {
    */
   async sendInvitationEmail(data: InvitationEmailData): Promise<boolean> {
     try {
+      console.log('Attempting to send invitation email to:', data.email);
       const companyName = data.companyName || 'Document Management System';
       const mailOptions = {
         from: process.env.SMTP_FROM || process.env.SMTP_USER,
@@ -134,11 +144,21 @@ export class EmailService {
         text: this.generateInvitationEmailText(data)
       };
 
+      console.log('Mail options:', {
+        from: mailOptions.from,
+        to: mailOptions.to,
+        subject: mailOptions.subject
+      });
+
       const result = await this.transporter.sendMail(mailOptions);
-      console.log('Invitation email sent:', result.messageId);
+      console.log('Invitation email sent successfully:', result.messageId);
       return true;
     } catch (error) {
       console.error('Error sending invitation email:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', error.message);
+        console.error('Error stack:', error.stack);
+      }
       return false;
     }
   }
