@@ -243,4 +243,25 @@ export class DepartmentController {
       });
     }
   }
+
+  // Get users by department ID
+  async getUsersByDepartment(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+
+      const users = await this.departmentService.getUsersByDepartmentId(id);
+
+      res.json({
+        success: true,
+        users
+      });
+    } catch (error) {
+      console.error('Error fetching users for department:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error fetching users for department',
+        error: (error as Error).message
+      });
+    }
+  }
 }

@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useEffect, useMemo, useState } from "react";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, Search, ChevronDown, ChevronUp } from "lucide-react";
 
 import {
   Dialog,
@@ -84,6 +84,18 @@ interface DocumentAction {
   permission_id?: string;
 }
 
+interface User {
+  account_id: string;
+  email: string;
+  name: string;
+  department_id: string;
+  roles?: Array<{
+    role_id: string;
+    name: string;
+    code: string;
+  }>;
+}
+
 const releaseDocumentSchema = z.object({
   departmentIds: z
     .array(z.string())
@@ -91,6 +103,7 @@ const releaseDocumentSchema = z.object({
   requestActions: z
     .array(z.string())
     .min(1, "Please select at least one action."),
+  userIds: z.array(z.string()).optional(),
   remarks: z.string().optional(),
 });
 
@@ -100,19 +113,12 @@ interface ReleaseDocumentModalProps {
   document: Document | null;
   isOpen: boolean;
   onClose: () => void;
-  onSignatureSetup?: (payload: {
-    documentId: string;
-    departmentIds: string[];
-    requestActions: string[];
-    remarks?: string;
-  }) => void;
 }
 
 export function ReleaseDocumentModal({
   document,
   isOpen,
   onClose,
-  onSignatureSetup,
 }: ReleaseDocumentModalProps) {
   const { user: currentUser } = useAuth();
   const currentDepartmentId = currentUser?.department_id;
@@ -120,21 +126,23 @@ export function ReleaseDocumentModal({
   const [documentActions, setDocumentActions] = useState<DocumentAction[]>([]);
   const [loadingDepartments, setLoadingDepartments] = useState(false);
   const [loadingActions, setLoadingActions] = useState(false);
-  const [isRedirecting, setIsRedirecting] = useState(false);
-  const [sequenceEnabled, setSequenceEnabled] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
   const [selectedCenterId, setSelectedCenterId] = useState<string>("all");
-  const [orderedDepartmentIds, setOrderedDepartmentIds] = useState<string[]>(
-    [],
-  );
-  const [draggingDepartmentId, setDraggingDepartmentId] = useState<
-    string | null
-  >(null);
   const [draggingActionName, setDraggingActionName] = useState<string | null>(
     null,
   );
   const [departmentActionMap, setDepartmentActionMap] = useState<
     Record<string, string[]>
+  >({});
+  const [departmentUsers, setDepartmentUsers] = useState<
+    Record<string, User[]>
+  >({});
+  const [loadingUsers, setLoadingUsers] = useState<Record<string, boolean>>({});
+  const [userSearchQuery, setUserSearchQuery] = useState<
+    Record<string, string>
+  >({});
+  const [expandedDepartments, setExpandedDepartments] = useState<
+    Record<string, boolean>
   >({});
 
   const form = useForm<ReleaseDocumentForm>({
@@ -142,6 +150,7 @@ export function ReleaseDocumentModal({
     defaultValues: {
       departmentIds: [],
       requestActions: [],
+      userIds: [],
       remarks: "",
     },
   });
@@ -192,29 +201,17 @@ export function ReleaseDocumentModal({
     return Array.from(departmentMap.values());
   }, [groups, selectedGroupId, selectedCenterId, activeGroup]);
 
-  const updateOrderedDepartments = (nextIds: string[]) => {
-    setOrderedDepartmentIds((prev) => {
-      const next = prev.filter((id) => nextIds.includes(id));
-      nextIds.forEach((id) => {
-        if (!next.includes(id)) {
-          next.push(id);
-        }
-      });
-      return next;
-    });
-  };
-
   const handleDepartmentToggle = (departmentId: string, checked: boolean) => {
     if (departmentId === currentDepartmentId) return;
     const current = new Set(form.getValues("departmentIds"));
     if (checked) {
       current.add(departmentId);
+      fetchUsersForDepartment(departmentId);
     } else {
       current.delete(departmentId);
     }
     const nextIds = Array.from(current);
     form.setValue("departmentIds", nextIds, { shouldValidate: true });
-    updateOrderedDepartments(nextIds);
     setDepartmentActionMap((prev) => {
       if (checked) {
         if (prev[departmentId]) return prev;
@@ -250,6 +247,61 @@ export function ReleaseDocumentModal({
     });
   };
 
+  const handleUserToggle = (userId: string, checked: boolean) => {
+    const current = new Set(form.getValues("userIds") || []);
+    if (checked) {
+      current.add(userId);
+    } else {
+      current.delete(userId);
+    }
+    form.setValue("userIds", Array.from(current));
+  };
+
+  const handleToggleDepartmentExpansion = (departmentId: string) => {
+    setExpandedDepartments((prev) => ({
+      ...prev,
+      [departmentId]: !prev[departmentId],
+    }));
+  };
+
+  const fetchUsersForDepartment = async (departmentId: string) => {
+    if (departmentUsers[departmentId]) return;
+
+    try {
+      setLoadingUsers((prev) => ({ ...prev, [departmentId]: true }));
+      const token = getAccessToken();
+
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`/api/departments/${departmentId}/users`, {
+        method: "GET",
+        credentials: "include",
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch users");
+      }
+
+      const data = await response.json();
+      setDepartmentUsers((prev) => ({
+        ...prev,
+        [departmentId]: data.users || [],
+      }));
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      toast.error("Failed to load users for department");
+    } finally {
+      setLoadingUsers((prev) => ({ ...prev, [departmentId]: false }));
+    }
+  };
+
   // Fetch departments and document actions when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -258,13 +310,14 @@ export function ReleaseDocumentModal({
     }
     if (!isOpen) {
       form.reset();
-      setSequenceEnabled(false);
-      setOrderedDepartmentIds([]);
-      setDraggingDepartmentId(null);
       setDraggingActionName(null);
       setSelectedGroupId("all");
       setSelectedCenterId("all");
       setDepartmentActionMap({});
+      setDepartmentUsers({});
+      setLoadingUsers({});
+      setUserSearchQuery({});
+      setExpandedDepartments({});
     }
   }, [isOpen]);
 
@@ -370,11 +423,11 @@ export function ReleaseDocumentModal({
         release_action: data.requestActions,
         requestActions: data.requestActions,
         departmentActions: departmentActionMap,
+        userIds:
+          data.userIds && data.userIds.length > 0 ? data.userIds : undefined,
         // Map the action names to action IDs if needed
         // For now, keeping the action names as selected by the user
         remarks: data.remarks,
-        workflowSequenceEnabled: sequenceEnabled,
-        orderedDepartmentIds: sequenceEnabled ? data.departmentIds : undefined,
       };
 
       // Get token from localStorage or cookies
@@ -472,62 +525,12 @@ export function ReleaseDocumentModal({
       return;
     }
 
-    const hasSignatureAction = data.requestActions.some((actionName) => {
-      const normalized = actionName.toLowerCase();
-      return (
-        normalized.includes("signature") || normalized.includes("for signature")
-      );
-    });
-
-    if (hasSignatureAction && onSignatureSetup && document) {
-      const signatureDepartmentIds = data.departmentIds.filter((departmentId) =>
-        (departmentActionMap[departmentId] || []).some((actionName) => {
-          const normalized = actionName.toLowerCase();
-          return (
-            normalized.includes("signature") ||
-            normalized.includes("for signature")
-          );
-        }),
-      );
-
-      if (signatureDepartmentIds.length > 0) {
-        setIsRedirecting(true);
-        onSignatureSetup({
-          documentId: document.id,
-          departmentIds: signatureDepartmentIds,
-          requestActions: data.requestActions,
-          remarks: data.remarks,
-        });
-        form.reset();
-        onClose();
-        return;
-      }
-    }
-
-    const orderedIds =
-      sequenceEnabled && orderedDepartmentIds.length > 0
-        ? orderedDepartmentIds
-        : data.departmentIds;
-
     releaseDocument({
       ...data,
-      departmentIds: orderedIds,
     });
   };
 
   const selectedCount = selectedDepartmentIds.length;
-  const orderedSelection = useMemo(() => {
-    if (!sequenceEnabled) return selectedDepartmentIds;
-    const selectedSet = new Set(selectedDepartmentIds);
-    const ordered = orderedDepartmentIds.filter((id) => selectedSet.has(id));
-    selectedDepartmentIds.forEach((id) => {
-      if (!ordered.includes(id)) {
-        ordered.push(id);
-      }
-    });
-    return ordered;
-  }, [orderedDepartmentIds, selectedDepartmentIds, sequenceEnabled]);
-
   const departmentNameById = useMemo(() => {
     const map = new Map<string, string>();
     groups.forEach((group) => {
@@ -547,227 +550,283 @@ export function ReleaseDocumentModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0">
-        <DialogHeader className="sticky top-0 z-10 p-6 pb-4">
+      <DialogContent className="sm:max-w-[90vw] h-[90vh] flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <DialogTitle>Release Document</DialogTitle>
           <DialogDescription>
             Release the document to another department for action.
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="flex-1 overflow-y-auto px-6">
-          <div className="grid gap-4 h-full ">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="doc-code" className="text-right">
-                Code
-              </Label>
-              <Input
-                id="doc-code"
-                value={document.documentId}
-                readOnly
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="doc-name" className="text-right">
-                Name
-              </Label>
-              <Input
-                id="doc-name"
-                value={document.document}
-                readOnly
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="doc-classification" className="text-right">
-                Classification
-              </Label>
-              <Input
-                id="doc-classification"
-                value={document.classification}
-                readOnly
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="doc-owner" className="text-right">
-                Owner
-              </Label>
-              <Input
-                id="doc-owner"
-                value={document.contactPerson}
-                readOnly
-                className="col-span-3"
-              />
-            </div>
-          </div>
 
-          <Form {...form}>
-            <form
-              id="release-document-form"
-              onSubmit={form.handleSubmit(onSubmit)}
-              className="space-y-4 pt-4"
-            >
-              <div className="w-full grid grid-cols-1 gap-4">
-                <FormField
-                  control={form.control}
-                  name="departmentIds"
-                  render={() => (
-                    <FormItem className="w-full">
-                      <FormLabel>Release To</FormLabel>
-                      <FormControl>
-                        <div className="rounded-md border border-input p-4 space-y-4">
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="space-y-1 min-w-0">
-                              <Label className="text-xs uppercase text-muted-foreground">
-                                Group
-                              </Label>
-                              <Select
-                                value={selectedGroupId}
-                                onValueChange={setSelectedGroupId}
-                              >
-                                <SelectTrigger className="w-full">
-                                  <SelectValue placeholder="Select group" className="truncate text-ellipsis overflow-hidden block w-full" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="all">
-                                    All Groups
-                                  </SelectItem>
-                                  {groups.map((group) => (
-                                    <SelectItem
-                                      className={`${group.name.length > 30 ? "line-clamp-2" : ""} overflow-hidden`}
-                                      key={group.group_id}
-                                      value={group.group_id}
-                                    >
-                                      {group.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs uppercase text-muted-foreground">
-                                Center
-                              </Label>
-                              <Select
-                                value={selectedCenterId}
-                                onValueChange={setSelectedCenterId}
-                                disabled={
-                                  selectedGroupId === "all" ||
-                                  availableCenters.length === 0
-                                }
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select center" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="all">
-                                    All Centers
-                                  </SelectItem>
-                                  {activeGroup?.departments?.length ? (
-                                    <SelectItem value="no-center">
-                                      No Center
-                                    </SelectItem>
-                                  ) : null}
-                                  {availableCenters.map((center) => (
-                                    <SelectItem
-                                      key={center.center_id}
-                                      value={center.center_id}
-                                    >
-                                      {center.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <div className="text-xs uppercase text-muted-foreground">
-                                Departments
-                              </div>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 text-xs"
-                                onClick={() => {
-                                  const eligibleDepts = availableDepartments.filter(
-                                    (dept) => dept.department_id !== currentDepartmentId
-                                  );
-                                  const allSelected = eligibleDepts.every((dept) =>
-                                    selectedDepartmentIds.includes(dept.department_id)
-                                  );
-                                  if (allSelected) {
-                                    // Uncheck all
-                                    form.setValue("departmentIds", [], { shouldValidate: true });
-                                    setOrderedDepartmentIds([]);
-                                    setDepartmentActionMap({});
-                                  } else {
-                                    // Check all
-                                    const allIds = eligibleDepts.map((dept) => dept.department_id);
-                                    form.setValue("departmentIds", allIds, { shouldValidate: true });
-                                    updateOrderedDepartments(allIds);
-                                    const newMap: Record<string, string[]> = {};
-                                    allIds.forEach((id) => {
-                                      newMap[id] = departmentActionMap[id] || [];
-                                    });
-                                    setDepartmentActionMap(newMap);
-                                  }
-                                }}
-                                disabled={loadingDepartments || availableDepartments.length === 0}
-                              >
-                                {availableDepartments.filter(
-                                  (dept) => dept.department_id !== currentDepartmentId
-                                ).every((dept) => selectedDepartmentIds.includes(dept.department_id))
-                                  ? "Uncheck All"
-                                  : "Check All"}
-                              </Button>
-                            </div>
-                            <div className="rounded-md border bg-muted/20 p-3 max-h-48 overflow-auto space-y-2">
-                              {loadingDepartments ? (
-                                <div className="text-sm text-muted-foreground">
-                                  Loading options...
-                                </div>
-                              ) : availableDepartments.length > 0 ? (
-                                availableDepartments.map((dept) => (
-                                  <label
-                                    key={dept.department_id}
-                                    className="flex items-center gap-2 text-sm"
+        <Form {...form}>
+          <form
+            id="release-document-form"
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="flex-1 flex flex-col overflow-hidden"
+          >
+            <div className="px-6 py-4 space-y-4 overflow-y-auto">
+              <div className="grid grid-cols-2 w-full gap-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col items-start gap-2">
+                    <Label htmlFor="doc-code" className="text-right">
+                      Code
+                    </Label>
+                    <Input
+                      id="doc-code"
+                      value={document.documentId}
+                      readOnly
+                      className="col-span-3"
+                    />
+                  </div>
+                  <div className="flex flex-col items-start gap-2">
+                    <Label htmlFor="doc-name" className="text-right">
+                      Name
+                    </Label>
+                    <Input
+                      id="doc-name"
+                      value={document.document}
+                      readOnly
+                      className="col-span-3"
+                    />
+                  </div>
+                  <div className="flex flex-col items-start gap-2">
+                    <Label htmlFor="doc-classification" className="text-right">
+                      Classification
+                    </Label>
+                    <Input
+                      id="doc-classification"
+                      value={document.classification}
+                      readOnly
+                      className="col-span-3"
+                    />
+                  </div>
+                  <div className="flex flex-col items-start gap-2">
+                    <Label htmlFor="doc-owner" className="text-right">
+                      Owner
+                    </Label>
+                    <Input
+                      id="doc-owner"
+                      value={document.contactPerson}
+                      readOnly
+                      className="col-span-3"
+                    />
+                  </div>
+                  <div className="w-full col-span-2">
+                    <FormField
+                      control={form.control}
+                      name="remarks"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Remarks</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Add any remarks here..."
+                              className="resize-none"
+                              rows={3}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="w-full col-span-2">
+                    <FormField
+                      control={form.control}
+                      name="departmentIds"
+                      render={() => (
+                        <FormItem className="w-full">
+                          <FormLabel>Release To</FormLabel>
+                          <FormControl>
+                            <div className="rounded-md border border-input p-4 space-y-4">
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <div className="space-y-1 min-w-0">
+                                  <Label className="text-xs uppercase text-muted-foreground">
+                                    Group
+                                  </Label>
+                                  <Select
+                                    value={selectedGroupId}
+                                    onValueChange={setSelectedGroupId}
                                   >
-                                    <Checkbox
-                                      checked={selectedDepartmentIds.includes(
-                                        dept.department_id,
-                                      )}
-                                      disabled={
-                                        dept.department_id ===
-                                        currentDepartmentId
-                                      }
-                                      onCheckedChange={(checked) =>
-                                        handleDepartmentToggle(
-                                          dept.department_id,
-                                          checked === true,
-                                        )
-                                      }
-                                    />
-                                    {dept.name}
-                                  </label>
-                                ))
-                              ) : (
-                                <div className="text-sm text-muted-foreground">
-                                  No departments available for the selected
-                                  filters.
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue
+                                        placeholder="Select group"
+                                        className="truncate text-ellipsis overflow-hidden block w-full"
+                                      />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="all">
+                                        All Groups
+                                      </SelectItem>
+                                      {groups.map((group) => (
+                                        <SelectItem
+                                          className={`${group.name.length > 30 ? "line-clamp-2" : ""} overflow-hidden`}
+                                          key={group.group_id}
+                                          value={group.group_id}
+                                        >
+                                          {group.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
                                 </div>
-                              )}
+                                <div className="space-y-1">
+                                  <Label className="text-xs uppercase text-muted-foreground">
+                                    Center
+                                  </Label>
+                                  <Select
+                                    value={selectedCenterId}
+                                    onValueChange={setSelectedCenterId}
+                                    disabled={
+                                      selectedGroupId === "all" ||
+                                      availableCenters.length === 0
+                                    }
+                                  >
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue placeholder="Select center" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="all">
+                                        All Centers
+                                      </SelectItem>
+                                      {activeGroup?.departments?.length ? (
+                                        <SelectItem value="no-center">
+                                          No Center
+                                        </SelectItem>
+                                      ) : null}
+                                      {availableCenters.map((center) => (
+                                        <SelectItem
+                                          key={center.center_id}
+                                          value={center.center_id}
+                                        >
+                                          {center.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="text-xs uppercase text-muted-foreground">
+                                    Departments
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 text-xs"
+                                    onClick={() => {
+                                      const eligibleDepts =
+                                        availableDepartments.filter(
+                                          (dept) =>
+                                            dept.department_id !==
+                                            currentDepartmentId,
+                                        );
+                                      const allSelected = eligibleDepts.every(
+                                        (dept) =>
+                                          selectedDepartmentIds.includes(
+                                            dept.department_id,
+                                          ),
+                                      );
+                                      if (allSelected) {
+                                        // Uncheck all
+                                        form.setValue("departmentIds", [], {
+                                          shouldValidate: true,
+                                        });
+                                        setOrderedDepartmentIds([]);
+                                        setDepartmentActionMap({});
+                                      } else {
+                                        // Check all
+                                        const allIds = eligibleDepts.map(
+                                          (dept) => dept.department_id,
+                                        );
+                                        form.setValue("departmentIds", allIds, {
+                                          shouldValidate: true,
+                                        });
+                                        updateOrderedDepartments(allIds);
+                                        const newMap: Record<string, string[]> =
+                                          {};
+                                        allIds.forEach((id) => {
+                                          newMap[id] =
+                                            departmentActionMap[id] || [];
+                                        });
+                                        setDepartmentActionMap(newMap);
+                                        // Fetch users for all selected departments
+                                        allIds.forEach((id) =>
+                                          fetchUsersForDepartment(id),
+                                        );
+                                      }
+                                    }}
+                                    disabled={
+                                      loadingDepartments ||
+                                      availableDepartments.length === 0
+                                    }
+                                  >
+                                    {availableDepartments
+                                      .filter(
+                                        (dept) =>
+                                          dept.department_id !==
+                                          currentDepartmentId,
+                                      )
+                                      .every((dept) =>
+                                        selectedDepartmentIds.includes(
+                                          dept.department_id,
+                                        ),
+                                      )
+                                      ? "Uncheck All"
+                                      : "Check All"}
+                                  </Button>
+                                </div>
+                                <ScrollArea className="h-48 rounded-md border bg-muted/20 p-3">
+                                  <div className="space-y-2">
+                                    {loadingDepartments ? (
+                                      <div className="text-sm text-muted-foreground">
+                                        Loading options...
+                                      </div>
+                                    ) : availableDepartments.length > 0 ? (
+                                      availableDepartments.map((dept) => (
+                                        <label
+                                          key={dept.department_id}
+                                          className="flex items-center gap-2 text-sm"
+                                        >
+                                          <Checkbox
+                                            checked={selectedDepartmentIds.includes(
+                                              dept.department_id,
+                                            )}
+                                            disabled={
+                                              dept.department_id ===
+                                              currentDepartmentId
+                                            }
+                                            onCheckedChange={(checked) =>
+                                              handleDepartmentToggle(
+                                                dept.department_id,
+                                                checked === true,
+                                              )
+                                            }
+                                          />
+                                          {dept.name}
+                                        </label>
+                                      ))
+                                    ) : (
+                                      <div className="text-sm text-muted-foreground">
+                                        No departments available for the
+                                        selected filters.
+                                      </div>
+                                    )}
+                                  </div>
+                                </ScrollArea>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
 
                 <div className="text-xs text-muted-foreground">
                   {selectedCount > 0
@@ -776,266 +835,376 @@ export function ReleaseDocumentModal({
                       }.`
                     : "Select targets to preview recipients."}
                 </div>
+              </div>
+            </div>
 
-                {selectedCount > 1 && (
-                  <div className="rounded-md border border-input p-3 space-y-2">
-                    <label className="flex items-center gap-2 text-sm font-medium">
-                      <Checkbox
-                        checked={sequenceEnabled}
-                        onCheckedChange={(checked) =>
-                          setSequenceEnabled(checked === true)
-                        }
-                      />
-                      Enable workflow sequence
-                    </label>
-                    <p className="text-xs text-muted-foreground">
-                      When enabled, drag departments to set the routing order.
-                    </p>
-                  </div>
-                )}
+            {/* Action Assignment Section - Outside scrolling area */}
+            <div className="px-6 pb-4 h-[400px] flex flex-col">
+              <FormField
+                control={form.control}
+                name="requestActions"
+                render={() => (
+                  <FormItem className="h-full flex flex-col">
+                    <FormLabel>Action Assignment</FormLabel>
+                    <FormControl>
+                      <div className="grid gap-4 lg:grid-cols-2 flex-1 overflow-hidden">
+                        {/* Departments Column with ScrollArea */}
+                        <div className="rounded-md border border-input flex flex-col h-full">
+                          <div className="flex items-center justify-between p-3 border-b bg-muted/20 flex-shrink-0">
+                            <span className="text-sm font-medium">
+                              Departments
+                            </span>
+                            <Badge variant="outline">{selectedCount}</Badge>
+                          </div>
+                          <ScrollArea className="flex-1">
+                            <div className="p-3">
+                              {selectedCount === 0 ? (
+                                <p className="text-xs text-muted-foreground">
+                                  Select departments to assign actions.
+                                </p>
+                              ) : (
+                                <div className="space-y-2">
+                                  {selectedDepartmentIds.map((deptId) => {
+                                    const assignedActions =
+                                      departmentActionMap[deptId] || [];
+                                    return (
+                                      <div
+                                        key={deptId}
+                                        onDragOver={(event) => {
+                                          if (draggingActionName) {
+                                            event.preventDefault();
+                                          }
+                                        }}
+                                        onDrop={(event) => {
+                                          event.preventDefault();
+                                          const actionName =
+                                            draggingActionName ||
+                                            event.dataTransfer.getData(
+                                              "text/plain",
+                                            );
+                                          if (actionName) {
+                                            handleAssignAction(
+                                              deptId,
+                                              actionName,
+                                            );
+                                            setDraggingActionName(null);
+                                          }
+                                        }}
+                                        className={cn(
+                                          "rounded border px-3 py-2 space-y-2",
+                                          "border-muted",
+                                        )}
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium">
+                                              {departmentNameById.get(deptId) ||
+                                                "Unknown department"}
+                                            </span>
+                                          </div>
+                                          <span className="text-xs text-muted-foreground">
+                                            Drop actions
+                                          </span>
+                                        </div>
+                                        {assignedActions.length ? (
+                                          <div className="flex flex-wrap gap-2">
+                                            {assignedActions.map((action) => (
+                                              <Badge
+                                                key={`${deptId}-${action}`}
+                                                variant="outline"
+                                                className="flex items-center gap-1"
+                                              >
+                                                <span>{action}</span>
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    handleRemoveAssignedAction(
+                                                      deptId,
+                                                      action,
+                                                    )
+                                                  }
+                                                  className="rounded-full p-0.5 hover:bg-muted"
+                                                >
+                                                  <X className="h-3 w-3" />
+                                                </button>
+                                              </Badge>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <p className="text-xs text-muted-foreground">
+                                            No actions assigned yet.
+                                          </p>
+                                        )}
 
-                <FormField
-                  control={form.control}
-                  name="requestActions"
-                  render={() => (
-                    <FormItem>
-                      <FormLabel>Action Assignment</FormLabel>
-                      <FormControl>
-                        <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-                          <div className="rounded-md border border-input p-3 space-y-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium">
-                                Departments
-                              </span>
-                              <Badge variant="outline">{selectedCount}</Badge>
+                                        {/* User Selection Section */}
+                                        <div className="border-t pt-2 mt-2">
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleToggleDepartmentExpansion(
+                                                deptId,
+                                              )
+                                            }
+                                            className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground hover:text-foreground"
+                                          >
+                                            <span>
+                                              Assign to specific users
+                                              (optional)
+                                            </span>
+                                            {expandedDepartments[deptId] ? (
+                                              <ChevronUp className="h-3 w-3" />
+                                            ) : (
+                                              <ChevronDown className="h-3 w-3" />
+                                            )}
+                                          </button>
+
+                                          {expandedDepartments[deptId] && (
+                                            <div className="mt-2 space-y-2">
+                                              {/* Search Input */}
+                                              <div className="relative">
+                                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                                                <Input
+                                                  type="text"
+                                                  placeholder="Search by name or role..."
+                                                  className="pl-7 h-7 text-xs"
+                                                  value={
+                                                    userSearchQuery[deptId] ||
+                                                    ""
+                                                  }
+                                                  onChange={(e) =>
+                                                    setUserSearchQuery(
+                                                      (prev) => ({
+                                                        ...prev,
+                                                        [deptId]:
+                                                          e.target.value,
+                                                      }),
+                                                    )
+                                                  }
+                                                />
+                                              </div>
+
+                                              {/* User List */}
+                                              <div className="max-h-32 overflow-y-auto space-y-1">
+                                                {loadingUsers[deptId] ? (
+                                                  <div className="text-xs text-muted-foreground py-2">
+                                                    Loading users...
+                                                  </div>
+                                                ) : (
+                                                  (() => {
+                                                    const users =
+                                                      departmentUsers[deptId] ||
+                                                      [];
+                                                    const searchQuery = (
+                                                      userSearchQuery[deptId] ||
+                                                      ""
+                                                    ).toLowerCase();
+                                                    const filteredUsers =
+                                                      users.filter((user) => {
+                                                        if (!searchQuery)
+                                                          return true;
+                                                        const nameMatch =
+                                                          user.name
+                                                            .toLowerCase()
+                                                            .includes(
+                                                              searchQuery,
+                                                            );
+                                                        const roleMatch =
+                                                          user.roles?.some(
+                                                            (role) =>
+                                                              role.name
+                                                                .toLowerCase()
+                                                                .includes(
+                                                                  searchQuery,
+                                                                ),
+                                                          );
+                                                        return (
+                                                          nameMatch || roleMatch
+                                                        );
+                                                      });
+                                                    const displayUsers =
+                                                      searchQuery
+                                                        ? filteredUsers
+                                                        : filteredUsers.slice(
+                                                            0,
+                                                            3,
+                                                          );
+
+                                                    return displayUsers.length >
+                                                      0 ? (
+                                                      <>
+                                                        {displayUsers.map(
+                                                          (user) => (
+                                                            <label
+                                                              key={
+                                                                user.account_id
+                                                              }
+                                                              className="flex items-start gap-2 text-xs p-1.5 rounded hover:bg-muted/50 cursor-pointer"
+                                                            >
+                                                              <Checkbox
+                                                                checked={form
+                                                                  .watch(
+                                                                    "userIds",
+                                                                  )
+                                                                  ?.includes(
+                                                                    user.account_id,
+                                                                  )}
+                                                                onCheckedChange={(
+                                                                  checked,
+                                                                ) =>
+                                                                  handleUserToggle(
+                                                                    user.account_id,
+                                                                    checked ===
+                                                                      true,
+                                                                  )
+                                                                }
+                                                                className="mt-0.5"
+                                                              />
+                                                              <div className="flex-1 min-w-0">
+                                                                <div className="font-medium truncate">
+                                                                  {user.name}
+                                                                </div>
+                                                                <div className="text-[10px] text-muted-foreground truncate">
+                                                                  {user.email}
+                                                                </div>
+                                                                {user.roles &&
+                                                                  user.roles
+                                                                    .length >
+                                                                    0 && (
+                                                                    <div className="flex flex-wrap gap-1 mt-0.5">
+                                                                      {user.roles.map(
+                                                                        (
+                                                                          role,
+                                                                        ) => (
+                                                                          <Badge
+                                                                            key={
+                                                                              role.role_id
+                                                                            }
+                                                                            variant="secondary"
+                                                                            className="text-[9px] h-4 px-1"
+                                                                          >
+                                                                            {
+                                                                              role.name
+                                                                            }
+                                                                          </Badge>
+                                                                        ),
+                                                                      )}
+                                                                    </div>
+                                                                  )}
+                                                              </div>
+                                                            </label>
+                                                          ),
+                                                        )}
+                                                        {!searchQuery &&
+                                                          filteredUsers.length >
+                                                            3 && (
+                                                            <div className="text-[10px] text-muted-foreground text-center py-1">
+                                                              {filteredUsers.length -
+                                                                3}{" "}
+                                                              more users. Use
+                                                              search to find
+                                                              them.
+                                                            </div>
+                                                          )}
+                                                      </>
+                                                    ) : (
+                                                      <div className="text-xs text-muted-foreground py-2">
+                                                        {searchQuery
+                                                          ? "No users found"
+                                                          : "No users available"}
+                                                      </div>
+                                                    );
+                                                  })()
+                                                )}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
-                            {selectedCount === 0 ? (
-                              <p className="text-xs text-muted-foreground">
-                                Select departments to assign actions.
-                              </p>
-                            ) : (
-                              <div className="space-y-2">
-                                {orderedSelection.map((deptId, index) => {
-                                  const assignedActions =
-                                    departmentActionMap[deptId] || [];
-                                  return (
+                          </ScrollArea>
+                        </div>
+
+                        {/* Actions Column with ScrollArea */}
+                        <div className="rounded-md border border-input flex flex-col h-full">
+                          <div className="flex items-center justify-between p-3 border-b bg-muted/20 flex-shrink-0">
+                            <span className="text-sm font-medium">Actions</span>
+                            <Badge variant="outline">
+                              {documentActions.length}
+                            </Badge>
+                          </div>
+                          <ScrollArea className="flex-1">
+                            <div className="p-3">
+                              {loadingActions ? (
+                                <div className="py-2 text-sm text-muted-foreground">
+                                  Loading actions...
+                                </div>
+                              ) : documentActions.length > 0 ? (
+                                <div className="space-y-2">
+                                  {documentActions.map((action) => (
                                     <div
-                                      key={deptId}
-                                      draggable={sequenceEnabled}
+                                      key={action.document_action_id}
+                                      draggable
                                       onDragStart={(event) => {
-                                        if (!sequenceEnabled) return;
-                                        setDraggingDepartmentId(deptId);
+                                        setDraggingActionName(
+                                          action.action_name,
+                                        );
                                         event.dataTransfer.setData(
-                                          "application/x-department",
-                                          deptId,
+                                          "text/plain",
+                                          action.action_name,
                                         );
                                         event.dataTransfer.effectAllowed =
-                                          "move";
+                                          "copy";
                                       }}
                                       onDragEnd={() =>
-                                        setDraggingDepartmentId(null)
+                                        setDraggingActionName(null)
                                       }
-                                      onDragOver={(event) => {
-                                        if (
-                                          draggingActionName ||
-                                          (sequenceEnabled &&
-                                            draggingDepartmentId)
-                                        ) {
-                                          event.preventDefault();
-                                        }
-                                      }}
-                                      onDrop={(event) => {
-                                        event.preventDefault();
-                                        const actionName =
-                                          draggingActionName ||
-                                          event.dataTransfer.getData(
-                                            "text/plain",
-                                          );
-                                        if (actionName) {
-                                          handleAssignAction(
-                                            deptId,
-                                            actionName,
-                                          );
-                                          setDraggingActionName(null);
-                                          return;
-                                        }
-                                        if (
-                                          sequenceEnabled &&
-                                          draggingDepartmentId &&
-                                          draggingDepartmentId !== deptId
-                                        ) {
-                                          setOrderedDepartmentIds((prev) => {
-                                            const next = [...prev];
-                                            const fromIndex =
-                                              next.indexOf(
-                                                draggingDepartmentId,
-                                              );
-                                            const toIndex =
-                                              next.indexOf(deptId);
-                                            if (fromIndex < 0 || toIndex < 0) {
-                                              return prev;
-                                            }
-                                            next.splice(fromIndex, 1);
-                                            next.splice(
-                                              toIndex,
-                                              0,
-                                              draggingDepartmentId,
-                                            );
-                                            return next;
-                                          });
-                                          setDraggingDepartmentId(null);
-                                        }
-                                      }}
                                       className={cn(
-                                        "rounded border px-3 py-2 space-y-2",
-                                        draggingDepartmentId === deptId
+                                        "flex items-center justify-between rounded border px-3 py-2 text-sm",
+                                        draggingActionName ===
+                                          action.action_name
                                           ? "border-primary bg-primary/5"
                                           : "border-muted",
                                       )}
                                     >
-                                      <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-sm font-medium">
-                                            {departmentNameById.get(deptId) ||
-                                              "Unknown department"}
-                                          </span>
-                                          {sequenceEnabled && (
-                                            <Badge
-                                              variant="secondary"
-                                              className="text-[11px]"
-                                            >
-                                              {index + 1}
-                                            </Badge>
-                                          )}
+                                      <div>
+                                        <div className="font-medium">
+                                          {action.action_name}
                                         </div>
-                                        <span className="text-xs text-muted-foreground">
-                                          Drop actions
-                                        </span>
+                                        {action.description && (
+                                          <div className="text-xs text-muted-foreground">
+                                            {action.description}
+                                          </div>
+                                        )}
                                       </div>
-                                      {assignedActions.length ? (
-                                        <div className="flex flex-wrap gap-2">
-                                          {assignedActions.map((action) => (
-                                            <Badge
-                                              key={`${deptId}-${action}`}
-                                              variant="outline"
-                                              className="flex items-center gap-1"
-                                            >
-                                              <span>{action}</span>
-                                              <button
-                                                type="button"
-                                                onClick={() =>
-                                                  handleRemoveAssignedAction(
-                                                    deptId,
-                                                    action,
-                                                  )
-                                                }
-                                                className="rounded-full p-0.5 hover:bg-muted"
-                                              >
-                                                <X className="h-3 w-3" />
-                                              </button>
-                                            </Badge>
-                                          ))}
-                                        </div>
-                                      ) : (
-                                        <p className="text-xs text-muted-foreground">
-                                          No actions assigned yet.
-                                        </p>
-                                      )}
+                                      <span className="text-xs text-muted-foreground">
+                                        Drag
+                                      </span>
                                     </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="rounded-md border border-input p-3 space-y-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium">
-                                Actions
-                              </span>
-                              <Badge variant="outline">
-                                {documentActions.length}
-                              </Badge>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="py-2 text-sm text-muted-foreground">
+                                  No actions available
+                                </div>
+                              )}
                             </div>
-                            {loadingActions ? (
-                              <div className="py-2 text-sm text-muted-foreground">
-                                Loading actions...
-                              </div>
-                            ) : documentActions.length > 0 ? (
-                              <div className="space-y-2">
-                                {documentActions.map((action) => (
-                                  <div
-                                    key={action.document_action_id}
-                                    draggable
-                                    onDragStart={(event) => {
-                                      setDraggingActionName(action.action_name);
-                                      event.dataTransfer.setData(
-                                        "text/plain",
-                                        action.action_name,
-                                      );
-                                      event.dataTransfer.effectAllowed = "copy";
-                                    }}
-                                    onDragEnd={() =>
-                                      setDraggingActionName(null)
-                                    }
-                                    className={cn(
-                                      "flex items-center justify-between rounded border px-3 py-2 text-sm",
-                                      draggingActionName === action.action_name
-                                        ? "border-primary bg-primary/5"
-                                        : "border-muted",
-                                    )}
-                                  >
-                                    <div>
-                                      <div className="font-medium">
-                                        {action.action_name}
-                                      </div>
-                                      {action.description && (
-                                        <div className="text-xs text-muted-foreground">
-                                          {action.description}
-                                        </div>
-                                      )}
-                                    </div>
-                                    <span className="text-xs text-muted-foreground">
-                                      Drag
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="py-2 text-sm text-muted-foreground">
-                                No actions available
-                              </div>
-                            )}
-                          </div>
+                          </ScrollArea>
                         </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="remarks"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Remarks</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Add any remarks here..."
-                        className="resize-none"
-                        {...field}
-                      />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </form>
-          </Form>
-        </ScrollArea>
-        <DialogFooter className="flex sm:justify-end p-6 pt-4">
+            </div>
+          </form>
+        </Form>
+
+        <DialogFooter className="px-6 py-4 border-t flex-shrink-0">
           <DialogClose asChild>
             <Button type="button" variant="secondary">
               Cancel
@@ -1043,13 +1212,13 @@ export function ReleaseDocumentModal({
           </DialogClose>
           <Button
             type="submit"
-            disabled={isPending || isRedirecting}
+            disabled={isPending}
             form="release-document-form"
           >
-            {isPending || isRedirecting ? (
+            {isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {isRedirecting ? "Redirecting..." : "Releasing..."}
+                Releasing...
               </>
             ) : (
               "Release"

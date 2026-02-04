@@ -22,8 +22,6 @@ import {
 } from "lucide-react";
 import { ViewDocumentsModal } from "@/components/reuseable/view-details-documents/view-documents";
 import { ViewOcrDataModal } from "@/components/modals/view-ocr-data-modal";
-import { WorkflowCompletionModal } from "@/components/modals/workflow-completion-modal";
-
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -124,42 +122,12 @@ export function DataTableRowActions<TData>({
   );
   const [viewDocumentModalOpen, setViewDocumentModalOpen] = useState(false);
   const [viewOcrModalOpen, setViewOcrModalOpen] = useState(false);
-  const [sequenceReleaseOpen, setSequenceReleaseOpen] = useState(false);
-  const [sequenceCompleteOpen, setSequenceCompleteOpen] = useState(false);
-
   const document = row.original as Document;
 
   // Event handlers
   const handleAction = (e: React.MouseEvent, action: () => void) => {
     e.stopPropagation();
     action();
-  };
-
-  const handleSignatureSetup = (payload: {
-    documentId: string;
-    departmentIds: string[];
-    requestActions: string[];
-    remarks?: string;
-  }) => {
-    const params = new URLSearchParams();
-    params.set("mode", "signature");
-    const [primaryDepartmentId] = payload.departmentIds;
-    if (primaryDepartmentId) {
-      params.set("releaseDepartmentId", primaryDepartmentId);
-    }
-    if (payload.departmentIds.length > 0) {
-      params.set("releaseDepartmentIds", payload.departmentIds.join(","));
-    }
-    params.set("releaseActions", payload.requestActions.join(","));
-    if (payload.remarks) {
-      params.set("releaseRemarks", payload.remarks);
-    }
-    const query = params.toString();
-    router.push(
-      query
-        ? `/documents/${payload.documentId}?${query}`
-        : `/documents/${payload.documentId}`,
-    );
   };
 
   const handleCopyCode = () => {
@@ -234,89 +202,6 @@ export function DataTableRowActions<TData>({
     console.log("🔄 Release button clicked for document:", document);
     setSelectedDocument(document);
     toggleModal("release", true);
-  };
-
-  const handleSequenceRelease = async () => {
-    if (!document.nextDepartmentId) return;
-    try {
-      setIsLoading(true);
-
-      const response = await fetch(`/api/documents/${document.id}/release`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          departmentId: document.nextDepartmentId,
-          requestActions: ["Release"],
-          workflowSequenceEnabled: true,
-        }),
-      });
-
-      if (!response.ok) {
-        let errorMessage = "Failed to pass document to next department";
-        try {
-          const errorData = await response.json();
-          errorMessage =
-            errorData.error?.message || errorData.message || errorMessage;
-        } catch (parseError) {
-          errorMessage = `Server error: ${response.status} ${response.statusText}`;
-        }
-        throw new Error(errorMessage);
-      }
-
-      toast.success("Document passed to next department.");
-    } catch (error: any) {
-      console.error("Error releasing in sequence:", error);
-      toast.error(error.message || "Failed to pass document.");
-    } finally {
-      setIsLoading(false);
-      setSequenceReleaseOpen(false);
-    }
-  };
-
-  const handleReturnToOrigin = async () => {
-    if (!document.originDepartmentId) {
-      toast.error("Originating department not available.");
-      return;
-    }
-    try {
-      setIsLoading(true);
-
-      const response = await fetch(`/api/documents/${document.id}/release`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          departmentId: document.originDepartmentId,
-          requestActions: ["Release"],
-          workflowSequenceEnabled: true,
-        }),
-      });
-
-      if (!response.ok) {
-        let errorMessage = "Failed to return document to origin";
-        try {
-          const errorData = await response.json();
-          errorMessage =
-            errorData.error?.message || errorData.message || errorMessage;
-        } catch (parseError) {
-          errorMessage = `Server error: ${response.status} ${response.statusText}`;
-        }
-        throw new Error(errorMessage);
-      }
-
-      toast.success("Document returned to originating office.");
-    } catch (error: any) {
-      console.error("Error returning to origin:", error);
-      toast.error(error.message || "Failed to return document.");
-    } finally {
-      setIsLoading(false);
-      setSequenceCompleteOpen(false);
-    }
   };
 
   const handleComplete = async () => {
@@ -572,19 +457,6 @@ export function DataTableRowActions<TData>({
   const showCancel = canCancel && isInTransit; // Cancel only shows for in-transit status
   const showArchive = canArchive;
   const showDelete = canDelete;
-  const sequenceEnabled = document.workflowSequenceEnabled === true;
-  const showSequenceRelease =
-    showRelease &&
-    sequenceEnabled &&
-    document.isInSequence &&
-    !document.isLastInSequence &&
-    Boolean(document.nextDepartmentId);
-  const showSequenceComplete =
-    showRelease &&
-    sequenceEnabled &&
-    document.isInSequence &&
-    document.isLastInSequence;
-
   return (
     <>
       <DropdownMenu>
@@ -957,7 +829,7 @@ export function DataTableRowActions<TData>({
               )}
 
               {/* Complete - for users with document receive permissions */}
-              {showComplete && !sequenceEnabled && (
+              {showComplete && (
                 <DropdownMenuItem
                   onClick={(e) => handleAction(e, handleComplete)}
                 >
@@ -966,48 +838,12 @@ export function DataTableRowActions<TData>({
                 </DropdownMenuItem>
               )}
 
-              {showSequenceComplete && showComplete && (
-                <DropdownMenuItem onClick={() => setSequenceCompleteOpen(true)}>
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Finalize
-                </DropdownMenuItem>
-              )}
-
               {/* Release - shared view */}
-              {!sequenceEnabled && (
+              {showRelease && (
                 <DropdownMenuItem onClick={(e) => handleAction(e, handleRelease)}>
                   <Send className="mr-2 h-4 w-4" />
                   Release
                 </DropdownMenuItem>
-              )}
-
-              {showSequenceRelease && (
-                <AlertDialog
-                  open={sequenceReleaseOpen}
-                  onOpenChange={setSequenceReleaseOpen}
-                >
-                  <AlertDialogTrigger asChild>
-                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                      <Send className="mr-2 h-4 w-4" />
-                      Pass to {document.nextDepartmentName || "next department"}
-                    </DropdownMenuItem>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Pass to next department?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will send the document to{" "}
-                        {document.nextDepartmentName || "the next department"}.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleSequenceRelease}>
-                        Pass
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
               )}
             </>
           )}
@@ -1193,10 +1029,6 @@ export function DataTableRowActions<TData>({
       <ReleaseDocumentModal
         isOpen={modalState.release}
         onClose={() => toggleModal("release", false)}
-        onSignatureSetup={(payload) => {
-          toggleModal("release", false);
-          handleSignatureSetup(payload);
-        }}
         document={selectedDocument}
       />
 
@@ -1227,15 +1059,6 @@ export function DataTableRowActions<TData>({
         open={viewOcrModalOpen}
         onOpenChange={setViewOcrModalOpen}
         documentId={document.id}
-      />
-
-      <WorkflowCompletionModal
-        open={sequenceCompleteOpen}
-        onOpenChange={setSequenceCompleteOpen}
-        documentTitle={document.document || "Document"}
-        originDepartmentName={document.originDepartmentName || null}
-        onComplete={handleComplete}
-        onReturnToOrigin={handleReturnToOrigin}
       />
 
       {/* Signature Capture Modal */}

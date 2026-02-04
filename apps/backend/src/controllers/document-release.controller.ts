@@ -20,8 +20,6 @@ export class DocumentReleaseController {
     const {
       departmentId,
       departmentIds,
-      orderedDepartmentIds,
-      workflowSequenceEnabled,
       requestAction,
       requestActions,
       departmentActions,
@@ -50,15 +48,7 @@ export class DocumentReleaseController {
       : departmentId
         ? [departmentId]
         : [];
-    const normalizedOrderedDepartmentIds = Array.isArray(orderedDepartmentIds)
-      ? orderedDepartmentIds
-      : [];
-    const sequenceEnabled = workflowSequenceEnabled === true;
-    const effectiveDepartmentIds =
-      sequenceEnabled && normalizedOrderedDepartmentIds.length > 0
-        ? [normalizedOrderedDepartmentIds[0]]
-        : normalizedDepartmentIds;
-    const uniqueDepartmentIds = Array.from(new Set(effectiveDepartmentIds));
+    const uniqueDepartmentIds = Array.from(new Set(normalizedDepartmentIds));
 
     if (uniqueDepartmentIds.length === 0) {
       return sendError(res, 'departmentId or departmentIds is required', 400);
@@ -69,16 +59,6 @@ export class DocumentReleaseController {
       console.log('📍 [DocumentReleaseController.releaseDocument] Invalid department ID format:', invalidDepartmentIds);
       return sendError(res, 'Invalid department ID format', 400);
     }
-    if (normalizedOrderedDepartmentIds.length > 0) {
-      const invalidOrderedIds = normalizedOrderedDepartmentIds.filter(
-        (deptId) => !uuidRegex.test(deptId)
-      );
-      if (invalidOrderedIds.length > 0) {
-        console.log('📍 [DocumentReleaseController.releaseDocument] Invalid ordered department ID format:', invalidOrderedIds);
-        return sendError(res, 'Invalid orderedDepartmentIds format', 400);
-      }
-    }
-
     if (uniqueDepartmentIds.length > 1 && (signatures?.length || textPlaceholders?.length)) {
       return sendError(res, 'Signatures/placeholders require a single target department', 400);
     }
@@ -152,8 +132,6 @@ export class DocumentReleaseController {
         signatures,
         textPlaceholders,
         {
-          workflowSequenceEnabled: sequenceEnabled,
-          orderedDepartmentIds: normalizedOrderedDepartmentIds,
           releaseActionSummary: Array.isArray(releaseActionsSummary)
             ? releaseActionsSummary
             : [String(releaseActionsSummary)],

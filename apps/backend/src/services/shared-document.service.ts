@@ -323,41 +323,6 @@ export class SharedDocumentService {
             }
           }
 
-          const workflowSequenceEnabled = detail?.workflow_sequence_enabled === true;
-          const workflowSequence = this.parseWorkflowSequence(detail?.work_flow_id);
-          const originDepartmentId =
-            workflowSequenceEnabled && workflowSequence.length > 0
-              ? workflowSequence[0]
-              : null;
-          const isInSequence = workflowSequenceEnabled
-            ? workflowSequence.includes(user.department_id)
-            : false;
-          const currentSequenceIndex = isInSequence
-            ? workflowSequence.indexOf(user.department_id)
-            : -1;
-          const nextDepartmentId =
-            workflowSequenceEnabled && currentSequenceIndex >= 0
-              ? workflowSequence[currentSequenceIndex + 1] || null
-              : null;
-          const isLastInSequence =
-            workflowSequenceEnabled &&
-            currentSequenceIndex >= 0 &&
-            currentSequenceIndex === workflowSequence.length - 1;
-          const nextDepartment =
-            nextDepartmentId
-              ? await prisma.department.findUnique({
-                  where: { department_id: nextDepartmentId },
-                  select: { name: true }
-                })
-              : null;
-          const originDepartment =
-            originDepartmentId
-              ? await prisma.department.findUnique({
-                  where: { department_id: originDepartmentId },
-                  select: { name: true }
-                })
-              : null;
-
           // Get the DocumentType name based on the stored type ID
           let documentTypeName = 'General'; // Default to 'General' if type is not found
           if ((doc as any).document_type) {
@@ -452,13 +417,6 @@ export class SharedDocumentService {
             activityTime: new Date(doc.created_at).toLocaleString(),
             checkedOutBy,
             checkedOutAt,
-            workflowSequenceEnabled,
-            nextDepartmentId,
-            nextDepartmentName: nextDepartment?.name || null,
-            originDepartmentId,
-            originDepartmentName: originDepartment?.name || null,
-            isLastInSequence,
-            isInSequence,
           };
         })
       );

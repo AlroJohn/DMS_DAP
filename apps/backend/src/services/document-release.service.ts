@@ -9,33 +9,6 @@ import { auditService } from './audit.service';
 export class DocumentReleaseService {
     prisma = prisma; // Expose prisma instance for use in controllers
 
-    private parseWorkflowSequence(value: unknown): string[] {
-        if (!value) return [];
-        if (Array.isArray(value)) {
-            return value.map((entry) => String(entry)).filter(Boolean);
-        }
-        if (typeof value === 'string') {
-            try {
-                const parsed = JSON.parse(value);
-                if (Array.isArray(parsed)) {
-                    return parsed.map((entry) => String(entry)).filter(Boolean);
-                }
-                if (parsed && typeof parsed === 'object') {
-                    return Object.values(parsed).map((entry) => String(entry)).filter(Boolean);
-                }
-            } catch (error) {
-                console.error('[DocumentReleaseService.parseWorkflowSequence] Error parsing workflow JSON:', error);
-            }
-            return [];
-        }
-        if (typeof value === 'object') {
-            return Object.values(value as Record<string, unknown>)
-                .map((entry) => String(entry))
-                .filter(Boolean);
-        }
-        return [];
-    }
-
     /**
      * Release a document to another department
      */
@@ -70,8 +43,6 @@ export class DocumentReleaseService {
             department_id?: string | null;
         }[],
         options?: {
-            workflowSequenceEnabled?: boolean;
-            orderedDepartmentIds?: string[];
             releaseActionSummary?: string[];
             releaseActionByDepartment?: Record<string, string[]>;
         }
@@ -344,13 +315,6 @@ export class DocumentReleaseService {
             // Get the current workflow
             const currentDetail = document.DocumentAdditionalDetails?.[0];
             let currentWorkflow: any = {};
-            const workflowSequenceEnabled =
-                options?.workflowSequenceEnabled === true ||
-                currentDetail?.workflow_sequence_enabled === true;
-            let workflowSequence = this.parseWorkflowSequence(currentDetail?.work_flow_id);
-            const orderedDepartmentIds = (options?.orderedDepartmentIds || [])
-                .map((entry) => String(entry))
-                .filter(Boolean);
 
             if (currentDetail && currentDetail.work_flow_id) {
                 try {
@@ -378,94 +342,46 @@ export class DocumentReleaseService {
                     : releaseActions;
             const releaseActionByDepartment = options?.releaseActionByDepartment;
 
-            if (workflowSequenceEnabled) {
-                const baseSequence = orderedDepartmentIds.length
-                    ? orderedDepartmentIds
-                    : workflowSequence;
-                const nextSequence: string[] = [];
-                if (releasingUser.department_id) {
-                    nextSequence.push(releasingUser.department_id);
-                }
-                baseSequence.forEach((dept) => {
-                    if (!nextSequence.includes(dept)) {
-                        nextSequence.push(dept);
-                    }
-                });
-
-                workflowSequence = nextSequence;
-
-                const currentIndex = workflowSequence.indexOf(
-                    releasingUser.department_id || ''
-                );
-                if (currentIndex === -1) {
-                    return {
-                        success: false,
-                        error: 'Your department is not part of the workflow sequence.'
-                    };
-                }
-
-                const expectedNextDepartment =
-                    workflowSequence[currentIndex + 1] || null;
-                const originDepartmentId =
-                    workflowSequence.length > 0 ? workflowSequence[0] : null;
-
-                if (!expectedNextDepartment) {
-                    if (originDepartmentId && departmentId === originDepartmentId) {
-                        // Allow return to origin after final step.
-                    } else {
-                        return {
-                            success: false,
-                            error: 'No next department in workflow sequence.'
-                        };
-                    }
-                } else if (expectedNextDepartment !== departmentId) {
-                    return {
-                        success: false,
-                        error: 'Release is not allowed for this department in the current sequence.'
-                    };
-                }
-            } else {
-                // Check if the department is already in the workflow by looking at all values
-                const workflowDepartments = Object.values(currentWorkflow);
-                if (!workflowDepartments.includes(departmentId)) {
-                    // Determine the next position in the workflow (first, second, third, etc.)
-                    let nextPosition = 'second'; // default to second if 'first' exists
-                    if ('first' in currentWorkflow) {
-                        // Count existing positions to determine the next key
-                        const keys = Object.keys(currentWorkflow).sort();
-                        if (keys.length > 0) {
-                            // Find the highest positioned key and get the next one
-                            const lastKey = keys[keys.length - 1];
-                            const positionMatch = lastKey.match(/(\d+)$/); // Look for numeric suffix like "step1", "step2", etc.
-                            if (positionMatch) {
-                                const lastNumber = parseInt(positionMatch[1]);
-                                nextPosition = `step${lastNumber + 1}`;
+            // Check if the department is already in the workflow by looking at all values
+            const workflowDepartments = Object.values(currentWorkflow);
+            if (!workflowDepartments.includes(departmentId)) {
+                // Determine the next position in the workflow (first, second, third, etc.)
+                let nextPosition = 'second'; // default to second if 'first' exists
+                if ('first' in currentWorkflow) {
+                    // Count existing positions to determine the next key
+                    const keys = Object.keys(currentWorkflow).sort();
+                    if (keys.length > 0) {
+                        // Find the highest positioned key and get the next one
+                        const lastKey = keys[keys.length - 1];
+                        const positionMatch = lastKey.match(/(\d+)$/); // Look for numeric suffix like "step1", "step2", etc.
+                        if (positionMatch) {
+                            const lastNumber = parseInt(positionMatch[1]);
+                            nextPosition = `step${lastNumber + 1}`;
+                        } else {
+                            // If using names like "first", "second", etc., try to follow the sequence
+                            if (lastKey === 'first') {
+                                nextPosition = 'second';
+                            } else if (lastKey === 'second') {
+                                nextPosition = 'third';
+                            } else if (lastKey === 'third') {
+                                nextPosition = 'fourth';
+                            } else if (lastKey === 'fourth') {
+                                nextPosition = 'fifth';
                             } else {
-                                // If using names like "first", "second", etc., try to follow the sequence
-                                if (lastKey === 'first') {
-                                    nextPosition = 'second';
-                                } else if (lastKey === 'second') {
-                                    nextPosition = 'third';
-                                } else if (lastKey === 'third') {
-                                    nextPosition = 'fourth';
-                                } else if (lastKey === 'fourth') {
-                                    nextPosition = 'fifth';
-                                } else {
-                                    // For other cases, just append a number to "step"
-                                    nextPosition = `step${keys.length + 1}`;
-                                }
+                                // For other cases, just append a number to "step"
+                                nextPosition = `step${keys.length + 1}`;
                             }
                         }
-                    } else {
-                        // If 'first' doesn't exist, use 'first' as the position (this would be an edge case)
-                        nextPosition = 'first';
                     }
-
-                    // Add the destination department to the workflow with the next position
-                    currentWorkflow[nextPosition] = departmentId;
                 } else {
-                    // Department already in workflow, skipping
+                    // If 'first' doesn't exist, use 'first' as the position (this would be an edge case)
+                    nextPosition = 'first';
                 }
+
+                // Add the destination department to the workflow with the next position
+                currentWorkflow[nextPosition] = departmentId;
+            } else {
+                // Department already in workflow, skipping
             }
 
             // Update document status to intransit (being routed)
@@ -497,10 +413,7 @@ export class DocumentReleaseService {
                 await prisma.documentAdditionalDetails.update({
                     where: { detail_id: currentDetail.detail_id },
                     data: {
-                        work_flow_id: workflowSequenceEnabled
-                            ? (workflowSequence as any)
-                            : (currentWorkflow as any),
-                        workflow_sequence_enabled: workflowSequenceEnabled,
+                        work_flow_id: (currentWorkflow as any),
                         remarks: remarks || currentDetail.remarks,
                         release_action: releaseActionsSummary,
                         ...(releaseActionByDepartment
@@ -525,18 +438,15 @@ export class DocumentReleaseService {
                 });
 
                 if (user && user.account?.account_id) {
-                    const newWorkflow = workflowSequenceEnabled
-                        ? [user.department_id, departmentId].filter(Boolean)
-                        : {
-                              first: user.department_id,
-                              second: departmentId
-                          };
+                    const newWorkflow = {
+                        first: user.department_id,
+                        second: departmentId
+                    };
 
                     await prisma.documentAdditionalDetails.create({
                         data: {
                             document_id: documentId,
                             work_flow_id: newWorkflow as any,
-                            workflow_sequence_enabled: workflowSequenceEnabled,
                             remarks: remarks || null,
                             release_action: releaseActionsSummary,
                             ...(releaseActionByDepartment
@@ -547,17 +457,14 @@ export class DocumentReleaseService {
                     });
                 } else {
                     // Fallback - just add the receiving department if we can't get the user's department
-                    const newWorkflow = workflowSequenceEnabled
-                        ? [departmentId].filter(Boolean)
-                        : {
-                              first: departmentId // This shouldn't happen in normal flow, but as a fallback
-                          };
+                    const newWorkflow = {
+                        first: departmentId // This shouldn't happen in normal flow, but as a fallback
+                    };
 
                     await prisma.documentAdditionalDetails.create({
                         data: {
                             document_id: documentId,
                             work_flow_id: newWorkflow as any,
-                            workflow_sequence_enabled: workflowSequenceEnabled,
                             remarks: remarks || null,
                             release_action: releaseActionsSummary,
                             ...(releaseActionByDepartment
