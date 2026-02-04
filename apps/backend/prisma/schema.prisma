@@ -141,7 +141,15 @@ model Document {
   text_placeholders         TextPlaceholder[]
   signedDocuments           SignedDocument[]
   ocr_json                  OCR_Json[]
+  process                   ProcessStatus[]
   // {"pages":[{"page":1,"text":"Example Images with Alt Text in\nAdobe PDF\nTMCC"}],"engine":"gemini-2.5-flash","language":"en","processedAt":"2026-01-14T06:08:59.925Z"}
+}
+
+model ProcessStatus {
+  process_id          String    @id @default(uuid()) @db.Uuid
+  
+  document            Document? @relation(fields: [documentDocument_id], references: [document_id])
+  documentDocument_id String?   @db.Uuid
 }
 
 model OCR_Json {
