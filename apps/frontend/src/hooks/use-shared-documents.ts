@@ -65,7 +65,7 @@ export function useSharedDocuments(page: number = 1, limit: number = 10): UseSha
 
   useEffect(() => {
     fetchDocuments()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [page, limit])
 
   return {

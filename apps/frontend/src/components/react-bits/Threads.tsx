@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useRef, type HTMLAttributes } from 'react';
-import { Renderer, Program, Mesh, Triangle, Color } from 'ogl';
+import { Renderer, Program, Mesh, Triangle, Color, type OGLRenderingContext } from 'ogl';
 import { useTheme } from 'next-themes';
 
 interface ThreadsProps extends Omit<HTMLAttributes<HTMLDivElement>, 'color'> {
@@ -164,8 +164,8 @@ const Threads: React.FC<ThreadsProps> = ({
       return;
     }
 
-    let renderer;
-    let gl;
+    let renderer: Renderer | null = null;
+    let gl: OGLRenderingContext | null = null;
     
     try {
       renderer = new Renderer({ alpha: true });
@@ -179,7 +179,9 @@ const Threads: React.FC<ThreadsProps> = ({
       gl.clearColor(0, 0, 0, 0);
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-      container.appendChild(gl.canvas);
+      if (gl.canvas instanceof HTMLCanvasElement) {
+        container.appendChild(gl.canvas);
+      }
     } catch (error) {
       console.warn('Failed to initialize WebGL renderer. Threads animation disabled.', error);
       return;
@@ -204,6 +206,7 @@ const Threads: React.FC<ThreadsProps> = ({
     const mesh = new Mesh(gl, { geometry, program });
 
     function resize() {
+      if (!renderer || !gl) return;
       const { clientWidth, clientHeight } = container;
       renderer.setSize(clientWidth, clientHeight);
       program.uniforms.iResolution.value.r = clientWidth;
@@ -213,7 +216,7 @@ const Threads: React.FC<ThreadsProps> = ({
     window.addEventListener('resize', resize);
     resize();
 
-    let currentMouse = [0.5, 0.5];
+    const currentMouse = [0.5, 0.5];
     let targetMouse = [0.5, 0.5];
 
     function handleMouseMove(e: MouseEvent) {
@@ -231,6 +234,7 @@ const Threads: React.FC<ThreadsProps> = ({
     }
 
     function update(t: number) {
+      if (!renderer || !gl) return;
       if (enableMouseInteraction) {
         const smoothing = 0.05;
         currentMouse[0] += smoothing * (targetMouse[0] - currentMouse[0]);
@@ -256,7 +260,7 @@ const Threads: React.FC<ThreadsProps> = ({
         container.removeEventListener('mousemove', handleMouseMove);
         container.removeEventListener('mouseleave', handleMouseLeave);
       }
-      if (gl && gl.canvas && container.contains(gl.canvas)) {
+      if (gl?.canvas instanceof HTMLCanvasElement && container.contains(gl.canvas)) {
         container.removeChild(gl.canvas);
       }
       gl?.getExtension('WEBGL_lose_context')?.loseContext();

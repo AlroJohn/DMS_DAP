@@ -935,7 +935,7 @@ export function SigningPdfViewer({
         // ignore
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [documentId, selectedFile?.id]);
 
   // Auto-navigate to first page with pending signature

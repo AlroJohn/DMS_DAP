@@ -79,7 +79,7 @@ export async function exportDocumentTrailsPDF(
 
   // Load header images (logo left and ribbon/top-right)
   let logoDataUrl: string | null = null;
-  let ribbonDataUrl: string | null = null;
+  const ribbonDataUrl: string | null = null;
   try {
     const [logoRes] = await Promise.all([
       fetch("/image/LOGO_BLUE.png"),

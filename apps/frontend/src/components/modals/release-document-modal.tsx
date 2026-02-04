@@ -550,8 +550,8 @@ export function ReleaseDocumentModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[90vw] h-[90vh] flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b">
+      <DialogContent className="sm:max-w-[95vw] h-[90vh] flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
           <DialogTitle>Release Document</DialogTitle>
           <DialogDescription>
             Release the document to another department for action.
@@ -562,66 +562,85 @@ export function ReleaseDocumentModal({
           <form
             id="release-document-form"
             onSubmit={form.handleSubmit(onSubmit)}
-            className="h-full  border border-black flex-1 flex flex-row overflow-hidden"
+            className="flex-1 flex flex-col overflow-hidden"
           >
-            <div className="px-6 py-4 space-y-4 ">
-              <div className="grid grid-cols-1 w-full gap-4 overflow-y-auto h-full">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col items-start gap-2">
-                    <Label htmlFor="doc-code" className="text-right">
-                      Code
-                    </Label>
-                    <Input
-                      id="doc-code"
-                      value={document.documentId}
-                      readOnly
-                      className="col-span-3"
-                    />
-                  </div>
-                  <div className="flex flex-col items-start gap-2">
-                    <Label htmlFor="doc-name" className="text-right">
-                      Name
-                    </Label>
-                    <Input
-                      id="doc-name"
-                      value={document.document}
-                      readOnly
-                      className="col-span-3"
-                    />
-                  </div>
-                  <div className="flex flex-col items-start gap-2">
-                    <Label htmlFor="doc-classification" className="text-right">
-                      Classification
-                    </Label>
-                    <Input
-                      id="doc-classification"
-                      value={document.classification}
-                      readOnly
-                      className="col-span-3"
-                    />
-                  </div>
-                  <div className="flex flex-col items-start gap-2">
-                    <Label htmlFor="doc-owner" className="text-right">
-                      Owner
-                    </Label>
-                    <Input
-                      id="doc-owner"
-                      value={document.contactPerson}
-                      readOnly
-                      className="col-span-3"
-                    />
-                  </div>
-                  <div className="w-full col-span-2">
+            {/* Document Info Section - Fixed at top */}
+            <div className="px-6 py-4 border-b bg-muted/20 flex-shrink-0">
+              <div className="grid grid-cols-4 gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="doc-code" className="text-xs font-medium text-muted-foreground">
+                    Code
+                  </Label>
+                  <Input
+                    id="doc-code"
+                    value={document.documentId}
+                    readOnly
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="doc-name" className="text-xs font-medium text-muted-foreground">
+                    Name
+                  </Label>
+                  <Input
+                    id="doc-name"
+                    value={document.document}
+                    readOnly
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="doc-classification" className="text-xs font-medium text-muted-foreground">
+                    Classification
+                  </Label>
+                  <Input
+                    id="doc-classification"
+                    value={document.classification}
+                    readOnly
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="doc-owner" className="text-xs font-medium text-muted-foreground">
+                    Owner
+                  </Label>
+                  <Input
+                    id="doc-owner"
+                    value={document.contactPerson}
+                    readOnly
+                    className="h-8"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 3 Column Layout - Scrollable */}
+            <div className="flex-1 grid grid-cols-3 gap-4 px-6 py-4 min-h-0">
+              
+              {/* Column 1: Department Selection */}
+              <div className="flex flex-col border rounded-lg min-h-0">
+                <div className="p-4 border-b bg-muted/20 flex-shrink-0">
+                  <h3 className="font-semibold text-sm">Select Departments</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {selectedCount > 0
+                      ? `${selectedCount} department${selectedCount === 1 ? "" : "s"} selected`
+                      : "Choose departments to release"}
+                  </p>
+                </div>
+                
+                <div className="flex-1 overflow-auto">
+                  <div className="p-4 space-y-4">
+                    {/* Remarks */}
                     <FormField
                       control={form.control}
                       name="remarks"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Remarks</FormLabel>
+                          <FormLabel className="text-xs font-medium">Remarks</FormLabel>
                           <FormControl>
                             <Textarea
                               placeholder="Add any remarks here..."
-                              className="resize-none"
+                              className="resize-none text-sm"
                               rows={3}
                               {...field}
                             />
@@ -630,192 +649,140 @@ export function ReleaseDocumentModal({
                         </FormItem>
                       )}
                     />
-                  </div>
-                  <div className="w-full col-span-2">
+
+                    {/* Department Filters */}
                     <FormField
                       control={form.control}
                       name="departmentIds"
                       render={() => (
-                        <FormItem className="w-full">
-                          <FormLabel>Release To</FormLabel>
+                        <FormItem>
+                          <FormLabel className="text-xs font-medium">Filter & Select</FormLabel>
                           <FormControl>
-                            <div className="rounded-md border border-input p-4 space-y-4">
-                              <div className="grid gap-3 sm:grid-cols-2">
-                                <div className="space-y-1 min-w-0">
-                                  <Label className="text-xs uppercase text-muted-foreground">
-                                    Group
-                                  </Label>
-                                  <Select
-                                    value={selectedGroupId}
-                                    onValueChange={setSelectedGroupId}
-                                  >
-                                    <SelectTrigger className="w-full">
-                                      <SelectValue
-                                        placeholder="Select group"
-                                        className="truncate text-ellipsis overflow-hidden block w-full"
-                                      />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="all">
-                                        All Groups
+                            <div className="space-y-3">
+                              {/* Group Filter */}
+                              <div className="space-y-1.5">
+                                <Label className="text-xs text-muted-foreground">Group</Label>
+                                <Select
+                                  value={selectedGroupId}
+                                  onValueChange={setSelectedGroupId}
+                                >
+                                  <SelectTrigger className="h-8 text-sm">
+                                    <SelectValue placeholder="Select group" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="all">All Groups</SelectItem>
+                                    {groups.map((group) => (
+                                      <SelectItem
+                                        key={group.group_id}
+                                        value={group.group_id}
+                                      >
+                                        {group.name}
                                       </SelectItem>
-                                      {groups.map((group) => (
-                                        <SelectItem
-                                          className={`${group.name.length > 30 ? "line-clamp-2" : ""} overflow-hidden`}
-                                          key={group.group_id}
-                                          value={group.group_id}
-                                        >
-                                          {group.name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs uppercase text-muted-foreground">
-                                    Center
-                                  </Label>
-                                  <Select
-                                    value={selectedCenterId}
-                                    onValueChange={setSelectedCenterId}
-                                    disabled={
-                                      selectedGroupId === "all" ||
-                                      availableCenters.length === 0
-                                    }
-                                  >
-                                    <SelectTrigger className="w-full">
-                                      <SelectValue placeholder="Select center" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="all">
-                                        All Centers
-                                      </SelectItem>
-                                      {activeGroup?.departments?.length ? (
-                                        <SelectItem value="no-center">
-                                          No Center
-                                        </SelectItem>
-                                      ) : null}
-                                      {availableCenters.map((center) => (
-                                        <SelectItem
-                                          key={center.center_id}
-                                          value={center.center_id}
-                                        >
-                                          {center.name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
                               </div>
 
-                              <div className="space-y-2">
+                              {/* Center Filter */}
+                              <div className="space-y-1.5">
+                                <Label className="text-xs text-muted-foreground">Center</Label>
+                                <Select
+                                  value={selectedCenterId}
+                                  onValueChange={setSelectedCenterId}
+                                  disabled={selectedGroupId === "all" || availableCenters.length === 0}
+                                >
+                                  <SelectTrigger className="h-8 text-sm">
+                                    <SelectValue placeholder="Select center" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="all">All Centers</SelectItem>
+                                    {activeGroup?.departments?.length ? (
+                                      <SelectItem value="no-center">No Center</SelectItem>
+                                    ) : null}
+                                    {availableCenters.map((center) => (
+                                      <SelectItem
+                                        key={center.center_id}
+                                        value={center.center_id}
+                                      >
+                                        {center.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              {/* Department List */}
+                              <div className="space-y-2 pt-2">
                                 <div className="flex items-center justify-between">
-                                  <div className="text-xs uppercase text-muted-foreground">
-                                    Departments
-                                  </div>
+                                  <Label className="text-xs text-muted-foreground">Departments</Label>
                                   <Button
                                     type="button"
                                     variant="ghost"
                                     size="sm"
                                     className="h-6 text-xs"
                                     onClick={() => {
-                                      const eligibleDepts =
-                                        availableDepartments.filter(
-                                          (dept) =>
-                                            dept.department_id !==
-                                            currentDepartmentId,
-                                        );
-                                      const allSelected = eligibleDepts.every(
-                                        (dept) =>
-                                          selectedDepartmentIds.includes(
-                                            dept.department_id,
-                                          ),
+                                      const eligibleDepts = availableDepartments.filter(
+                                        (dept) => dept.department_id !== currentDepartmentId
+                                      );
+                                      const allSelected = eligibleDepts.every((dept) =>
+                                        selectedDepartmentIds.includes(dept.department_id)
                                       );
                                       if (allSelected) {
-                                        // Uncheck all
-                                        form.setValue("departmentIds", [], {
-                                          shouldValidate: true,
-                                        });
+                                        form.setValue("departmentIds", [], { shouldValidate: true });
                                         setDepartmentActionMap({});
                                       } else {
-                                        // Check all
-                                        const allIds = eligibleDepts.map(
-                                          (dept) => dept.department_id,
-                                        );
-                                        form.setValue("departmentIds", allIds, {
-                                          shouldValidate: true,
-                                        });
-                                        const newMap: Record<string, string[]> =
-                                          {};
+                                        const allIds = eligibleDepts.map((dept) => dept.department_id);
+                                        form.setValue("departmentIds", allIds, { shouldValidate: true });
+                                        const newMap: Record<string, string[]> = {};
                                         allIds.forEach((id) => {
-                                          newMap[id] =
-                                            departmentActionMap[id] || [];
+                                          newMap[id] = departmentActionMap[id] || [];
                                         });
                                         setDepartmentActionMap(newMap);
-                                        // Fetch users for all selected departments
-                                        allIds.forEach((id) =>
-                                          fetchUsersForDepartment(id),
-                                        );
+                                        allIds.forEach((id) => fetchUsersForDepartment(id));
                                       }
                                     }}
-                                    disabled={
-                                      loadingDepartments ||
-                                      availableDepartments.length === 0
-                                    }
+                                    disabled={loadingDepartments || availableDepartments.length === 0}
                                   >
                                     {availableDepartments
-                                      .filter(
-                                        (dept) =>
-                                          dept.department_id !==
-                                          currentDepartmentId,
-                                      )
-                                      .every((dept) =>
-                                        selectedDepartmentIds.includes(
-                                          dept.department_id,
-                                        ),
-                                      )
+                                      .filter((dept) => dept.department_id !== currentDepartmentId)
+                                      .every((dept) => selectedDepartmentIds.includes(dept.department_id))
                                       ? "Uncheck All"
                                       : "Check All"}
                                   </Button>
                                 </div>
-                                <ScrollArea className="h-48 rounded-md border bg-muted/20 p-3">
-                                  <div className="space-y-2">
+                                
+                                <div className="rounded-md border bg-background">
+                                  <div className="max-h-[300px] overflow-y-auto p-3 space-y-2">
                                     {loadingDepartments ? (
-                                      <div className="text-sm text-muted-foreground">
-                                        Loading options...
+                                      <div className="text-sm text-muted-foreground py-4 text-center">
+                                        Loading...
                                       </div>
                                     ) : availableDepartments.length > 0 ? (
                                       availableDepartments.map((dept) => (
                                         <label
                                           key={dept.department_id}
-                                          className="flex items-center gap-2 text-sm"
+                                          className={cn(
+                                            "flex items-center gap-2 text-sm p-2 rounded hover:bg-muted/50 cursor-pointer transition-colors",
+                                            dept.department_id === currentDepartmentId && "opacity-50 cursor-not-allowed"
+                                          )}
                                         >
                                           <Checkbox
-                                            checked={selectedDepartmentIds.includes(
-                                              dept.department_id,
-                                            )}
-                                            disabled={
-                                              dept.department_id ===
-                                              currentDepartmentId
-                                            }
+                                            checked={selectedDepartmentIds.includes(dept.department_id)}
+                                            disabled={dept.department_id === currentDepartmentId}
                                             onCheckedChange={(checked) =>
-                                              handleDepartmentToggle(
-                                                dept.department_id,
-                                                checked === true,
-                                              )
+                                              handleDepartmentToggle(dept.department_id, checked === true)
                                             }
                                           />
-                                          {dept.name}
+                                          <span className="flex-1">{dept.name}</span>
                                         </label>
                                       ))
                                     ) : (
-                                      <div className="text-sm text-muted-foreground">
-                                        No departments available for the
-                                        selected filters.
+                                      <div className="text-sm text-muted-foreground py-4 text-center">
+                                        No departments available
                                       </div>
                                     )}
                                   </div>
-                                </ScrollArea>
+                                </div>
                               </div>
                             </div>
                           </FormControl>
@@ -826,37 +793,27 @@ export function ReleaseDocumentModal({
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Action Assignment Section - Outside scrolling area */}
-            <div className="w-full border border-black px-6 pb-4 max-h-[400px] overflow-y-auto flex flex-col">
-              <FormField
-                control={form.control}
-                name="requestActions"
-                render={() => (
-                  <FormItem className="h-full flex flex-col">
-                    <FormLabel>Action Assignment</FormLabel>
-                    <FormControl>
-                      <div className="grid gap-4 lg:grid-cols-2 flex-1 overflow-hidden">
-                        {/* Departments Column with ScrollArea */}
-                        <div className="rounded-md border border-input flex flex-col h-full">
-                          <div className="flex items-center justify-between p-3 border-b bg-muted/20 flex-shrink-0">
-                            <span className="text-sm font-medium">
-                              Departments
-                            </span>
-                            <Badge variant="outline">{selectedCount}</Badge>
-                          </div>
-                          <ScrollArea className="flex-1">
-                            <div className="p-3">
-                              {selectedCount === 0 ? (
-                                <p className="text-xs text-muted-foreground">
-                                  Select departments to assign actions.
-                                </p>
+              {/* Column 2: Assigned Departments with Actions & Users */}
+              <div className="flex flex-col border rounded-lg min-h-0">
+                <div className="p-4 border-b bg-muted/20 flex-shrink-0">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-sm">Assigned Actions</h3>
+                    <Badge variant="outline">{selectedCount}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Drag actions from the right panel
+                  </p>
+                </div>
+                
+                <div className="flex-1 overflow-auto">
+                  <div className="p-4">{selectedCount === 0 ? (
+                                <div className="text-sm text-muted-foreground py-8 text-center">
+                                  Select departments to assign actions
+                                </div>
                               ) : (
-                                <div className="space-y-2">
-                                  {selectedDepartmentIds.map((deptId) => {
-                                    const assignedActions =
-                                      departmentActionMap[deptId] || [];
+                                <div className="space-y-3">{selectedDepartmentIds.map((deptId) => {
+                                    const assignedActions = departmentActionMap[deptId] || [];
                                     return (
                                       <div
                                         key={deptId}
@@ -867,80 +824,58 @@ export function ReleaseDocumentModal({
                                         }}
                                         onDrop={(event) => {
                                           event.preventDefault();
-                                          const actionName =
-                                            draggingActionName ||
-                                            event.dataTransfer.getData(
-                                              "text/plain",
-                                            );
+                                          const actionName = draggingActionName || event.dataTransfer.getData("text/plain");
                                           if (actionName) {
-                                            handleAssignAction(
-                                              deptId,
-                                              actionName,
-                                            );
+                                            handleAssignAction(deptId, actionName);
                                             setDraggingActionName(null);
                                           }
                                         }}
-                                        className={cn(
-                                          "rounded border px-3 py-2 space-y-2",
-                                          "border-muted",
-                                        )}
+                                        className="rounded-lg border bg-card p-3 space-y-2.5 transition-colors hover:border-primary/50"
                                       >
-                                        <div className="flex items-center justify-between">
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-sm font-medium">
-                                              {departmentNameById.get(deptId) ||
-                                                "Unknown department"}
-                                            </span>
+                                        {/* Department Header */}
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div className="flex-1 min-w-0">
+                                            <h4 className="font-medium text-sm truncate">
+                                              {departmentNameById.get(deptId) || "Unknown"}
+                                            </h4>
+                                            <p className="text-xs text-muted-foreground">
+                                              {assignedActions.length > 0
+                                                ? `${assignedActions.length} action${assignedActions.length === 1 ? "" : "s"}`
+                                                : "Drop actions here"}
+                                            </p>
                                           </div>
-                                          <span className="text-xs text-muted-foreground">
-                                            Drop actions
-                                          </span>
                                         </div>
-                                        {assignedActions.length ? (
-                                          <div className="flex flex-wrap gap-2">
+
+                                        {/* Assigned Actions */}
+                                        {assignedActions.length > 0 && (
+                                          <div className="flex flex-wrap gap-1.5">
                                             {assignedActions.map((action) => (
                                               <Badge
                                                 key={`${deptId}-${action}`}
-                                                variant="outline"
-                                                className="flex items-center gap-1"
+                                                variant="secondary"
+                                                className="flex items-center gap-1 pl-2 pr-1"
                                               >
-                                                <span>{action}</span>
+                                                <span className="text-xs">{action}</span>
                                                 <button
                                                   type="button"
-                                                  onClick={() =>
-                                                    handleRemoveAssignedAction(
-                                                      deptId,
-                                                      action,
-                                                    )
-                                                  }
-                                                  className="rounded-full p-0.5 hover:bg-muted"
+                                                  onClick={() => handleRemoveAssignedAction(deptId, action)}
+                                                  className="rounded-full hover:bg-background/80 p-0.5 transition-colors"
                                                 >
                                                   <X className="h-3 w-3" />
                                                 </button>
                                               </Badge>
                                             ))}
                                           </div>
-                                        ) : (
-                                          <p className="text-xs text-muted-foreground">
-                                            No actions assigned yet.
-                                          </p>
                                         )}
 
-                                        {/* User Selection Section */}
-                                        <div className="border-t pt-2 mt-2">
+                                        {/* User Assignment Section */}
+                                        <div className="border-t pt-2.5">
                                           <button
                                             type="button"
-                                            onClick={() =>
-                                              handleToggleDepartmentExpansion(
-                                                deptId,
-                                              )
-                                            }
-                                            className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground hover:text-foreground"
+                                            onClick={() => handleToggleDepartmentExpansion(deptId)}
+                                            className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
                                           >
-                                            <span>
-                                              Assign to specific users
-                                              (optional)
-                                            </span>
+                                            <span>Assign to specific users (optional)</span>
                                             {expandedDepartments[deptId] ? (
                                               <ChevronUp className="h-3 w-3" />
                                             ) : (
@@ -949,240 +884,171 @@ export function ReleaseDocumentModal({
                                           </button>
 
                                           {expandedDepartments[deptId] && (
-                                            <div className="mt-2 space-y-2">
-                                              {/* Search Input */}
+                                            <div className="mt-2.5 space-y-2">
+                                              {/* User Search */}
                                               <div className="relative">
-                                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                                                 <Input
                                                   type="text"
                                                   placeholder="Search by name or role..."
-                                                  className="pl-7 h-7 text-xs"
-                                                  value={
-                                                    userSearchQuery[deptId] ||
-                                                    ""
-                                                  }
+                                                  className="pl-8 h-8 text-xs"
+                                                  value={userSearchQuery[deptId] || ""}
                                                   onChange={(e) =>
-                                                    setUserSearchQuery(
-                                                      (prev) => ({
-                                                        ...prev,
-                                                        [deptId]:
-                                                          e.target.value,
-                                                      }),
-                                                    )
+                                                    setUserSearchQuery((prev) => ({
+                                                      ...prev,
+                                                      [deptId]: e.target.value,
+                                                    }))
                                                   }
                                                 />
                                               </div>
 
                                               {/* User List */}
-                                              <div className="max-h-32 overflow-y-auto space-y-1">
-                                                {loadingUsers[deptId] ? (
-                                                  <div className="text-xs text-muted-foreground py-2">
-                                                    Loading users...
-                                                  </div>
-                                                ) : (
-                                                  (() => {
-                                                    const users =
-                                                      departmentUsers[deptId] ||
-                                                      [];
-                                                    const searchQuery = (
-                                                      userSearchQuery[deptId] ||
-                                                      ""
-                                                    ).toLowerCase();
-                                                    const filteredUsers =
-                                                      users.filter((user) => {
-                                                        if (!searchQuery)
-                                                          return true;
-                                                        const nameMatch =
-                                                          user.name
-                                                            .toLowerCase()
-                                                            .includes(
-                                                              searchQuery,
-                                                            );
-                                                        const roleMatch =
-                                                          user.roles?.some(
-                                                            (role) =>
-                                                              role.name
-                                                                .toLowerCase()
-                                                                .includes(
-                                                                  searchQuery,
-                                                                ),
-                                                          );
-                                                        return (
-                                                          nameMatch || roleMatch
+                                              <div className="max-h-40 overflow-y-auto rounded-md border bg-background">
+                                                <div className="p-2 space-y-1">
+                                                  {loadingUsers[deptId] ? (
+                                                    <div className="text-xs text-muted-foreground py-3 text-center">
+                                                      Loading users...
+                                                    </div>
+                                                  ) : (
+                                                    (() => {
+                                                      const users = departmentUsers[deptId] || [];
+                                                      const searchQuery = (userSearchQuery[deptId] || "").toLowerCase();
+                                                      const filteredUsers = users.filter((user) => {
+                                                        if (!searchQuery) return true;
+                                                        const nameMatch = user.name.toLowerCase().includes(searchQuery);
+                                                        const roleMatch = user.roles?.some((role) =>
+                                                          role.name.toLowerCase().includes(searchQuery)
                                                         );
+                                                        return nameMatch || roleMatch;
                                                       });
-                                                    const displayUsers =
-                                                      searchQuery
+                                                      const displayUsers = searchQuery
                                                         ? filteredUsers
-                                                        : filteredUsers.slice(
-                                                            0,
-                                                            3,
-                                                          );
+                                                        : filteredUsers.slice(0, 3);
 
-                                                    return displayUsers.length >
-                                                      0 ? (
-                                                      <>
-                                                        {displayUsers.map(
-                                                          (user) => (
+                                                      return displayUsers.length > 0 ? (
+                                                        <>
+                                                          {displayUsers.map((user) => (
                                                             <label
-                                                              key={
-                                                                user.account_id
-                                                              }
-                                                              className="flex items-start gap-2 text-xs p-1.5 rounded hover:bg-muted/50 cursor-pointer"
+                                                              key={user.account_id}
+                                                              className="flex items-start gap-2 text-xs p-1.5 rounded hover:bg-muted/50 cursor-pointer transition-colors"
                                                             >
                                                               <Checkbox
-                                                                checked={form
-                                                                  .watch(
-                                                                    "userIds",
-                                                                  )
-                                                                  ?.includes(
-                                                                    user.account_id,
-                                                                  )}
-                                                                onCheckedChange={(
-                                                                  checked,
-                                                                ) =>
-                                                                  handleUserToggle(
-                                                                    user.account_id,
-                                                                    checked ===
-                                                                      true,
-                                                                  )
+                                                                checked={form.watch("userIds")?.includes(user.account_id)}
+                                                                onCheckedChange={(checked) =>
+                                                                  handleUserToggle(user.account_id, checked === true)
                                                                 }
                                                                 className="mt-0.5"
                                                               />
                                                               <div className="flex-1 min-w-0">
-                                                                <div className="font-medium truncate">
-                                                                  {user.name}
-                                                                </div>
+                                                                <div className="font-medium truncate">{user.name}</div>
                                                                 <div className="text-[10px] text-muted-foreground truncate">
                                                                   {user.email}
                                                                 </div>
-                                                                {user.roles &&
-                                                                  user.roles
-                                                                    .length >
-                                                                    0 && (
-                                                                    <div className="flex flex-wrap gap-1 mt-0.5">
-                                                                      {user.roles.map(
-                                                                        (
-                                                                          role,
-                                                                        ) => (
-                                                                          <Badge
-                                                                            key={
-                                                                              role.role_id
-                                                                            }
-                                                                            variant="secondary"
-                                                                            className="text-[9px] h-4 px-1"
-                                                                          >
-                                                                            {
-                                                                              role.name
-                                                                            }
-                                                                          </Badge>
-                                                                        ),
-                                                                      )}
-                                                                    </div>
-                                                                  )}
+                                                                {user.roles && user.roles.length > 0 && (
+                                                                  <div className="flex flex-wrap gap-1 mt-1">
+                                                                    {user.roles.map((role) => (
+                                                                      <Badge
+                                                                        key={role.role_id}
+                                                                        variant="outline"
+                                                                        className="text-[9px] h-4 px-1.5"
+                                                                      >
+                                                                        {role.name}
+                                                                      </Badge>
+                                                                    ))}
+                                                                  </div>
+                                                                )}
                                                               </div>
                                                             </label>
-                                                          ),
-                                                        )}
-                                                        {!searchQuery &&
-                                                          filteredUsers.length >
-                                                            3 && (
-                                                            <div className="text-[10px] text-muted-foreground text-center py-1">
-                                                              {filteredUsers.length -
-                                                                3}{" "}
-                                                              more users. Use
-                                                              search to find
-                                                              them.
+                                                          ))}
+                                                          {!searchQuery && filteredUsers.length > 3 && (
+                                                            <div className="text-[10px] text-muted-foreground text-center py-1.5 border-t">
+                                                              {filteredUsers.length - 3} more users. Use search to find them.
                                                             </div>
                                                           )}
-                                                      </>
-                                                    ) : (
-                                                      <div className="text-xs text-muted-foreground py-2">
-                                                        {searchQuery
-                                                          ? "No users found"
-                                                          : "No users available"}
-                                                      </div>
-                                                    );
-                                                  })()
-                                                )}
+                                                        </>
+                                                      ) : (
+                                                        <div className="text-xs text-muted-foreground py-3 text-center">
+                                                          {searchQuery ? "No users found" : "No users available"}
+                                                        </div>
+                                                      );
+                                                    })()
+                                                  )}
+                                                </div>
                                               </div>
                                             </div>
                                           )}
                                         </div>
                                       </div>
                                     );
-                                  })}
-                                </div>
+                                  })}</div>
                               )}
-                            </div>
-                          </ScrollArea>
-                        </div>
+                  </div>
+                </div>
+              </div>
 
-                        {/* Actions Column with ScrollArea */}
-                        <div className="rounded-md border border-input flex flex-col h-full">
-                          <div className="flex items-center justify-between p-3 border-b bg-muted/20 flex-shrink-0">
-                            <span className="text-sm font-medium">Actions</span>
-                            <Badge variant="outline">
-                              {documentActions.length}
-                            </Badge>
+              {/* Column 3: Available Actions */}
+              <FormField
+                control={form.control}
+                name="requestActions"
+                render={() => (
+                  <FormItem className="flex flex-col min-h-0">
+                    <FormControl>
+                      <div className="flex flex-col border rounded-lg min-h-0">
+                        <div className="p-4 border-b bg-muted/20 flex-shrink-0">
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-semibold text-sm">Available Actions</h3>
+                            <Badge variant="outline">{documentActions.length}</Badge>
                           </div>
-                          <ScrollArea className="flex-1">
-                            <div className="p-3">
-                              {loadingActions ? (
-                                <div className="py-2 text-sm text-muted-foreground">
-                                  Loading actions...
-                                </div>
-                              ) : documentActions.length > 0 ? (
-                                <div className="space-y-2">
-                                  {documentActions.map((action) => (
-                                    <div
-                                      key={action.document_action_id}
-                                      draggable
-                                      onDragStart={(event) => {
-                                        setDraggingActionName(
-                                          action.action_name,
-                                        );
-                                        event.dataTransfer.setData(
-                                          "text/plain",
-                                          action.action_name,
-                                        );
-                                        event.dataTransfer.effectAllowed =
-                                          "copy";
-                                      }}
-                                      onDragEnd={() =>
-                                        setDraggingActionName(null)
-                                      }
-                                      className={cn(
-                                        "flex items-center justify-between rounded border px-3 py-2 text-sm",
-                                        draggingActionName ===
-                                          action.action_name
-                                          ? "border-primary bg-primary/5"
-                                          : "border-muted",
-                                      )}
-                                    >
-                                      <div>
-                                        <div className="font-medium">
-                                          {action.action_name}
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Drag to assign departments
+                          </p>
+                        </div>
+                        
+                        <div className="flex-1 overflow-auto">
+                          <div className="p-4">
+                            {loadingActions ? (
+                              <div className="py-8 text-sm text-muted-foreground text-center">
+                                Loading actions...
+                              </div>
+                            ) : documentActions.length > 0 ? (
+                              <div className="space-y-2">
+                                {documentActions.map((action) => (
+                                  <div
+                                    key={action.document_action_id}
+                                    draggable
+                                    onDragStart={(event) => {
+                                      setDraggingActionName(action.action_name);
+                                      event.dataTransfer.setData("text/plain", action.action_name);
+                                      event.dataTransfer.effectAllowed = "copy";
+                                    }}
+                                    onDragEnd={() => setDraggingActionName(null)}
+                                    className={cn(
+                                      "flex items-start justify-between rounded-lg border p-3 text-sm cursor-grab active:cursor-grabbing transition-all",
+                                      draggingActionName === action.action_name
+                                        ? "border-primary bg-primary/5 shadow-md scale-105"
+                                        : "border-border hover:border-primary/50 hover:bg-accent/50"
+                                    )}
+                                  >
+                                    <div className="flex-1 min-w-0 pr-2">
+                                      <div className="font-medium">{action.action_name}</div>
+                                      {action.description && (
+                                        <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                          {action.description}
                                         </div>
-                                        {action.description && (
-                                          <div className="text-xs text-muted-foreground">
-                                            {action.description}
-                                          </div>
-                                        )}
-                                      </div>
-                                      <span className="text-xs text-muted-foreground">
-                                        Drag
-                                      </span>
+                                      )}
                                     </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <div className="py-2 text-sm text-muted-foreground">
-                                  No actions available
-                                </div>
-                              )}
-                            </div>
-                          </ScrollArea>
+                                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                      Drag
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="py-8 text-sm text-muted-foreground text-center">
+                                No actions available
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </FormControl>
