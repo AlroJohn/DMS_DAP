@@ -6,9 +6,8 @@ import { useArchive } from "@/hooks/use-archive";
 import { useSocket } from "@/components/providers/providers";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useDocumentTypes } from "@/hooks/use-document-types";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function ArchivePage() {
   const {
@@ -20,7 +19,6 @@ export default function ArchivePage() {
   const { socket } = useSocket();
   const { documentTypes } = useDocumentTypes();
   const mountedRef = useRef(false);
-  const [activeTab, setActiveTab] = useState("completed");
 
   const documentTypeMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -132,11 +130,6 @@ export default function ArchivePage() {
   // Check if the error is authentication-related
   const isAuthError = error && error.includes("Authentication required");
 
-  // Filter documents based on active tab
-  const filteredDocuments = useMemo(() => {
-    return mappedDocuments.filter(doc => doc.status.toLowerCase() === activeTab);
-  }, [mappedDocuments, activeTab]);
-
   return (
     <div className="w-full p-4 flex h-full flex-col bg-background">
       {error && !isAuthError && (
@@ -160,46 +153,20 @@ export default function ArchivePage() {
         </div>
       )}
       
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col h-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="completed">Completed</TabsTrigger>
-          <TabsTrigger value="archive">Archive</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="completed" className="flex-1 mt-0">
-          <DataTable
-            columns={columns}
-            data={filteredDocuments}
-            selection={true}
-            excludedFilters={["documentId"]}
-            showUploadButton={false}
-            viewType="archive"
-            initialState={{
-              columnVisibility: {
-                dates: false,
-              },
-            }}
-            isLoading={loading}
-          />
-        </TabsContent>
-
-        <TabsContent value="archive" className="flex-1 mt-0">
-          <DataTable
-            columns={columns}
-            data={filteredDocuments}
-            selection={true}
-            excludedFilters={["documentId"]}
-            showUploadButton={false}
-            viewType="archive"
-            initialState={{
-              columnVisibility: {
-                dates: false,
-              },
-            }}
-            isLoading={loading}
-          />
-        </TabsContent>
-      </Tabs>
+      <DataTable
+        columns={columns}
+        data={mappedDocuments}
+        selection={true}
+        excludedFilters={["documentId"]}
+        showUploadButton={false}
+        viewType="archive"
+        initialState={{
+          columnVisibility: {
+            dates: false,
+          },
+        }}
+        isLoading={loading}
+      />
     </div>
   );
 }

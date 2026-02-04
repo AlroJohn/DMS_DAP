@@ -117,8 +117,9 @@ export class SharedDocumentService {
         }
 
         // Exclude documents with certain statuses that shouldn't appear in shared view
-        if (['completed', 'archived', 'intransit', 'in-transit'].includes(detail.Document?.status)) {
-          console.log('📍 [getSharedDocuments] Document has completed/archived/intransit status, skipping:', detail.document_id);
+        // Note: 'completed' is now included so it can appear in the Completed tab
+        if (['archive', 'archived', 'intransit', 'in-transit'].includes(detail.Document?.status)) {
+          console.log('📍 [getSharedDocuments] Document has archived/intransit status, skipping:', detail.document_id);
           return false;
         }
 
