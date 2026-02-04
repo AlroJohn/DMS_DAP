@@ -562,10 +562,10 @@ export function ReleaseDocumentModal({
           <form
             id="release-document-form"
             onSubmit={form.handleSubmit(onSubmit)}
-            className="flex-1 flex flex-col overflow-hidden"
+            className="h-full  border border-black flex-1 flex flex-row overflow-hidden"
           >
-            <div className="px-6 py-4 space-y-4 overflow-y-auto">
-              <div className="grid grid-cols-2 w-full gap-4">
+            <div className="px-6 py-4 space-y-4 ">
+              <div className="grid grid-cols-1 w-full gap-4 overflow-y-auto h-full">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col items-start gap-2">
                     <Label htmlFor="doc-code" className="text-right">
@@ -736,7 +736,6 @@ export function ReleaseDocumentModal({
                                         form.setValue("departmentIds", [], {
                                           shouldValidate: true,
                                         });
-                                        setOrderedDepartmentIds([]);
                                         setDepartmentActionMap({});
                                       } else {
                                         // Check all
@@ -746,7 +745,6 @@ export function ReleaseDocumentModal({
                                         form.setValue("departmentIds", allIds, {
                                           shouldValidate: true,
                                         });
-                                        updateOrderedDepartments(allIds);
                                         const newMap: Record<string, string[]> =
                                           {};
                                         allIds.forEach((id) => {
@@ -827,19 +825,11 @@ export function ReleaseDocumentModal({
                     />
                   </div>
                 </div>
-
-                <div className="text-xs text-muted-foreground">
-                  {selectedCount > 0
-                    ? `This will notify ${selectedCount} department${
-                        selectedCount === 1 ? "" : "s"
-                      }.`
-                    : "Select targets to preview recipients."}
-                </div>
               </div>
             </div>
 
             {/* Action Assignment Section - Outside scrolling area */}
-            <div className="px-6 pb-4 h-[400px] flex flex-col">
+            <div className="w-full border border-black px-6 pb-4 max-h-[400px] overflow-y-auto flex flex-col">
               <FormField
                 control={form.control}
                 name="requestActions"
