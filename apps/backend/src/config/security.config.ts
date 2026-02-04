@@ -1,8 +1,9 @@
 import dotenv from 'dotenv';
-import path from 'path';
+
+import { resolveEnvPath } from './env';
 
 // Load environment variables from root directory
-dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
+dotenv.config({ path: resolveEnvPath() });
 
 export const securityConfig = {
   // JWT configuration

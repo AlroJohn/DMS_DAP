@@ -1,10 +1,9 @@
 import dotenv from 'dotenv';
-import path from 'path';
+
+import { resolveEnvPath } from './env';
 
 // Load environment variables from root directory
-// Go up from apps/backend to root: apps/backend -> apps -> root
-const envPath = path.resolve(process.cwd(), '../../.env');
-console.log('Loading .env from:', envPath);
+const envPath = resolveEnvPath();
 const result = dotenv.config({ path: envPath });
 if (result.error) {
   console.error('Error loading .env:', result.error);
