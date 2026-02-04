@@ -483,6 +483,24 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  apps/printer:
+    dependencies:
+      bwip-js:
+        specifier: ^4.8.0
+        version: 4.8.0
+      pdf-to-printer:
+        specifier: ^5.6.0
+        version: 5.6.1
+      pdfkit:
+        specifier: ^0.14.0
+        version: 0.14.0
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
+      socket.io-client:
+        specifier: ^4.8.3
+        version: 4.8.3
+
   packages/shared:
     dependencies:
       '@prisma/client':
@@ -4961,6 +4979,9 @@ packages:
     resolution: {integrity: sha512-mHU89HGh7v+4u2ubfnevJ03lmPgQ5WU4CxAVmTSh/sxVTEDYd1er/dKS/A6vg77NX47KTEoihq8jZBLr8Cxuwg==}
     engines: {node: '>=20.16.0 <21 || >=22.3.0'}
     hasBin: true
+
+  pdf-to-printer@5.6.1:
+    resolution: {integrity: sha512-VlwOPVv8LmCGVnJKnPZaCqUSB0wm/eTmdrsXqHG2lpkIbwnlsBXIVIAipQgdsubIssbJAutyN5yOCB1CnYcMVw==}
 
   pdfjs-dist@5.4.296:
     resolution: {integrity: sha512-DlOzet0HO7OEnmUmB6wWGJrrdvbyJKftI1bhMitK7O2N8W2gc757yyYBbINy9IDafXAV9wmKr9t7xsTaNKRG5Q==}
@@ -11182,6 +11203,8 @@ snapshots:
     dependencies:
       '@napi-rs/canvas': 0.1.80
       pdfjs-dist: 5.4.296
+
+  pdf-to-printer@5.6.1: {}
 
   pdfjs-dist@5.4.296:
     optionalDependencies:
