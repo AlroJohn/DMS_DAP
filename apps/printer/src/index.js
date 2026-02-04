@@ -140,6 +140,7 @@ socket.on("printJob", async (job) => {
       await generateLabelPDF(pdfPath, titleText, barcodeText);
       console.log(`✅ Barcode PDF Generated: ${pdfPath}`);
     }
+    
 
     // 2. Print to Brother Printer
     const printerName = getBrotherPrinterName();
