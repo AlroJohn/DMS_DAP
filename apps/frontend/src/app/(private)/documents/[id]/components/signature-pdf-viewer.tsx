@@ -13,7 +13,7 @@ import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -277,11 +277,12 @@ export function SignaturePdfViewer({
     setSelectedDepartmentIds((prev) => {
       if (allowedDepartmentIds.length) {
         const allowedSet = new Set(allowedDepartmentIds);
-        const next = allDepartmentIds.filter((id) => allowedSet.has(id));
-        return next.length ? next : prev;
+        const next = allDepartmentIds.find((id) => allowedSet.has(id));
+        return next ? [next] : prev;
       }
       if (prev.length) {
-        return prev.filter((id) => allDepartmentIds.includes(id));
+        const next = prev.find((id) => allDepartmentIds.includes(id));
+        return next ? [next] : [];
       }
       if (
         currentDepartmentId &&
@@ -313,27 +314,8 @@ export function SignaturePdfViewer({
     return map;
   }, [filteredGroups]);
 
-  const getGroupDepartmentIds = (group: Group) => {
-    const groupDepartments = [
-      ...(group.departments || []),
-      ...group.centers.flatMap((center) => center.departments || []),
-    ];
-    return groupDepartments.map((dept) => dept.department_id);
-  };
-
-  const getCenterDepartmentIds = (center: Center) =>
-    (center.departments || []).map((dept) => dept.department_id);
-
-  const toggleSelection = (ids: string[], checked: boolean) => {
-    setSelectedDepartmentIds((prev) => {
-      const current = new Set(prev);
-      if (checked) {
-        ids.forEach((id) => current.add(id));
-      } else {
-        ids.forEach((id) => current.delete(id));
-      }
-      return Array.from(current);
-    });
+  const handleDepartmentSelect = (departmentId: string) => {
+    setSelectedDepartmentIds(departmentId ? [departmentId] : []);
   };
   const pdfFiles = useMemo(
     () => files.filter((file) => isPdfLikeFile(file)),
@@ -1709,37 +1691,14 @@ export function SignaturePdfViewer({
                       Loading options...
                     </div>
                   ) : filteredGroups.length > 0 ? (
-                    filteredGroups.map((group) => {
-                      const groupDepartmentIds = getGroupDepartmentIds(group);
-                      const groupChecked =
-                        groupDepartmentIds.length > 0 &&
-                        groupDepartmentIds.every((id) =>
-                          selectedDepartmentIds.includes(id),
-                        );
-                      const groupIndeterminate =
-                        !groupChecked &&
-                        groupDepartmentIds.some((id) =>
-                          selectedDepartmentIds.includes(id),
-                        );
-
-                      return (
+                    <RadioGroup
+                      value={selectedDepartmentIds[0] ?? ""}
+                      onValueChange={handleDepartmentSelect}
+                      className="space-y-3"
+                    >
+                      {filteredGroups.map((group) => (
                         <div key={group.group_id} className="space-y-2">
                           <div className="flex items-center gap-2">
-                            <Checkbox
-                              checked={
-                                groupChecked
-                                  ? true
-                                  : groupIndeterminate
-                                    ? "indeterminate"
-                                    : false
-                              }
-                              onCheckedChange={(checked) =>
-                                toggleSelection(
-                                  groupDepartmentIds,
-                                  checked === true,
-                                )
-                              }
-                            />
                             <span className="text-sm font-semibold">
                               Group: {group.name}
                             </span>
@@ -1750,71 +1709,32 @@ export function SignaturePdfViewer({
                               <div className="text-[11px] uppercase text-muted-foreground">
                                 Center:
                               </div>
-                              {group.centers.map((center) => {
-                                const centerDepartmentIds =
-                                  getCenterDepartmentIds(center);
-                                const centerChecked =
-                                  centerDepartmentIds.length > 0 &&
-                                  centerDepartmentIds.every((id) =>
-                                    selectedDepartmentIds.includes(id),
-                                  );
-                                const centerIndeterminate =
-                                  !centerChecked &&
-                                  centerDepartmentIds.some((id) =>
-                                    selectedDepartmentIds.includes(id),
-                                  );
-                                return (
-                                  <div
-                                    key={center.center_id}
-                                    className="space-y-2"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <Checkbox
-                                        checked={
-                                          centerChecked
-                                            ? true
-                                            : centerIndeterminate
-                                              ? "indeterminate"
-                                              : false
-                                        }
-                                        onCheckedChange={(checked) =>
-                                          toggleSelection(
-                                            centerDepartmentIds,
-                                            checked === true,
-                                          )
-                                        }
-                                      />
-                                      <span className="text-sm font-medium">
-                                        {center.name}
-                                      </span>
-                                    </div>
-                                    <div className="grid grid-cols-1 gap-2 pl-6">
-                                      <div className="text-[11px] uppercase text-muted-foreground">
-                                        Offices/Department:
-                                      </div>
-                                      {center.departments.map((dept) => (
-                                        <label
-                                          key={dept.department_id}
-                                          className="flex items-center gap-2 text-sm"
-                                        >
-                                          <Checkbox
-                                            checked={selectedDepartmentIds.includes(
-                                              dept.department_id,
-                                            )}
-                                            onCheckedChange={(checked) =>
-                                              toggleSelection(
-                                                [dept.department_id],
-                                                checked === true,
-                                              )
-                                            }
-                                          />
-                                          {dept.name}
-                                        </label>
-                                      ))}
-                                    </div>
+                              {group.centers.map((center) => (
+                                <div
+                                  key={center.center_id}
+                                  className="space-y-2"
+                                >
+                                  <div className="text-sm font-medium">
+                                    {center.name}
                                   </div>
-                                );
-                              })}
+                                  <div className="grid grid-cols-1 gap-2 pl-6">
+                                    <div className="text-[11px] uppercase text-muted-foreground">
+                                      Offices/Department:
+                                    </div>
+                                    {center.departments.map((dept) => (
+                                      <label
+                                        key={dept.department_id}
+                                        className="flex items-center gap-2 text-sm"
+                                      >
+                                        <RadioGroupItem
+                                          value={dept.department_id}
+                                        />
+                                        {dept.name}
+                                      </label>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           )}
 
@@ -1828,25 +1748,15 @@ export function SignaturePdfViewer({
                                   key={dept.department_id}
                                   className="flex items-center gap-2 text-sm"
                                 >
-                                  <Checkbox
-                                    checked={selectedDepartmentIds.includes(
-                                      dept.department_id,
-                                    )}
-                                    onCheckedChange={(checked) =>
-                                      toggleSelection(
-                                        [dept.department_id],
-                                        checked === true,
-                                      )
-                                    }
-                                  />
+                                  <RadioGroupItem value={dept.department_id} />
                                   {dept.name}
                                 </label>
                               ))}
                             </div>
                           )}
                         </div>
-                      );
-                    })
+                      ))}
+                    </RadioGroup>
                   ) : (
                     <div className="text-xs text-muted-foreground">
                       No groups available
@@ -1856,10 +1766,8 @@ export function SignaturePdfViewer({
               </div>
               <p className="text-xs text-muted-foreground">
                 {selectedDepartmentCount > 0
-                  ? `Selected ${selectedDepartmentCount} department${
-                      selectedDepartmentCount === 1 ? "" : "s"
-                    }. New placeholders will be assigned to these departments.`
-                  : "Select departments to assign new placeholders."}
+                  ? "Selected 1 department. New placeholders will be assigned to this department."
+                  : "Select a department to assign new placeholders."}
               </p>
             </div>
 

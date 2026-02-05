@@ -123,6 +123,7 @@ export function DataTableRowActions<TData>({
   const [viewDocumentModalOpen, setViewDocumentModalOpen] = useState(false);
   const [viewOcrModalOpen, setViewOcrModalOpen] = useState(false);
   const [showCompleteAlert, setShowCompleteAlert] = useState(false);
+  const [showCancelAlert, setShowCancelAlert] = useState(false);
   const document = row.original as Document;
 
   // Event handlers
@@ -208,7 +209,6 @@ export function DataTableRowActions<TData>({
   const handleCompleteConfirm = async () => {
     try {
       setIsLoading(true);
-      setShowCompleteAlert(false);
 
       const response = await fetch(`/api/documents/${document.id}/complete`, {
         method: "POST",
@@ -226,6 +226,7 @@ export function DataTableRowActions<TData>({
       }
 
       toast.success("Document completed successfully.");
+      setShowCompleteAlert(false);
     } catch (error: any) {
       console.error("Error completing document:", error);
       toast.error(error.message || "Failed to complete document.");
@@ -238,7 +239,11 @@ export function DataTableRowActions<TData>({
     setShowCompleteAlert(true);
   };
 
-  const handleCancel = async () => {
+  const handleCancel = () => {
+    setShowCancelAlert(true);
+  };
+
+  const handleCancelConfirm = async () => {
     try {
       setIsLoading(true);
 
@@ -277,6 +282,7 @@ export function DataTableRowActions<TData>({
 
       const result = await response.json();
       toast.success(result.message || "Document cancelled successfully.");
+      setShowCancelAlert(false);
     } catch (error: any) {
       console.error("Error cancelling document:", error);
       toast.error(error.message || "Failed to cancel document.");
@@ -1084,6 +1090,24 @@ export function DataTableRowActions<TData>({
             <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleCompleteConfirm} disabled={isLoading}>
               {isLoading ? "Completing..." : "Complete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cancel Confirmation Alert Dialog */}
+      <AlertDialog open={showCancelAlert} onOpenChange={setShowCancelAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel this document? This action will revert the document status back to pending.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading}>No, Keep It</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancelConfirm} disabled={isLoading}>
+              {isLoading ? "Cancelling..." : "Yes, Cancel Document"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
