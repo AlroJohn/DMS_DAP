@@ -41,7 +41,7 @@ export const getColumns = ({
           }
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label="Select all"
-          className="translate-y-[2px] data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+          className="translate-y-0.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
         />
       </div>
     ),
@@ -51,7 +51,7 @@ export const getColumns = ({
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
           aria-label="Select row"
-          className="translate-y-[2px] data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+          className="translate-y-0.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
         />
       </div>
     ),
@@ -87,7 +87,7 @@ export const getColumns = ({
       const d = row.original;
 
       return (
-        <div className="flex flex-col gap-1.5 py-1 min-w-[180px] max-w-[240px]">
+        <div className="flex flex-col gap-1.5 py-1 min-w-45 max-w-60">
           <div className="font-medium" title={getDocumentTitle(d)}>
             {getDocumentTitle(d)}
           </div>
@@ -99,7 +99,7 @@ export const getColumns = ({
               {d.documentId}
             </span>
             <Copy
-              className="h-3.5 w-3.5 cursor-pointer text-muted-foreground hover:text-primary transition-colors flex-shrink-0"
+              className="h-3.5 w-3.5 cursor-pointer text-muted-foreground hover:text-primary transition-colors shrink-0"
               onClick={() => {
                 navigator.clipboard.writeText(d.documentId || "");
                 toast.success("Document ID copied to clipboard!");
@@ -119,15 +119,15 @@ export const getColumns = ({
     cell: ({ row }) => {
       const d = row.original;
       return (
-        <div className="flex flex-col gap-1.5 py-1 min-w-[160px] max-w-[200px]">
+        <div className="flex flex-col gap-1.5 py-1 min-w-40 max-w-50">
           <div className="flex items-center gap-1.5">
-            <User className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" />
+            <User className="h-3.5 w-3.5 text-orange-500 shrink-0" />
             <span className="text-xs font-medium" title={d.contactPerson}>
               {d.contactPerson}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Building2 className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+            <Building2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />
             <span
               className="text-xs text-muted-foreground"
               title={d.contactOrganization}
@@ -283,14 +283,14 @@ export const getColumns = ({
       return (
         <div className="flex flex-col gap-1 text-xs">
           <div className="flex items-center gap-1">
-            <Calendar className="w-2.5 h-2.5 text-emerald-500 flex-shrink-0" />
+            <Calendar className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
             <span className="text-muted-foreground" title="Received">
               Rec
             </span>
           </div>
           {formattedDate && (
             <div className="flex items-center gap-1">
-              <Calendar className="w-2.5 h-2.5 text-blue-500 flex-shrink-0" />
+              <Calendar className="w-2.5 h-2.5 text-blue-500 shrink-0" />
               <span className="text-muted-foreground" title={formattedDate}>
                 {formattedDate}
               </span>
