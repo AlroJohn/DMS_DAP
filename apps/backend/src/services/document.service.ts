@@ -117,27 +117,12 @@ export class DocumentService {
     startAtByDocument: Map<string, Date>;
     completeAtByDocument: Map<string, Date>;
   }> {
-    const { documentIds, workflowMap: workflowMapOverride } = params;
+    const { documentIds } = params;
     const startAtByDocument = new Map<string, Date>();
     const completeAtByDocument = new Map<string, Date>();
 
     if (documentIds.length === 0) {
       return { startAtByDocument, completeAtByDocument };
-    }
-
-    let workflowMap = workflowMapOverride;
-    if (!workflowMap) {
-      workflowMap = new Map<string, string[]>();
-      const details = await prisma.documentAdditionalDetails.findMany({
-        where: { document_id: { in: documentIds } },
-        select: { document_id: true, work_flow_id: true }
-      });
-      details.forEach((detail) => {
-        workflowMap?.set(
-          detail.document_id,
-          this.parseWorkflowDepartments(detail.work_flow_id, 'process-trails')
-        );
-      });
     }
 
     const receivedTrails = await prisma.documentTrail.findMany({
@@ -164,54 +149,21 @@ export class DocumentService {
     const completedTrails = await prisma.documentTrail.findMany({
       where: {
         document_id: { in: documentIds },
-        status: 'completed',
-        to_department: { not: null }
+        status: 'completed'
       },
       select: {
         document_id: true,
-        to_department: true,
         action_date: true,
         created_at: true
       }
     });
 
-    const completedByDocument = new Map<string, Map<string, Date>>();
     completedTrails.forEach((trail) => {
-      if (!trail.to_department) return;
       const date = trail.action_date || trail.created_at;
       if (!date) return;
-
-      const docMap =
-        completedByDocument.get(trail.document_id) || new Map<string, Date>();
-      const existing = docMap.get(trail.to_department);
-      if (!existing || date > existing) {
-        docMap.set(trail.to_department, date);
-      }
-      completedByDocument.set(trail.document_id, docMap);
-    });
-
-    documentIds.forEach((documentId) => {
-      const workflowDepartments = workflowMap?.get(documentId) || [];
-      if (workflowDepartments.length === 0) return;
-
-      const completedMap = completedByDocument.get(documentId);
-      if (!completedMap) return;
-
-      const allCompleted = workflowDepartments.every((dept) =>
-        completedMap.has(dept)
-      );
-      if (!allCompleted) return;
-
-      let latest = new Date(0);
-      workflowDepartments.forEach((dept) => {
-        const date = completedMap.get(dept);
-        if (date && date > latest) {
-          latest = date;
-        }
-      });
-
-      if (latest.getTime() > 0) {
-        completeAtByDocument.set(documentId, latest);
+      const existing = completeAtByDocument.get(trail.document_id);
+      if (!existing || date < existing) {
+        completeAtByDocument.set(trail.document_id, date);
       }
     });
 
@@ -629,7 +581,9 @@ export class DocumentService {
           document_id: true,
           status: true,
           started_at: true,
-          completed_at: true
+          completed_at: true,
+          delayed_at: true,
+          delayed_duration_seconds: true
         }
       });
       const processStatusMap = new Map(
@@ -691,16 +645,51 @@ export class DocumentService {
           const deadline =
             processStatus.started_at.getTime() + durationValue * unitMultiplier * 1000;
 
-          if (now > deadline && processStatus.status !== 'delayed') {
+          if (now > deadline) {
+            const delayedAt = processStatus.delayed_at ?? new Date(deadline);
+            const delayedDurationSeconds = Math.max(
+              0,
+              Math.floor((now - deadline) / 1000)
+            );
             await prisma.processStatus.update({
               where: { document_id: doc.document_id },
-              data: { status: 'delayed' }
+              data: {
+                status: 'delayed',
+                delayed_at: delayedAt,
+                delayed_duration_seconds: delayedDurationSeconds
+              }
             });
             processStatusMap.set(doc.document_id, {
               ...processStatus,
-              status: 'delayed'
+              status: 'delayed',
+              delayed_at: delayedAt,
+              delayed_duration_seconds: delayedDurationSeconds
             });
           }
+        })
+      );
+
+      // Ensure completed-but-delayed statuses stay marked as delayed
+      await Promise.all(
+        documents.map(async (doc) => {
+          const processStatus = processStatusMap.get(doc.document_id);
+          if (!processStatus) return;
+          if (!processStatus.completed_at) return;
+          if (processStatus.status === 'delayed') return;
+
+          const hasDelay =
+            Boolean(processStatus.delayed_at) ||
+            (processStatus.delayed_duration_seconds ?? 0) > 0;
+          if (!hasDelay) return;
+
+          await prisma.processStatus.update({
+            where: { document_id: doc.document_id },
+            data: { status: 'delayed' }
+          });
+          processStatusMap.set(doc.document_id, {
+            ...processStatus,
+            status: 'delayed'
+          });
         })
       );
 
@@ -765,7 +754,11 @@ export class DocumentService {
             process_timer_complete_at:
               (processStatusMap.get(doc.document_id)?.completed_at ||
                 completeAtByDocument.get(doc.document_id))?.toISOString() || null,
-            process_status: processStatusMap.get(doc.document_id)?.status || null
+            process_status: processStatusMap.get(doc.document_id)?.status || null,
+            process_delayed_at:
+              processStatusMap.get(doc.document_id)?.delayed_at?.toISOString() || null,
+            process_delay_seconds:
+              processStatusMap.get(doc.document_id)?.delayed_duration_seconds ?? null
           };
         })
       );
@@ -983,7 +976,9 @@ export class DocumentService {
           document_id: true,
           status: true,
           started_at: true,
-          completed_at: true
+          completed_at: true,
+          delayed_at: true,
+          delayed_duration_seconds: true
         }
       });
       const processStatusMap = new Map(
@@ -1056,16 +1051,51 @@ export class DocumentService {
           const deadline =
             processStatus.started_at.getTime() + durationValue * unitMultiplier * 1000;
 
-          if (now > deadline && processStatus.status !== 'delayed') {
+          if (now > deadline) {
+            const delayedAt = processStatus.delayed_at ?? new Date(deadline);
+            const delayedDurationSeconds = Math.max(
+              0,
+              Math.floor((now - deadline) / 1000)
+            );
             await prisma.processStatus.update({
               where: { document_id: doc.document_id },
-              data: { status: 'delayed' }
+              data: {
+                status: 'delayed',
+                delayed_at: delayedAt,
+                delayed_duration_seconds: delayedDurationSeconds
+              }
             });
             processStatusMap.set(doc.document_id, {
               ...processStatus,
-              status: 'delayed'
+              status: 'delayed',
+              delayed_at: delayedAt,
+              delayed_duration_seconds: delayedDurationSeconds
             });
           }
+        })
+      );
+
+      // Ensure completed-but-delayed statuses stay marked as delayed
+      await Promise.all(
+        documents.map(async (doc) => {
+          const processStatus = processStatusMap.get(doc.document_id);
+          if (!processStatus) return;
+          if (!processStatus.completed_at) return;
+          if (processStatus.status === 'delayed') return;
+
+          const hasDelay =
+            Boolean(processStatus.delayed_at) ||
+            (processStatus.delayed_duration_seconds ?? 0) > 0;
+          if (!hasDelay) return;
+
+          await prisma.processStatus.update({
+            where: { document_id: doc.document_id },
+            data: { status: 'delayed' }
+          });
+          processStatusMap.set(doc.document_id, {
+            ...processStatus,
+            status: 'delayed'
+          });
         })
       );
 
@@ -1134,6 +1164,10 @@ export class DocumentService {
               ? processCompleteAt.toISOString()
               : null,
             process_status: processStatus?.status || null,
+            process_delayed_at: processStatus?.delayed_at
+              ? processStatus.delayed_at.toISOString()
+              : null,
+            process_delay_seconds: processStatus?.delayed_duration_seconds ?? null,
             isOwned: isOwned || false, // Add ownership flag for frontend badge logic
             blockchainStatus: blockchainInfo.blockchain_status || null,
             blockchainProjectUuid: blockchainInfo.blockchain_project_uuid || null,
@@ -3309,6 +3343,14 @@ export class DocumentService {
       }
 
       await recordCompletionStatus(documentId, { userId });
+
+      // Ensure ProcessStatus reflects completion (in case trail sync did not run)
+      try {
+        const processStatusService = new ProcessStatusService();
+        await processStatusService.syncForDocument(documentId);
+      } catch (syncError) {
+        console.error('Error syncing ProcessStatus after completion:', syncError);
+      }
 
       // Emit socket event for real-time updates
       const io = getSocketInstance();

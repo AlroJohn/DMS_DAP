@@ -733,6 +733,8 @@ model ProcessStatus {
   status            ProcessTypeStatus @default(ongoing)
   started_at        DateTime
   completed_at      DateTime?
+  delayed_at        DateTime?
+  delayed_duration_seconds Int?
   created_at        DateTime          @default(now())
   updated_at        DateTime          @default(now()) @updatedAt
   Document          Document          @relation(fields: [document_id], references: [document_id], onDelete: Cascade)

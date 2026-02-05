@@ -11,6 +11,12 @@ type CountdownTimerProps = {
   className?: string;
 };
 
+type ElapsedTimerProps = {
+  startAt: string;
+  endAt?: string | null;
+  className?: string;
+};
+
 const UNIT_TO_SECONDS: Record<DurationUnit, number> = {
   seconds: 1,
   minutes: 60,
@@ -91,6 +97,33 @@ export function CountdownTimer({
   );
 
   const formatted = formatDuration(remainingSeconds);
+
+  return (
+    <span className={className} title={formatted}>
+      {formatted}
+    </span>
+  );
+}
+
+export function ElapsedTimer({ startAt, endAt, className }: ElapsedTimerProps) {
+  const now = useSharedNow();
+  if (!startAt) {
+    return null;
+  }
+
+  const startMs = new Date(startAt).getTime();
+  if (Number.isNaN(startMs)) {
+    return null;
+  }
+
+  const endMs = endAt ? new Date(endAt).getTime() : null;
+  const effectiveEndMs =
+    endMs && !Number.isNaN(endMs) ? endMs : now;
+  const elapsedSeconds = Math.max(
+    0,
+    Math.floor((effectiveEndMs - startMs) / 1000)
+  );
+  const formatted = formatDuration(elapsedSeconds);
 
   return (
     <span className={className} title={formatted}>

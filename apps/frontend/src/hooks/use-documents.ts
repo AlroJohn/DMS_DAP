@@ -21,6 +21,9 @@ export interface DocumentListItem {
   created_at?: string;
   process_timer_start_at?: string | null;
   process_timer_complete_at?: string | null;
+  process_status?: 'ongoing' | 'delayed' | 'completed' | null;
+  process_delayed_at?: string | null;
+  process_delay_seconds?: number | null;
   isOwned?: boolean;
   blockchainStatus?: string | null;
   blockchainProjectUuid?: string | null;

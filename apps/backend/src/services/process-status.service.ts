@@ -60,15 +60,9 @@ export class ProcessStatusService {
       return null;
     }
 
-    const workflowDetail = await prisma.documentAdditionalDetails.findFirst({
-      where: { document_id: documentId },
-      orderBy: { created_at: 'asc' },
-      select: { work_flow_id: true }
+    const existing = await prisma.processStatus.findUnique({
+      where: { document_id: documentId }
     });
-
-    const workflowDepartments = this.parseWorkflowDepartments(
-      workflowDetail?.work_flow_id
-    );
 
     const firstReceived = await prisma.documentTrail.findFirst({
       where: { document_id: documentId, status: 'received' },
@@ -76,53 +70,16 @@ export class ProcessStatusService {
       select: { action_date: true, created_at: true }
     });
 
-    const startedAt = firstReceived?.action_date || firstReceived?.created_at || null;
-    if (!startedAt) {
-      return null;
-    }
+    const firstCompleted = await prisma.documentTrail.findFirst({
+      where: { document_id: documentId, status: 'completed' },
+      orderBy: { action_date: 'asc' },
+      select: { action_date: true, created_at: true }
+    });
 
-    let completedAt: Date | null = null;
-    if (workflowDepartments.length > 0) {
-      const completedTrails = await prisma.documentTrail.findMany({
-        where: {
-          document_id: documentId,
-          status: 'completed',
-          to_department: { not: null }
-        },
-        select: {
-          to_department: true,
-          action_date: true,
-          created_at: true
-        }
-      });
-
-      const completedByDepartment = new Map<string, Date>();
-      completedTrails.forEach((trail) => {
-        if (!trail.to_department) return;
-        const date = trail.action_date || trail.created_at;
-        if (!date) return;
-        const existing = completedByDepartment.get(trail.to_department);
-        if (!existing || date > existing) {
-          completedByDepartment.set(trail.to_department, date);
-        }
-      });
-
-      const allCompleted = workflowDepartments.every((dept) =>
-        completedByDepartment.has(dept)
-      );
-      if (allCompleted) {
-        let latest = new Date(0);
-        workflowDepartments.forEach((dept) => {
-          const date = completedByDepartment.get(dept);
-          if (date && date > latest) {
-            latest = date;
-          }
-        });
-        if (latest.getTime() > 0) {
-          completedAt = latest;
-        }
-      }
-    }
+    const startedAt =
+      firstReceived?.action_date || firstReceived?.created_at || null;
+    const completedAt =
+      firstCompleted?.action_date || firstCompleted?.created_at || null;
 
     const processType = await prisma.processType.findUnique({
       where: { process_type_id: document.process_type_id },
@@ -134,22 +91,55 @@ export class ProcessStatusService {
       processType?.duration_unit ?? null
     );
 
-    const existing = await prisma.processStatus.findUnique({
-      where: { document_id: documentId }
-    });
-
-    const resolvedStartedAt = existing?.started_at || startedAt;
+    const resolvedStartedAt =
+      existing?.started_at || startedAt || completedAt || null;
+    if (!resolvedStartedAt) {
+      return existing ?? null;
+    }
     const resolvedCompletedAt = completedAt || existing?.completed_at || null;
 
+    const deadline =
+      durationSeconds > 0
+        ? resolvedStartedAt.getTime() + durationSeconds * 1000
+        : null;
     let status: 'ongoing' | 'delayed' | 'completed' = 'ongoing';
+    let delayedAt: Date | null = null;
+    let delayedDurationSeconds: number | null = null;
+
     if (resolvedCompletedAt) {
-      status = 'completed';
-    } else if (
-      durationSeconds > 0 &&
-      resolvedStartedAt &&
-      Date.now() > resolvedStartedAt.getTime() + durationSeconds * 1000
-    ) {
+      let completedLate = false;
+      if (deadline && resolvedCompletedAt.getTime() > deadline) {
+        completedLate = true;
+        delayedAt = new Date(deadline);
+        delayedDurationSeconds = Math.max(
+          0,
+          Math.floor((resolvedCompletedAt.getTime() - deadline) / 1000)
+        );
+      }
+
+      const hadDelay =
+        existing?.status === 'delayed' ||
+        Boolean(existing?.delayed_at) ||
+        (existing?.delayed_duration_seconds ?? 0) > 0;
+
+      status = completedLate || hadDelay ? 'delayed' : 'completed';
+
+      if (!delayedAt && existing?.delayed_at) {
+        delayedAt = existing.delayed_at;
+      }
+      if (
+        delayedDurationSeconds == null &&
+        (existing?.delayed_duration_seconds ?? 0) > 0
+      ) {
+        delayedDurationSeconds = existing!.delayed_duration_seconds!;
+      }
+    } else if (deadline && Date.now() > deadline) {
       status = 'delayed';
+      delayedAt = existing?.delayed_at ?? new Date(deadline);
+      delayedDurationSeconds = Math.max(
+        0,
+        Math.floor((Date.now() - deadline) / 1000)
+      );
     }
 
     if (existing) {
@@ -158,7 +148,9 @@ export class ProcessStatusService {
         data: {
           status,
           started_at: resolvedStartedAt,
-          completed_at: resolvedCompletedAt
+          completed_at: resolvedCompletedAt,
+          delayed_at: delayedAt,
+          delayed_duration_seconds: delayedDurationSeconds
         }
       });
     }
@@ -168,7 +160,9 @@ export class ProcessStatusService {
         document_id: documentId,
         status,
         started_at: resolvedStartedAt,
-        completed_at: resolvedCompletedAt
+        completed_at: resolvedCompletedAt,
+        delayed_at: delayedAt,
+        delayed_duration_seconds: delayedDurationSeconds
       }
     });
   }
