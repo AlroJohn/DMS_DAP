@@ -652,11 +652,6 @@ export class DocumentReleaseService {
         return { success: false, error: 'Document not found' };
       }
 
-      if (document.status === 'cancelled') {
-        console.warn('[DocumentReleaseService.receiveDocument] Warning: Document is cancelled.');
-        return { success: false, error: 'Document is cancelled' };
-      }
-
       if (document.status !== 'intransit') {
         console.warn('[DocumentReleaseService.receiveDocument] Warning: Document is not in transit. Status:', document.status);
         return { success: false, error: 'Document is not in transit' };
@@ -807,21 +802,35 @@ export class DocumentReleaseService {
         receivedByUsers.push(userId);
       }
 
-      // Update the existing 'intransit' trail to 'received' status
-      if (latestTransitTrail) {
-        await prisma.documentTrail.updateMany({
-          where: {
-            document_id: documentId,
-            status: 'intransit',
-            to_department: user.department_id
-          },
-          data: {
-            status: 'received',
-            user_id: userId,
-            updated_at: new Date()
-          }
-        });
-      }
+      // Get the latest intransit trail to extract from_department for the new received trail
+      const latestIntransitTrailDetails = await prisma.documentTrail.findFirst({
+        where: {
+          document_id: documentId,
+          status: 'intransit',
+          to_department: user.department_id
+        },
+        orderBy: {
+          created_at: 'desc'
+        },
+        select: {
+          from_department: true,
+          to_department: true,
+          action_id: true
+        }
+      });
+
+      // Create a NEW trail entry for the receive action instead of updating the existing one
+      const documentTrailsService = new DocumentTrailsService();
+      await documentTrailsService.createDocumentTrail({
+        document_id: documentId,
+        action_id: latestIntransitTrailDetails?.action_id || undefined,
+        from_department: latestIntransitTrailDetails?.from_department || undefined,
+        to_department: user.department_id,
+        user_id: userId,
+        assigned_to_user_id: null,
+        status: 'received',
+        remarks: `Document received by ${user.department_id}`
+      });
 
       // Update the document status to 'received'
       await prisma.document.update({
