@@ -677,26 +677,7 @@ export class DocumentReleaseService {
         return { success: false, error: 'Document is not assigned to your department' };
       }
 
-      // Check if this document has already been received by this department IN THE CURRENT TRANSIT CYCLE
-      // We check the latest trail - if it's already 'received', then we can't receive it again
-      const latestTrailToThisDept = await prisma.documentTrail.findFirst({
-        where: {
-          document_id: documentId,
-          to_department: user.department_id,
-        },
-        orderBy: {
-          created_at: 'desc'
-        },
-        select: {
-          status: true,
-          trail_id: true
-        }
-      });
-
-      if (latestTrailToThisDept && latestTrailToThisDept.status === 'received') {
-        console.warn('[DocumentReleaseService.receiveDocument] Warning: Document already received in current transit cycle.');
-        return { success: false, error: 'Document has already been received by your department in the current transit cycle' };
-      }
+      // Per-user receive checks happen below to allow multiple users to receive in the same department.
 
       const currentDetail = document.DocumentAdditionalDetails?.[0];
       if (!currentDetail) {
@@ -829,16 +810,7 @@ export class DocumentReleaseService {
         user_id: userId,
         assigned_to_user_id: null,
         status: 'received',
-        remarks: `Document received by ${user.department_id}`
-      });
-
-      // Update the document status to 'received'
-      await prisma.document.update({
-        where: { document_id: documentId },
-        data: {
-          status: 'received',
-          updated_at: new Date()
-        }
+        remarks: `Document received by ${user.first_name} ${user.last_name}`
       });
 
       // Update DocumentAdditionalDetails
@@ -851,10 +823,86 @@ export class DocumentReleaseService {
         data: updateData
       });
 
-      await recordReceiveStatus(documentId, {
-        departmentId: user.department_id,
-        userId
+      const intransitTrails = await prisma.documentTrail.findMany({
+        where: {
+          document_id: documentId,
+          status: 'intransit'
+        },
+        select: {
+          to_department: true,
+          created_at: true,
+          assigned_to_user_id: true
+        }
       });
+
+      const latestIntransitByDept = new Map<string, Date>();
+      for (const trail of intransitTrails) {
+        if (!trail.to_department) continue;
+        const currentLatest = latestIntransitByDept.get(trail.to_department);
+        if (!currentLatest || trail.created_at > currentLatest) {
+          latestIntransitByDept.set(trail.to_department, trail.created_at);
+        }
+      }
+
+      let allReceived = latestIntransitByDept.size > 0;
+      for (const [departmentId, intransitSince] of latestIntransitByDept.entries()) {
+        const assignedRecipients = intransitTrails
+          .filter(
+            (trail) =>
+              trail.to_department === departmentId &&
+              trail.assigned_to_user_id &&
+              trail.created_at >= intransitSince
+          )
+          .map((trail) => trail.assigned_to_user_id as string);
+
+        let targetRecipientIds = Array.from(new Set(assignedRecipients));
+        if (targetRecipientIds.length === 0) {
+          const departmentUsers = await prisma.user.findMany({
+            where: { department_id: departmentId, active: true },
+            select: { user_id: true }
+          });
+          targetRecipientIds = departmentUsers.map((deptUser) => deptUser.user_id);
+        }
+
+        const receivedTrails = await prisma.documentTrail.findMany({
+          where: {
+            document_id: documentId,
+            status: 'received',
+            to_department: departmentId,
+            created_at: { gte: intransitSince }
+          },
+          select: { user_id: true }
+        });
+        const receivedUserIds = new Set(
+          receivedTrails
+            .map((trail) => trail.user_id)
+            .filter((id): id is string => Boolean(id))
+        );
+
+        const deptAllReceived =
+          targetRecipientIds.length > 0 &&
+          targetRecipientIds.every((id) => receivedUserIds.has(id));
+
+        if (!deptAllReceived) {
+          allReceived = false;
+          break;
+        }
+      }
+
+      if (allReceived) {
+        await prisma.document.update({
+          where: { document_id: documentId },
+          data: {
+            status: 'received',
+            updated_at: new Date()
+          }
+        });
+
+        await recordReceiveStatus(documentId, {
+          departmentId: user.department_id,
+          userId
+        });
+      }
 
 
       // Send notification to users in the receiving department

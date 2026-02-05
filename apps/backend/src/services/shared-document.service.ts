@@ -121,13 +121,6 @@ export class SharedDocumentService {
           return false;
         }
 
-        // Exclude documents with certain statuses that shouldn't appear in shared view
-        // Note: 'completed' is now included so it can appear in the Completed tab
-        if (['archive', 'archived', 'intransit', 'in-transit', 'cancelled'].includes(detail.Document?.status)) {
-          console.log('📍 [getSharedDocuments] Document has archived/intransit status, skipping:', detail.document_id);
-          return false;
-        }
-
         let receivedByUsers: string[] = [];
 
         // Handle different possible formats of received_by_departments (which stores user IDs)
@@ -153,6 +146,18 @@ export class SharedDocumentService {
 
         // Check if the current user is in the received_by_users list
         const isSharedToUser = receivedByUsers.includes(userId);
+
+        // Exclude documents with certain statuses that shouldn't appear in shared view
+        // Allow in-transit documents only if the user has already received them
+        const docStatus = detail.Document?.status;
+        if (['archive', 'archived', 'cancelled'].includes(docStatus)) {
+          console.log('📍 [getSharedDocuments] Document has archived/cancelled status, skipping:', detail.document_id);
+          return false;
+        }
+        if (['intransit', 'in-transit'].includes(docStatus) && !isSharedToUser) {
+          console.log('📍 [getSharedDocuments] Document is in-transit and not received by user, skipping:', detail.document_id);
+          return false;
+        }
 
         console.log('📍 [getSharedDocuments] Document:', detail.document_id,
           'isSharedToUser:', isSharedToUser,
