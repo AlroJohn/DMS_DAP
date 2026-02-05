@@ -460,14 +460,39 @@ export function DataTableRowActions<TData>({
   // Check if document is already in transit (released) - in which case release should be disabled
   const isAlreadyReleased = isInTransit;
 
+  // Check if user has signature placeholders assigned (for shared documents)
+  const hasAssignedSignature = (document as any).hasAssignedSignature || false;
+  
+  // Debug logging for shared documents
+  if (viewType === "shared") {
+    console.log('🔍 Document:', document.documentId, {
+      hasAssignedSignature,
+      canSignDoc,
+      canEditDoc,
+      fullDocument: document
+    });
+  }
+
   // Determine which actions to show based on view type
   const showCopyCode = viewType === "document" ? "copy_code" : "copy";
   const showViewDetails = canViewDetails;
   const showViewDocument = canViewDoc;
-  const showSignDocument = canSignDoc;
-  const showEditDetails = canEditDetails;
+  
+  // For shared documents, only show sign actions if user has signature placeholders assigned
+  const showSignDocument = viewType === "shared" 
+    ? (canSignDoc && hasAssignedSignature) 
+    : canSignDoc;
+  
+  // Hide "Edit Details" for shared documents
+  const showEditDetails = viewType === "shared" ? false : canEditDetails;
+  
   const showEditDocument = canEditDoc;
-  const showSignaturePlaceholder = canEditDoc;
+  
+  // For shared documents, only show signature placeholder if user has signature placeholders assigned
+  const showSignaturePlaceholder = viewType === "shared" 
+    ? (canEditDoc && hasAssignedSignature) 
+    : canEditDoc;
+  
   const showRelease = canRelease && !isAlreadyReleased; // Release is hidden when document is already in-transit
   const showComplete = canComplete && !isDispatch; // Complete shows when not pending status
   const showCancel = canCancel && isInTransit; // Cancel only shows for in-transit status
@@ -490,7 +515,7 @@ export function DataTableRowActions<TData>({
 
         <DropdownMenuContent
           align="end"
-          className="min-w-[240px] max-w-[350px] max-h-[3f00px] overflow-y-auto"
+          className="min-w-60 max-w-87.5 max-h-[3f00px] overflow-y-auto"
         >
           {/* Document View Actions */}
           {viewType === "document" && (
@@ -815,17 +840,21 @@ export function DataTableRowActions<TData>({
                 View Document OCR
               </DropdownMenuItem>
 
-              {/* Sign Document - always available in shared view */}
-              <DropdownMenuItem onClick={(e) => handleAction(e, handleSign)}>
-                <Shield className="mr-2 h-4 w-4" />
-                Sign Document
-              </DropdownMenuItem>
+              {/* Sign Document - only show if user has signature placeholders assigned */}
+              {showSignDocument && (
+                <DropdownMenuItem onClick={(e) => handleAction(e, handleSign)}>
+                  <Shield className="mr-2 h-4 w-4" />
+                  Sign Document
+                </DropdownMenuItem>
+              )}
 
-              {/* Edit Details - always available in shared view */}
-              <DropdownMenuItem onClick={(e) => handleAction(e, handleEdit)}>
-                <Edit className="mr-2 h-4 w-4" />
-                Edit Details
-              </DropdownMenuItem>
+              {/* Edit Details - hidden in shared view */}
+              {showEditDetails && (
+                <DropdownMenuItem onClick={(e) => handleAction(e, handleEdit)}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit Details
+                </DropdownMenuItem>
+              )}
 
               {/* Edit Documents - always available in shared view */}
               <DropdownMenuItem
@@ -854,13 +883,11 @@ export function DataTableRowActions<TData>({
                 </DropdownMenuItem>
               )}
 
-              {/* Release - shared view */}
-              {showRelease && (
-                <DropdownMenuItem onClick={(e) => handleAction(e, handleRelease)}>
-                  <Send className="mr-2 h-4 w-4" />
-                  Release
-                </DropdownMenuItem>
-              )}
+              {/* Release - always visible in shared view */}
+              <DropdownMenuItem onClick={(e) => handleAction(e, handleRelease)}>
+                <Send className="mr-2 h-4 w-4" />
+                Release
+              </DropdownMenuItem>
             </>
           )}
 
