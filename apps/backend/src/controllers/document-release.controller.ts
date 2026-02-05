@@ -24,6 +24,7 @@ export class DocumentReleaseController {
       requestActions,
       departmentActions,
       departmentActionMap,
+      departmentUserMap,
       userIds,
       remarks,
       signatures,
@@ -43,6 +44,11 @@ export class DocumentReleaseController {
         : departmentActionMap && typeof departmentActionMap === 'object'
           ? departmentActionMap
           : null) as Record<string, string[]> | null;
+
+    const normalizedDepartmentUsers =
+      (departmentUserMap && typeof departmentUserMap === 'object'
+        ? departmentUserMap
+        : null) as Record<string, string[]> | null;
 
     const normalizedDepartmentIds = Array.isArray(departmentIds)
       ? departmentIds
@@ -107,6 +113,23 @@ export class DocumentReleaseController {
       releaseActionsSummary = unionActions;
     }
 
+    if (normalizedDepartmentUsers) {
+      const invalidDepartmentKeys = Object.keys(normalizedDepartmentUsers).filter(
+        (deptId) => !normalizedDepartmentIds.includes(deptId)
+      );
+
+      if (invalidDepartmentKeys.length > 0) {
+        return sendError(res, 'departmentUserMap contains invalid department IDs', 400);
+      }
+
+      const invalidUserIds = Object.values(normalizedDepartmentUsers)
+        .flat()
+        .filter((userId: string) => userId && !uuidRegex.test(userId));
+      if (invalidUserIds.length > 0) {
+        return sendError(res, 'Invalid user ID format in departmentUserMap', 400);
+      }
+    }
+
     if (!releaseActionsSummary) {
       return sendError(res, 'Either requestAction or requestActions is required', 400);
     }
@@ -124,13 +147,28 @@ export class DocumentReleaseController {
       const actionsForDepartment = normalizedDepartmentActions
         ? normalizedDepartmentActions[targetDepartmentId] || releaseActionsSummary
         : releaseActionsSummary;
+      const usersForDepartment = normalizedDepartmentUsers
+        ? normalizedDepartmentUsers[targetDepartmentId] || undefined
+        : userIds;
+      if (!usersForDepartment || usersForDepartment.length === 0) {
+        console.log(
+          '📍 [DocumentReleaseController.releaseDocument] Releasing to entire department:',
+          targetDepartmentId
+        );
+      } else {
+        console.log(
+          '📍 [DocumentReleaseController.releaseDocument] Releasing to specific users:',
+          targetDepartmentId,
+          usersForDepartment.length
+        );
+      }
       const result = await this.documentReleaseService.releaseDocument(
         id,
         targetDepartmentId,
         actionsForDepartment, // Could be string or string[]
         remarks,
         authReq.user.id,
-        userIds, // Pass userIds to service
+        usersForDepartment, // Pass department-specific users to service
         signatures,
         textPlaceholders,
         {

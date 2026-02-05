@@ -145,6 +145,9 @@ export function ReleaseDocumentModal({
   const [expandedDepartments, setExpandedDepartments] = useState<
     Record<string, boolean>
   >({});
+  const [departmentUserMap, setDepartmentUserMap] = useState<
+    Record<string, string[]>
+  >({});
 
   const form = useForm<ReleaseDocumentForm>({
     resolver: zodResolver(releaseDocumentSchema),
@@ -222,6 +225,15 @@ export function ReleaseDocumentModal({
       delete next[departmentId];
       return next;
     });
+    setDepartmentUserMap((prev) => {
+      if (checked) {
+        if (prev[departmentId]) return prev;
+        return { ...prev, [departmentId]: [] };
+      }
+      const next = { ...prev };
+      delete next[departmentId];
+      return next;
+    });
   };
 
   const handleAssignAction = (departmentId: string, actionName: string) => {
@@ -248,14 +260,20 @@ export function ReleaseDocumentModal({
     });
   };
 
-  const handleUserToggle = (userId: string, checked: boolean) => {
-    const current = new Set(form.getValues("userIds") || []);
-    if (checked) {
-      current.add(userId);
-    } else {
-      current.delete(userId);
-    }
-    form.setValue("userIds", Array.from(current));
+  const handleUserToggle = (
+    departmentId: string,
+    userId: string,
+    checked: boolean,
+  ) => {
+    setDepartmentUserMap((prev) => {
+      const current = new Set(prev[departmentId] || []);
+      if (checked) {
+        current.add(userId);
+      } else {
+        current.delete(userId);
+      }
+      return { ...prev, [departmentId]: Array.from(current) };
+    });
   };
 
   const handleToggleDepartmentExpansion = (departmentId: string) => {
@@ -319,6 +337,7 @@ export function ReleaseDocumentModal({
       setLoadingUsers({});
       setUserSearchQuery({});
       setExpandedDepartments({});
+      setDepartmentUserMap({});
     }
   }, [isOpen]);
 
@@ -329,6 +348,16 @@ export function ReleaseDocumentModal({
       Object.entries(prev).forEach(([deptId, actions]) => {
         if (selectedSet.has(deptId)) {
           next[deptId] = actions;
+        }
+      });
+      return next;
+    });
+    setDepartmentUserMap((prev) => {
+      const selectedSet = new Set(selectedDepartmentIds);
+      const next: Record<string, string[]> = {};
+      Object.entries(prev).forEach(([deptId, users]) => {
+        if (selectedSet.has(deptId)) {
+          next[deptId] = users;
         }
       });
       return next;
@@ -424,6 +453,7 @@ export function ReleaseDocumentModal({
         release_action: data.requestActions,
         requestActions: data.requestActions,
         departmentActions: departmentActionMap,
+        departmentUserMap,
         userIds:
           data.userIds && data.userIds.length > 0 ? data.userIds : undefined,
         // Map the action names to action IDs if needed
@@ -886,6 +916,10 @@ export function ReleaseDocumentModal({
 
                                           {expandedDepartments[deptId] && (
                                             <div className="mt-2.5 space-y-2">
+                                              <p className="text-[11px] text-muted-foreground">
+                                                If no users are selected, this document will be released to all users in
+                                                the department.
+                                              </p>
                                               {/* User Search */}
                                               <div className="relative">
                                                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -937,11 +971,13 @@ export function ReleaseDocumentModal({
                                                               className="flex items-start gap-2 text-xs p-1.5 rounded hover:bg-muted/50 cursor-pointer transition-colors"
                                                             >
                                                               <Checkbox
-                                                                checked={form
-                                                                  .watch("userIds")
-                                                                  ?.includes(targetUserId)}
+                                                                checked={
+                                                                  departmentUserMap[deptId]?.includes(targetUserId) ||
+                                                                  false
+                                                                }
                                                                 onCheckedChange={(checked) =>
                                                                   handleUserToggle(
+                                                                    deptId,
                                                                     targetUserId,
                                                                     checked === true,
                                                                   )
