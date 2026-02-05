@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 
-interface ProcessType {
+export interface ProcessType {
   process_type_id: string;
+  code?: string;
   name: string;
   description?: string;
-  duration_days?: number;
+  duration_value?: number | null;
+  duration_unit?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -17,9 +19,15 @@ export const useProcessType = () => {
   const fetchProcessTypes = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/process-type');
+      const response = await fetch('/api/process-type', {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       const data = await response.json();
-      setProcessTypes(data);
+      setProcessTypes(Array.isArray(data) ? data : data?.data || []);
     } catch (error) {
       console.error('Failed to fetch process types', error);
     } finally {

@@ -13,10 +13,14 @@ export interface DocumentListItem {
   contactOrganization: string;
   currentLocation?: string;
   type: string;
+  process_type_id?: string | null;
   classification: string;
   status: string;
   activity: string;
   activityTime: string;
+  created_at?: string;
+  process_timer_start_at?: string | null;
+  process_timer_complete_at?: string | null;
   isOwned?: boolean;
   blockchainStatus?: string | null;
   blockchainProjectUuid?: string | null;
@@ -169,4 +173,3 @@ export function useDocuments(page: number = 1, limit: number = 10): UseDocuments
     refetch: fetchDocuments,
   };
 }
-

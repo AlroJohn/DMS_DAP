@@ -817,6 +817,58 @@ async function main() {
       }
     }
 
+    // Step 9b: Create process types
+    console.log('\n⏱️ Creating process types...');
+    const processTypes = [
+      {
+        code: 'DOC_REVIEW',
+        name: 'Document Review',
+        description: 'Internal review workflow',
+        duration_value: 3,
+        duration_unit: 'days',
+        is_active: true
+      },
+      {
+        code: 'APPROVAL',
+        name: 'Approval Process',
+        description: 'Approval routing for documents',
+        duration_value: 5,
+        duration_unit: 'days',
+        is_active: true
+      },
+      {
+        code: 'SIGNING',
+        name: 'Signature Process',
+        description: 'Signature and sign-off workflow',
+        duration_value: 48,
+        duration_unit: 'hours',
+        is_active: true
+      },
+      {
+        code: 'FAST_TRACK',
+        name: 'Fast Track',
+        description: 'Expedited processing',
+        duration_value: 6,
+        duration_unit: 'hours',
+        is_active: true
+      }
+    ];
+
+    for (const processType of processTypes) {
+      const existingType = await prisma.processType.findUnique({
+        where: { code: processType.code }
+      });
+
+      if (!existingType) {
+        const created = await prisma.processType.create({
+          data: processType
+        });
+        console.log(`✅ Created process type: ${created.name}`);
+      } else {
+        console.log(`✅ Process type already exists: ${existingType.name}`);
+      }
+    }
+
     // Step 10: Create sample users for different departments
     console.log('\n👥 Creating accounts for groups, centers, and departments...');
     const adminRole = await prisma.role.findUnique({

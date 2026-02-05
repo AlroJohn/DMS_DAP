@@ -6,11 +6,12 @@ import { DataTableRowActions } from "@/components/reuseable/tables/data-table-ro
 import { DataTableColumnHeader } from "@/components/reuseable/tables/data-table-column-header";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Calendar, Copy, User, Building2 } from "lucide-react";
+import { Calendar, Copy, User, Building2, Clock } from "lucide-react";
 
 import { Document } from "@/hooks/use-documents-owned";
 import { ScanCodes } from "@/components/ui/scan-codes";
 import { convertDateTime } from "@/lib/convertDateTime";
+import { CountdownTimer } from "@/components/reuseable/countdown-timer";
 
 export type { Document };
 
@@ -22,15 +23,20 @@ const formatText = (text: string): string => {
 };
 
 type DocumentTypeMap = Record<string, string>;
+type ProcessTypeMap = Record<
+  string,
+  { name?: string; duration_value?: number | null; duration_unit?: string | null }
+>;
 
 type CreateColumnOptions = {
   documentTypeMap?: DocumentTypeMap;
+  processTypeMap?: ProcessTypeMap;
 };
 
 export const createOwnedDocumentColumns = (
   options: CreateColumnOptions = {}
 ): ColumnDef<Document, unknown>[] => {
-  const { documentTypeMap = {} } = options;
+  const { documentTypeMap = {}, processTypeMap = {} } = options;
   const uuidRegex =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -48,6 +54,17 @@ export const createOwnedDocumentColumns = (
     }
 
     return formatText(trimmedValue);
+  };
+
+  const resolveProcessType = (document: Document) => {
+    const processTypeId =
+      document.process_type_id || (document as any).processTypeId || "";
+    const record = processTypeId ? processTypeMap[processTypeId] : undefined;
+    return {
+      id: processTypeId,
+      durationValue: record?.duration_value ?? null,
+      durationUnit: record?.duration_unit ?? null,
+    };
   };
 
   return [
@@ -306,11 +323,16 @@ export const createOwnedDocumentColumns = (
         const formattedActivityDate = data.activityTime
           ? convertDateTime(data.activityTime, { dateOnly: true })
           : "";
+        const processType = resolveProcessType(data);
+        const startAt =
+          data.process_timer_start_at || data.created_at || data.activityTime;
+        const completedAt = data.process_timer_complete_at;
+        const showTimer = Boolean(processType.id);
         return (
           <div className="flex flex-col gap-1.5 text-xs">
             <div className="flex items-center gap-1.5">
               <Calendar className="w-3 h-3 text-orange-500" />
-              <span className="text-muted-foreground">{data.activity}</span>
+              <span className="text-muted-foreground">Created</span>
             </div>
             {formattedActivityDate && (
               <div className="flex items-center gap-1.5">
@@ -318,6 +340,24 @@ export const createOwnedDocumentColumns = (
                 <span className="text-muted-foreground">
                   {formattedActivityDate}
                 </span>
+              </div>
+            )}
+            {showTimer && (
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-3 h-3 text-emerald-500" />
+                {completedAt ? (
+                  <span className="text-muted-foreground">Completed</span>
+                ) : startAt && processType.durationValue ? (
+                  <span className="font-medium text-foreground">
+                    <CountdownTimer
+                      startAt={startAt}
+                      durationValue={processType.durationValue || undefined}
+                      durationUnit={processType.durationUnit || undefined}
+                    />
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Waiting</span>
+                )}
               </div>
             )}
           </div>

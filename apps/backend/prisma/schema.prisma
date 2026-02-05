@@ -126,6 +126,7 @@ model Document {
   description               String?
   document_code             String                      @unique
   document_type             String
+  process_type_id           String?                     @db.Uuid
   classification            DocClassification           @default(simple)
   origin                    DocOrigin                   @default(external)
   status                    DocStatus                   @default(pending)
@@ -142,15 +143,9 @@ model Document {
   text_placeholders         TextPlaceholder[]
   signedDocuments           SignedDocument[]
   ocr_json                  OCR_Json[]
-  process                   ProcessStatus[]
+  processStatus             ProcessStatus?
+  processType               ProcessType?                @relation(fields: [process_type_id], references: [process_type_id])
   // {"pages":[{"page":1,"text":"Example Images with Alt Text in\nAdobe PDF\nTMCC"}],"engine":"gemini-2.5-flash","language":"en","processedAt":"2026-01-14T06:08:59.925Z"}
-}
-
-model ProcessStatus {
-  process_id          String    @id @default(uuid()) @db.Uuid
-  
-  document            Document? @relation(fields: [documentDocument_id], references: [document_id])
-  documentDocument_id String?   @db.Uuid
 }
 
 model OCR_Json {
@@ -728,7 +723,21 @@ model ProcessType {
   is_active       Boolean  @default(true)
   created_at      DateTime @default(now())
   updated_at      DateTime @default(now()) @updatedAt
+  documents       Document[]
 }
+
+
+model ProcessStatus {
+  process_status_id String            @id @default(uuid()) @db.Uuid
+  document_id       String            @unique @db.Uuid
+  status            ProcessTypeStatus @default(ongoing)
+  started_at        DateTime
+  completed_at      DateTime?
+  created_at        DateTime          @default(now())
+  updated_at        DateTime          @default(now()) @updatedAt
+  Document          Document          @relation(fields: [document_id], references: [document_id], onDelete: Cascade)
+}
+
 
 enum AuditActionType {
   DOCUMENT_CREATED
@@ -846,6 +855,13 @@ enum DocStatus {
   checkout
   checkin
 }
+
+enum ProcessTypeStatus {
+  ongoing
+  delayed
+  completed
+}
+
 
 enum IntransitStatus {
   incoming

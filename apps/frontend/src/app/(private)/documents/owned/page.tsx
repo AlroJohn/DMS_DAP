@@ -8,6 +8,7 @@ import { Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSocket } from "@/components/providers/providers";
 import { useDocumentTypes } from "@/hooks/use-document-types";
+import { useProcessType } from "@/hooks/use-process.type";
 
 export default function OwnedDocumentsPage() {
   const [page, setPage] = useState(1);
@@ -18,6 +19,7 @@ export default function OwnedDocumentsPage() {
     useDocumentsOwned(page, limit);
   const { socket } = useSocket();
   const { documentTypes } = useDocumentTypes();
+  const { processTypes } = useProcessType();
 
   // Mark component as mounted and clean up on unmount
   useEffect(() => {
@@ -39,8 +41,25 @@ export default function OwnedDocumentsPage() {
   }, [documentTypes]);
 
   const ownedColumns = useMemo(
-    () => createOwnedDocumentColumns({ documentTypeMap }),
-    [documentTypeMap]
+    () =>
+      createOwnedDocumentColumns({
+        documentTypeMap,
+        processTypeMap: processTypes.reduce(
+          (map, type) => {
+            map[type.process_type_id] = {
+              name: type.name,
+              duration_value: type.duration_value ?? null,
+              duration_unit: type.duration_unit ?? null,
+            };
+            return map;
+          },
+          {} as Record<
+            string,
+            { name: string; duration_value?: number | null; duration_unit?: string | null }
+          >
+        ),
+      }),
+    [documentTypeMap, processTypes]
   );
 
   // Listen for real-time document updates
