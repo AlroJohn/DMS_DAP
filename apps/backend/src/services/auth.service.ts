@@ -202,15 +202,29 @@ export class AuthService {
       throw new Error('User profile not found');
     }
 
+    const now = new Date();
+
+    // Mark expired sessions as inactive (prevents stale locks when cookies are gone)
+    await prisma.userSession.updateMany({
+      where: {
+        account_id: account.account_id,
+        is_active: true,
+        OR: [
+          { expires_at: { lt: now } },
+          { refresh_expires_at: { lt: now } }
+        ]
+      },
+      data: { is_active: false }
+    });
+
     // Check for existing active sessions
     const existingActiveSessions = await prisma.userSession.findMany({
       where: {
         account_id: account.account_id,
         is_active: true,
-        refresh_expires_at: {
-          gt: new Date(), // Check if refresh token hasn't expired
-        },
-      },
+        expires_at: { gt: now },
+        refresh_expires_at: { gt: now }
+      }
     });
 
     const hasActiveSession = existingActiveSessions.length > 0;
@@ -619,14 +633,28 @@ export class AuthService {
         throw new Error('User not found');
       }
 
+      const now = new Date();
+
+      // Mark expired sessions as inactive (prevents stale locks when cookies are gone)
+      await prisma.userSession.updateMany({
+        where: {
+          account_id: account.account_id,
+          is_active: true,
+          OR: [
+            { expires_at: { lt: now } },
+            { refresh_expires_at: { lt: now } }
+          ]
+        },
+        data: { is_active: false }
+      });
+
       // Check for existing active sessions
       const existingActiveSessions = await prisma.userSession.findMany({
         where: {
           account_id: account.account_id,
           is_active: true,
-          refresh_expires_at: {
-            gt: new Date(), // Check if refresh token hasn't expired
-          },
+          expires_at: { gt: now },
+          refresh_expires_at: { gt: now }
         },
       });
 
