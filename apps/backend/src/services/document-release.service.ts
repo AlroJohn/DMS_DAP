@@ -631,7 +631,12 @@ export class DocumentReleaseService {
       // Get user's department
       const user = await prisma.user.findUnique({
         where: { user_id: userId },
-        select: { department_id: true, account: { select: { account_id: true } } }
+        select: { 
+          department_id: true, 
+          first_name: true, 
+          last_name: true, 
+          account: { select: { account_id: true } } 
+        }
       });
 
       if (!user || !user.account?.account_id) {

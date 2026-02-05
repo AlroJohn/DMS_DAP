@@ -18,6 +18,7 @@ export interface SharedDocument {
     email?: string;
   } | null;
   checkedOutAt?: string | null;
+  hasAssignedSignature?: boolean;  // Indicates if user has signature placeholders assigned
 }
 
 export interface Document {

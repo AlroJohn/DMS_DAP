@@ -413,6 +413,34 @@ export class SharedDocumentService {
             checkedOutAt = checkedOutFile.checked_out_at;
           }
 
+          // Check if user has signature placeholders assigned to them for this document
+          const assignedSignaturePlaceholders = await prisma.signaturePlaceholder.findMany({
+            where: {
+              document_id: doc.document_id,
+              OR: [
+                { assigned_user_id: userId },
+                { 
+                  assigned_user_id: null, 
+                  department_id: user.department_id 
+                },
+                { 
+                  assigned_user_id: null, 
+                  department_id: null 
+                }
+              ]
+            }
+          });
+
+          const hasAssignedSignature = assignedSignaturePlaceholders.length > 0;
+          
+          console.log('🔍 [getSharedDocuments] Signature check for doc:', doc.document_code, {
+            userId,
+            userDepartmentId: user.department_id,
+            placeholdersFound: assignedSignaturePlaceholders.length,
+            hasAssignedSignature,
+            placeholders: assignedSignaturePlaceholders
+          });
+
           return {
             id: doc.document_id,
             qrCode,
@@ -428,6 +456,7 @@ export class SharedDocumentService {
             activityTime: new Date(doc.created_at).toLocaleString(),
             checkedOutBy,
             checkedOutAt,
+            hasAssignedSignature,
           };
         })
       );
