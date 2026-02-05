@@ -645,15 +645,25 @@ export function DataTableToolbar<TData>({
 
       // Process each document individually using the same endpoint as single cancel
       const results = await Promise.allSettled(
-        documentIds.map((id) =>
-          fetch(`/api/documents/${id}/cancel`, {
+        selectedRows.map((row) => {
+          const item = row.original as Record<string, unknown>;
+          const id = typeof item.id === "string" ? item.id : "";
+          const status = typeof item.status === "string"
+            ? item.status.toLowerCase()
+            : "";
+          const isInTransit =
+            status === "intransit" || status === "intransit_signature";
+          const endpoint = isInTransit
+            ? `/api/intransit/${id}/cancel`
+            : `/api/documents/${id}/cancel`;
+          return fetch(endpoint, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
             credentials: "include",
-          })
-        )
+          });
+        })
       );
 
       // Count successful operations

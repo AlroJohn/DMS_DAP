@@ -24,7 +24,7 @@ export const config = {
   // JWT configuration
   jwt: {
     secret: process.env.JWT_SECRET || 'your-secret-key',
-    expiresIn: process.env.JWT_EXPIRES_IN || '12h', // Extended to 12 hours for better UX
+    expiresIn: process.env.JWT_EXPIRES_IN || '8h',
     // Refresh token configuration (long-lived for session persistence)
     refreshSecret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'your-secret-key',
     // 7-day lifetime for the refresh token

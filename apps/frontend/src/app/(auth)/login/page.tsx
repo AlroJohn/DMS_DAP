@@ -3,7 +3,6 @@
 import { GalleryVerticalEnd } from "lucide-react";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 
 import { LoginForm } from "@/components/auth/login/login-form";
 import Threads from "@/components/react-bits/Threads";
@@ -16,10 +15,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      toast.info("Already logged in", {
-        description: "Login Successfully. Redirecting to dashboard...",
-      });
-      router.push("/dashboard");
+      router.push("/home");
     }
   }, [isAuthenticated, isLoading, router]);
 

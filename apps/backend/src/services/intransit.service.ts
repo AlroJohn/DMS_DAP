@@ -75,11 +75,16 @@ export class IntransitService {
           status: { in: ['intransit', 'pending'] },
           from_department: {
             not: user.department_id // Exclude documents from same department
-          }
+          },
+          OR: [
+            { assigned_to_user_id: null },
+            { assigned_to_user_id: userId }
+          ]
         },
         select: {
           document_id: true,
-          from_department: true
+          from_department: true,
+          assigned_to_user_id: true
         },
         orderBy: {
           created_at: 'desc'
@@ -138,7 +143,11 @@ export class IntransitService {
             where: {
               document_id: detail.document_id,
               to_department: user.department_id,
-              status: 'intransit'
+              status: 'intransit',
+              OR: [
+                { assigned_to_user_id: null },
+                { assigned_to_user_id: userId }
+              ]
             },
             orderBy: {
               created_at: 'desc'
@@ -176,7 +185,7 @@ export class IntransitService {
 
         // Only remove from incoming if the latest trail shows it was already received
         // This allows documents to appear again if they're sent back to this department
-        if (latestTrailToThisDept && latestTrailToThisDept.status === 'received') {
+        if (latestTrailToThisDept && ['received', 'canceled', 'cancelled'].includes(latestTrailToThisDept.status)) {
           console.log('📍 [getIncomingDocuments] Document already received in current cycle:', docId);
           incomingDocumentIds.delete(docId);
         }
@@ -459,7 +468,6 @@ export class IntransitService {
 
         for (const detail of documentDetails) {
           if (!detail.work_flow_id) continue;
-
           try {
             let workflowDepartments: string[] = [];
 
@@ -591,7 +599,7 @@ export class IntransitService {
               in: outgoingDocumentIds
             },
             status: {
-              not: { in: ['completed', 'deleted', 'received'] } // Exclude completed, deleted, and received
+              notIn: ['completed', 'deleted', 'received', 'cancelled'] // Exclude completed, deleted, received, cancelled
             }
           },
           include: {
@@ -625,7 +633,7 @@ export class IntransitService {
               in: outgoingDocumentIds
             },
             status: {
-              not: { in: ['completed', 'deleted', 'received'] } // Exclude completed, deleted, and received
+              notIn: ['completed', 'deleted', 'received', 'cancelled'] // Exclude completed, deleted, received, cancelled
             }
           }
         })
@@ -929,13 +937,41 @@ export class IntransitService {
         throw new Error('Document not found');
       }
 
-      if (document.status !== 'intransit') {
+      const isInTransitStatus = ['intransit', 'intransit_signature'].includes(document.status);
+      if (!isInTransitStatus && document.status !== 'pending' && document.status !== 'cancelled') {
         throw new Error('Document is not currently in in-transit status');
       }
 
-      // Check if the user's department is the one that released the document
-      // We need to check the document trail to determine if the current user's department released it
-      const lastTrail = await prisma.documentTrail.findFirst({
+      // Only the owning/originating user can cancel (document creator)
+      const detail = await prisma.documentAdditionalDetails.findFirst({
+        where: { document_id: documentId },
+        select: { work_flow_id: true, account_id: true, detail_id: true }
+      });
+
+      if (!detail?.account_id) {
+        throw new Error('Only the document owner can cancel this document');
+      }
+
+      const ownerAccountId = detail.account_id;
+      const userAccount = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { account_id: true }
+      });
+
+      if (!userAccount?.account_id || userAccount.account_id !== ownerAccountId) {
+        throw new Error('Only the document owner can cancel this document');
+      }
+
+      // If already pending or cancelled, treat as already cancelled
+      if (!isInTransitStatus && (document.status === 'pending' || document.status === 'cancelled')) {
+        return {
+          success: true,
+          message: 'Document already cancelled',
+          documentId
+        };
+      }
+
+      const lastIntransitTrail = await prisma.documentTrail.findFirst({
         where: {
           document_id: documentId,
           status: 'intransit'
@@ -945,18 +981,29 @@ export class IntransitService {
         }
       });
 
-      if (!lastTrail || lastTrail.from_department !== user.department_id) {
-        throw new Error('Only the department that released the document can cancel it');
-      }
-
-      // Update document status back to 'pending'
+      // Update document status to 'cancelled'
       const updatedDocument = await prisma.document.update({
         where: { document_id: documentId },
         data: {
-          status: 'pending',
+          status: 'cancelled',
           updated_at: new Date()
         }
       });
+
+      // Clear any received-by users so canceled releases no longer appear in shared lists
+      if (detail?.detail_id) {
+        try {
+          await prisma.documentAdditionalDetails.update({
+            where: { detail_id: detail.detail_id },
+            data: {
+              received_by_departments: [] as any,
+              updated_at: new Date()
+            }
+          });
+        } catch (error) {
+          console.error('Error clearing received_by_departments on cancel:', error);
+        }
+      }
 
       // Create a document trail entry for the cancellation
       const documentTrailsService = new DocumentTrailsService();
@@ -967,8 +1014,19 @@ export class IntransitService {
           to_department: user!.department_id, // For cancellation, same department
           user_id: userId,
           status: 'canceled',
-          remarks: `In-transit document canceled by ${user!.first_name} ${user!.last_name}, status reverted to pending`
+          remarks: `In-transit document canceled by ${user!.first_name} ${user!.last_name}`
         });
+
+        if (lastIntransitTrail?.to_department) {
+          await documentTrailsService.createDocumentTrail({
+            document_id: documentId,
+            from_department: user!.department_id,
+            to_department: lastIntransitTrail.to_department,
+            user_id: userId,
+            status: 'canceled',
+            remarks: `Release canceled by document owner`
+          });
+        }
       } catch (error) {
         console.error('Error creating document trail for in-transit cancellation:', error);
       }
@@ -978,7 +1036,7 @@ export class IntransitService {
       if (io) {
         io.emit('documentUpdated', {
           documentId: documentId,
-          status: 'pending',
+          status: 'cancelled',
           updatedBy: userId,
           timestamp: new Date().toISOString()
         });
@@ -994,7 +1052,7 @@ export class IntransitService {
 
       return {
         success: true,
-        message: 'In-transit document canceled successfully, status reverted to pending',
+        message: 'In-transit document canceled successfully',
         documentId: documentId,
         updatedDocument
       };

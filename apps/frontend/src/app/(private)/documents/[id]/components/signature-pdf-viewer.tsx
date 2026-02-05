@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Rnd } from "react-rnd";
-import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf";
+import {
+  GlobalWorkerOptions,
+  getDocument,
+  version as pdfjsVersion,
+} from "pdfjs-dist/legacy/build/pdf";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 
@@ -32,7 +36,7 @@ import { getAccessToken } from "@/lib/token-utils";
 
 const PDFJS_WORKER_CDN =
   process.env.NEXT_PUBLIC_PDFJS_WORKER_URL ||
-  "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.394/legacy/build/pdf.worker.min.mjs";
+  `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsVersion}/legacy/build/pdf.worker.min.mjs`;
 
 if (typeof window !== "undefined") {
   GlobalWorkerOptions.workerSrc = PDFJS_WORKER_CDN;
@@ -1528,7 +1532,7 @@ export function SignaturePdfViewer({
                         style={{ zIndex: 1000 }}
                       >
                         <div
-                          className="relative h-full w-full"
+                          className="absolute inset-0"
                           style={{
                             transform: `rotate(${box.rotation ?? 0}deg)`,
                             transformOrigin: "center",
@@ -1542,41 +1546,41 @@ export function SignaturePdfViewer({
                                 : "border-primary/70 bg-primary/10",
                             )}
                           />
-                          {!box.isExisting && (
-                            <div className="signature-box-drag-handle !z-[1000] absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
-                              <Move className="h-3 w-3" />
-                              Drag to position
-                              <button
-                                type="button"
-                                className="rounded-full border border-muted/50 bg-white/90 p-1 text-muted-foreground hover:text-foreground"
-                                onMouseDown={(event) => {
-                                  event.stopPropagation();
-                                  startMouseRotation(box.id, false, event);
-                                }}
-                                aria-label="Drag to rotate signature placeholder"
-                              >
-                                <RotateCw className="h-3 w-3" />
-                              </button>
-                            </div>
-                          )}
                           <div className="flex h-full w-full items-center justify-center text-[11px] font-medium text-primary">
                             {box.isExisting
                               ? `Existing Signature #${index}`
                               : "Signature"}
                           </div>
-                          {!box.isExisting && (
+                        </div>
+                        {!box.isExisting && (
+                          <div className="signature-box-drag-handle !z-[1000] absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
+                            <Move className="h-3 w-3" />
+                            Drag to position
                             <button
                               type="button"
-                              className="absolute -right-2 -top-2 z-[1001] rounded-full bg-white p-1 text-destructive shadow"
-                              onClick={(event) => {
+                              className="rounded-full border border-muted/50 bg-white/90 p-1 text-muted-foreground hover:text-foreground"
+                              onMouseDown={(event) => {
                                 event.stopPropagation();
-                                handleRemove(box.id);
+                                startMouseRotation(box.id, false, event);
                               }}
+                              aria-label="Drag to rotate signature placeholder"
                             >
-                              <X className="h-3 w-3" />
+                              <RotateCw className="h-3 w-3" />
                             </button>
-                          )}
-                        </div>
+                          </div>
+                        )}
+                        {!box.isExisting && (
+                          <button
+                            type="button"
+                            className="absolute -right-2 -top-2 z-[1001] rounded-full bg-white p-1 text-destructive shadow"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleRemove(box.id);
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
                       </Rnd>
                     ))}
 
@@ -1623,38 +1627,24 @@ export function SignaturePdfViewer({
                         onClick={(event: { stopPropagation: () => any }) =>
                           event.stopPropagation()
                         }
-                        className={cn(
-                          "absolute rounded-md border-2 border-dashed shadow-sm bg-transparent overflow-visible",
-                          box.isExisting
-                            ? "border-amber-500/70"
-                            : "border-amber-500/80",
-                        )}
+                        className="absolute overflow-visible"
                         style={{ zIndex: 1000 }}
                       >
                         <div
-                          className="relative h-full w-full"
+                          className="absolute inset-0"
                           style={{
                             transform: `rotate(${box.rotation ?? 0}deg)`,
                             transformOrigin: "center",
                           }}
                         >
-                          {!box.isExisting && (
-                            <div className="text-box-drag-handle absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
-                              <Move className="h-3 w-3" />
-                              Drag text
-                              <button
-                                type="button"
-                                className="rounded-full border border-muted/50 bg-white/90 p-1 text-muted-foreground hover:text-foreground"
-                                onMouseDown={(event) => {
-                                  event.stopPropagation();
-                                  startMouseRotation(box.id, true, event);
-                                }}
-                                aria-label="Drag to rotate text placeholder"
-                              >
-                                <RotateCw className="h-3 w-3" />
-                              </button>
-                            </div>
-                          )}
+                          <div
+                            className={cn(
+                              "absolute inset-0 rounded-md border-2 border-dashed shadow-sm bg-transparent",
+                              box.isExisting
+                                ? "border-amber-500/70"
+                                : "border-amber-500/80",
+                            )}
+                          />
                           <div
                             className="flex h-full w-full items-center justify-center text-center px-1"
                             style={{
@@ -1667,19 +1657,36 @@ export function SignaturePdfViewer({
                               ? `Text Placeholder #${index}`
                               : box.text?.trim() || "Text"}
                           </div>
-                          {!box.isExisting && (
+                        </div>
+                        {!box.isExisting && (
+                          <div className="text-box-drag-handle absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
+                            <Move className="h-3 w-3" />
+                            Drag text
                             <button
                               type="button"
-                              className="absolute -right-2 -top-2 z-[1001] rounded-full bg-white p-1 text-destructive shadow"
-                              onClick={(event) => {
+                              className="rounded-full border border-muted/50 bg-white/90 p-1 text-muted-foreground hover:text-foreground"
+                              onMouseDown={(event) => {
                                 event.stopPropagation();
-                                handleRemoveText(box.id);
+                                startMouseRotation(box.id, true, event);
                               }}
+                              aria-label="Drag to rotate text placeholder"
                             >
-                              <X className="h-3 w-3" />
+                              <RotateCw className="h-3 w-3" />
                             </button>
-                          )}
-                        </div>
+                          </div>
+                        )}
+                        {!box.isExisting && (
+                          <button
+                            type="button"
+                            className="absolute -right-2 -top-2 z-[1001] rounded-full bg-white p-1 text-destructive shadow"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleRemoveText(box.id);
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
                       </Rnd>
                     ))}
                 </div>

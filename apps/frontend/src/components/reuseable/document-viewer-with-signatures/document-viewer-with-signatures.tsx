@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Draggable from "react-draggable";
 import { ResizableBox } from "react-resizable";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, ZoomIn, ZoomOut, RotateCw } from "lucide-react";
 
 // Set up the worker for react-pdf
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
@@ -51,6 +51,7 @@ export function DocumentViewerWithSignatures({
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [scale, setScale] = useState<number>(1.0);
 
   const [placementSignatureCoords, setPlacementSignatureCoords] = useState({
     x: 0,
@@ -173,45 +174,77 @@ export function DocumentViewerWithSignatures({
         </div>
       )}
 
-      <div className="flex justify-center mb-4 gap-2">
-        <button
-          type="button"
-          disabled={pageNumber <= 1 || isPlacingSignature}
-          onClick={() =>
-            setPageNumber((prevPageNumber) => {
-              setPlacementSignatureCoords((prev) => ({
-                ...prev,
-                page: prevPageNumber - 1,
-              }));
-              return prevPageNumber - 1;
-            })
-          }
-          className="px-4 py-2 bg-gray-200 rounded-md disabled:opacity-50"
-        >
-          Previous
-        </button>
-        <span className="text-sm font-medium">
-          Page {pageNumber} of {numPages || "--"}
-        </span>
-        <button
-          type="button"
-          disabled={pageNumber >= (numPages || 0) || isPlacingSignature}
-          onClick={() =>
-            setPageNumber((prevPageNumber) => {
-              setPlacementSignatureCoords((prev) => ({
-                ...prev,
-                page: prevPageNumber + 1,
-              }));
-              return prevPageNumber + 1;
-            })
-          }
-          className="px-4 py-2 bg-gray-200 rounded-md disabled:opacity-50"
-        >
-          Next
-        </button>
+      <div className="flex justify-center mb-4 gap-2 flex-wrap">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            disabled={pageNumber <= 1 || isPlacingSignature}
+            onClick={() =>
+              setPageNumber((prevPageNumber) => {
+                setPlacementSignatureCoords((prev) => ({
+                  ...prev,
+                  page: prevPageNumber - 1,
+                }));
+                return prevPageNumber - 1;
+              })
+            }
+            className="px-4 py-2 bg-gray-200 rounded-md disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <span className="text-sm font-medium flex items-center px-2">
+            Page {pageNumber} of {numPages || "--"}
+          </span>
+          <button
+            type="button"
+            disabled={pageNumber >= (numPages || 0) || isPlacingSignature}
+            onClick={() =>
+              setPageNumber((prevPageNumber) => {
+                setPlacementSignatureCoords((prev) => ({
+                  ...prev,
+                  page: prevPageNumber + 1,
+                }));
+                return prevPageNumber + 1;
+              })
+            }
+            className="px-4 py-2 bg-gray-200 rounded-md disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+        
+        <div className="flex gap-2 items-center">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setScale(Math.max(0.5, scale - 0.25))}
+            disabled={scale <= 0.5}
+          >
+            <ZoomOut className="h-4 w-4" />
+          </Button>
+          <span className="text-sm font-medium min-w-[60px] text-center">
+            {Math.round(scale * 100)}%
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setScale(Math.min(3, scale + 0.25))}
+            disabled={scale >= 3}
+          >
+            <ZoomIn className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setScale(1.0)}
+            disabled={scale === 1.0}
+          >
+            <RotateCw className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
-      <div className="relative border shadow-lg rounded-md overflow-hidden">
+      <div className="relative border shadow-lg rounded-md overflow-auto max-w-full">
         <Document
           file={fileUrl}
           onLoadSuccess={onDocumentLoadSuccess}
@@ -220,6 +253,7 @@ export function DocumentViewerWithSignatures({
         >
           <Page
             pageNumber={pageNumber}
+            scale={scale}
             renderTextLayer={true}
             renderAnnotationLayer={true}
             className="relative"

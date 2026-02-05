@@ -24,7 +24,7 @@ interface SessionTimeoutProviderProps {
 
 export function SessionTimeoutProvider({
   children,
-  timeout = 30 * 60 * 1000, // 30 minutes
+  timeout = 8 * 60 * 60 * 1000, // 8 hours
   warningTime = 2 * 60 * 1000, // 2 minutes
   enabled = true,
 }: SessionTimeoutProviderProps) {

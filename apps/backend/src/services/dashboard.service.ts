@@ -23,15 +23,7 @@ export class DashboardService {
             throw new Error('User does not have a department.');
         }
 
-        const departmentFilter = {
-            DocumentAdditionalDetails: {
-                some: {
-                    work_flow_id: {
-                        string_contains: `"${departmentId}"`,
-                    },
-                },
-            },
-        };
+        const departmentDocumentIds = await this.getDepartmentDocumentIds(departmentId);
 
         // Use existing services to get counts
         const ownedDocuments = await this.documentService.getOwnedDocuments(userId, 1, 1);
@@ -40,22 +32,44 @@ export class DashboardService {
 
         const documentStats = {
             owned: ownedDocuments.pagination.total,
-            inTransit: await prisma.document.count({ where: { status: 'intransit', ...departmentFilter } }),
+            inTransit: departmentDocumentIds.length > 0
+                ? await prisma.document.count({
+                    where: { status: 'intransit', document_id: { in: departmentDocumentIds } },
+                })
+                : 0,
             shared: receivedDocuments.pagination.total, // Assuming received are shared
-            archive: await prisma.document.count({ where: { status: 'archive', ...departmentFilter } }),
-            recycleBin: await prisma.document.count({ where: { status: 'deleted', ...departmentFilter } }),
-            total: await prisma.document.count({ where: { status: { notIn: ['deleted', 'archive'] }, ...departmentFilter } }),
+            archive: departmentDocumentIds.length > 0
+                ? await prisma.document.count({
+                    where: { status: 'archive', document_id: { in: departmentDocumentIds } },
+                })
+                : 0,
+            recycleBin: departmentDocumentIds.length > 0
+                ? await prisma.document.count({
+                    where: { status: 'deleted', document_id: { in: departmentDocumentIds } },
+                })
+                : 0,
+            total: departmentDocumentIds.length > 0
+                ? await prisma.document.count({
+                    where: {
+                        status: { notIn: ['deleted', 'archive'] },
+                        document_id: { in: departmentDocumentIds },
+                    },
+                })
+                : 0,
             completed: completedDocuments.pagination.total,
         };
 
-        const documentTrends = await this.getDocumentTrends(departmentId);
+        const documentTrends = await this.getDocumentTrends(departmentDocumentIds);
         const recentDocuments = await this.getRecentDocuments(userId);
-        const recentActivity = await this.getRecentActivityCount(departmentId);
-        const pendingApprovals = await this.getPendingApprovalsCount(departmentId);
-        const activeWorkflows = await this.getActiveWorkflowsCount(departmentId);
-        const documentTypes = await this.getDocumentTypeDistribution(departmentId);
+        const recentActivity = await this.getRecentActivityCount(departmentDocumentIds);
+        const pendingApprovals = await this.getPendingApprovalsCount(
+            departmentId,
+            departmentDocumentIds,
+        );
+        const activeWorkflows = await this.getActiveWorkflowsCount(departmentDocumentIds);
+        const documentTypes = await this.getDocumentTypeDistribution(departmentDocumentIds);
         const departmentPerformance = await this.getDepartmentPerformance();
-        const workflowStats = await this.getWorkflowStats(departmentId);
+        const workflowStats = await this.getWorkflowStats(departmentDocumentIds);
 
         const stats = {
             documentStats: documentStats,
@@ -77,31 +91,98 @@ export class DashboardService {
         return stats;
     }
 
-    private async getDocumentTrends(departmentId: string) {
-        const trends = await prisma.document.groupBy({
-            by: ['created_at'],
-            where: {
-                DocumentAdditionalDetails: {
-                    some: {
-                        work_flow_id: {
-                            string_contains: `"${departmentId}"`
-                        }
-                    }
+    private parseWorkflowDepartments(workflow: unknown): string[] {
+        if (!workflow) {
+            return [];
+        }
+
+        try {
+            if (Array.isArray(workflow)) {
+                return workflow
+                    .map((value) => (value == null ? '' : String(value)))
+                    .filter((value) => value.length > 0);
+            }
+
+            if (typeof workflow === 'string') {
+                const trimmed = workflow.trim();
+                if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+                    const parsed = JSON.parse(trimmed);
+                    return this.parseWorkflowDepartments(parsed);
                 }
-            },
-            _count: {
+                return trimmed ? [trimmed] : [];
+            }
+
+            if (typeof workflow === 'object' && workflow !== null) {
+                return Object.values(workflow)
+                    .map((value) => (value == null ? '' : String(value)))
+                    .filter((value) => value.length > 0);
+            }
+        } catch (error) {
+            console.error('Error parsing work_flow_id:', error);
+        }
+
+        return [];
+    }
+
+    private async getDepartmentDocumentIds(departmentId: string): Promise<string[]> {
+        const details = await prisma.documentAdditionalDetails.findMany({
+            select: {
                 document_id: true,
-            },
-            orderBy: {
-                created_at: 'asc',
+                work_flow_id: true,
             },
         });
 
-        // This is a simplified version. A real implementation should group by month.
-        return trends.map(t => ({
-            month: new Date(t.created_at).toLocaleString('default', { month: 'short' }),
-            active: t._count.document_id,
-            archived: 0, // Placeholder
+        const ids = details
+            .filter((detail) => {
+                const workflowDepartments = this.parseWorkflowDepartments(detail.work_flow_id);
+                return workflowDepartments.includes(departmentId);
+            })
+            .map((detail) => detail.document_id);
+
+        return [...new Set(ids)];
+    }
+
+    private async getDocumentTrends(documentIds: string[]) {
+        if (documentIds.length === 0) {
+            return [];
+        }
+
+        // Get documents from last 6 months
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+        const documents = await prisma.document.findMany({
+            where: {
+                created_at: { gte: sixMonthsAgo },
+                document_id: { in: documentIds },
+            },
+            select: {
+                created_at: true,
+                status: true,
+            },
+        });
+
+        // Group documents by month
+        const monthlyData = new Map<string, { active: number; archived: number }>();
+        
+        documents.forEach(doc => {
+            const month = new Date(doc.created_at).toLocaleString('default', { month: 'short' });
+            const current = monthlyData.get(month) || { active: 0, archived: 0 };
+            
+            if (doc.status === 'archive') {
+                current.archived++;
+            } else {
+                current.active++;
+            }
+            
+            monthlyData.set(month, current);
+        });
+
+        // Convert to array and return
+        return Array.from(monthlyData.entries()).map(([month, counts]) => ({
+            month,
+            active: counts.active,
+            archived: counts.archived,
         }));
     }
 
@@ -118,24 +199,18 @@ export class DashboardService {
         }));
     }
 
-    private async getRecentActivityCount(departmentId: string) {
+    private async getRecentActivityCount(documentIds: string[]) {
+        if (documentIds.length === 0) {
+            return 0;
+        }
+
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - 7);
-
-        const departmentFilter = {
-            DocumentAdditionalDetails: {
-                some: {
-                    work_flow_id: {
-                        string_contains: `"${departmentId}"`,
-                    },
-                },
-            },
-        };
 
         // Execute queries sequentially to avoid connection exhaustion
         const createdCount = await prisma.document.count({
             where: {
-                ...departmentFilter,
+                document_id: { in: documentIds },
                 status: 'pending',
                 created_at: { gte: startDate },
             },
@@ -143,7 +218,7 @@ export class DashboardService {
 
         const receivedCount = await prisma.document.count({
             where: {
-                ...departmentFilter,
+                document_id: { in: documentIds },
                 status: 'received',
                 updated_at: { gte: startDate },
             },
@@ -152,21 +227,15 @@ export class DashboardService {
         return createdCount + receivedCount;
     }
 
-    private async getPendingApprovalsCount(departmentId: string) {
-        const departmentFilter = {
-            DocumentAdditionalDetails: {
-                some: {
-                    work_flow_id: {
-                        string_contains: `"${departmentId}"`,
-                    },
-                },
-            },
-        };
+    private async getPendingApprovalsCount(departmentId: string, documentIds: string[]) {
+        if (documentIds.length === 0) {
+            return 0;
+        }
 
         const inTransitDocuments = await prisma.document.findMany({
             where: {
-                ...departmentFilter,
                 status: 'intransit',
+                document_id: { in: documentIds },
             },
             select: {
                 document_id: true,
@@ -184,21 +253,15 @@ export class DashboardService {
         }).length;
     }
 
-    private async getActiveWorkflowsCount(departmentId: string) {
-        const departmentFilter = {
-            DocumentAdditionalDetails: {
-                some: {
-                    work_flow_id: {
-                        string_contains: `"${departmentId}"`,
-                    },
-                },
-            },
-        };
+    private async getActiveWorkflowsCount(documentIds: string[]) {
+        if (documentIds.length === 0) {
+            return 0;
+        }
 
         return prisma.document.count({
             where: {
-                ...departmentFilter,
                 status: { in: ['intransit', 'intransit_signature'] },
+                document_id: { in: documentIds },
             },
         });
     }
@@ -231,46 +294,25 @@ export class DashboardService {
         return Math.floor(seconds) + " seconds ago";
     }
 
-    private async getDocumentTypeDistribution(departmentId: string) {
+    private async getDocumentTypeDistribution(documentIds: string[]) {
+        if (documentIds.length === 0) {
+            return [];
+        }
+
         // Get all documents with their workflow
         const documents = await prisma.document.findMany({
             where: {
                 status: { notIn: ['deleted'] },
+                document_id: { in: documentIds },
             },
             select: {
                 document_id: true,
                 document_type: true,
-                DocumentAdditionalDetails: {
-                    select: {
-                        work_flow_id: true,
-                    },
-                },
             },
         });
 
-        // Filter documents where this department is in the workflow
-        const relevantDocuments = documents.filter((doc) => {
-            const detail = doc.DocumentAdditionalDetails[0];
-            if (!detail?.work_flow_id) return false;
-
-            try {
-                let workflowDepartments: string[] = [];
-                const workflow = detail.work_flow_id;
-
-                if (typeof workflow === 'object' && workflow !== null) {
-                    workflowDepartments = Object.values(workflow)
-                        .map((val: any) => String(val || ''))
-                        .filter(Boolean);
-                }
-
-                return workflowDepartments.includes(departmentId);
-            } catch (e) {
-                return false;
-            }
-        });
-
         // Group by document type
-        const typeCounts = relevantDocuments.reduce((acc: any, doc) => {
+        const typeCounts = documents.reduce((acc: any, doc) => {
             const type = doc.document_type || 'Other';
             acc[type] = (acc[type] || 0) + 1;
             return acc;
@@ -366,20 +408,25 @@ export class DashboardService {
             .slice(0, 5);
     }
 
-    private async getWorkflowStats(departmentId: string) {
+    private async getWorkflowStats(documentIds: string[]) {
+        if (documentIds.length === 0) {
+            return {
+                totalWorkflows: 0,
+                completedWorkflows: 0,
+                pendingWorkflows: 0,
+                inProgressWorkflows: 0,
+            };
+        }
+
         // Get all documents with their workflow and trails
         const documents = await prisma.document.findMany({
             where: {
                 status: { notIn: ['deleted'] },
+                document_id: { in: documentIds },
             },
             select: {
                 document_id: true,
                 status: true,
-                DocumentAdditionalDetails: {
-                    select: {
-                        work_flow_id: true,
-                    },
-                },
                 document_trails: {
                     orderBy: { created_at: 'desc' },
                     take: 1,
@@ -392,32 +439,11 @@ export class DashboardService {
             },
         });
 
-        // Filter documents where this department is in the workflow
-        const documentsInWorkflow = documents.filter((doc) => {
-            const detail = doc.DocumentAdditionalDetails[0];
-            if (!detail?.work_flow_id) return false;
-
-            try {
-                let workflowDepartments: string[] = [];
-                const workflow = detail.work_flow_id;
-
-                if (typeof workflow === 'object' && workflow !== null) {
-                    workflowDepartments = Object.values(workflow)
-                        .map((val: any) => String(val || ''))
-                        .filter(Boolean);
-                }
-
-                return workflowDepartments.includes(departmentId);
-            } catch (e) {
-                return false;
-            }
-        });
-
         let completedWorkflows = 0;
         let pendingWorkflows = 0;
         let inProgressWorkflows = 0;
 
-        documentsInWorkflow.forEach((doc) => {
+        documents.forEach((doc) => {
             const status = doc.status;
 
             if (status === 'completed') {
@@ -431,7 +457,7 @@ export class DashboardService {
             }
         });
 
-        const totalWorkflows = documentsInWorkflow.length;
+        const totalWorkflows = documents.length;
 
         return {
             totalWorkflows,
@@ -682,4 +708,3 @@ export class DashboardService {
         }
     }
 }
-

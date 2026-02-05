@@ -51,17 +51,32 @@ function ReceiveButton({
   documentId,
   requestAction,
   releaseRemarks,
+  status,
   onReceived,
 }: {
   documentId: string;
   requestAction?: string | null;
   releaseRemarks?: string | null;
+  status?: string | null;
   onReceived?: () => void;
 }) {
   const { mutateAsync: receiveDocument, isPending: isLoading } =
     useReceiveDocument();
   const [isReceived, setIsReceived] = useState(false);
   const [open, setOpen] = useState(false);
+
+  const normalizedStatus = status?.toLowerCase();
+  const isCancelled =
+    normalizedStatus === "cancelled" || normalizedStatus === "canceled";
+
+  if (isCancelled) {
+    return (
+      <Button size="sm" variant="outline" disabled className="gap-2">
+        <Check className="h-4 w-4" />
+        Cancelled
+      </Button>
+    );
+  }
 
   const handleReceive = async () => {
     try {
@@ -441,6 +456,7 @@ export const incomingColumns: ColumnDef<IncomingDocument>[] = [
       const documentId = row.original.id;
       const requestAction = row.original.requestAction;
       const releaseRemarks = row.original.releaseRemarks;
+      const status = row.original.status;
 
       // Get onReceived function from table meta if available
       const onReceived = (table.options.meta as any)?.onReceived;
@@ -450,6 +466,7 @@ export const incomingColumns: ColumnDef<IncomingDocument>[] = [
           documentId={documentId}
           requestAction={requestAction}
           releaseRemarks={releaseRemarks}
+          status={status}
           onReceived={onReceived}
         />
       );

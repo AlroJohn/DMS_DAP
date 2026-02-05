@@ -116,9 +116,14 @@ export class SharedDocumentService {
           return false;
         }
 
+        if (detail.Document?.status === 'cancelled') {
+          console.log('📍 [getSharedDocuments] Document is cancelled, skipping:', detail.document_id);
+          return false;
+        }
+
         // Exclude documents with certain statuses that shouldn't appear in shared view
         // Note: 'completed' is now included so it can appear in the Completed tab
-        if (['archive', 'archived', 'intransit', 'in-transit'].includes(detail.Document?.status)) {
+        if (['archive', 'archived', 'intransit', 'in-transit', 'cancelled'].includes(detail.Document?.status)) {
           console.log('📍 [getSharedDocuments] Document has archived/intransit status, skipping:', detail.document_id);
           return false;
         }
@@ -227,7 +232,7 @@ export class SharedDocumentService {
               in: activeSharedDocumentIds
             },
             status: {
-              not: 'deleted' // Exclude deleted documents
+              notIn: ['deleted', 'cancelled'] // Exclude deleted/cancelled documents
             }
           },
           include: {
@@ -261,7 +266,7 @@ export class SharedDocumentService {
               in: activeSharedDocumentIds
             },
             status: {
-              not: 'deleted' // Exclude deleted documents from count
+              notIn: ['deleted', 'cancelled'] // Exclude deleted/cancelled documents from count
             }
           }
         })

@@ -464,13 +464,13 @@ export class DocumentReleaseService {
                     await prisma.documentAdditionalDetails.create({
                         data: {
                             document_id: documentId,
-                            work_flow_id: newWorkflow as any,
-                            remarks: remarks || null,
-                            release_action: releaseActionsSummary,
-                            ...(releaseActionByDepartment
-                                ? { release_action_by_department: releaseActionByDepartment as any }
-                                : {}),
-                            account_id: user.account.account_id // Store the releasing user's account ID
+                        work_flow_id: newWorkflow as any,
+                        remarks: remarks || null,
+                        release_action: releaseActionsSummary,
+                        ...(releaseActionByDepartment
+                            ? { release_action_by_department: releaseActionByDepartment as any }
+                            : {}),
+                        account_id: user.account.account_id // Store the releasing user's account ID
                         }
                     });
                 } else {
@@ -482,13 +482,13 @@ export class DocumentReleaseService {
                     await prisma.documentAdditionalDetails.create({
                         data: {
                             document_id: documentId,
-                            work_flow_id: newWorkflow as any,
-                            remarks: remarks || null,
-                            release_action: releaseActionsSummary,
-                            ...(releaseActionByDepartment
-                                ? { release_action_by_department: releaseActionByDepartment as any }
-                                : {}),
-                            account_id: user?.account?.account_id || null // Try to store account_id if available
+                        work_flow_id: newWorkflow as any,
+                        remarks: remarks || null,
+                        release_action: releaseActionsSummary,
+                        ...(releaseActionByDepartment
+                            ? { release_action_by_department: releaseActionByDepartment as any }
+                            : {}),
+                        account_id: user?.account?.account_id || null // Try to store account_id if available
                         }
                     });
                 }
@@ -650,6 +650,11 @@ export class DocumentReleaseService {
       if (!document) {
         console.error('[DocumentReleaseService.receiveDocument] Error: Document not found with ID:', documentId);
         return { success: false, error: 'Document not found' };
+      }
+
+      if (document.status === 'cancelled') {
+        console.warn('[DocumentReleaseService.receiveDocument] Warning: Document is cancelled.');
+        return { success: false, error: 'Document is cancelled' };
       }
 
       if (document.status !== 'intransit') {

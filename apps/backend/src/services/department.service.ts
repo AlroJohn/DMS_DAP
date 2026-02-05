@@ -348,6 +348,7 @@ export class DepartmentService {
     });
 
     return users.map(user => ({
+      user_id: user.user?.user_id || null,
       account_id: user.account_id,
       email: user.email,
       name: `${user.user?.first_name || ''} ${user.user?.last_name || ''}`.trim() || user.email,

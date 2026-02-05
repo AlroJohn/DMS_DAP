@@ -840,6 +840,7 @@ enum DocStatus {
   intransit_signature
   signed
   completed
+  cancelled
   deleted
   archive
   checkout

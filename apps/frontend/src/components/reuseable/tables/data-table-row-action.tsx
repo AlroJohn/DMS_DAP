@@ -243,8 +243,9 @@ export function DataTableRowActions<TData>({
       setIsLoading(true);
 
       // Check if document is in 'intransit' status to use the appropriate endpoint
+      const statusValue = document.status?.toLowerCase();
       const isDocumentInTransit =
-        document.status?.toLowerCase() === "intransit";
+        statusValue === "intransit" || statusValue === "intransit_signature";
 
       let response;
       if (isDocumentInTransit) {

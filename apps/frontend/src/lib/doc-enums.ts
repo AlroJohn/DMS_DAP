@@ -3,7 +3,7 @@
 
 // --- Enum literal union types (match Prisma enum values) ---
 export type DocClassification = 'simple' | 'complex' | 'highly_technical'
-export type DocStatus = 'pending' | 'intransit' | 'completed' | 'canceled' | 'deleted'
+export type DocStatus = 'pending' | 'intransit' | 'completed' | 'cancelled' | 'deleted'
 
 // --- Generic typed option shape used by faceted filters ---
 export interface EnumOption<T extends string = string> {
@@ -23,7 +23,7 @@ export const DOC_STATUS_OPTIONS: EnumOption<DocStatus>[] = [
   { label: 'Dispatch', value: 'pending' },
   { label: 'In Transit', value: 'intransit' },
   { label: 'Completed', value: 'completed' },
-  { label: 'Canceled', value: 'canceled' },
+  { label: 'Cancelled', value: 'cancelled' },
   { label: 'Deleted', value: 'deleted' },
 ]
 

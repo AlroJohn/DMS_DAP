@@ -26,6 +26,57 @@ export interface AccessHistoryStats {
 }
 
 export class AccessHistoryService {
+  private parseWorkflowDepartments(workflow: unknown): string[] {
+    if (!workflow) {
+      return [];
+    }
+
+    try {
+      if (Array.isArray(workflow)) {
+        return workflow
+          .map((value) => (value == null ? '' : String(value)))
+          .filter((value) => value.length > 0);
+      }
+
+      if (typeof workflow === 'string') {
+        const trimmed = workflow.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          const parsed = JSON.parse(trimmed);
+          return this.parseWorkflowDepartments(parsed);
+        }
+        return trimmed ? [trimmed] : [];
+      }
+
+      if (typeof workflow === 'object' && workflow !== null) {
+        return Object.values(workflow)
+          .map((value) => (value == null ? '' : String(value)))
+          .filter((value) => value.length > 0);
+      }
+    } catch (error) {
+      console.error('Error parsing work_flow_id:', error);
+    }
+
+    return [];
+  }
+
+  private async getDepartmentDocumentIds(departmentId: string): Promise<string[]> {
+    const details = await prisma.documentAdditionalDetails.findMany({
+      select: {
+        document_id: true,
+        work_flow_id: true,
+      },
+    });
+
+    const ids = details
+      .filter((detail) => {
+        const workflowDepartments = this.parseWorkflowDepartments(detail.work_flow_id);
+        return workflowDepartments.includes(departmentId);
+      })
+      .map((detail) => detail.document_id);
+
+    return [...new Set(ids)];
+  }
+
   /**
    * Get comprehensive access history logs from multiple sources
    */
@@ -230,23 +281,22 @@ export class AccessHistoryService {
         },
       });
 
+      const departmentDocumentIds = await this.getDepartmentDocumentIds(departmentId);
+
       // Get checkout count (as a proxy for downloads)
-      const checkoutsCount = await prisma.userCheckout.count({
-        where: {
-          documentFile: {
-            Document: {
-              DocumentAdditionalDetails: {
-                some: {
-                  work_flow_id: {
-                    path: [],
-                    string_contains: departmentId,
-                  },
+      const checkoutsCount = departmentDocumentIds.length > 0
+        ? await prisma.userCheckout.count({
+          where: {
+            documentFile: {
+              Document: {
+                document_id: {
+                  in: departmentDocumentIds,
                 },
               },
             },
           },
-        },
-      });
+        })
+        : 0;
 
       return {
         totalAccesses,

@@ -66,9 +66,15 @@ export class IntransitController {
       const result = await this.intransitService.cancelIntransitDocument(id, userId);
 
       res.json(result);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in cancelIntransitDocument:', error);
-      res.status(500).json({ error: 'Failed to cancel in-transit document' });
+      const message =
+        error?.message || 'Failed to cancel in-transit document';
+      const statusCode =
+        message.includes('not currently in in-transit') ? 400
+        : message.includes('Only the department') ? 403
+        : 500;
+      res.status(statusCode).json({ error: message });
     }
   }
 }

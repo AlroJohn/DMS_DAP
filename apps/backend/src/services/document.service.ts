@@ -3151,7 +3151,7 @@ export class DocumentService {
       const updatedDocument = await prisma.document.update({
         where: { document_id: documentId },
         data: {
-          status: 'pending',
+          status: 'cancelled',
           updated_at: new Date()
         }
       });
@@ -3181,8 +3181,15 @@ export class DocumentService {
       if (io) {
         io.emit('documentUpdated', {
           documentId: documentId,
-          status: 'canceled',
+          status: 'cancelled',
           updatedBy: userId,
+          timestamp: new Date().toISOString()
+        });
+
+        io.emit('documentCanceled', {
+          documentId: documentId,
+          documentTitle: document.title,
+          canceledBy: userId,
           timestamp: new Date().toISOString()
         });
       }
@@ -3226,6 +3233,10 @@ export class DocumentService {
 
       if (!document) {
         return { success: false, error: 'Document not found' };
+      }
+
+      if (document.status === 'cancelled') {
+        return { success: false, error: 'Document is cancelled' };
       }
 
       // Update status to 'received'

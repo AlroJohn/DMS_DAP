@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf";
+import {
+  GlobalWorkerOptions,
+  getDocument,
+  version as pdfjsVersion,
+} from "pdfjs-dist/legacy/build/pdf";
 import { useQuery } from "@tanstack/react-query";
 import {
   PDFDocument,
@@ -27,7 +31,7 @@ import { useSocket } from "@/components/providers/providers";
 
 const PDFJS_WORKER_CDN =
   process.env.NEXT_PUBLIC_PDFJS_WORKER_URL ||
-  "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.394/legacy/build/pdf.worker.min.mjs";
+  `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsVersion}/legacy/build/pdf.worker.min.mjs`;
 
 if (typeof window !== "undefined") {
   GlobalWorkerOptions.workerSrc = PDFJS_WORKER_CDN;
@@ -935,7 +939,6 @@ export function SigningPdfViewer({
         // ignore
       }
     };
-     
   }, [documentId, selectedFile?.id]);
 
   // Auto-navigate to first page with pending signature
@@ -1264,6 +1267,7 @@ export function SigningPdfViewer({
           const renderWidth = signature.width;
           const renderHeight = signature.height;
           const rotation = signature.rotation ?? 0;
+          const pdfRotation = -rotation;
 
           // Convert from top-left coordinates (UI) to bottom-left (PDF)
           // For unrotated: x stays same, y inverts
@@ -1294,7 +1298,7 @@ export function SigningPdfViewer({
           // pdf-lib rotates around bottom-left corner
           // To match CSS rotation around center, we need to adjust position
           if (rotation !== 0) {
-            const radians = (rotation * Math.PI) / 180;
+            const radians = (pdfRotation * Math.PI) / 180;
             const cos = Math.cos(radians);
             const sin = Math.sin(radians);
 
@@ -1318,7 +1322,7 @@ export function SigningPdfViewer({
               y: pdfY,
               width: renderWidth,
               height: renderHeight,
-              rotate: degrees(rotation),
+              rotate: degrees(pdfRotation),
             });
           } else {
             // No rotation - use simple coordinates
@@ -1337,6 +1341,7 @@ export function SigningPdfViewer({
           const boxWidth = entry.placeholder.width;
           const boxHeight = entry.placeholder.height;
           const rotation = entry.placeholder.rotation ?? 0;
+          const pdfRotation = -rotation;
           const fontName = resolvePdfFont(entry.placeholder.font_family);
           const font = await getFont(fontName);
           const baseSize = Math.max(6, entry.placeholder.font_size || 12);
@@ -1362,7 +1367,7 @@ export function SigningPdfViewer({
 
           if (rotation !== 0) {
             // For rotated text, calculate position similar to images
-            const radians = (rotation * Math.PI) / 180;
+            const radians = (pdfRotation * Math.PI) / 180;
             const cos = Math.cos(radians);
             const sin = Math.sin(radians);
 
@@ -1385,7 +1390,7 @@ export function SigningPdfViewer({
               size,
               font,
               color: rgb(r / 255, g / 255, b / 255),
-              rotate: degrees(rotation),
+              rotate: degrees(pdfRotation),
             });
           } else {
             // No rotation - use standard coordinates

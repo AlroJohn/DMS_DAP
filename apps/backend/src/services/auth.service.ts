@@ -258,7 +258,7 @@ export class AuthService {
         account_id: account.account_id,
         session_token: token, // Or a unique session ID
         refresh_token: refreshToken,
-        expires_at: new Date(Date.now() + 30 * 60 * 1000), // 30 minutes for access token
+        expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000), // 8 hours for access token
         refresh_expires_at: refreshTokenExpires, // 6 days for refresh token
         last_activity: new Date(),
       },
@@ -674,7 +674,7 @@ export class AuthService {
           account_id: account.account_id,
           session_token: tokens.token,
           refresh_token: tokens.refreshToken,
-          expires_at: new Date(Date.now() + 30 * 60 * 1000), // 30 minutes for access token
+        expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000), // 8 hours for access token
           refresh_expires_at: refreshTokenExpires, // 6 days for refresh token
           last_activity: new Date(),
           login_method: 'google', // OAuth login

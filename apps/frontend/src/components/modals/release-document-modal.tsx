@@ -85,6 +85,7 @@ interface DocumentAction {
 }
 
 interface User {
+  user_id?: string | null;
   account_id: string;
   email: string;
   name: string;
@@ -290,10 +291,10 @@ export function ReleaseDocumentModal({
       }
 
       const data = await response.json();
-      setDepartmentUsers((prev) => ({
-        ...prev,
-        [departmentId]: data.users || [],
-      }));
+            setDepartmentUsers((prev) => ({
+              ...prev,
+              [departmentId]: data.users || [],
+            }));
     } catch (error) {
       console.error("Error fetching users:", error);
       toast.error("Failed to load users for department");
@@ -927,15 +928,23 @@ export function ReleaseDocumentModal({
 
                                                       return displayUsers.length > 0 ? (
                                                         <>
-                                                          {displayUsers.map((user) => (
-                                                            <label
-                                                              key={user.account_id}
+                                            {displayUsers.map((user) => {
+                                              const targetUserId =
+                                                user.user_id || user.account_id;
+                                              return (
+                                              <label
+                                                              key={targetUserId}
                                                               className="flex items-start gap-2 text-xs p-1.5 rounded hover:bg-muted/50 cursor-pointer transition-colors"
                                                             >
                                                               <Checkbox
-                                                                checked={form.watch("userIds")?.includes(user.account_id)}
+                                                                checked={form
+                                                                  .watch("userIds")
+                                                                  ?.includes(targetUserId)}
                                                                 onCheckedChange={(checked) =>
-                                                                  handleUserToggle(user.account_id, checked === true)
+                                                                  handleUserToggle(
+                                                                    targetUserId,
+                                                                    checked === true,
+                                                                  )
                                                                 }
                                                                 className="mt-0.5"
                                                               />
@@ -959,7 +968,8 @@ export function ReleaseDocumentModal({
                                                                 )}
                                                               </div>
                                                             </label>
-                                                          ))}
+                                                          );
+                                            })}
                                                           {!searchQuery && filteredUsers.length > 3 && (
                                                             <div className="text-[10px] text-muted-foreground text-center py-1.5 border-t">
                                                               {filteredUsers.length - 3} more users. Use search to find them.

@@ -22,7 +22,7 @@ import ShinyText from "@/components/react-bits/ShinyText";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, AlertCircle } from "lucide-react";
-import { toast } from "sonner";
+
 import { useAuth } from "@/hooks/use-auth";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -53,20 +53,12 @@ export function LoginFormClient({
     // Check if redirected from invitation acceptance
     const message = searchParams.get("message");
     if (message === "account_created") {
-      toast.success("Account created successfully!", {
-        description: "Please login with your credentials",
-      });
       // Clear the message from URL
       router.replace("/login");
     }
   }, [searchParams, router]);
 
   const handleGoogleLogin = () => {
-    // Show success toast first
-    toast.success("Redirecting to Google...", {
-      description: "Please complete authentication in the popup window",
-    });
-
     // Set loading to true to show loading animation during redirect
     setIsLoading(true);
 
@@ -91,59 +83,19 @@ export function LoginFormClient({
       });
 
       if (response.ok) {
-        // Show success toast
-        toast.success("Login successful!", {
-          description: "Redirecting to dashboard...",
-        });
-
-        // Wait a brief moment to ensure toast is visible
-        await new Promise(resolve => setTimeout(resolve, 500));
-
         // Trigger the login function from useAuth to re-fetch user data and update state
         await login();
 
-        // Redirect to dashboard after auth state is refreshed
-        router.push("/dashboard");
+        // Redirect to home after auth state is refreshed
+        router.push("/home");
       } else {
-        // Handle error response
-        let data;
-        try {
-          // Try to parse data for error message
-          data = await response.json();
-        } catch (jsonError) {
-          // If JSON parsing fails, use status text or generic message
-          const errorMessage = response.statusText || "Invalid email or password. Please try again.";
-          toast.error("Login failed", {
-            description: errorMessage,
-          });
-          setIsLoading(false);
-          return;
-        }
-
-        // Check if it's the "account in use" error
-        const errorMessage = data.error?.message || "";
-        if (errorMessage.toLowerCase().includes("already in use")) {
-          toast.warning("Account already in use", {
-            description: "This account is currently logged in on another device or browser. Please try again later or contact support.",
-            duration: 6000,
-          });
-        } else {
-          // Show generic error toast
-          toast.error("Login failed", {
-            description: errorMessage || "Invalid email or password. Please try again.",
-          });
-        }
-        
-        // Make sure we stay on login page
+        // Handle error response - stay on login page
         setIsLoading(false);
-        // Clear any form state if needed
+        // Clear password field
         setPassword("");
       }
     } catch (error) {
       console.error("Login error:", error);
-      toast.error("Login failed", {
-        description: "An error occurred. Please try again.",
-      });
       setIsLoading(false);
       setPassword("");
     }

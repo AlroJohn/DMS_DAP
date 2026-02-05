@@ -443,7 +443,7 @@ export class RecycleBinService {
   }
 
   /**
-   * Cancel a document workflow - marks document as canceled
+   * Cancel a document workflow - marks document as cancelled
    */
   async cancelDocument(documentId: string, userId: string) {
     // Validate UUID format
@@ -475,11 +475,11 @@ export class RecycleBinService {
         throw new Error('Document not found');
       }
 
-      // Update document status to pending (canceled workflow)
+      // Update document status to cancelled
       await prisma.document.update({
         where: { document_id: documentId },
         data: {
-          status: 'pending',
+          status: 'cancelled',
           updated_at: new Date()
         }
       });

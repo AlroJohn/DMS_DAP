@@ -96,6 +96,18 @@ export default function SharedDocumentsPage() {
     const handleDocumentDeleted = safeRefetch;
     const handleDocumentShared = safeRefetch;
     const handleDocumentAddedToUser = safeRefetch;
+    const handleDocumentCanceled = (payload: { documentId?: string; documentTitle?: string }) => {
+      const documentId = payload?.documentId;
+      if (!documentId) return;
+
+      const isInList = documents.some((doc) => doc.id === documentId);
+      if (isInList) {
+        toast.error(
+          `Document cancelled: ${payload?.documentTitle || "Unknown document"}`,
+        );
+      }
+      safeRefetch();
+    };
 
     // Listen for checkout-related events
     const handleCheckout = safeRefetch;
@@ -112,6 +124,7 @@ export default function SharedDocumentsPage() {
     socket.on("checkout", handleCheckout); // Listen for checkout events
     socket.on("checkin", handleCheckin); // Listen for checkin events
     socket.on("checkoutOverridden", handleCheckoutOverridden); // Listen for checkout override events
+    socket.on("documentCanceled", handleDocumentCanceled);
 
     // Cleanup listeners on unmount
     return () => {
@@ -123,8 +136,9 @@ export default function SharedDocumentsPage() {
       socket.off("checkout", handleCheckout);
       socket.off("checkin", handleCheckin);
       socket.off("checkoutOverridden", handleCheckoutOverridden);
+      socket.off("documentCanceled", handleDocumentCanceled);
     };
-  }, [socket, refetch, user]);
+  }, [socket, refetch, user, documents]);
 
   const sanitizedDocuments = useMemo(() => {
     return documents.map((doc) => {

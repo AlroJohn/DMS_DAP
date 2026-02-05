@@ -711,6 +711,7 @@ export default function DocumentDetailPage() {
       },
       pending: { label: "Dispatch", variant: "secondary", className: "" },
       canceled: { label: "Cancelled", variant: "destructive", className: "" },
+      cancelled: { label: "Cancelled", variant: "destructive", className: "" },
       deleted: { label: "Deleted", variant: "destructive", className: "" },
       processing: { label: "Processing", variant: "secondary", className: "" },
       signed: { label: "Signed", variant: "default", className: "" },
