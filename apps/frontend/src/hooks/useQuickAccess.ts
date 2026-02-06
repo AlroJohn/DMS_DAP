@@ -5,6 +5,10 @@ export interface QuickAccessSummary {
   incomingDocuments: number;
   documentsToRelease: number;
   recentActivity: number;
+  completedSharedToDepartment: number;
+  completedSharedToUser: number;
+  sharedToDepartment: number;
+  sharedToUser: number;
 }
 
 export function useQuickAccess() {

@@ -295,6 +295,102 @@ const Homepage = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Completed (Department) */}
+          <Card 
+            className="shadow-sm border hover:shadow-md transition-all cursor-pointer group hover:border-green-500/50"
+            onClick={() => router.push("/documents?filter=completed-dept")}
+          >
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0">
+                  <p className="text-xs text-muted-foreground">Completed (Dept)</p>
+                  <p className="text-xl font-bold text-green-600">
+                    {quickAccessData.completedSharedToDepartment}
+                  </p>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-1 mt-1.5">
+                <span className="text-[10px] text-muted-foreground group-hover:text-green-600 transition-colors">Click to proceed</span>
+                <ArrowRight className="h-3 w-3 text-muted-foreground group-hover:text-green-600 transition-colors" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Completed (User) */}
+          <Card 
+            className="shadow-sm border hover:shadow-md transition-all cursor-pointer group hover:border-emerald-500/50"
+            onClick={() => router.push("/documents?filter=completed-user")}
+          >
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0">
+                  <p className="text-xs text-muted-foreground">Completed (User)</p>
+                  <p className="text-xl font-bold text-emerald-600">
+                    {quickAccessData.completedSharedToUser}
+                  </p>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
+                  <CheckCircle className="h-4 w-4 text-emerald-600" />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-1 mt-1.5">
+                <span className="text-[10px] text-muted-foreground group-hover:text-emerald-600 transition-colors">Click to proceed</span>
+                <ArrowRight className="h-3 w-3 text-muted-foreground group-hover:text-emerald-600 transition-colors" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Shared to Department */}
+          <Card 
+            className="shadow-sm border hover:shadow-md transition-all cursor-pointer group hover:border-purple-500/50"
+            onClick={() => router.push("/documents/shared")}
+          >
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0">
+                  <p className="text-xs text-muted-foreground">Shared to Department</p>
+                  <p className="text-xl font-bold text-purple-600">
+                    {quickAccessData.sharedToDepartment}
+                  </p>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
+                  <FileText className="h-4 w-4 text-purple-600" />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-1 mt-1.5">
+                <span className="text-[10px] text-muted-foreground group-hover:text-purple-600 transition-colors">Click to proceed</span>
+                <ArrowRight className="h-3 w-3 text-muted-foreground group-hover:text-purple-600 transition-colors" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Shared to User */}
+          <Card 
+            className="shadow-sm border hover:shadow-md transition-all cursor-pointer group hover:border-indigo-500/50"
+            onClick={() => router.push("/documents/shared")}
+          >
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0">
+                  <p className="text-xs text-muted-foreground">Shared to User Only</p>
+                  <p className="text-xl font-bold text-indigo-600">
+                    {quickAccessData.sharedToUser}
+                  </p>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-indigo-500/10 flex items-center justify-center group-hover:bg-indigo-500/20 transition-colors">
+                  <Eye className="h-4 w-4 text-indigo-600" />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-1 mt-1.5">
+                <span className="text-[10px] text-muted-foreground group-hover:text-indigo-600 transition-colors">Click to proceed</span>
+                <ArrowRight className="h-3 w-3 text-muted-foreground group-hover:text-indigo-600 transition-colors" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 

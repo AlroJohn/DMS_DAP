@@ -500,16 +500,121 @@ export class DashboardService {
             // Count recent activity (last 7 days)
             const recentActivityCount = await this.getUserRecentActivityCount(userId);
 
+            // Get additional counts: Completed (User vs Dept), Shared to Dept, Shared to User
+            const additionalCounts = await this.getAdditionalDocumentCounts(userId, departmentId);
+
             return {
                 pendingSignatures: pendingSignaturesCount,
                 incomingDocuments: incomingDocumentsCount,
                 documentsToRelease: documentsToReleaseCount,
                 recentActivity: recentActivityCount,
+                completedSharedToDepartment: additionalCounts.completedSharedToDepartment,
+                completedSharedToUser: additionalCounts.completedSharedToUser,
+                sharedToDepartment: additionalCounts.sharedToDepartment,
+                sharedToUser: additionalCounts.sharedToUser,
             };
         } catch (error) {
             console.error("Error fetching quick access summary:", error);
             throw new Error("Failed to fetch quick access summary");
         }
+    }
+
+    private async getAdditionalDocumentCounts(userId: string, departmentId: string) {
+        try {
+            const allDetails = await prisma.documentAdditionalDetails.findMany({
+                select: {
+                    document_id: true,
+                    work_flow_id: true,
+                    received_by_departments: true,
+                },
+            });
+
+            const deptDocIds = new Set<string>();
+            const userDocIds = new Set<string>();
+
+            for (const detail of allDetails) {
+                // Check Department Workflow
+                const workflowDepartments = this.parseWorkflowDepartments(detail.work_flow_id);
+                if (workflowDepartments.includes(departmentId)) {
+                    deptDocIds.add(detail.document_id);
+                }
+
+                // Check Shared to User
+                const sharedUsers = this.parseSharedUsers(detail.received_by_departments);
+                if (sharedUsers.includes(userId)) {
+                    userDocIds.add(detail.document_id);
+                }
+            }
+
+            const allRelevantIds = new Set([...deptDocIds, ...userDocIds]);
+            
+            if (allRelevantIds.size === 0) {
+                return { 
+                    completedSharedToDepartment: 0, 
+                    completedSharedToUser: 0, 
+                    sharedToDepartment: 0, 
+                    sharedToUser: 0 
+                };
+            }
+
+            const docStatuses = await prisma.document.findMany({
+                where: {
+                    document_id: { in: Array.from(allRelevantIds) },
+                    status: { not: 'deleted' } 
+                },
+                select: {
+                    document_id: true,
+                    status: true
+                }
+            });
+
+            const sharedToDepartment = docStatuses.filter(d => deptDocIds.has(d.document_id)).length;
+            const sharedToUser = docStatuses.filter(d => userDocIds.has(d.document_id)).length;
+            
+            const completedSharedToDepartment = docStatuses.filter(d => 
+                d.status === 'completed' && deptDocIds.has(d.document_id)
+            ).length;
+
+            const completedSharedToUser = docStatuses.filter(d => 
+                d.status === 'completed' && userDocIds.has(d.document_id)
+            ).length;
+
+            return { 
+                completedSharedToDepartment, 
+                completedSharedToUser, 
+                sharedToDepartment, 
+                sharedToUser 
+            };
+
+        } catch (error) {
+            console.error("Error getting additional counts:", error);
+            return { 
+                completedSharedToDepartment: 0, 
+                completedSharedToUser: 0, 
+                sharedToDepartment: 0, 
+                sharedToUser: 0 
+            };
+        }
+    }
+
+    private parseSharedUsers(value: unknown): string[] {
+        if (!value) return [];
+        try {
+            if (Array.isArray(value)) {
+                return value.map(v => String(v));
+            }
+            if (typeof value === 'string') {
+                const parsed = JSON.parse(value);
+                if (Array.isArray(parsed)) return parsed.map(v => String(v));
+            }
+            if (typeof value === 'object') {
+                 // In case it's some other object structure, but typically it should be array-like
+                 return Object.values(value as object).map(v => String(v));
+            }
+        } catch (e) {
+            // ignore parse errors
+        }
+        return [];
     }
 
     /**
