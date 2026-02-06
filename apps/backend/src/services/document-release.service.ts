@@ -397,6 +397,7 @@ export class DocumentReleaseService {
             // Create document trail entries - one for each assigned user, or one for the department if no specific users
             const documentTrailsService = new DocumentTrailsService();
             try {
+                const releaseTimestamp = new Date();
                 if (assignedUserIds && assignedUserIds.length > 0) {
                     // Create a trail entry for each assigned user
                     for (const assignedUserId of assignedUserIds) {
@@ -407,7 +408,8 @@ export class DocumentReleaseService {
                             user_id: userId,
                             assigned_to_user_id: assignedUserId,
                             status: 'intransit',
-                            remarks: remarks || `Document released to specific user`
+                            remarks: remarks || `Document released to specific user`,
+                            action_date: releaseTimestamp
                         });
                     }
                 } else {
@@ -419,7 +421,8 @@ export class DocumentReleaseService {
                         user_id: userId,
                         assigned_to_user_id: null,
                         status: 'intransit',
-                        remarks: remarks || `Document released to department`
+                        remarks: remarks || `Document released to department`,
+                        action_date: releaseTimestamp
                     });
                 }
             } catch (error) {
@@ -836,6 +839,7 @@ export class DocumentReleaseService {
         select: {
           to_department: true,
           created_at: true,
+          action_date: true,
           assigned_to_user_id: true
         }
       });
@@ -844,8 +848,8 @@ export class DocumentReleaseService {
       for (const trail of intransitTrails) {
         if (!trail.to_department) continue;
         const currentLatest = latestIntransitByDept.get(trail.to_department);
-        if (!currentLatest || trail.created_at > currentLatest) {
-          latestIntransitByDept.set(trail.to_department, trail.created_at);
+        if (!currentLatest || trail.action_date > currentLatest) {
+          latestIntransitByDept.set(trail.to_department, trail.action_date);
         }
       }
 
@@ -856,7 +860,7 @@ export class DocumentReleaseService {
             (trail) =>
               trail.to_department === departmentId &&
               trail.assigned_to_user_id &&
-              trail.created_at >= intransitSince
+              trail.action_date.getTime() === intransitSince.getTime()
           )
           .map((trail) => trail.assigned_to_user_id as string);
 

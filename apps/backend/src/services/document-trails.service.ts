@@ -186,6 +186,7 @@ export class DocumentTrailsService {
     assigned_to_user_id?: string | null;
     status: string;
     remarks?: string;
+    action_date?: Date;
   }) {
     try {
       // Resolve UUIDs in remarks to human-readable names
@@ -206,7 +207,7 @@ export class DocumentTrailsService {
           assigned_to_user_id: data.assigned_to_user_id,
           status: data.status,
           remarks: processedRemarks,
-          action_date: new Date(), // Explicitly set action date to current time
+          action_date: data.action_date ?? new Date(), // Explicitly set action date to current time
         },
         select: {
           trail_id: true,

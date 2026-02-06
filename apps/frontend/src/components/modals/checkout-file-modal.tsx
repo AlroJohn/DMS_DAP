@@ -554,160 +554,200 @@ export function CheckoutFileModal({
               </div>
             </div>
 
-            <ScrollArea className="flex-1 pr-4 overflow-y-auto">
-              <div className="space-y-2">
-                {isLoading ? (
-                  <div className="flex justify-center items-center h-40">
-                    <Loader2 className="h-8 w-8 animate-spin" />
-                  </div>
-                ) : fileItems.length > 0 ? (
-                  fileItems.map((item) => {
-                    if (item.type === "version-group") {
-                      return (
-                        <div
-                          key={item.id}
-                          className="flex items-center justify-between rounded-md border p-3 hover:bg-accent cursor-pointer"
-                          onClick={() => handleVersionGroupClick(item)}
-                        >
-                          <div className="flex items-center space-x-3">
-                            <Folder className="h-5 w-5 text-blue-500" />
-                            <div>
-                              <div className="font-medium">{item.name}</div>
-                              <div className="text-xs text-muted-foreground">
-                                Version Group
+            <ScrollArea className="flex-1 overflow-y-auto">
+              {isLoading ? (
+                <div className="flex h-40 items-center justify-center">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4 p-4 sm:grid-cols-3 md:grid-cols-4">
+                  {fileItems.length > 0 ? (
+                    fileItems.map((item) => {
+                      if (item.type === "version-group") {
+                        return (
+                          <div
+                            key={item.id}
+                            className="group flex aspect-[4/5] cursor-pointer flex-col items-center justify-between rounded-xl border bg-card p-4 shadow-sm transition-all hover:bg-accent/50 hover:shadow-md"
+                            onClick={() => handleVersionGroupClick(item)}
+                          >
+                            <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4">
+                              <div className="rounded-full bg-blue-100/50 p-4 ring-1 ring-blue-100 dark:bg-blue-900/20 dark:ring-blue-900">
+                                <Folder className="h-10 w-10 text-blue-500 fill-blue-500/20" />
+                              </div>
+                              <div className="space-y-1 text-center">
+                                <p
+                                  className="line-clamp-2 text-sm font-medium leading-tight"
+                                  title={item.name}
+                                >
+                                  {item.name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Version Group
+                                </p>
                               </div>
                             </div>
+                            <div className="w-full border-t pt-3 text-center text-xs text-muted-foreground">
+                              {item.children?.length} versions
+                            </div>
                           </div>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                      );
-                    } else if (item.data) {
-                      const file = item.data;
-                      const isLocked = file.checkout;
-                      const isLockedByMe =
-                        isLocked &&
-                        file.checkedOutBy?.accountId === user?.accountId;
-                      const isLockedByOther = isLocked && !isLockedByMe;
-                      const isSelectable =
-                        !isSignatureAction || isSelectableForSignature(file);
-                      const isSelected =
-                        isSignatureAction && selectedFileIds.includes(file.id);
-                      return (
-                        <div
-                          key={file.id}
-                          className={`flex items-center justify-between rounded-md border p-3 group ${
-                            !isSelectable
-                              ? "cursor-not-allowed bg-muted/30 text-muted-foreground"
-                              : "cursor-pointer hover:bg-accent"
-                          } ${
-                            (!isSignatureAction &&
-                              selectedFileId === file.id) ||
-                            isSelected
-                              ? "bg-accent border-primary"
-                              : ""
-                          }`}
-                          onClick={() =>
-                            isSignatureAction
-                              ? isSelectable && handleSignatureSelection(file)
-                              : !isLockedByOther && handleFileClick(file)
-                          }
-                        >
-                          <div className="flex items-center space-x-3 overflow-hidden">
+                        );
+                      } else if (item.data) {
+                        const file = item.data;
+                        const isLocked = file.checkout;
+                        const isLockedByMe =
+                          isLocked &&
+                          file.checkedOutBy?.accountId === user?.accountId;
+                        const isLockedByOther = isLocked && !isLockedByMe;
+                        const isSelectable =
+                          !isSignatureAction || isSelectableForSignature(file);
+                        const isSelected = isSignatureAction
+                          ? selectedFileIds.includes(file.id)
+                          : selectedFileId === file.id;
+
+                        return (
+                          <div
+                            key={file.id}
+                            className={`group relative flex aspect-[4/5] flex-col rounded-xl border p-3 shadow-sm transition-all ${
+                              !isSelectable
+                                ? "cursor-not-allowed bg-muted/20 opacity-60"
+                                : "cursor-pointer bg-card hover:bg-accent/5 hover:shadow-md"
+                            } ${
+                              isSelected
+                                ? "bg-primary/5 ring-2 ring-primary border-primary/50"
+                                : "hover:border-primary/50"
+                            }`}
+                            onClick={() =>
+                              isSignatureAction
+                                ? isSelectable && handleSignatureSelection(file)
+                                : !isLockedByOther && handleFileClick(file)
+                            }
+                          >
+                            {/* Selection Checkbox (Signature Mode) */}
                             {isSignatureAction && (
-                              <Checkbox
-                                checked={isSelected}
-                                disabled={!isSelectable}
-                                onClick={(event) => event.stopPropagation()}
-                                onCheckedChange={() =>
-                                  handleSignatureSelection(file)
-                                }
-                              />
-                            )}
-                            <File className="h-5 w-5 text-green-500 flex-shrink-0" />
-                            <div className="overflow-hidden">
                               <div
-                                className={`font-medium  ${file.name.length > 10 ? "truncate" : ""}`}
+                                className="absolute left-3 top-3 z-20"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Checkbox
+                                  checked={isSelected}
+                                  disabled={!isSelectable}
+                                  onCheckedChange={() =>
+                                    handleSignatureSelection(file)
+                                  }
+                                />
+                              </div>
+                            )}
+
+                            {/* Status Indicators (Top Right) */}
+                            <div className="absolute right-2 top-2 z-10 flex flex-col gap-1">
+                              {isLockedByMe && (
+                                <div className="flex flex-col gap-1">
+                                  <Badge
+                                    variant="default"
+                                    className="flex h-6 w-6 items-center justify-center rounded-full bg-green-600 p-0 shadow-sm"
+                                    title="Locked by you"
+                                  >
+                                    <UserCheck className="h-3 w-3" />
+                                  </Badge>
+                                  <Button
+                                    variant="secondary"
+                                    size="icon"
+                                    className="h-6 w-6 rounded-full bg-white opacity-0 shadow-sm transition-opacity hover:bg-white/90 group-hover:opacity-100 dark:bg-gray-800"
+                                    onClick={(e) =>
+                                      handleUnlockFile(file.id, e)
+                                    }
+                                    title="Unlock"
+                                  >
+                                    <Unlock className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              )}
+                              {isLockedByOther ? (
+                                <Badge
+                                  variant="destructive"
+                                  className="flex h-6 w-6 items-center justify-center rounded-full p-0 shadow-sm"
+                                  title={`Locked by ${file.checkedOutBy?.name}`}
+                                >
+                                  <Lock className="h-3 w-3" />
+                                </Badge>
+                              ) : (
+                                !isLockedByMe &&
+                                !isLocked && (
+                                  <div className="opacity-0 transition-opacity group-hover:opacity-100">
+                                    {/* Placeholder for potential actions like delete on hover for available files */}
+                                  </div>
+                                )
+                              )}
+                            </div>
+
+                            {/* Main Content */}
+                            <div className="flex flex-1 flex-col items-center justify-center gap-4 py-2">
+                              <div
+                                className={`rounded-xl p-4 ring-1 ${isSelected ? "bg-primary/10 ring-primary/20" : "bg-muted/30 ring-border"}`}
+                              >
+                                <File
+                                  className={`h-10 w-10 ${isSelected ? "text-primary" : "text-muted-foreground"}`}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Footer Info */}
+                            <div className="w-full space-y-1 text-center">
+                              <p
+                                className="truncate px-1 text-sm font-medium"
+                                title={file.name}
                               >
                                 {file.name}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {file.version
-                                  ? `Version ${file.version}`
-                                  : "No version"}
+                              </p>
+                              <div className="flex h-4 items-center justify-center gap-2 text-xs text-muted-foreground">
+                                <span>
+                                  {file.version ? `v${file.version}` : "v1.0"}
+                                </span>
+                                {currentPath.length > 0 &&
+                                  !isLockedByOther &&
+                                  !file.isPrimary && (
+                                    <div
+                                      className="absolute bottom-3 right-3 opacity-0 transition-opacity group-hover:opacity-100"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                        onClick={() => setFileToDelete(file)}
+                                        title="Delete Version"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  )}
                               </div>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-1 pl-2">
-                            {isLockedByMe ? (
-                              <div className="flex items-center gap-1">
-                                <Badge
-                                  variant="default"
-                                  className="flex items-center gap-1 bg-green-600"
-                                >
-                                  <UserCheck className="h-3 w-3" />
-                                  Locked by you
-                                </Badge>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 px-2"
-                                  onClick={(event) =>
-                                    handleUnlockFile(file.id, event)
-                                  }
-                                  disabled={isProcessing}
-                                  title="Unlock file"
-                                >
-                                  <Lock className="h-3 w-3 mr-1" />
-                                  Unlock
-                                </Button>
+
+                            {/* Locked By Badge at bottom if needed */}
+                            {isLockedByOther && (
+                              <div className="absolute bottom-14 left-1/2 w-[90%] -translate-x-1/2 text-center">
+                                <span className="inline-block max-w-full truncate rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] text-destructive">
+                                  Locked:{" "}
+                                  {file.checkedOutBy?.name?.split(" ")[0]}
+                                </span>
                               </div>
-                            ) : isLockedByOther ? (
-                              <Badge
-                                variant="destructive"
-                                className="flex items-center gap-1"
-                              >
-                                <Lock className="h-3 w-3" />
-                                Locked by{" "}
-                                {file.checkedOutBy?.name || "another user"}
-                              </Badge>
-                            ) : (
-                              <Badge
-                                variant="secondary"
-                                className="flex items-center gap-1"
-                              >
-                                <Unlock className="h-3 w-3" />
-                                Available
-                              </Badge>
                             )}
-                            {currentPath.length > 0 &&
-                              !isLockedByOther &&
-                              !file.isPrimary && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setFileToDelete(file);
-                                  }}
-                                  disabled={isProcessing}
-                                  title="Delete file"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              )}
                           </div>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No files found in this document.
-                  </div>
-                )}
-              </div>
+                        );
+                      }
+                      return null;
+                    })
+                  ) : (
+                    <div className="col-span-full flex flex-col items-center justify-center py-12 text-muted-foreground">
+                      <div className="mb-4 rounded-full bg-muted/50 p-4">
+                        <File className="h-8 w-8 opacity-50" />
+                      </div>
+                      <p>No files found in this location.</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </ScrollArea>
 
             {currentPath.length > 0 && (
