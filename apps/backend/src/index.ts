@@ -33,7 +33,6 @@ import documentTypeRoutes from './routes/document-type.route';
 import documentActionRoutes from './routes/document-action.route';
 import processTypeRoutes from './routes/process-type.routes';
 import userRoutes from './routes/user.routes';
-import doconChainRoutes from './routes/doconchain.routes';
 import searchRoutes from './routes/search.routes';
 import intransitRoutes from './routes/intransit.routes';
 import recycleBinRoutes from './routes/recyclebin.routes';
@@ -256,7 +255,6 @@ import userSearchRoutes from './routes/user-search.routes';
 
 app.use('/api/admin/users', userRoutes);
 app.use('/api/users', userSearchRoutes);
-app.use('/api/doconchain', doconChainRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/intransit', intransitRoutes);
 app.use('/api/recycle-bin', recycleBinRoutes);
