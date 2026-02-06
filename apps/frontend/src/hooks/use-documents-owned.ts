@@ -10,10 +10,17 @@ export interface Document {
   contactOrganization: string;
   currentLocation: string;
   type: string;
+  process_type_id?: string | null;
   classification: string;
   status: string;
   activity: string;
   activityTime: string;
+  process_timer_start_at?: string | null;
+  process_timer_complete_at?: string | null;
+  process_status?: 'ongoing' | 'delayed' | 'completed' | null;
+  process_delayed_at?: string | null;
+  process_delay_seconds?: number | null;
+  created_at?: string;
   checkout?: boolean;
   checkedOutBy?: {
     id: string;

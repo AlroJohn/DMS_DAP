@@ -6,8 +6,9 @@ import { DataTableRowActions } from "@/components/reuseable/tables/data-table-ro
 import { DataTableColumnHeader } from "@/components/reuseable/tables/data-table-column-header";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Calendar, Copy, User, Building2, FileText, File } from "lucide-react";
+import { Clock, Copy, User, Building2 } from "lucide-react";
 import { ScanCodes } from "@/components/ui/scan-codes";
+import { CountdownTimer } from "@/components/reuseable/countdown-timer";
 
 export type ReceivedDocument = {
   id: string;
@@ -18,11 +19,28 @@ export type ReceivedDocument = {
   contactPerson: string;
   contactOrganization: string;
   type: string;
+  processTypeId?: string;
+  processTypeName?: string;
   classification: string;
   status: string;
   activity: string;
   activityTime: string;
+  createdAt?: string;
+  processTimerStartAt?: string;
+  processTimerCompleteAt?: string;
   isOwned?: boolean; // Indicates if document was uploaded/created by current department
+};
+
+type ProcessTypeInfo = {
+  name: string;
+  duration_value?: number | null;
+  duration_unit?: string | null;
+};
+
+type ProcessTypeMap = Record<string, ProcessTypeInfo>;
+
+type CreateDocumentColumnsOptions = {
+  processTypeMap?: ProcessTypeMap;
 };
 
 const formatText = (text: string): string => {
@@ -32,7 +50,30 @@ const formatText = (text: string): string => {
     .replace(/^\w/, (c) => c.toUpperCase());
 };
 
-export const columns: ColumnDef<ReceivedDocument>[] = [
+export const createDocumentColumns = (
+  options: CreateDocumentColumnsOptions = {}
+): ColumnDef<ReceivedDocument>[] => {
+  const { processTypeMap = {} } = options;
+
+  const resolveProcessType = (document: ReceivedDocument) => {
+    const processTypeId =
+      document.processTypeId || (document as any).process_type_id || "";
+    const record = processTypeId ? processTypeMap[processTypeId] : undefined;
+    const name = document.processTypeName || record?.name || "";
+    return {
+      id: processTypeId,
+      name,
+      durationValue: record?.duration_value ?? null,
+      durationUnit: record?.duration_unit ?? null,
+    };
+  };
+
+  const resolveProcessTypeName = (document: ReceivedDocument) => {
+    const resolved = resolveProcessType(document);
+    return resolved.name || "N/A";
+  };
+
+  return [
   {
     id: "select",
     header: ({ table }) => (
@@ -131,6 +172,7 @@ export const columns: ColumnDef<ReceivedDocument>[] = [
           document.document?.toLowerCase().includes(searchTerm) ||
           document.documentId?.toLowerCase().includes(searchTerm) ||
           document.type?.toLowerCase().includes(searchTerm) ||
+          resolveProcessTypeName(document).toLowerCase().includes(searchTerm) ||
           document.classification?.toLowerCase().includes(searchTerm) ||
           document.contactPerson?.toLowerCase().includes(searchTerm) ||
           document.contactOrganization?.toLowerCase().includes(searchTerm) ||
@@ -203,6 +245,32 @@ export const columns: ColumnDef<ReceivedDocument>[] = [
       const type = String(row.getValue(id) ?? "").toLowerCase();
       return Array.isArray(value)
         ? (value as string[]).some((v) => String(v).toLowerCase() === type)
+        : false;
+    },
+  },
+  {
+    id: "processType",
+    accessorFn: (row) => resolveProcessTypeName(row),
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Process Type" />
+    ),
+    cell: ({ row }) => {
+      const name = resolveProcessTypeName(row.original);
+      return (
+        <span className="text-xs text-muted-foreground" title={name}>
+          {name}
+        </span>
+      );
+    },
+    enableSorting: true,
+    enableHiding: true,
+    filterFn: (row, id, value) => {
+      if (!value || (Array.isArray(value) && value.length === 0)) return true;
+      const processType = String(row.getValue(id) ?? "").toLowerCase();
+      return Array.isArray(value)
+        ? (value as string[]).some(
+            (v) => String(v).toLowerCase() === processType
+          )
         : false;
     },
   },
@@ -295,7 +363,81 @@ export const columns: ColumnDef<ReceivedDocument>[] = [
     ),
     cell: ({ row }) => {
       const data = row.original;
-      // show date only (no time)
+      const processType = resolveProcessType(data);
+      const startAt =
+        data.processTimerStartAt || data.createdAt || data.activityTime;
+      const isCompleted = Boolean(data.processTimerCompleteAt);
+      const hasTimer = Boolean(processType.durationValue && startAt);
+
+      if (isCompleted) {
+        const completedDate = data.processTimerCompleteAt
+          ? new Date(data.processTimerCompleteAt).toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+            })
+          : "";
+
+        return (
+          <div className="flex flex-col gap-1 text-xs">
+            <div className="flex items-center gap-1">
+              <Clock className="w-2.5 h-2.5 text-emerald-500 flex-shrink-0" />
+              <span className="text-muted-foreground" title="Completed">
+                Completed
+              </span>
+            </div>
+            {completedDate && (
+              <div className="flex items-center gap-1">
+                <Clock className="w-2.5 h-2.5 text-blue-500 flex-shrink-0" />
+                <span className="text-muted-foreground" title={completedDate}>
+                  {completedDate}
+                </span>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      if (hasTimer) {
+        return (
+          <div className="flex flex-col gap-1 text-xs">
+            <div className="flex items-center gap-1">
+              <Clock className="w-2.5 h-2.5 text-emerald-500 flex-shrink-0" />
+              <span className="text-muted-foreground" title="Time left">
+                Time left
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="font-medium text-foreground">
+                <CountdownTimer
+                  startAt={startAt}
+                  durationValue={processType.durationValue || undefined}
+                  durationUnit={processType.durationUnit || undefined}
+                />
+              </span>
+            </div>
+          </div>
+        );
+      }
+
+      if (processType.durationValue) {
+        return (
+          <div className="flex flex-col gap-1 text-xs">
+            <div className="flex items-center gap-1">
+              <Clock className="w-2.5 h-2.5 text-amber-500 flex-shrink-0" />
+              <span className="text-muted-foreground" title="Waiting">
+                Waiting
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground">
+                Awaiting receive
+              </span>
+            </div>
+          </div>
+        );
+      }
+
       const formattedDate = data.activityTime
         ? new Date(data.activityTime).toLocaleDateString("en-US", {
             year: "numeric",
@@ -307,14 +449,14 @@ export const columns: ColumnDef<ReceivedDocument>[] = [
       return (
         <div className="flex flex-col gap-1 text-xs">
           <div className="flex items-center gap-1">
-            <Calendar className="w-2.5 h-2.5 text-emerald-500 flex-shrink-0" />
-            <span className="text-muted-foreground" title="Received">
-              Rec
+            <Clock className="w-2.5 h-2.5 text-emerald-500 flex-shrink-0" />
+            <span className="text-muted-foreground" title="Activity date">
+              Activity
             </span>
           </div>
           {formattedDate && (
             <div className="flex items-center gap-1">
-              <Calendar className="w-2.5 h-2.5 text-blue-500 flex-shrink-0" />
+              <Clock className="w-2.5 h-2.5 text-blue-500 flex-shrink-0" />
               <span className="text-muted-foreground" title={formattedDate}>
                 {formattedDate}
               </span>
@@ -335,4 +477,7 @@ export const columns: ColumnDef<ReceivedDocument>[] = [
     enableSorting: false,
     enableHiding: false,
   },
-];
+  ];
+};
+
+export const columns = createDocumentColumns();

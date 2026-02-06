@@ -6,11 +6,12 @@ import { DataTableRowActions } from "@/components/reuseable/tables/data-table-ro
 import { DataTableColumnHeader } from "@/components/reuseable/tables/data-table-column-header";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Calendar, Copy, User, Building2 } from "lucide-react";
+import { Calendar, Copy, User, Building2, Clock } from "lucide-react";
 
 import { Document } from "@/hooks/use-documents-owned";
 import { ScanCodes } from "@/components/ui/scan-codes";
 import { convertDateTime } from "@/lib/convertDateTime";
+import { CountdownTimer, ElapsedTimer } from "@/components/reuseable/countdown-timer";
 
 export type { Document };
 
@@ -22,15 +23,20 @@ const formatText = (text: string): string => {
 };
 
 type DocumentTypeMap = Record<string, string>;
+type ProcessTypeMap = Record<
+  string,
+  { name?: string; duration_value?: number | null; duration_unit?: string | null }
+>;
 
 type CreateColumnOptions = {
   documentTypeMap?: DocumentTypeMap;
+  processTypeMap?: ProcessTypeMap;
 };
 
 export const createOwnedDocumentColumns = (
   options: CreateColumnOptions = {}
 ): ColumnDef<Document, unknown>[] => {
-  const { documentTypeMap = {} } = options;
+  const { documentTypeMap = {}, processTypeMap = {} } = options;
   const uuidRegex =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -48,6 +54,28 @@ export const createOwnedDocumentColumns = (
     }
 
     return formatText(trimmedValue);
+  };
+
+  const resolveProcessType = (document: Document) => {
+    const processTypeId =
+      document.process_type_id || (document as any).processTypeId || "";
+    const record = processTypeId ? processTypeMap[processTypeId] : undefined;
+    return {
+      id: processTypeId,
+      durationValue: record?.duration_value ?? null,
+      durationUnit: record?.duration_unit ?? null,
+    };
+  };
+
+  const formatDuration = (totalSeconds: number) => {
+    const clamped = Math.max(0, Math.floor(totalSeconds));
+    const days = Math.floor(clamped / 86400);
+    const hours = Math.floor((clamped % 86400) / 3600);
+    const minutes = Math.floor((clamped % 3600) / 60);
+    const seconds = clamped % 60;
+
+    const pad = (value: number) => String(value).padStart(2, "0");
+    return `${days}d ${pad(hours)}h ${pad(minutes)}m ${pad(seconds)}s`;
   };
 
   return [
@@ -306,11 +334,78 @@ export const createOwnedDocumentColumns = (
         const formattedActivityDate = data.activityTime
           ? convertDateTime(data.activityTime, { dateOnly: true })
           : "";
+        const processType = resolveProcessType(data);
+        const startAt =
+          data.process_timer_start_at || data.created_at || data.activityTime;
+        const completedAt = data.process_timer_complete_at;
+        const delaySeconds = data.process_delay_seconds ?? null;
+        const hasDelayedAt = Boolean(data.process_delayed_at);
+        const durationUnit = (processType.durationUnit || "days").toLowerCase();
+        const durationValue = processType.durationValue ?? null;
+        const durationMultiplier =
+          durationUnit === "seconds"
+            ? 1
+            : durationUnit === "minutes"
+              ? 60
+              : durationUnit === "hours"
+                ? 60 * 60
+                : 24 * 60 * 60;
+        const durationSeconds =
+          durationValue && durationValue > 0
+            ? durationValue * durationMultiplier
+            : null;
+        const computedDelayStartAt =
+          !data.process_delayed_at &&
+          startAt &&
+          durationSeconds
+            ? new Date(
+                new Date(startAt).getTime() + durationSeconds * 1000
+              ).toISOString()
+            : null;
+        const delayStartAt = data.process_delayed_at || computedDelayStartAt;
+        const resolvedDelaySeconds =
+          delaySeconds && delaySeconds > 0
+            ? delaySeconds
+            : delayStartAt
+              ? Math.max(
+                  0,
+                  Math.floor(
+                    ((completedAt ? new Date(completedAt) : new Date()).getTime() -
+                      new Date(delayStartAt).getTime()) /
+                      1000
+                  )
+                )
+              : null;
+        const isDelayed =
+          data.process_status === "delayed" ||
+          hasDelayedAt ||
+          (resolvedDelaySeconds !== null && resolvedDelaySeconds > 0);
+        const isCompleted =
+          !isDelayed &&
+          (data.process_status === "completed" || Boolean(completedAt));
+        const completedDurationSeconds =
+          completedAt && startAt
+            ? Math.max(
+                0,
+                Math.floor(
+                  (new Date(completedAt).getTime() -
+                    new Date(startAt).getTime()) /
+                    1000
+                )
+              )
+            : null;
+        const showTimer = Boolean(processType.id);
+        const timerIconClass = isDelayed
+          ? "text-red-500"
+          : "text-emerald-500";
+        const timerTextClass = isDelayed
+          ? "text-red-500"
+          : "text-foreground";
         return (
           <div className="flex flex-col gap-1.5 text-xs">
             <div className="flex items-center gap-1.5">
               <Calendar className="w-3 h-3 text-orange-500" />
-              <span className="text-muted-foreground">{data.activity}</span>
+              <span className="text-muted-foreground">Created</span>
             </div>
             {formattedActivityDate && (
               <div className="flex items-center gap-1.5">
@@ -318,6 +413,43 @@ export const createOwnedDocumentColumns = (
                 <span className="text-muted-foreground">
                   {formattedActivityDate}
                 </span>
+              </div>
+            )}
+            {showTimer && (
+              <div className="flex items-center gap-1.5">
+                <Clock className={`w-3 h-3 ${timerIconClass}`} />
+                {isDelayed ? (
+                  <span className={`font-medium ${timerTextClass}`}>
+                    Delayed for{" "}
+                    {delayStartAt ? (
+                      <ElapsedTimer
+                        startAt={delayStartAt}
+                        endAt={completedAt}
+                      />
+                    ) : resolvedDelaySeconds !== null ? (
+                      formatDuration(resolvedDelaySeconds)
+                    ) : (
+                      "0d 00h 00m 00s"
+                    )}
+                  </span>
+                ) : isCompleted ? (
+                  <span className="text-muted-foreground">
+                    {completedDurationSeconds !== null
+                      ? `Completed in ${formatDuration(completedDurationSeconds)}`
+                      : "Completed"}
+                  </span>
+                ) : startAt && processType.durationValue ? (
+                  <span className={`font-medium ${timerTextClass}`}>
+                    <CountdownTimer
+                      startAt={startAt}
+                      durationValue={processType.durationValue || undefined}
+                      durationUnit={processType.durationUnit || undefined}
+                      className={timerTextClass}
+                    />
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Waiting</span>
+                )}
               </div>
             )}
           </div>

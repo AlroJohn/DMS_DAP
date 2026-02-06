@@ -1,7 +1,9 @@
 import { prisma } from '../lib/prisma';
 import { NotificationService } from './notification.service';
+import { ProcessStatusService } from './process-status.service';
 
 const notificationService = new NotificationService();
+const processStatusService = new ProcessStatusService();
 
 export class DocumentTrailsService {
   /**
@@ -243,6 +245,14 @@ export class DocumentTrailsService {
 
       // Send notification based on the action and status
       await this.handleDocumentTrailNotification(trail);
+
+      if (trail.status === 'received' || trail.status === 'completed') {
+        try {
+          await processStatusService.syncForDocument(trail.document_id);
+        } catch (syncError) {
+          console.error('Error syncing ProcessStatus:', syncError);
+        }
+      }
 
       return trail;
     } catch (error) {

@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDocumentTypes } from "@/hooks/use-document-types";
+import { useProcessType } from "@/hooks/use-process.type";
 import {
   useFileIntegrity,
   detectPotentialCorruption,
@@ -67,6 +68,7 @@ export function UploadDocumentModal({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedType, setSelectedType] = useState("");
+  const [selectedProcessType, setSelectedProcessType] = useState("");
   const [selectedClassification, setSelectedClassification] =
     useState("simple");
   const [selectedOrigin, setSelectedOrigin] = useState("external");
@@ -79,6 +81,7 @@ export function UploadDocumentModal({
 
   // Fetch data from database
   const { documentTypes, isLoading: typesLoading } = useDocumentTypes();
+  const { processTypes, loading: processTypesLoading } = useProcessType();
 
   // File integrity checking
   const { verifyFile } = useFileIntegrity({ maxInlineChecksumMB });
@@ -185,6 +188,9 @@ export function UploadDocumentModal({
       formData.append("description", description || "");
       formData.append("classification", selectedClassification);
       formData.append("type_id", selectedType);
+      if (selectedProcessType) {
+        formData.append("process_type_id", selectedProcessType);
+      }
       formData.append("origin", selectedOrigin);
       formData.append("enableOcr", String(enableOcr));
       formData.append("file", files[0]); // Only send the first file to create the document
@@ -281,6 +287,7 @@ export function UploadDocumentModal({
       setTitle("");
       setDescription("");
       setSelectedType("");
+      setSelectedProcessType("");
       setSelectedClassification("simple");
       onOpenChange(false);
     } catch (error: any) {
@@ -540,7 +547,7 @@ export function UploadDocumentModal({
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="type" className="text-sm font-medium">
                         Document Type *
@@ -576,6 +583,56 @@ export function UploadDocumentModal({
                               {type.name}
                             </SelectItem>
                           ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="processType"
+                        className="text-sm font-medium"
+                      >
+                        Process Type
+                      </Label>
+                      <Select
+                        disabled={processTypesLoading}
+                        value={selectedProcessType}
+                        onValueChange={setSelectedProcessType}
+                      >
+                        <SelectTrigger
+                          className={`${
+                            selectedProcessType
+                              ? "border-primary/50 ring-1 ring-primary/20"
+                              : ""
+                          } text-base w-full transition-all focus:ring-2 focus:ring-primary/30 focus:border-primary`}
+                        >
+                          <SelectValue
+                            placeholder={
+                              processTypesLoading
+                                ? "Loading..."
+                                : "Select process type"
+                            }
+                          />
+                          {processTypesLoading && (
+                            <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                          )}
+                        </SelectTrigger>
+                        <SelectContent>
+                          {processTypes
+                            .filter((type) => type.is_active)
+                            .map((type) => (
+                              <SelectItem
+                                key={type.process_type_id}
+                                value={type.process_type_id}
+                                className="text-base py-2 px-3"
+                              >
+                                {type.name}
+                                {type.duration_value
+                                  ? ` · ${type.duration_value} ${
+                                      type.duration_unit || "days"
+                                    }`
+                                  : ""}
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                     </div>

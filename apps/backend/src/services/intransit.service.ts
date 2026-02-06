@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import bwipjs from 'bwip-js';
 import { DocumentService } from './document.service';
 import { DocumentTrailsService } from './document-trails.service';
+import { ProcessStatusService } from './process-status.service';
 import { getSocketInstance } from '../socket';
 
 interface PaginationParams {
@@ -772,6 +773,14 @@ export class IntransitService {
         });
       } catch (error) {
         console.error('Error creating document trail for document completion:', error);
+      }
+
+      // Ensure ProcessStatus reflects completion (in case trail sync did not run)
+      try {
+        const processStatusService = new ProcessStatusService();
+        await processStatusService.syncForDocument(documentId);
+      } catch (syncError) {
+        console.error('Error syncing ProcessStatus after completion:', syncError);
       }
 
       // Emit socket event to notify frontends of document completion
