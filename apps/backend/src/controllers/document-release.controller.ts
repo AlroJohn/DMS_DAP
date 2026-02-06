@@ -16,7 +16,17 @@ export class DocumentReleaseController {
    */
   releaseDocument = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
+    
+    // Helper function to extract string value from potentially array parameter
+    const getStringValue = (param: string | string[] | undefined): string | undefined => {
+      if (Array.isArray(param)) {
+        return param[0]; // Take the first value if it's an array
+      }
+      return param;
+    };
+    
     const { id } = req.params;
+    const idStr = getStringValue(id);
     const {
       departmentId,
       departmentIds,
@@ -33,8 +43,8 @@ export class DocumentReleaseController {
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
-      console.log('📍 [DocumentReleaseController.releaseDocument] Invalid document ID format:', id);
+    if (!idStr || !uuidRegex.test(idStr)) {
+      console.log('📍 [DocumentReleaseController.releaseDocument] Invalid document ID format:', idStr);
       return sendError(res, 'Invalid document ID format', 400);
     }
 
@@ -163,7 +173,7 @@ export class DocumentReleaseController {
         );
       }
       const result = await this.documentReleaseService.releaseDocument(
-        id,
+        idStr,
         targetDepartmentId,
         actionsForDepartment, // Could be string or string[]
         remarks,
@@ -193,23 +203,33 @@ export class DocumentReleaseController {
    */
   receiveDocument = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
+    
+    // Helper function to extract string value from potentially array parameter
+    const getStringValue = (param: string | string[] | undefined): string | undefined => {
+      if (Array.isArray(param)) {
+        return param[0]; // Take the first value if it's an array
+      }
+      return param;
+    };
+    
     const { id } = req.params;
+    const idStr = getStringValue(id);
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
-      console.log('📍 [DocumentReleaseController.receiveDocument] Invalid document ID format:', id);
+    if (!idStr || !uuidRegex.test(idStr)) {
+      console.log('📍 [DocumentReleaseController.receiveDocument] Invalid document ID format:', idStr);
       return sendError(res, 'Invalid document ID format', 400);
     }
 
     const existingDocument = await this.documentReleaseService['prisma'].document.findUnique({
-      where: { document_id: id }
+      where: { document_id: idStr }
     });
     if (!existingDocument) {
       return sendError(res, 'Document not found', 404);
     }
 
-    const canAccess = await this.checkUserCanAccessDocument(id, authReq.user.id);
+    const canAccess = await this.checkUserCanAccessDocument(idStr, authReq.user.id);
     if (!canAccess) {
       // Perform individual checks to provide more specific error messages
       const user = await this.documentReleaseService['prisma'].user.findUnique({
@@ -229,7 +249,7 @@ export class DocumentReleaseController {
       // Check if user's department matches the to_department in the latest transit trail
       const latestTransitTrail = await this.documentReleaseService['prisma'].documentTrail.findFirst({
         where: {
-          document_id: id,
+          document_id: idStr,
           status: 'intransit',
           to_department: user.department_id
         },
@@ -247,7 +267,7 @@ export class DocumentReleaseController {
 
       // Check if user's department is in the workflow
       const documentWithDetails = await this.documentReleaseService['prisma'].document.findUnique({
-        where: { document_id: id },
+        where: { document_id: idStr },
         include: { DocumentAdditionalDetails: true }
       });
 
@@ -282,7 +302,7 @@ export class DocumentReleaseController {
       return sendError(res, 'You do not have permission to receive this document', 403);
     }
 
-    const result = await this.documentReleaseService.receiveDocument(id, authReq.user.id);
+    const result = await this.documentReleaseService.receiveDocument(idStr, authReq.user.id);
 
     if (!result.success) {
       return sendError(res, result.error || 'Failed to receive document', 500);

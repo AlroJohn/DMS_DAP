@@ -419,7 +419,20 @@ export class AuthController {
    */
   getUserRoles = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
+    
+    // Helper function to extract string value from potentially array parameter
+    const getStringValue = (param: string | string[] | undefined): string | undefined => {
+      if (Array.isArray(param)) {
+        return param[0]; // Take the first value if it's an array
+      }
+      return param;
+    };
+    
     const { userId } = req.params;
+    const userIdStr = getStringValue(userId);
+    if (!userIdStr) {
+      return sendError(res, 'userId is required', 400);
+    }
 
     // Check if user has role read permissions
     const canReadRoles = await this.permissionService.hasPermission(
@@ -432,7 +445,7 @@ export class AuthController {
     }
 
     try {
-      const roles = await this.permissionService.getUserRoles(userId);
+      const roles = await this.permissionService.getUserRoles(userIdStr);
       return sendSuccess(res, roles);
     } catch (error: any) {
       return sendError(res, error.message, 500);
@@ -444,7 +457,20 @@ export class AuthController {
    */
   assignRoleToUser = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
+    
+    // Helper function to extract string value from potentially array parameter
+    const getStringValue = (param: string | string[] | undefined): string | undefined => {
+      if (Array.isArray(param)) {
+        return param[0]; // Take the first value if it's an array
+      }
+      return param;
+    };
+    
     const { userId } = req.params;
+    const userIdStr = getStringValue(userId);
+    if (!userIdStr) {
+      return sendError(res, 'userId is required', 400);
+    }
     const { roleId, expiresAt } = req.body;
 
     // Check if user has role assignment permissions
@@ -463,7 +489,7 @@ export class AuthController {
 
     try {
       const success = await this.permissionService.assignRoleToUser(
-        userId,
+        userIdStr,
         roleId,
         authReq.user.id,
         expiresAt ? new Date(expiresAt) : undefined
@@ -484,7 +510,24 @@ export class AuthController {
    */
   removeRoleFromUser = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
+    
+    // Helper function to extract string value from potentially array parameter
+    const getStringValue = (param: string | string[] | undefined): string | undefined => {
+      if (Array.isArray(param)) {
+        return param[0]; // Take the first value if it's an array
+      }
+      return param;
+    };
+    
     const { userId, roleId } = req.params;
+    const userIdStr = getStringValue(userId);
+    const roleIdStr = getStringValue(roleId);
+    if (!userIdStr) {
+      return sendError(res, 'userId is required', 400);
+    }
+    if (!roleIdStr) {
+      return sendError(res, 'roleId is required', 400);
+    }
 
     // Check if user has role assignment permissions
     const canAssignRoles = await this.permissionService.hasPermission(
@@ -497,7 +540,7 @@ export class AuthController {
     }
 
     try {
-      const success = await this.permissionService.removeRoleFromUser(userId, roleId);
+      const success = await this.permissionService.removeRoleFromUser(userIdStr, roleIdStr);
 
       if (success) {
         return sendSuccess(res, { message: 'Role removed successfully' });

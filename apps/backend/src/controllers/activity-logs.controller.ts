@@ -10,6 +10,14 @@ export class ActivityLogsController {
     this.activityLogsService = new ActivityLogsService();
   }
 
+  // Helper method to extract string value from potentially array parameter
+  private getStringValue = (param: string | string[] | undefined): string | undefined => {
+    if (Array.isArray(param)) {
+      return param[0];
+    }
+    return param;
+  };
+
   /**
    * Get activity logs with optional filters
    */
@@ -124,7 +132,7 @@ export class ActivityLogsController {
         return res.status(401).json({ success: false, error: 'Unauthorized' });
       }
 
-      const { documentId } = req.params;
+      const documentId = this.getStringValue(req.params.documentId);
 
       if (!documentId) {
         return res.status(400).json({

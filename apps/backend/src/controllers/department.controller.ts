@@ -10,6 +10,14 @@ export class DepartmentController {
     this.departmentService = new DepartmentService();
   }
 
+  // Helper method to extract string value from potentially array parameter
+  private getStringValue = (param: string | string[] | undefined): string | undefined => {
+    if (Array.isArray(param)) {
+      return param[0];
+    }
+    return param;
+  };
+
   // Get all departments with pagination
   async getAllDepartments(req: Request, res: Response) {
     try {
@@ -45,9 +53,25 @@ export class DepartmentController {
   // Get a specific department by ID
   async getDepartmentById(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      // Helper function to extract string value from potentially array parameter
+      const getStringValue = (param: string | string[] | undefined): string | undefined => {
+        if (Array.isArray(param)) {
+          return param[0]; // Take the first value if it's an array
+        }
+        return param;
+      };
       
-      const department = await this.departmentService.getDepartmentById(id);
+      const { id } = req.params;
+      const idStr = getStringValue(id);
+
+      if (!idStr) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid department ID'
+        });
+      }
+
+      const department = await this.departmentService.getDepartmentById(idStr);
 
       if (!department) {
         return res.status(404).json({
@@ -128,10 +152,26 @@ export class DepartmentController {
   // Update a department
   async updateDepartment(req: Request, res: Response) {
     try {
+      // Helper function to extract string value from potentially array parameter
+      const getStringValue = (param: string | string[] | undefined): string | undefined => {
+        if (Array.isArray(param)) {
+          return param[0]; // Take the first value if it's an array
+        }
+        return param;
+      };
+      
       const { id } = req.params;
+      const idStr = getStringValue(id);
       const { name, code, active, group_id, groupId, center_id, centerId } = req.body;
 
       // Validation
+      if (!idStr) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid department ID'
+        });
+      }
+
       if (!name || !code || active === undefined) {
         return res.status(400).json({
           success: false,
@@ -141,7 +181,7 @@ export class DepartmentController {
 
       try {
         const updatedDepartment = await this.departmentService.updateDepartment(
-          id,
+          idStr,
           name,
           code.toUpperCase(),
           active,
@@ -182,10 +222,26 @@ export class DepartmentController {
   // Delete a department (permanently)
   async deleteDepartment(req: Request, res: Response) {
     try {
+      // Helper function to extract string value from potentially array parameter
+      const getStringValue = (param: string | string[] | undefined): string | undefined => {
+        if (Array.isArray(param)) {
+          return param[0]; // Take the first value if it's an array
+        }
+        return param;
+      };
+      
       const { id } = req.params;
+      const idStr = getStringValue(id);
+
+      if (!idStr) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid department ID'
+        });
+      }
 
       try {
-        await this.departmentService.hardDeleteDepartment(id);
+        await this.departmentService.hardDeleteDepartment(idStr);
 
         res.json({
           success: true,
@@ -214,10 +270,26 @@ export class DepartmentController {
   // Toggle department active status
   async toggleDepartmentStatus(req: Request, res: Response) {
     try {
+      // Helper function to extract string value from potentially array parameter
+      const getStringValue = (param: string | string[] | undefined): string | undefined => {
+        if (Array.isArray(param)) {
+          return param[0]; // Take the first value if it's an array
+        }
+        return param;
+      };
+      
       const { id } = req.params;
+      const idStr = getStringValue(id);
+
+      if (!idStr) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid department ID'
+        });
+      }
 
       try {
-        const updatedDepartment = await this.departmentService.toggleDepartmentStatus(id);
+        const updatedDepartment = await this.departmentService.toggleDepartmentStatus(idStr);
 
         res.json({
           success: true,
@@ -247,7 +319,13 @@ export class DepartmentController {
   // Get users by department ID
   async getUsersByDepartment(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = this.getStringValue(req.params.id);
+      if (!id) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid department ID'
+        });
+      }
 
       const users = await this.departmentService.getUsersByDepartmentId(id);
 

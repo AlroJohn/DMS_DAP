@@ -14,6 +14,14 @@ export class InvitationController {
     this.permissionService = new PermissionService();
   }
 
+  // Helper method to extract string value from potentially array parameter
+  private getStringValue = (param: string | string[] | undefined): string | undefined => {
+    if (Array.isArray(param)) {
+      return param[0];
+    }
+    return param;
+  };
+
   /**
    * POST /api/admin/invitations - Create new invitation (admin only)
    */
@@ -90,7 +98,7 @@ export class InvitationController {
    * GET /api/invitations/:token - Get invitation details by token
    */
   getInvitationByToken = asyncHandler(async (req: Request, res: Response) => {
-    const { token } = req.params;
+    const token = this.getStringValue(req.params.token);
 
     if (!token) {
       return sendError(res, 'Invitation token is required', 400);
@@ -122,7 +130,7 @@ export class InvitationController {
    * POST /api/invitations/:token/accept - Accept invitation and create account
    */
   acceptInvitation = asyncHandler(async (req: Request, res: Response) => {
-    const { token } = req.params;
+    const token = this.getStringValue(req.params.token);
     const { password } = req.body;
 
     if (!token) {
@@ -159,7 +167,7 @@ export class InvitationController {
       return sendError(res, 'Only administrators can cancel invitations', 403);
     }
 
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
 
     if (!id) {
       return sendError(res, 'Invitation ID is required', 400);
@@ -190,7 +198,7 @@ export class InvitationController {
       return sendError(res, 'Only administrators can resend invitations', 403);
     }
 
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
 
     if (!id) {
       return sendError(res, 'Invitation ID is required', 400);
@@ -205,7 +213,6 @@ export class InvitationController {
     }
   });
 }
-
 
 
 

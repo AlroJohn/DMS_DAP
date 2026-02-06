@@ -9,13 +9,21 @@ export class ArchiveController {
     this.archiveService = new ArchiveService();
   }
 
+  // Helper method to extract string value from potentially array parameter
+  private getStringValue = (param: string | string[] | undefined): string | undefined => {
+    if (Array.isArray(param)) {
+      return param[0]; // Take the first value if it's an array
+    }
+    return param;
+  };
+
   /**
    * Archive a document
    */
   archiveDocument = async (req: Request, res: Response): Promise<void> => {
     try {
       const authReq = req as AuthRequest; // Cast to AuthRequest to access user info
-      const { documentId } = req.params;
+      const documentId = this.getStringValue(req.params.documentId);
       const userId = authReq.user?.id; // Use authReq.user.id
 
       console.log('📍 [ArchiveController.archiveDocument] Request params:', req.params);
@@ -64,7 +72,7 @@ export class ArchiveController {
   restoreDocument = async (req: Request, res: Response): Promise<void> => {
     try {
       const authReq = req as AuthRequest; // Cast to AuthRequest to access user info
-      const { documentId } = req.params;
+      const documentId = this.getStringValue(req.params.documentId);
       const userId = authReq.user?.id; // Use authReq.user.id
 
       if (!userId) {
@@ -130,7 +138,7 @@ export class ArchiveController {
   getArchivedDocument = async (req: Request, res: Response): Promise<void> => {
     try {
       const authReq = req as AuthRequest;
-      const { documentId } = req.params;
+      const documentId = this.getStringValue(req.params.documentId);
       const userId = authReq.user?.id; // Get the authenticated user's ID
 
       if (!documentId) {

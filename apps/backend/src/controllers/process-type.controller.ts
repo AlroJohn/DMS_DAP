@@ -1,6 +1,13 @@
 import { Request, Response } from 'express';
 import { createProcessType, updateProcessType, getAllProcessTypes, getProcessTypeById, deleteProcessType } from '../services/process-type.service';
 
+const getStringValue = (param: string | string[] | undefined): string | undefined => {
+  if (Array.isArray(param)) {
+    return param[0];
+  }
+  return param;
+};
+
 export const createProcessTypeHandler = async (req: Request, res: Response) => {
   try {
     const { code, name, description, duration_value, duration_unit, is_active } = req.body;
@@ -31,7 +38,10 @@ export const getAllProcessTypesHandler = async (req: Request, res: Response) => 
 
 export const getProcessTypeByIdHandler = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getStringValue(req.params.id);
+    if (!id) {
+      return res.status(400).json({ error: 'Process type ID is required' });
+    }
     const processType = await getProcessTypeById(id);
     
     if (!processType) {
@@ -46,7 +56,10 @@ export const getProcessTypeByIdHandler = async (req: Request, res: Response) => 
 
 export const updateProcessTypeHandler = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getStringValue(req.params.id);
+    if (!id) {
+      return res.status(400).json({ error: 'Process type ID is required' });
+    }
     const { code, name, description, duration_value, duration_unit, is_active } = req.body;
     
     const processType = await updateProcessType(id, {
@@ -66,7 +79,10 @@ export const updateProcessTypeHandler = async (req: Request, res: Response) => {
 
 export const deleteProcessTypeHandler = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getStringValue(req.params.id);
+    if (!id) {
+      return res.status(400).json({ error: 'Process type ID is required' });
+    }
     await deleteProcessType(id);
     res.json({ message: 'Process type deleted successfully' });
   } catch (error) {

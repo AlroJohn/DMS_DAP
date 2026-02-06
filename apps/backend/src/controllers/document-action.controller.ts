@@ -9,6 +9,14 @@ export class DocumentActionController {
     this.documentActionService = new DocumentActionService();
   }
 
+  // Helper method to extract string value from potentially array parameter
+  private getStringValue = (param: string | string[] | undefined): string | undefined => {
+    if (Array.isArray(param)) {
+      return param[0];
+    }
+    return param;
+  };
+
   async getAllDocumentActions(req: Request, res: Response) {
     try {
       // Check if there's a query parameter to get only active actions
@@ -30,7 +38,10 @@ export class DocumentActionController {
 
   async getDocumentActionById(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = this.getStringValue(req.params.id);
+      if (!id) {
+        return res.status(400).json({ success: false, message: 'Document action ID is required' });
+      }
       const documentAction = await this.documentActionService.getDocumentActionById(id);
       if (!documentAction) {
         return res.status(404).json({ success: false, message: 'Document action not found' });
@@ -65,7 +76,10 @@ export class DocumentActionController {
 
   async updateDocumentAction(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = this.getStringValue(req.params.id);
+      if (!id) {
+        return res.status(400).json({ success: false, message: 'Document action ID is required' });
+      }
       const { action_name, description, sender_tag, recipient_tag, action_date, status } = req.body;
       const updatedDocumentAction = await this.documentActionService.updateDocumentAction(id, {
         action_name,
@@ -87,7 +101,10 @@ export class DocumentActionController {
 
   async deleteDocumentAction(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = this.getStringValue(req.params.id);
+      if (!id) {
+        return res.status(400).json({ success: false, message: 'Document action ID is required' });
+      }
       const deletedDocumentAction = await this.documentActionService.deleteDocumentAction(id);
       if (!deletedDocumentAction) {
         return res.status(404).json({ success: false, message: 'Document action not found' });
@@ -101,7 +118,10 @@ export class DocumentActionController {
 
   async toggleDocumentActionStatus(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = this.getStringValue(req.params.id);
+      if (!id) {
+        return res.status(400).json({ success: false, message: 'Document action ID is required' });
+      }
       const updatedAction = await this.documentActionService.toggleDocumentActionStatus(id);
       res.json({
         success: true,

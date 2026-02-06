@@ -3,6 +3,14 @@ import { homeCMSService } from "../services/home-cms.service";
 import { fileUploadService } from "../services/file-upload.service";
 
 export class HomeCMSController {
+  // Helper method to extract string value from potentially array parameter
+  private getStringValue = (param: string | string[] | undefined): string | undefined => {
+    if (Array.isArray(param)) {
+      return param[0];
+    }
+    return param;
+  };
+
   /**
    * Upload file for home CMS (logo or video)
    */
@@ -161,7 +169,7 @@ export class HomeCMSController {
    */
   async deleteCMS(req: Request, res: Response) {
     try {
-      const { cmsId } = req.params;
+      const cmsId = this.getStringValue(req.params.cmsId);
 
       if (!cmsId) {
         return res.status(400).json({

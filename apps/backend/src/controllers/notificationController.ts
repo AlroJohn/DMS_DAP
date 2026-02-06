@@ -3,6 +3,13 @@ import { getSocketInstance } from '../socket';
 import { AuthRequest } from '../middleware/auth-middleware';
 import { prisma } from '../lib/prisma';
 
+const getStringValue = (param: string | string[] | undefined): string | undefined => {
+  if (Array.isArray(param)) {
+    return param[0];
+  }
+  return param;
+};
+
 export const getNotifications = async (req: Request, res: Response) => {
   try {
     const authReq = req as AuthRequest;
@@ -78,7 +85,10 @@ export const markNotificationAsRead = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
     const userId = authReq.user.id;
-    const { notificationId } = req.params;
+    const notificationId = getStringValue(req.params.notificationId);
+    if (!notificationId) {
+      return res.status(400).json({ error: 'Notification ID is required' });
+    }
 
     const notification = await prisma.notification.update({
       where: {
@@ -195,7 +205,10 @@ export const deleteNotification = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
     const userId = authReq.user.id;
-    const { notificationId } = req.params;
+    const notificationId = getStringValue(req.params.notificationId);
+    if (!notificationId) {
+      return res.status(400).json({ error: 'Notification ID is required' });
+    }
 
     // Instead of hard delete, mark as deleted to maintain data integrity
     const notification = await prisma.notification.update({

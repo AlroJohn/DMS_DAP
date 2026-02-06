@@ -12,12 +12,23 @@ export class DocumentCheckoutController {
     this.checkoutService = new DocumentCheckoutService();
   }
 
+  // Helper method to extract string value from potentially array parameter
+  private getStringValue = (param: string | string[] | undefined): string | undefined => {
+    if (Array.isArray(param)) {
+      return param[0];
+    }
+    return param;
+  };
+
   /**
    * POST /api/files/:fileId/checkout
    */
   checkoutFile = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { fileId } = req.params;
+    const fileId = this.getStringValue(req.params.fileId);
+    if (!fileId) {
+      return sendError(res, 'File ID is required', 400);
+    }
 
     const result: CheckoutResult = await this.checkoutService.checkoutFile(fileId, authReq.user.id);
 
@@ -33,7 +44,10 @@ export class DocumentCheckoutController {
    */
   checkinFile = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { fileId } = req.params;
+    const fileId = this.getStringValue(req.params.fileId);
+    if (!fileId) {
+      return sendError(res, 'File ID is required', 400);
+    }
 
     const result: CheckoutResult = await this.checkoutService.checkinFile(fileId, authReq.user.id);
 
@@ -49,7 +63,10 @@ export class DocumentCheckoutController {
    */
   overrideFileCheckout = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { fileId } = req.params;
+    const fileId = this.getStringValue(req.params.fileId);
+    if (!fileId) {
+      return sendError(res, 'File ID is required', 400);
+    }
 
     const result: CheckoutResult = await this.checkoutService.overrideFileCheckout(fileId, authReq.user.id);
 
@@ -64,7 +81,10 @@ export class DocumentCheckoutController {
    * GET /api/files/:fileId/status
    */
   getFileCheckoutStatus = asyncHandler(async (req: Request, res: Response) => {
-    const { fileId } = req.params;
+    const fileId = this.getStringValue(req.params.fileId);
+    if (!fileId) {
+      return sendError(res, 'File ID is required', 400);
+    }
     const result: CheckoutResult<{ checked_out_by: string; checked_out_at: Date; } | null> = await this.checkoutService.getCheckoutStatus(fileId);
 
     if (!result.success) {

@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import type { ParsedQs } from 'qs';
 import { AccessHistoryService } from '../services/access-history.service';
 import { AuthRequest } from '../middleware/auth-middleware';
 import { prisma } from '../lib/prisma';
@@ -9,6 +10,17 @@ export class AccessHistoryController {
   constructor() {
     this.accessHistoryService = new AccessHistoryService();
   }
+
+  // Helper method to extract string value from potentially array parameter
+  private getStringValue = (
+    param: string | string[] | ParsedQs | ParsedQs[] | undefined
+  ): string | undefined => {
+    if (Array.isArray(param)) {
+      const first = param[0];
+      return typeof first === 'string' ? first : undefined;
+    }
+    return typeof param === 'string' ? param : undefined;
+  };
 
   /**
    * Get access history logs with optional filters
@@ -44,12 +56,12 @@ export class AccessHistoryController {
 
       const filters: any = {};
 
-      if (startDate) filters.startDate = new Date(startDate as string);
-      if (endDate) filters.endDate = new Date(endDate as string);
-      if (userId) filters.userId = userId as string;
-      if (documentId) filters.documentId = documentId as string;
-      if (limit) filters.limit = parseInt(limit as string, 10);
-      if (offset) filters.offset = parseInt(offset as string, 10);
+      if (startDate) filters.startDate = new Date(this.getStringValue(startDate) || '');
+      if (endDate) filters.endDate = new Date(this.getStringValue(endDate) || '');
+      if (userId) filters.userId = this.getStringValue(userId);
+      if (documentId) filters.documentId = this.getStringValue(documentId);
+      if (limit) filters.limit = parseInt(this.getStringValue(limit) || '0', 10);
+      if (offset) filters.offset = parseInt(this.getStringValue(offset) || '0', 10);
 
       const result = await this.accessHistoryService.getAccessHistory(
         user.department_id,
@@ -171,10 +183,10 @@ export class AccessHistoryController {
 
       const filters: any = {};
 
-      if (startDate) filters.startDate = new Date(startDate as string);
-      if (endDate) filters.endDate = new Date(endDate as string);
-      if (limit) filters.limit = parseInt(limit as string, 10);
-      if (offset) filters.offset = parseInt(offset as string, 10);
+      if (startDate) filters.startDate = new Date(this.getStringValue(startDate) || '');
+      if (endDate) filters.endDate = new Date(this.getStringValue(endDate) || '');
+      if (limit) filters.limit = parseInt(this.getStringValue(limit) || '0', 10);
+      if (offset) filters.offset = parseInt(this.getStringValue(offset) || '0', 10);
 
       const result = await this.accessHistoryService.getAccessHistoryByUser(
         userId,
