@@ -29,7 +29,11 @@ export const getColumns = ({
   onSign,
 }: {
   onSign: (document: SharedDocument) => void;
-}): ColumnDef<SharedDocument>[] => [
+}): ColumnDef<SharedDocument>[] => {
+  // Debug log to see what data we're getting
+  console.log('🔍 Columns: Sample document data for debugging');
+  
+  return [
   {
     id: "select",
     header: ({ table }) => (
@@ -85,6 +89,13 @@ export const getColumns = ({
     ),
     cell: ({ row }) => {
       const d = row.original;
+      
+      // Debug log
+      console.log('🔍 Document in row:', d.documentId, {
+        assignedActionType: d.assignedActionType,
+        hasAssignedSignature: d.hasAssignedSignature,
+        fullDoc: d
+      });
 
       return (
         <div className="flex flex-col gap-1.5 py-1 min-w-45 max-w-60">
@@ -311,3 +322,4 @@ export const getColumns = ({
     enableHiding: false,
   },
 ];
+};

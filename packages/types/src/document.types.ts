@@ -19,6 +19,7 @@ export interface SharedDocument {
   } | null;
   checkedOutAt?: string | null;
   hasAssignedSignature?: boolean;  // Indicates if user has signature placeholders assigned
+  assignedActionType?: string | null;  // The action type assigned to the user (e.g., "FOR APPROVAL")
 }
 
 export interface Document {
@@ -41,6 +42,7 @@ export interface Document {
     email?: string;
   } | null;
   checkedOutAt?: string | null;
+  assignedActionType?: string | null;  // The action type assigned to the user (e.g., "FOR APPROVAL")
 }
 
 export interface Pagination {

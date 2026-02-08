@@ -30,7 +30,10 @@ export class SharedDocumentController {
 
       const result = await this.sharedDocumentService.getSharedDocuments(userId, page, limit);
 
-      res.json(result);
+      // Return in the format expected by the frontend
+      return sendSuccess(res, result.data, 200, {
+        pagination: result.pagination
+      });
     } catch (error) {
       console.error('Error in getSharedDocuments:', error);
       res.status(500).json({ error: 'Failed to fetch shared documents' });

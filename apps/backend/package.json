@@ -12,8 +12,7 @@
     "db:reset": "node scripts/run-prisma.cjs migrate reset --force",
     "db:push": "node scripts/run-prisma.cjs db push",
     "db:migrate": "node scripts/run-prisma.cjs migrate dev",
-    "db:studio": "node scripts/run-prisma.cjs studio",
-    "fix:document-types": "tsx src/scripts/fix-document-types.ts"
+    "db:studio": "node scripts/run-prisma.cjs studio"
   },
   "keywords": [],
   "author": "",

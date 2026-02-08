@@ -463,12 +463,18 @@ export function DataTableRowActions<TData>({
   // Check if user has signature placeholders assigned (for shared documents)
   const hasAssignedSignature = (document as any).hasAssignedSignature || false;
   
+  // Check if user has an assigned action type (for shared documents)
+  const assignedActionType = (document as any).assignedActionType || null;
+  
   // Debug logging for shared documents
   if (viewType === "shared") {
-    console.log('🔍 Document:', document.documentId, {
+    console.log('🔍 [DataTableRowActions] Document:', document.documentId, {
       hasAssignedSignature,
+      assignedActionType,
+      assignedActionTypeUpper: assignedActionType?.toUpperCase(),
       canSignDoc,
       canEditDoc,
+      canRelease,
       fullDocument: document
     });
   }
@@ -478,23 +484,40 @@ export function DataTableRowActions<TData>({
   const showViewDetails = canViewDetails;
   const showViewDocument = canViewDoc;
   
-  // For shared documents, only show sign actions if user has signature placeholders assigned
+  // For shared documents with "FOR APPROVAL" action, show specific buttons
+  // Make comparison more flexible - check if it contains "APPROVAL"
+  const isForApproval = viewType === "shared" && assignedActionType && 
+    assignedActionType.toUpperCase().includes("APPROVAL");
+  
+  console.log('🔍 [DataTableRowActions] isForApproval check:', {
+    viewType,
+    assignedActionType,
+    isForApproval
+  });
+  
+  // For shared documents, adjust permissions based on assigned action
   const showSignDocument = viewType === "shared" 
-    ? (canSignDoc && hasAssignedSignature) 
+    ? (isForApproval ? true : (canSignDoc && hasAssignedSignature))
     : canSignDoc;
   
-  // Hide "Edit Details" for shared documents
-  const showEditDetails = viewType === "shared" ? false : canEditDetails;
+  // Hide "Edit Details" for shared documents unless FOR APPROVAL
+  const showEditDetails = viewType === "shared" ? isForApproval : canEditDetails;
   
-  const showEditDocument = canEditDoc;
-  
-  // For shared documents, only show signature placeholder if user has signature placeholders assigned
-  const showSignaturePlaceholder = viewType === "shared" 
-    ? (canEditDoc && hasAssignedSignature) 
+  const showEditDocument = viewType === "shared" 
+    ? isForApproval 
     : canEditDoc;
   
-  const showRelease = canRelease && !isAlreadyReleased; // Release is hidden when document is already in-transit
-  const showComplete = canComplete && !isDispatch; // Complete shows when not pending status
+  // For shared documents, show signature placeholder if FOR APPROVAL or if user has signature placeholders assigned
+  const showSignaturePlaceholder = viewType === "shared" 
+    ? (isForApproval ? true : (canEditDoc && hasAssignedSignature))
+    : canEditDoc;
+  
+  const showRelease = isForApproval 
+    ? true 
+    : (canRelease && !isAlreadyReleased); // Release is hidden when document is already in-transit
+  const showComplete = isForApproval 
+    ? true 
+    : (canComplete && !isDispatch); // Complete shows when not pending status, or always for FOR APPROVAL
   const showCancel = canCancel && isInTransit; // Cancel only shows for in-transit status
   const showArchive = canArchive;
   const showDelete = canDelete;
@@ -819,28 +842,34 @@ export function DataTableRowActions<TData>({
               </DropdownMenuItem>
 
               {/* View Details - always available in shared view */}
-              <DropdownMenuItem onClick={(e) => handleAction(e, handleView)}>
-                <Eye className="mr-2 h-4 w-4" />
-                View Details
-              </DropdownMenuItem>
+              {showViewDetails && (
+                <DropdownMenuItem onClick={(e) => handleAction(e, handleView)}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  View Details
+                </DropdownMenuItem>
+              )}
 
               {/* View Documents - always available in shared view */}
-              <DropdownMenuItem
-                onClick={(e) => handleAction(e, handleViewDocument)}
-              >
-                <Eye className="mr-2 h-4 w-4" />
-                View Documents
-              </DropdownMenuItem>
+              {showViewDocument && (
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleViewDocument)}
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  View Documents
+                </DropdownMenuItem>
+              )}
 
               {/* View Document OCR - always available in shared view */}
-              <DropdownMenuItem
-                onClick={(e) => handleAction(e, handleViewOcrData)}
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                View Document OCR
-              </DropdownMenuItem>
+              {showViewDocument && (
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleViewOcrData)}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  View Document OCR
+                </DropdownMenuItem>
+              )}
 
-              {/* Sign Document - only show if user has signature placeholders assigned */}
+              {/* Sign Document - show based on FOR APPROVAL or signature placeholders */}
               {showSignDocument && (
                 <DropdownMenuItem onClick={(e) => handleAction(e, handleSign)}>
                   <Shield className="mr-2 h-4 w-4" />
@@ -848,7 +877,7 @@ export function DataTableRowActions<TData>({
                 </DropdownMenuItem>
               )}
 
-              {/* Edit Details - hidden in shared view */}
+              {/* Edit Details - show when FOR APPROVAL */}
               {showEditDetails && (
                 <DropdownMenuItem onClick={(e) => handleAction(e, handleEdit)}>
                   <Edit className="mr-2 h-4 w-4" />
@@ -856,14 +885,17 @@ export function DataTableRowActions<TData>({
                 </DropdownMenuItem>
               )}
 
-              {/* Edit Documents - always available in shared view */}
-              <DropdownMenuItem
-                onClick={(e) => handleAction(e, handleCheckoutFile)}
-              >
-                <Edit className="mr-2 h-4 w-4" />
-                Edit Documents
-              </DropdownMenuItem>
+              {/* Edit Documents - show based on FOR APPROVAL or existing permissions */}
+              {showEditDocument && (
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleCheckoutFile)}
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit Documents
+                </DropdownMenuItem>
+              )}
 
+              {/* Signature Placeholder - show based on FOR APPROVAL or signature placeholders */}
               {showSignaturePlaceholder && (
                 <DropdownMenuItem
                   onClick={(e) => handleAction(e, handleSignaturePlaceholder)}
@@ -873,7 +905,15 @@ export function DataTableRowActions<TData>({
                 </DropdownMenuItem>
               )}
 
-              {/* Complete - for users with document receive permissions */}
+              {/* Release - show based on FOR APPROVAL or existing permissions */}
+              {showRelease && (
+                <DropdownMenuItem onClick={(e) => handleAction(e, handleRelease)}>
+                  <Send className="mr-2 h-4 w-4" />
+                  Release
+                </DropdownMenuItem>
+              )}
+
+              {/* Complete - show for FOR APPROVAL documents */}
               {showComplete && (
                 <DropdownMenuItem
                   onClick={(e) => handleAction(e, handleComplete)}
@@ -882,12 +922,6 @@ export function DataTableRowActions<TData>({
                   Complete
                 </DropdownMenuItem>
               )}
-
-              {/* Release - always visible in shared view */}
-              <DropdownMenuItem onClick={(e) => handleAction(e, handleRelease)}>
-                <Send className="mr-2 h-4 w-4" />
-                Release
-              </DropdownMenuItem>
             </>
           )}
 

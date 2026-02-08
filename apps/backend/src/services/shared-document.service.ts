@@ -441,6 +441,59 @@ export class SharedDocumentService {
             placeholders: assignedSignaturePlaceholders
           });
 
+          // Check if user has an assigned action for this document
+          // Look for trails where:
+          // 1. User is specifically assigned (assigned_to_user_id = userId), OR
+          // 2. Document released to user's department (assigned_to_user_id is null AND to_department = user's department)
+          
+          console.log('🔍 [getSharedDocuments] Querying trails for doc:', doc.document_code, {
+            document_id: doc.document_id,
+            userId,
+            userDepartmentId: user.department_id
+          });
+          
+          const assignedAction = await prisma.documentTrail.findFirst({
+            where: {
+              document_id: doc.document_id,
+              OR: [
+                { assigned_to_user_id: userId },
+                { 
+                  assigned_to_user_id: null,
+                  to_department: user.department_id
+                }
+              ]
+            },
+            include: {
+              documentAction: {
+                select: {
+                  action_name: true,
+                  sender_tag: true,
+                  recipient_tag: true
+                }
+              }
+            },
+            orderBy: {
+              created_at: 'desc'
+            }
+          });
+
+          const assignedActionType = assignedAction?.documentAction?.action_name || null;
+
+          console.log('🔍 [getSharedDocuments] Action check for doc:', doc.document_code, {
+            userId,
+            userDepartmentId: user.department_id,
+            documentId: doc.document_id,
+            assignedActionType,
+            hasAssignedAction: !!assignedAction,
+            trailDetails: assignedAction ? {
+              trail_id: assignedAction.trail_id,
+              assigned_to_user_id: assignedAction.assigned_to_user_id,
+              to_department: assignedAction.to_department,
+              action_id: assignedAction.action_id,
+              action_name: assignedAction.documentAction?.action_name
+            } : 'NO TRAIL FOUND'
+          });
+
           return {
             id: doc.document_id,
             qrCode,
@@ -457,6 +510,7 @@ export class SharedDocumentService {
             checkedOutBy,
             checkedOutAt,
             hasAssignedSignature,
+            assignedActionType,
           };
         })
       );

@@ -1031,12 +1031,14 @@ async function main() {
     // Step 11: Create some document actions for testing
     console.log('\n📝 Creating sample document actions...');
     const documentActions = [
-      { action_name: 'For Approval', description: 'Document requires approval', sender_tag: 'FROM', recipient_tag: 'TO' },
-      { action_name: 'For Signature', description: 'Document requires signature', sender_tag: 'FROM', recipient_tag: 'TO' },
-      { action_name: 'For Review', description: 'Document requires review', sender_tag: 'FROM', recipient_tag: 'TO' },
-      { action_name: 'For Cancellation', description: 'Document is requested to be cancelled', sender_tag: 'FROM', recipient_tag: 'TO' },
-      { action_name: 'Cancelled', description: 'Document has been cancelled', sender_tag: 'FROM', recipient_tag: 'TO' },
-      { action_name: 'Approved', description: 'Document has been approved', sender_tag: 'FROM', recipient_tag: 'TO' }
+      { action_name: 'FOR APPROVAL', description: 'Document requires approval', sender_tag: 'FROM', recipient_tag: 'TO' },
+      { action_name: 'FOR REVIEW', description: 'Document requires review', sender_tag: 'FROM', recipient_tag: 'TO' },
+      { action_name: 'FOR CANCELLATION', description: 'Document is requested to be cancelled', sender_tag: 'FROM', recipient_tag: 'TO' },
+      { action_name: 'FOR SIGNATURE', description: 'Document requires signature', sender_tag: 'FROM', recipient_tag: 'TO' },
+      { action_name: 'FOR COMPLETE', description: 'Document is ready for completion', sender_tag: 'FROM', recipient_tag: 'TO' },
+      { action_name: 'APPROVED', description: 'Document has been approved', sender_tag: 'FROM', recipient_tag: 'TO' },
+      { action_name: 'REVIEWED', description: 'Document has been reviewed', sender_tag: 'FROM', recipient_tag: 'TO' },
+      { action_name: 'CANCELLED', description: 'Document has been cancelled', sender_tag: 'FROM', recipient_tag: 'TO' }
     ];
 
     for (const action of documentActions) {

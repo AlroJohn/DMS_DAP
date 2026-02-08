@@ -398,11 +398,39 @@ export class DocumentReleaseService {
             const documentTrailsService = new DocumentTrailsService();
             try {
                 const releaseTimestamp = new Date();
+                
+                // Look up the action_id from DocumentAction table based on action name
+                // Use the first action in releaseActionsSummary as the primary action
+                let actionId: string | undefined = undefined;
+                if (releaseActionsSummary && releaseActionsSummary.length > 0) {
+                    const primaryActionName = releaseActionsSummary[0];
+                    const documentAction = await prisma.documentAction.findFirst({
+                        where: {
+                            action_name: {
+                                equals: primaryActionName,
+                                mode: 'insensitive' // Case-insensitive match
+                            },
+                            status: true // Only active actions
+                        },
+                        select: {
+                            document_action_id: true
+                        }
+                    });
+                    
+                    if (documentAction) {
+                        actionId = documentAction.document_action_id;
+                        console.log(`📍 [DocumentReleaseService] Found action_id for "${primaryActionName}": ${actionId}`);
+                    } else {
+                        console.warn(`⚠️ [DocumentReleaseService] No DocumentAction found for "${primaryActionName}"`);
+                    }
+                }
+                
                 if (assignedUserIds && assignedUserIds.length > 0) {
                     // Create a trail entry for each assigned user
                     for (const assignedUserId of assignedUserIds) {
                         await documentTrailsService.createDocumentTrail({
                             document_id: documentId,
+                            action_id: actionId, // Set the action_id
                             from_department: releasingUser?.department_id,
                             to_department: departmentId,
                             user_id: userId,
@@ -416,6 +444,7 @@ export class DocumentReleaseService {
                     // No specific users assigned - release to entire department
                     await documentTrailsService.createDocumentTrail({
                         document_id: documentId,
+                        action_id: actionId, // Set the action_id
                         from_department: releasingUser?.department_id,
                         to_department: departmentId,
                         user_id: userId,
