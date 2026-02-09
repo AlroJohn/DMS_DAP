@@ -484,43 +484,89 @@ export function DataTableRowActions<TData>({
   const showViewDetails = canViewDetails;
   const showViewDocument = canViewDoc;
   
-  // For shared documents with "FOR APPROVAL" action, show specific buttons
-  // Make comparison more flexible - check if it contains "APPROVAL"
-  const isForApproval = viewType === "shared" && assignedActionType && 
-    assignedActionType.toUpperCase().includes("APPROVAL");
+  // Helper function to check if action type includes a specific action
+  // Handles both single strings and arrays of actions
+  const hasActionType = (action: string): boolean => {
+    if (!assignedActionType) return false;
+    
+    // If it's an array, check if any item includes the action
+    if (Array.isArray(assignedActionType)) {
+      return assignedActionType.some(type => 
+        String(type).toUpperCase().includes(action.toUpperCase())
+      );
+    }
+    
+    // If it's a string, check if it includes the action (handles comma-separated too)
+    return String(assignedActionType).toUpperCase().includes(action.toUpperCase());
+  };
   
-  console.log('🔍 [DataTableRowActions] isForApproval check:', {
+  // For shared documents with "FOR APPROVAL" action, show specific buttons
+  const isForApproval = viewType === "shared" && hasActionType("APPROVAL");
+  
+  // For shared documents with "FOR REVIEW" action, show specific buttons
+  const isForReview = viewType === "shared" && hasActionType("REVIEW");
+  
+  // For shared documents with "FOR CANCELLATION" action, show specific buttons
+  const isForCancellation = viewType === "shared" && hasActionType("CANCELLATION");
+  
+  // For shared documents with "FOR SIGNATURE" action, show specific buttons
+  const isForSignature = viewType === "shared" && hasActionType("SIGNATURE");
+  
+  // For shared documents with "FOR COMPLETE" action, show specific buttons
+  const isForComplete = viewType === "shared" && hasActionType("COMPLETE");
+  
+  // For shared documents with "APPROVED" action, show all buttons except archive
+  const isApproved = viewType === "shared" && hasActionType("APPROVED");
+  
+  // For shared documents with "REVIEWED" action, show all buttons except archive (same as APPROVED)
+  const isReviewed = viewType === "shared" && hasActionType("REVIEWED");
+  
+  console.log('🔍 [DataTableRowActions] Action type checks:', {
     viewType,
     assignedActionType,
-    isForApproval
+    isForApproval,
+    isForReview,
+    isForCancellation,
+    isForSignature,
+    isForComplete,
+    isApproved,
+    isReviewed
   });
   
   // For shared documents, adjust permissions based on assigned action
+  // When multiple actions are assigned, combine the permissions
   const showSignDocument = viewType === "shared" 
-    ? (isForApproval ? true : (canSignDoc && hasAssignedSignature))
+    ? (isForApproval || isForSignature || isApproved || isReviewed ? true : (canSignDoc && hasAssignedSignature))
     : canSignDoc;
   
-  // Hide "Edit Details" for shared documents unless FOR APPROVAL
-  const showEditDetails = viewType === "shared" ? isForApproval : canEditDetails;
+  // Edit Details: FOR APPROVAL OR APPROVED OR REVIEWED
+  const showEditDetails = viewType === "shared" ? (isForApproval || isApproved || isReviewed) : canEditDetails;
   
+  // Edit Document: FOR APPROVAL OR FOR CANCELLATION OR APPROVED OR REVIEWED
   const showEditDocument = viewType === "shared" 
-    ? isForApproval 
+    ? (isForApproval || isForCancellation || isApproved || isReviewed)
     : canEditDoc;
   
-  // For shared documents, show signature placeholder if FOR APPROVAL or if user has signature placeholders assigned
+  // Signature Placeholder: FOR APPROVAL OR FOR REVIEW OR FOR SIGNATURE OR APPROVED OR REVIEWED or if user has signature placeholders assigned
   const showSignaturePlaceholder = viewType === "shared" 
-    ? (isForApproval ? true : (canEditDoc && hasAssignedSignature))
+    ? (isForApproval || isForReview || isForSignature || isApproved || isReviewed ? true : (canEditDoc && hasAssignedSignature))
     : canEditDoc;
   
-  const showRelease = isForApproval 
+  // Release: FOR APPROVAL OR FOR REVIEW OR FOR CANCELLATION OR FOR SIGNATURE OR FOR COMPLETE OR APPROVED OR REVIEWED
+  const showRelease = (isForApproval || isForReview || isForCancellation || isForSignature || isForComplete || isApproved || isReviewed)
     ? true 
     : (canRelease && !isAlreadyReleased); // Release is hidden when document is already in-transit
-  const showComplete = isForApproval 
-    ? true 
-    : (canComplete && !isDispatch); // Complete shows when not pending status, or always for FOR APPROVAL
-  const showCancel = canCancel && isInTransit; // Cancel only shows for in-transit status
-  const showArchive = canArchive;
-  const showDelete = canDelete;
+  
+  // Complete: FOR APPROVAL OR FOR COMPLETE OR APPROVED OR REVIEWED
+  const showComplete = viewType === "shared"
+    ? (isForApproval || isForComplete || isApproved || isReviewed)  // Show for FOR APPROVAL or FOR COMPLETE or APPROVED or REVIEWED in shared view
+    : (canComplete && !isDispatch); // Normal logic for other views
+  
+  const showCancel = viewType === "shared" 
+    ? false // No cancel button for shared documents
+    : (canCancel && isInTransit); // Cancel only shows for in-transit status in other views
+  const showArchive = viewType === "shared" ? ((isApproved || isReviewed) ? false : canArchive) : canArchive; // Hide archive for APPROVED or REVIEWED
+  const showDelete = viewType === "shared" ? ((isApproved || isReviewed) ? true : canDelete) : canDelete; // Show delete for APPROVED or REVIEWED
   return (
     <>
       <DropdownMenu>
