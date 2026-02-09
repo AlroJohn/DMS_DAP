@@ -454,7 +454,7 @@ class AuditService {
           }
         },
         orderBy: {
-          action_date: 'asc'
+          action_date: 'desc'
         }
       });
 

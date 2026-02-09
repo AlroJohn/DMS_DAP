@@ -585,7 +585,7 @@ export function ReleaseDocumentModal({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[95vw] h-[90vh] flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <DialogTitle>Release Document</DialogTitle>
           <DialogDescription>
             Release the document to another department for action.
@@ -599,7 +599,7 @@ export function ReleaseDocumentModal({
             className="flex-1 flex flex-col overflow-hidden"
           >
             {/* Document Info Section - Fixed at top */}
-            <div className="px-6 py-4 border-b bg-muted/20 flex-shrink-0">
+            <div className="px-6 py-4 border-b bg-muted/20 shrink-0">
               <div className="grid grid-cols-4 gap-4">
                 <div className="space-y-1">
                   <Label htmlFor="doc-code" className="text-xs font-medium text-muted-foreground">
@@ -653,7 +653,7 @@ export function ReleaseDocumentModal({
               
               {/* Column 1: Department Selection */}
               <div className="flex flex-col border rounded-lg min-h-0">
-                <div className="p-4 border-b bg-muted/20 flex-shrink-0">
+                <div className="p-4 border-b bg-muted/20 shrink-0">
                   <h3 className="font-semibold text-sm">Select Departments</h3>
                   <p className="text-xs text-muted-foreground mt-1">
                     {selectedCount > 0
@@ -786,7 +786,7 @@ export function ReleaseDocumentModal({
                                 </div>
                                 
                                 <div className="rounded-md border bg-background">
-                                  <div className="max-h-[300px] overflow-y-auto p-3 space-y-2">
+                                  <div className="max-h-75 overflow-y-auto p-3 space-y-2">
                                     {loadingDepartments ? (
                                       <div className="text-sm text-muted-foreground py-4 text-center">
                                         Loading...
@@ -830,7 +830,7 @@ export function ReleaseDocumentModal({
 
               {/* Column 2: Assigned Departments with Actions & Users */}
               <div className="flex flex-col border rounded-lg min-h-0">
-                <div className="p-4 border-b bg-muted/20 flex-shrink-0">
+                <div className="p-4 border-b bg-muted/20 shrink-0">
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-sm">Assigned Actions</h3>
                     <Badge variant="outline">{selectedCount}</Badge>
@@ -1043,7 +1043,7 @@ export function ReleaseDocumentModal({
                   <FormItem className="flex flex-col min-h-0">
                     <FormControl>
                       <div className="flex flex-col border rounded-lg min-h-0">
-                        <div className="p-4 border-b bg-muted/20 flex-shrink-0">
+                        <div className="p-4 border-b bg-muted/20 shrink-0">
                           <div className="flex items-center justify-between">
                             <h3 className="font-semibold text-sm">Available Actions</h3>
                             <Badge variant="outline">{documentActions.length}</Badge>
@@ -1109,7 +1109,7 @@ export function ReleaseDocumentModal({
           </form>
         </Form>
 
-        <DialogFooter className="px-6 py-4 border-t flex-shrink-0">
+        <DialogFooter className="px-6 py-4 border-t shrink-0">
           <DialogClose asChild>
             <Button type="button" variant="secondary">
               Cancel

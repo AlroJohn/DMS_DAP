@@ -570,7 +570,7 @@ export function CheckoutFileModal({
                         return (
                           <div
                             key={item.id}
-                            className="group flex aspect-[4/5] cursor-pointer flex-col items-center justify-between rounded-xl border bg-card p-4 shadow-sm transition-all hover:bg-accent/50 hover:shadow-md"
+                            className="group flex aspect-4/5 cursor-pointer flex-col items-center justify-between rounded-xl border bg-card p-4 shadow-sm transition-all hover:bg-accent/50 hover:shadow-md"
                             onClick={() => handleVersionGroupClick(item)}
                           >
                             <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4">
@@ -610,7 +610,7 @@ export function CheckoutFileModal({
                         return (
                           <div
                             key={file.id}
-                            className={`group relative flex aspect-[4/5] flex-col rounded-xl border p-3 shadow-sm transition-all ${
+                            className={`group relative flex aspect-4/5 flex-col rounded-xl border p-3 shadow-sm transition-all ${
                               !isSelectable
                                 ? "cursor-not-allowed bg-muted/20 opacity-60"
                                 : "cursor-pointer bg-card hover:bg-accent/5 hover:shadow-md"

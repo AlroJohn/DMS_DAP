@@ -41,6 +41,7 @@ type ProcessTypeMap = Record<string, ProcessTypeInfo>;
 
 type CreateDocumentColumnsOptions = {
   processTypeMap?: ProcessTypeMap;
+  onRefetch?: () => void;
 };
 
 const formatText = (text: string): string => {
@@ -53,7 +54,7 @@ const formatText = (text: string): string => {
 export const createDocumentColumns = (
   options: CreateDocumentColumnsOptions = {}
 ): ColumnDef<ReceivedDocument>[] => {
-  const { processTypeMap = {} } = options;
+  const { processTypeMap = {}, onRefetch } = options;
 
   const resolveProcessType = (document: ReceivedDocument) => {
     const processTypeId =
@@ -85,7 +86,7 @@ export const createDocumentColumns = (
           }
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label="Select all"
-          className="translate-y-[2px] data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+          className="translate-y-0.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
         />
       </div>
     ),
@@ -95,7 +96,7 @@ export const createDocumentColumns = (
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
           aria-label="Select row"
-          className="translate-y-[2px] data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+          className="translate-y-0.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
         />
       </div>
     ),
@@ -132,7 +133,7 @@ export const createDocumentColumns = (
       const isOwned = data.isOwned ?? false; // Default to false if not specified (enrolled)
 
       return (
-        <div className="flex flex-col gap-1.5 py-1 min-w-[180px] max-w-[240px]">
+        <div className="flex flex-col gap-1.5 py-1 min-w-45 max-w-60">
           <div className="font-medium" title={data.document}>
             {data.document}
           </div>
@@ -144,7 +145,7 @@ export const createDocumentColumns = (
               {data.documentId}
             </span>
             <Copy
-              className="h-3.5 w-3.5 cursor-pointer text-muted-foreground hover:text-primary transition-colors flex-shrink-0"
+              className="h-3.5 w-3.5 cursor-pointer text-muted-foreground hover:text-primary transition-colors shrink-0"
               onClick={() => {
                 navigator.clipboard.writeText(data.documentId);
                 toast.success("Document ID copied to clipboard!");
@@ -193,15 +194,15 @@ export const createDocumentColumns = (
     cell: ({ row }) => {
       const data = row.original;
       return (
-        <div className="flex flex-col gap-1.5 py-1 min-w-[160px] max-w-[200px]">
+        <div className="flex flex-col gap-1.5 py-1 min-w-40 max-w-50">
           <div className="flex items-center gap-1.5">
-            <User className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" />
+            <User className="h-3.5 w-3.5 text-orange-500 shrink-0" />
             <span className="text-xs font-medium" title={data.contactPerson}>
               {data.contactPerson}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Building2 className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+            <Building2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />
             <span
               className="text-xs text-muted-foreground"
               title={data.contactOrganization}
@@ -381,14 +382,14 @@ export const createDocumentColumns = (
         return (
           <div className="flex flex-col gap-1 text-xs">
             <div className="flex items-center gap-1">
-              <Clock className="w-2.5 h-2.5 text-emerald-500 flex-shrink-0" />
+              <Clock className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
               <span className="text-muted-foreground" title="Completed">
                 Completed
               </span>
             </div>
             {completedDate && (
               <div className="flex items-center gap-1">
-                <Clock className="w-2.5 h-2.5 text-blue-500 flex-shrink-0" />
+                <Clock className="w-2.5 h-2.5 text-blue-500 shrink-0" />
                 <span className="text-muted-foreground" title={completedDate}>
                   {completedDate}
                 </span>
@@ -402,7 +403,7 @@ export const createDocumentColumns = (
         return (
           <div className="flex flex-col gap-1 text-xs">
             <div className="flex items-center gap-1">
-              <Clock className="w-2.5 h-2.5 text-emerald-500 flex-shrink-0" />
+              <Clock className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
               <span className="text-muted-foreground" title="Time left">
                 Time left
               </span>
@@ -424,7 +425,7 @@ export const createDocumentColumns = (
         return (
           <div className="flex flex-col gap-1 text-xs">
             <div className="flex items-center gap-1">
-              <Clock className="w-2.5 h-2.5 text-amber-500 flex-shrink-0" />
+              <Clock className="w-2.5 h-2.5 text-amber-500 shrink-0" />
               <span className="text-muted-foreground" title="Waiting">
                 Waiting
               </span>
@@ -449,14 +450,14 @@ export const createDocumentColumns = (
       return (
         <div className="flex flex-col gap-1 text-xs">
           <div className="flex items-center gap-1">
-            <Clock className="w-2.5 h-2.5 text-emerald-500 flex-shrink-0" />
+            <Clock className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
             <span className="text-muted-foreground" title="Activity date">
               Activity
             </span>
           </div>
           {formattedDate && (
             <div className="flex items-center gap-1">
-              <Clock className="w-2.5 h-2.5 text-blue-500 flex-shrink-0" />
+              <Clock className="w-2.5 h-2.5 text-blue-500 shrink-0" />
               <span className="text-muted-foreground" title={formattedDate}>
                 {formattedDate}
               </span>
@@ -471,7 +472,7 @@ export const createDocumentColumns = (
     id: "actions",
     cell: ({ row }) => (
       <div className="flex justify-center">
-        <DataTableRowActions row={row} onActionSuccess={meta?.onRefetch} />
+        <DataTableRowActions row={row} onActionSuccess={onRefetch} />
       </div>
     ),
     enableSorting: false,

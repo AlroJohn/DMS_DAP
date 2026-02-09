@@ -31,7 +31,9 @@ const formatText = (text: string): string => {
     .replace(/^\w/, (c) => c.toUpperCase());
 };
 
-export const outgoingColumns: ColumnDef<OutgoingDocument>[] = [
+export const createOutgoingColumns = (
+  onRefetch?: () => void
+): ColumnDef<OutgoingDocument>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -42,7 +44,7 @@ export const outgoingColumns: ColumnDef<OutgoingDocument>[] = [
         }
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
         aria-label="Select all"
-        className="translate-y-[2px]"
+        className="translate-y-0.5"
       />
     ),
     cell: ({ row }) => (
@@ -50,7 +52,7 @@ export const outgoingColumns: ColumnDef<OutgoingDocument>[] = [
         checked={row.getIsSelected()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
         aria-label="Select row"
-        className="translate-y-[2px]"
+        className="translate-y-0.5"
       />
     ),
     enableSorting: false,
@@ -319,8 +321,11 @@ export const outgoingColumns: ColumnDef<OutgoingDocument>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }) => <DataTableRowActions row={row} viewType="outgoing" onActionSuccess={meta?.onRefetch} />,
+    cell: ({ row }) => <DataTableRowActions row={row} viewType="outgoing" onActionSuccess={onRefetch} />,
     enableSorting: false,
     enableHiding: false,
   },
 ];
+
+// Legacy export for backward compatibility
+export const outgoingColumns = createOutgoingColumns();

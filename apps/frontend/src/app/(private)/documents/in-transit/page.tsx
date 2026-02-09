@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DataTable } from "@/components/reuseable/tables/data-table";
-import { outgoingColumns, type OutgoingDocument } from "./outgoing-columns";
+import { createOutgoingColumns, type OutgoingDocument } from "./outgoing-columns";
 import { incomingColumns, type IncomingDocument } from "./incoming-columns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -190,12 +190,11 @@ export default function InTransitDocumentsPage() {
             </div>
           )}
           <DataTable
-            columns={outgoingColumns}
+            columns={createOutgoingColumns(refetchOutgoing)}
             data={outgoingDocuments}
             selection={true}
             viewType="outgoing"
             isLoading={isLoadingOutgoing}
-            meta={{ onRefetch: refetchOutgoing }}
           />
         </TabsContent>
       </Tabs>

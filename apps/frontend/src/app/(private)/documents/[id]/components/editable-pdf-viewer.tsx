@@ -2145,7 +2145,7 @@ export function EditablePdfViewer({
                                 isEditing ? (
                                   <textarea
                                     rows={1}
-                                    className="annotation-input min-w-[24px] w-full resize-none outline-none pb-2 leading-none overflow-hidden"
+                                    className="annotation-input min-w-6 w-full resize-none outline-none pb-2 leading-none overflow-hidden"
                                     value={annotation.text}
                                     style={{
                                       fontSize: displayFontSize,
