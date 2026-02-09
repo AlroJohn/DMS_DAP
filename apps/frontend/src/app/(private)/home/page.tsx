@@ -347,14 +347,14 @@ const Homepage = () => {
           {/* Shared to Department */}
           <Card 
             className="shadow-sm border hover:shadow-md transition-all cursor-pointer group hover:border-purple-500/50"
-            onClick={() => router.push("/documents/shared")}
+            onClick={() => router.push("/documents/shared?tab=completed")}
           >
             <CardContent className="p-3">
               <div className="flex items-center justify-between">
                 <div className="space-y-0">
                   <p className="text-xs text-muted-foreground">Shared to Department</p>
                   <p className="text-xl font-bold text-purple-600">
-                    {quickAccessData.sharedToDepartment}
+                    {quickAccessData.completedSharedToDepartment}
                   </p>
                 </div>
                 <div className="h-8 w-8 rounded-full bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
@@ -371,7 +371,7 @@ const Homepage = () => {
           {/* Shared to User */}
           <Card 
             className="shadow-sm border hover:shadow-md transition-all cursor-pointer group hover:border-indigo-500/50"
-            onClick={() => router.push("/documents/shared")}
+            onClick={() => router.push("/documents/shared?tab=completed")}
           >
             <CardContent className="p-3">
               <div className="flex items-center justify-between">

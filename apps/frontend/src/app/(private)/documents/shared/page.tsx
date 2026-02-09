@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { DataTable } from "@/components/reuseable/tables/data-table";
 import { getColumns } from "./columns";
 import { useSharedDocuments } from "@/hooks/use-shared-documents";
@@ -15,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function SharedDocumentsPage() {
   const { user, isLoading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
   const {
     documents = [],
     isLoading: documentsLoading,
@@ -27,7 +29,7 @@ export default function SharedDocumentsPage() {
   const [isSignModalOpen, setIsSignModalOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] =
     useState<SharedDocument | null>(null);
-  const [activeTab, setActiveTab] = useState("active");
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "active");
 
   const handleSignClick = (document: SharedDocument) => {
     setSelectedDocument(document);

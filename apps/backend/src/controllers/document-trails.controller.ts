@@ -13,7 +13,7 @@ export class DocumentTrailsController {
   };
 
   // Get all document trails for a specific document
-  async getDocumentTrails(req: Request, res: Response) {
+  getDocumentTrails = async (req: Request, res: Response) => {
     try {
       const documentId = this.getStringValue(req.params.documentId);
 
@@ -42,7 +42,7 @@ export class DocumentTrailsController {
   }
 
   // Create a new document trail
-  async createDocumentTrail(req: Request, res: Response) {
+  createDocumentTrail = async (req: Request, res: Response) => {
     try {
       const { document_id, action_id, from_department, to_department, user_id, status, remarks } = req.body;
 
@@ -80,7 +80,7 @@ export class DocumentTrailsController {
   }
 
   // Update an existing document trail
-  async updateDocumentTrail(req: Request, res: Response) {
+  updateDocumentTrail = async (req: Request, res: Response) => {
     try {
       const trailId = this.getStringValue(req.params.trailId);
       const { action_id, from_department, to_department, user_id, status, remarks } = req.body;
@@ -117,7 +117,7 @@ export class DocumentTrailsController {
   }
 
   // Get document trail by ID
-  async getDocumentTrailById(req: Request, res: Response) {
+  getDocumentTrailById = async (req: Request, res: Response) => {
     try {
       const trailId = this.getStringValue(req.params.trailId);
 
@@ -153,7 +153,7 @@ export class DocumentTrailsController {
   }
 
   // Delete a document trail
-  async deleteDocumentTrail(req: Request, res: Response) {
+  deleteDocumentTrail = async (req: Request, res: Response) => {
     try {
       const trailId = this.getStringValue(req.params.trailId);
 
@@ -181,7 +181,7 @@ export class DocumentTrailsController {
   }
 
   // Get all document trails with optional filters
-  async getAllDocumentTrails(req: Request, res: Response) {
+  getAllDocumentTrails = async (req: Request, res: Response) => {
     try {
       const { userId, departmentId, status, fromDate, toDate } = req.query;
 

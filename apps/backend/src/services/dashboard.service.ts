@@ -546,6 +546,19 @@ export class DashboardService {
                 }
             }
 
+            // Also check for documents that have been routed to this department via trails
+            const trailsToDept = await prisma.documentTrail.findMany({
+                where: {
+                    to_department: departmentId,
+                },
+                select: {
+                    document_id: true,
+                },
+                distinct: ['document_id']
+            });
+            
+            trailsToDept.forEach(t => deptDocIds.add(t.document_id));
+
             const allRelevantIds = new Set([...deptDocIds, ...userDocIds]);
             
             if (allRelevantIds.size === 0) {
