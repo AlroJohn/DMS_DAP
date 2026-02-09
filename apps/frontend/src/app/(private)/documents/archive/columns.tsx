@@ -337,7 +337,7 @@ export const createArchiveColumns = ({
     id: "actions",
     cell: ({ row }) => (
       <div className="flex justify-center">
-        <DataTableRowActions row={row} viewType="archive" />
+        <DataTableRowActions row={row} viewType="archive" onActionSuccess={meta?.onRefetch} />
       </div>
     ),
     enableSorting: false,

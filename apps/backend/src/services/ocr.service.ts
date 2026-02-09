@@ -79,7 +79,7 @@ export class OcrService {
       console.log(`[OcrService] Starting page-by-page OCR for file: ${sourceLabel}`);
 
       // Load the PDF with pdf-lib
-      const mainPdfDoc = await PDFDocument.load(fileBuffer);
+      const mainPdfDoc = await PDFDocument.load(fileBuffer, { ignoreEncryption: true });
       const totalPages = mainPdfDoc.getPageCount();
       console.log(`[OcrService] PDF has ${totalPages} pages.`);
 

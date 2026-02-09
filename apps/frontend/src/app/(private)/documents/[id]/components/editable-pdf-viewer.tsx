@@ -1086,7 +1086,7 @@ export function EditablePdfViewer({
       }
 
       const buffer = await response.arrayBuffer();
-      const pdfDoc = await PDFDocument.load(buffer);
+      const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
       const fontCache = new Map<StandardFonts, PDFFont>();
       const getFont = async (fontName: StandardFonts) => {
         if (fontCache.has(fontName)) return fontCache.get(fontName)!;

@@ -63,7 +63,10 @@ export default function SharedDocumentsPage() {
     }
   };
 
-  const columns = useMemo(() => getColumns({ onSign: handleSignClick }), []);
+  const columns = useMemo(() => getColumns({ 
+    onSign: handleSignClick,
+    onRefetch: refetch 
+  }), [refetch]);
 
   // Mark component as mounted and clean up on unmount
   useEffect(() => {
@@ -224,6 +227,7 @@ export default function SharedDocumentsPage() {
               viewType="shared"
               isLoading={isLoading}
               onSign={handleSignClick}
+              meta={{ onRefetch: refetch }}
             />
           </TabsContent>
 
@@ -235,6 +239,7 @@ export default function SharedDocumentsPage() {
               viewType="shared"
               isLoading={isLoading}
               onSign={handleSignClick}
+              meta={{ onRefetch: refetch }}
             />
           </TabsContent>
         </Tabs>

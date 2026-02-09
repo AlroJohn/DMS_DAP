@@ -137,15 +137,15 @@ export function ReportFilters({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
-        <Filter className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-        <span className="text-sm font-medium flex-shrink-0">Filters:</span>
+        <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
+        <span className="text-sm font-medium shrink-0">Filters:</span>
 
         {/* Date Range Preset Selector */}
         <Select
           value={filters.dateRangePreset}
           onValueChange={handleDatePresetChange}
         >
-          <SelectTrigger className="w-[140px]">
+          <SelectTrigger className="w-35">
             <SelectValue placeholder="Date range" />
           </SelectTrigger>
           <SelectContent>
@@ -165,7 +165,7 @@ export function ReportFilters({
                 variant="outline"
                 size="sm"
                 className={cn(
-                  "w-[240px] justify-start text-left font-normal",
+                  "w-60 justify-start text-left font-normal",
                   !filters.dateRange.from && "text-muted-foreground"
                 )}
               >
@@ -213,7 +213,7 @@ export function ReportFilters({
               onFiltersChange({ ...filters, classification: value })
             }
           >
-            <SelectTrigger className="w-[160px]">
+            <SelectTrigger className="w-40">
               <SelectValue placeholder="Classification" />
             </SelectTrigger>
             <SelectContent>
@@ -234,7 +234,7 @@ export function ReportFilters({
               onFiltersChange({ ...filters, documentType: value })
             }
           >
-            <SelectTrigger className="w-[160px]">
+            <SelectTrigger className="w-40">
               <SelectValue placeholder="Document Type" />
             </SelectTrigger>
             <SelectContent>
@@ -256,7 +256,7 @@ export function ReportFilters({
               onFiltersChange({ ...filters, department: value })
             }
           >
-            <SelectTrigger className="w-[160px]">
+            <SelectTrigger className="w-40">
               <SelectValue placeholder="Department" />
             </SelectTrigger>
             <SelectContent>

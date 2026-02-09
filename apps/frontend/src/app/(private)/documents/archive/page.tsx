@@ -166,6 +166,7 @@ export default function ArchivePage() {
           },
         }}
         isLoading={loading}
+        meta={{ onRefetch: fetchArchivedDocuments }}
       />
     </div>
   );

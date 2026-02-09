@@ -231,7 +231,17 @@ class AuditService {
               title: true,
               document_code: true,
               document_type: true,
-              description: true
+              description: true,
+              processType: {
+                select: {
+                  process_type_id: true,
+                  code: true,
+                  name: true,
+                  description: true,
+                  duration_value: true,
+                  duration_unit: true
+                }
+              }
             }
           },
           documentAction: {
@@ -355,6 +365,14 @@ class AuditService {
           documentCode: trail.document?.document_code || 'N/A',
           documentType: trail.document?.document_type || 'Unknown',
           documentDescription: trail.document?.description || '',
+          processType: trail.document?.processType ? {
+            id: trail.document.processType.process_type_id,
+            code: trail.document.processType.code,
+            name: trail.document.processType.name,
+            description: trail.document.processType.description || '',
+            durationValue: trail.document.processType.duration_value,
+            durationUnit: trail.document.processType.duration_unit
+          } : null,
           status: finalStatus,
           actionName: trail.documentAction?.action_name || '',
           fromDepartment: trail.fromDept?.name || 'Unknown',
@@ -395,7 +413,17 @@ class AuditService {
           document_type: true,
           classification: true,
           status: true,
-          created_at: true
+          created_at: true,
+          processType: {
+            select: {
+              process_type_id: true,
+              code: true,
+              name: true,
+              description: true,
+              duration_value: true,
+              duration_unit: true
+            }
+          }
         }
       });
 
@@ -437,7 +465,15 @@ class AuditService {
         type: document?.document_type || 'Unknown',
         classification: document?.classification || 'simple',
         status: document?.status || 'pending',
-        createdAt: document?.created_at ? document.created_at.toISOString() : new Date().toISOString()
+        createdAt: document?.created_at ? document.created_at.toISOString() : new Date().toISOString(),
+        processType: document?.processType ? {
+          id: document.processType.process_type_id,
+          code: document.processType.code,
+          name: document.processType.name,
+          description: document.processType.description || '',
+          durationValue: document.processType.duration_value,
+          durationUnit: document.processType.duration_unit
+        } : null
       };
 
       const trailDetails = trails.map(trail => ({

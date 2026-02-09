@@ -528,6 +528,39 @@ export class DocumentController {
   });
 
   /**
+   * POST /api/documents/:id/uncomplete - Revert a completed document back to pending
+   */
+  uncompleteDocument = asyncHandler(async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
+    const id = this.getStringValue(req.params.id);
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!id || !uuidRegex.test(id)) {
+      console.log('📍 [DocumentController.uncompleteDocument] Invalid document ID format:', id);
+      return sendError(res, 'Invalid document ID format', 400);
+    }
+
+    const existingDocument = await this.documentService.getDocumentById(id);
+    if (!existingDocument) {
+      return sendError(res, 'Document not found', 404);
+    }
+
+    const canAccess = await this.documentService.canUserAccessDocument(id, authReq.user.id);
+    if (!canAccess) {
+      return sendError(res, 'You do not have permission to modify this document', 403);
+    }
+
+    const result = await this.documentService.uncompleteDocument(id, authReq.user.id);
+
+    if (!result.success) {
+      return sendError(res, result.error || 'Failed to uncomplete document', 500);
+    }
+
+    return sendSuccess(res, result.data, 200);
+  });
+
+  /**
    * POST /api/documents/:id/cancel - Cancel a document
    */
   cancelDocument = asyncHandler(async (req: Request, res: Response) => {

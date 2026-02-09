@@ -114,12 +114,14 @@ interface ReleaseDocumentModalProps {
   document: Document | null;
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }
 
 export function ReleaseDocumentModal({
   document,
   isOpen,
   onClose,
+  onSuccess,
 }: ReleaseDocumentModalProps) {
   const { user: currentUser } = useAuth();
   const currentDepartmentId = currentUser?.department_id;
@@ -528,6 +530,7 @@ export function ReleaseDocumentModal({
       toast.success("Document released successfully!");
       form.reset();
       onClose();
+      onSuccess?.();
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to release document.");

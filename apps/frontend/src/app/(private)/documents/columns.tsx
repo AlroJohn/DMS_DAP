@@ -471,7 +471,7 @@ export const createDocumentColumns = (
     id: "actions",
     cell: ({ row }) => (
       <div className="flex justify-center">
-        <DataTableRowActions row={row} />
+        <DataTableRowActions row={row} onActionSuccess={meta?.onRefetch} />
       </div>
     ),
     enableSorting: false,

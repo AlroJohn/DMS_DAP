@@ -73,6 +73,7 @@ interface CheckoutFileModalProps {
   onOpenChange: (open: boolean) => void;
   documentId: string | null;
   action?: "edit" | "signature";
+  onSuccess?: () => void;
 }
 
 const groupFilesToItems = (filesToGroup: DocumentFile[]): FileItem[] => {
@@ -130,6 +131,7 @@ export function CheckoutFileModal({
   onOpenChange,
   documentId,
   action = "edit",
+  onSuccess,
 }: CheckoutFileModalProps) {
   const router = useRouter();
   const { user } = useAuth();
@@ -283,6 +285,7 @@ export function CheckoutFileModal({
       // Refresh the file list to ensure consistency with server state
       await fetchFiles();
       onOpenChange(false);
+      onSuccess?.();
       router.push(
         `/documents/${documentId}?mode=edit&fileId=${selectedFileId}`,
       );
