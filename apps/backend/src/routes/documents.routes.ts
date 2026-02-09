@@ -149,6 +149,12 @@ router.post('/:id/complete',
   documentController.completeDocument
 );
 
+// POST /api/documents/:id/uncomplete - Revert a completed document back to pending
+router.post('/:id/uncomplete',
+  requirePermission('document_write'),
+  documentController.uncompleteDocument
+);
+
 // POST /api/documents/:id/cancel - Cancel a document
 router.post('/:id/cancel',
   requirePermission('document_write'),

@@ -319,7 +319,7 @@ export const outgoingColumns: ColumnDef<OutgoingDocument>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }) => <DataTableRowActions row={row} viewType="outgoing" />,
+    cell: ({ row }) => <DataTableRowActions row={row} viewType="outgoing" onActionSuccess={meta?.onRefetch} />,
     enableSorting: false,
     enableHiding: false,
   },

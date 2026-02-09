@@ -27,8 +27,10 @@ const getDocumentTitle = (document: SharedDocument): string => {
 
 export const getColumns = ({
   onSign,
+  onRefetch,
 }: {
   onSign: (document: SharedDocument) => void;
+  onRefetch?: () => void;
 }): ColumnDef<SharedDocument>[] => {
   // Debug log to see what data we're getting
   console.log('🔍 Columns: Sample document data for debugging');
@@ -315,7 +317,12 @@ export const getColumns = ({
     id: "actions",
     cell: ({ row }) => (
       <div className="flex justify-center">
-        <DataTableRowActions row={row} viewType="shared" onSign={onSign} />
+        <DataTableRowActions 
+          row={row} 
+          viewType="shared" 
+          onSign={onSign}
+          onActionSuccess={onRefetch}
+        />
       </div>
     ),
     enableSorting: false,

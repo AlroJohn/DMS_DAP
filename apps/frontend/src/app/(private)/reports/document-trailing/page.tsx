@@ -50,6 +50,14 @@ interface DocumentTrail {
   updatedAt?: string; // When the trail record was last updated
   remarks: string;
   isOwned: boolean; // Whether the document was created by the current user's department
+  processType?: {
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    durationValue: number | null;
+    durationUnit: string | null;
+  } | null;
 }
 
 export default function DocumentTrailingPage() {
@@ -432,8 +440,15 @@ export default function DocumentTrailingPage() {
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
-            <h1 className="text-2xl font-bold">Document Trailing</h1>
-            <p className="text-muted-foreground text-sm">
+            <div className="flex items-center gap-3 mb-1">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <FileText className="h-6 w-6 text-primary" />
+              </div>
+              <h1 className="text-3xl font-bold bg-linear-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                Document Trailing
+              </h1>
+            </div>
+            <p className="text-muted-foreground text-sm ml-14">
               Track documents created by departments and shared documents
             </p>
           </div>
@@ -441,57 +456,65 @@ export default function DocumentTrailingPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
-        <Card>
+        <Card className="border-l-4 border-l-blue-500 shadow-md hover:shadow-lg transition-shadow bg-linear-to-br from-blue-50/50 to-transparent dark:from-blue-950/20">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <FileText className="h-4 w-4" />
+              <div className="p-1.5 bg-blue-500/10 rounded">
+                <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              </div>
               Total Documents
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{documents.length}</div>
-            <p className="text-xs text-muted-foreground">
+            <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">{documents.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">
               All tracked documents
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-l-4 border-l-amber-500 shadow-md hover:shadow-lg transition-shadow bg-linear-to-br from-amber-50/50 to-transparent dark:from-amber-950/20">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Clock className="h-4 w-4" />
+              <div className="p-1.5 bg-amber-500/10 rounded">
+                <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              </div>
               In Transit
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-3xl font-bold text-amber-700 dark:text-amber-300">
               {documents.filter((d) => d.status === "intransit").length}
             </div>
-            <p className="text-xs text-muted-foreground">Currently moving</p>
+            <p className="text-xs text-muted-foreground mt-1">Currently moving</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-l-4 border-l-violet-500 shadow-md hover:shadow-lg transition-shadow bg-linear-to-br from-violet-50/50 to-transparent dark:from-violet-950/20">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Building className="h-4 w-4" />
+              <div className="p-1.5 bg-violet-500/10 rounded">
+                <Building className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+              </div>
               Departments
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-3xl font-bold text-violet-700 dark:text-violet-300">
               {[...new Set(documents.map((d) => d.fromDepartment))].length}
             </div>
-            <p className="text-xs text-muted-foreground">Active departments</p>
+            <p className="text-xs text-muted-foreground mt-1">Active departments</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-l-4 border-l-emerald-500 shadow-md hover:shadow-lg transition-shadow bg-linear-to-br from-emerald-50/50 to-transparent dark:from-emerald-950/20">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <User className="h-4 w-4" />
+              <div className="p-1.5 bg-emerald-500/10 rounded">
+                <User className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              </div>
               Active Users
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-3xl font-bold text-emerald-700 dark:text-emerald-300">
               {[...new Set(documents.map((d) => d.user))].length}
             </div>
             <p className="text-xs text-muted-foreground">Users involved</p>
@@ -499,13 +522,17 @@ export default function DocumentTrailingPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Document Trails</CardTitle>
+      <Card className="shadow-lg">
+        <CardHeader className="bg-linear-to-r from-muted/30 to-transparent border-b">
+          <CardTitle className="flex items-center gap-2">
+            <div className="h-6 w-1 bg-primary rounded-full"></div>
+            Document Trails
+            {filteredDocuments.length > 0 && (
+              <Badge variant="secondary" className="ml-2">{filteredDocuments.length} Result{filteredDocuments.length !== 1 ? 's' : ''}</Badge>
+            )}
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Search Bar and Filters */}
+        <CardContent className="pt-6">\n          <div className="space-y-4">\n            {/* Search Bar and Filters */}
             <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-end justify-between">
               {/* Search Bar - Left Side */}
               <div className="w-full lg:w-80">
@@ -533,7 +560,7 @@ export default function DocumentTrailingPage() {
                     value={ownershipFilter}
                     onValueChange={setOwnershipFilter}
                   >
-                    <SelectTrigger className="w-[160px]">
+                    <SelectTrigger className="w-40">
                       <SelectValue placeholder="Ownership" />
                     </SelectTrigger>
                     <SelectContent>
@@ -549,7 +576,7 @@ export default function DocumentTrailingPage() {
                     Status
                   </label>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[150px]">
+                    <SelectTrigger className="w-37.5">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -610,7 +637,7 @@ export default function DocumentTrailingPage() {
                       });
                     }}
                   >
-                    <SelectTrigger className="w-[140px]">
+                    <SelectTrigger className="w-35">
                       <SelectValue placeholder="Date range" />
                     </SelectTrigger>
                     <SelectContent>
@@ -642,7 +669,7 @@ export default function DocumentTrailingPage() {
                       })
                     }
                   >
-                    <SelectTrigger className="w-[160px]">
+                    <SelectTrigger className="w-40">
                       <SelectValue placeholder="Classification" />
                     </SelectTrigger>
                     <SelectContent>
@@ -668,7 +695,7 @@ export default function DocumentTrailingPage() {
                         })
                       }
                     >
-                      <SelectTrigger className="w-[160px]">
+                      <SelectTrigger className="w-40">
                         <SelectValue placeholder="Document Type" />
                       </SelectTrigger>
                       <SelectContent>
@@ -754,15 +781,17 @@ export default function DocumentTrailingPage() {
                 filteredDocuments.map((doc) => (
                   <div
                     key={doc.id}
-                    className="border rounded-lg p-5 hover:bg-accent/50 transition-all hover:shadow-md bg-card shadow-sm"
+                    className="border rounded-lg p-5 hover:bg-accent/50 transition-all hover:shadow-lg bg-card shadow-sm hover:border-primary/50"
                   >
                     <div className="flex flex-col gap-4">
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                         <div className="flex items-start gap-3 flex-1 min-w-0">
-                          <FileText className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                          <div className="p-2 bg-primary/10 rounded-md shrink-0">
+                            <FileText className="h-5 w-5 text-primary" />
+                          </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
-                              <h3 className="font-medium truncate max-w-[200px] sm:max-w-md" title={doc.documentTitle}>
+                              <h3 className="font-semibold text-lg truncate max-w-50 sm:max-w-md" title={doc.documentTitle}>
                                 {doc.documentTitle}
                               </h3>
                               <Badge variant="secondary" className="text-xs font-mono">
@@ -782,54 +811,81 @@ export default function DocumentTrailingPage() {
                                 )}
                               </Badge>
                             </div>
-                            <p className="text-sm text-muted-foreground truncate max-w-[200px] sm:max-w-md" title={doc.documentType}>
-                              {doc.documentType}
-                            </p>
+                            <div className="items-center gap-2">
+                              <p className="text-sm text-muted-foreground truncate max-w-50 sm:max-w-md" title={doc.documentType}>
+                                {doc.documentType}
+                              </p>
+                            </div>
+                            {doc.processType && (
+                              <div className="flex items-center gap-2 mt-2 p-2.5 bg-linear-to-r from-blue-50 to-cyan-50 dark:from-blue-950 dark:to-cyan-950 rounded-lg border border-blue-200 dark:border-blue-800 shadow-sm">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></div>
+                                    <Badge variant="default" className="text-xs bg-blue-600 hover:bg-blue-700 shadow-sm">
+                                      {doc.processType.name}
+                                    </Badge>
+                                  </div>
+                                  {doc.processType.code && (
+                                    <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 dark:text-blue-300">
+                                      {doc.processType.code}
+                                    </Badge>
+                                  )}
+                                  {doc.processType.durationValue && doc.processType.durationUnit && (
+                                    <div className="flex items-center gap-1 px-2 py-0.5 bg-white/50 dark:bg-black/20 rounded-md">
+                                      <Clock className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                                      <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                                        {doc.processType.durationValue} {doc.processType.durationUnit}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleViewTrails(doc.documentId)}
-                          className="w-full sm:w-auto flex-shrink-0"
+                          className="w-full sm:w-auto shrink-0 hover:bg-primary hover:text-primary-foreground transition-colors"
                         >
                           <Eye className="h-4 w-4 mr-2" />
                           View Trails
                         </Button>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-                        <div className="flex items-center gap-2">
-                          <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+                        <div className="flex items-center gap-2 p-2 rounded-md bg-muted/30">
+                          <Building className="h-4 w-4 text-primary shrink-0" />
                           <div className="flex items-center gap-1 min-w-0">
-                            <span className="text-muted-foreground flex-shrink-0 whitespace-nowrap">
+                            <span className="text-muted-foreground shrink-0 whitespace-nowrap text-xs font-medium">
                               {doc.fromDepartment}
                             </span>
-                            <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mx-1" />
-                            <span className="text-muted-foreground flex-shrink-0 whitespace-nowrap">
+                            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mx-1" />
+                            <span className="text-muted-foreground shrink-0 whitespace-nowrap text-xs font-medium">
                               {doc.toDepartment}
                             </span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="flex items-center gap-2 p-2 rounded-md bg-muted/30">
+                          <User className="h-4 w-4 text-primary shrink-0" />
                           <div className="flex items-center gap-1 min-w-0">
-                            <span className="text-muted-foreground flex-shrink-0 whitespace-nowrap">
+                            <span className="text-muted-foreground shrink-0 whitespace-nowrap text-xs">
                               {doc.status === "signed"
                                 ? "Signed by:"
                                 : doc.status === "placeholder_added"
                                 ? "Added by:"
                                 : "By:"}
                             </span>
-                            <span className="truncate font-medium">
+                            <span className="truncate font-medium text-xs">
                               {doc.user}
                             </span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="flex items-center gap-2 p-2 rounded-md bg-muted/30">
+                          <Clock className="h-4 w-4 text-primary shrink-0" />
                           <div className="flex items-center gap-1 min-w-0">
-                            <span className="text-muted-foreground flex-shrink-0 whitespace-nowrap">
+                            <span className="text-muted-foreground shrink-0 whitespace-nowrap text-xs">
                               {doc.status === "signed"
                                 ? "Signed:"
                                 : doc.status === "placeholder_added"
@@ -837,7 +893,7 @@ export default function DocumentTrailingPage() {
                                 : "Action:"}
                             </span>
                             <span
-                              className="truncate font-medium"
+                              className="truncate font-medium text-xs"
                               title={`Action Date: ${format(
                                 new Date(doc.actionDate),
                                 "PPpp"
@@ -853,13 +909,13 @@ export default function DocumentTrailingPage() {
                       </div>
 
                       {/* Timestamp Details Section */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground bg-muted/20 p-3 rounded-md">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs bg-linear-to-br from-muted/30 to-muted/10 p-3 rounded-lg border border-muted">
                         <div className="flex items-center gap-2">
-                          <Calendar className="h-3 w-3 flex-shrink-0" />
+                          <Calendar className="h-3.5 w-3.5 text-primary shrink-0" />
                           <div className="flex items-center gap-1 min-w-0">
-                            <span className="flex-shrink-0">Action Date:</span>
+                            <span className="shrink-0 font-semibold">Action:</span>
                             <span
-                              className="truncate"
+                              className="truncate text-muted-foreground"
                               title={format(new Date(doc.actionDate), "PPpp")}
                             >
                               {format(
@@ -871,11 +927,11 @@ export default function DocumentTrailingPage() {
                         </div>
                         {doc.createdAt && (
                           <div className="flex items-center gap-2">
-                            <Clock className="h-3 w-3 flex-shrink-0" />
+                            <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
                             <div className="flex items-center gap-1 min-w-0">
-                              <span className="flex-shrink-0">Created:</span>
+                              <span className="shrink-0 font-semibold">Created:</span>
                               <span
-                                className="truncate"
+                                className="truncate text-muted-foreground"
                                 title={format(new Date(doc.createdAt), "PPpp")}
                               >
                                 {format(
@@ -888,13 +944,13 @@ export default function DocumentTrailingPage() {
                         )}
                         {doc.updatedAt && doc.updatedAt !== doc.createdAt && (
                           <div className="flex items-center gap-2">
-                            <Clock className="h-3 w-3 flex-shrink-0" />
+                            <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
                             <div className="flex items-center gap-1 min-w-0">
-                              <span className="flex-shrink-0">
-                                Last Updated:
+                              <span className="shrink-0 font-semibold">
+                                Updated:
                               </span>
                               <span
-                                className="truncate"
+                                className="truncate text-muted-foreground"
                                 title={format(new Date(doc.updatedAt), "PPpp")}
                               >
                                 {format(
@@ -909,17 +965,17 @@ export default function DocumentTrailingPage() {
 
                       {doc.remarks && (
                         <div
-                          className={`text-sm p-4 rounded-md border bg-muted/20`}
+                          className="text-sm p-4 rounded-lg border-l-4 border-l-primary bg-linear-to-r from-muted/30 to-transparent shadow-sm"
                         >
                           <div className="flex flex-col gap-2">
-                            <span className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">
+                            <span className="font-semibold text-foreground text-xs uppercase tracking-wider flex items-center gap-2">
                               {doc.status === "signed"
-                                ? "Signature Details"
+                                ? "📝 Signature Details"
                                 : doc.status === "placeholder_added"
-                                ? "Placeholder Details"
-                                : "Remarks"}
+                                ? "📌 Placeholder Details"
+                                : "💬 Remarks"}
                             </span>
-                            <div className="text-foreground whitespace-pre-line leading-relaxed bg-background p-3 rounded border">
+                            <div className="text-foreground/90 whitespace-pre-line leading-relaxed bg-background/50 p-3 rounded border">
                               {doc.remarks}
                             </div>
                           </div>

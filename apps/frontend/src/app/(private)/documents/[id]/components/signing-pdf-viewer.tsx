@@ -1249,7 +1249,7 @@ export function SigningPdfViewer({
         }
 
         const buffer = await pdfResponse.arrayBuffer();
-        const pdfDoc = await PDFDocument.load(buffer);
+        const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
         const fontCache = new Map<StandardFonts, PDFFont>();
         const getFont = async (fontName: StandardFonts) => {
           if (fontCache.has(fontName)) {

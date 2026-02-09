@@ -161,6 +161,7 @@ export default function InTransitDocumentsPage() {
             isLoading={isLoadingIncoming}
             meta={{
               onReceived: handleReceiveSuccess,
+              onRefetch: refetchIncoming,
             }}
           />
         </TabsContent>
@@ -194,6 +195,7 @@ export default function InTransitDocumentsPage() {
             selection={true}
             viewType="outgoing"
             isLoading={isLoadingOutgoing}
+            meta={{ onRefetch: refetchOutgoing }}
           />
         </TabsContent>
       </Tabs>

@@ -3476,6 +3476,82 @@ export class DocumentService {
   }
 
   /**
+   * Uncomplete a document (revert from completed to pending status)
+   */
+  async uncompleteDocument(documentId: string, userId: string) {
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(documentId)) {
+      return { success: false, error: 'Invalid document ID format' };
+    }
+
+    try {
+      const document = await prisma.document.findUnique({
+        where: { document_id: documentId }
+      });
+
+      if (!document) {
+        return { success: false, error: 'Document not found' };
+      }
+
+      // Check if document is actually completed
+      if (document.status?.toLowerCase() !== 'completed') {
+        return { success: false, error: 'Document is not in completed status' };
+      }
+
+      const updatedDocument = await prisma.document.update({
+        where: { document_id: documentId },
+        data: {
+          status: 'pending',
+          deleted_at: null, // Remove archive date
+          updated_at: new Date()
+        }
+      });
+
+      // Create a document trail entry for document uncompletion
+      const documentTrailsService = new DocumentTrailsService();
+      try {
+        const uncompletingUser = await prisma.user.findUnique({
+          where: { user_id: userId },
+          select: { department_id: true, first_name: true, last_name: true }
+        });
+
+        await documentTrailsService.createDocumentTrail({
+          document_id: documentId,
+          from_department: uncompletingUser?.department_id,
+          to_department: uncompletingUser?.department_id,
+          user_id: userId,
+          status: 'pending',
+          remarks: `Document status reverted from completed by ${uncompletingUser?.first_name} ${uncompletingUser?.last_name}`
+        });
+      } catch (error) {
+        console.error('Error creating document trail for document uncompletion:', error);
+      }
+
+      // Emit socket event for real-time updates
+      const io = getSocketInstance();
+      if (io) {
+        io.emit('documentUpdated', {
+          documentId: documentId,
+          status: 'pending',
+          updatedBy: userId,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      return {
+        success: true,
+        data: { message: 'Document status reverted successfully' }
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'Failed to uncomplete document'
+      };
+    }
+  }
+
+  /**
    * Cancel a document
    */
   async cancelDocument(documentId: string, userId: string) {

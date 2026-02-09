@@ -199,6 +199,7 @@ export default function DocumentsPage() {
               },
             }}
             isLoading={isLoading}
+            meta={{ onRefetch: refetch }}
           />
         </TabsContent>
 
@@ -216,6 +217,7 @@ export default function DocumentsPage() {
               },
             }}
             isLoading={isLoading}
+            meta={{ onRefetch: refetch }}
           />
         </TabsContent>
       </Tabs>

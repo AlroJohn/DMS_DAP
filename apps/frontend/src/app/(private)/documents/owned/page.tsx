@@ -145,6 +145,7 @@ export default function OwnedDocumentsPage() {
         selection={true}
         viewType="owned"
         isLoading={isLoading}
+        meta={{ onRefetch: refetch }}
       />
     </div>
   );

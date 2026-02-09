@@ -455,6 +455,7 @@ export class SharedDocumentService {
           const assignedAction = await prisma.documentTrail.findFirst({
             where: {
               document_id: doc.document_id,
+              status: { in: ['pending', 'intransit'] }, // Only look for active actions, not completed ones
               OR: [
                 { assigned_to_user_id: userId },
                 { 

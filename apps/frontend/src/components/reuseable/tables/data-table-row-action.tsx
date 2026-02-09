@@ -72,6 +72,7 @@ interface DataTableRowActionsProps<TData> {
     | "archive"
     | "recycle-bin";
   onSign?: (document: TData) => void;
+  onActionSuccess?: () => void; // Add callback to refresh data after actions
 }
 
 const getReturnPathForView = (
@@ -97,6 +98,7 @@ const getReturnPathForView = (
 export function DataTableRowActions<TData>({
   row,
   viewType = "document",
+  onActionSuccess,
 }: DataTableRowActionsProps<TData>) {
   const router = useRouter();
   const { user: currentUser } = useAuth();
@@ -123,6 +125,7 @@ export function DataTableRowActions<TData>({
   const [viewDocumentModalOpen, setViewDocumentModalOpen] = useState(false);
   const [viewOcrModalOpen, setViewOcrModalOpen] = useState(false);
   const [showCompleteAlert, setShowCompleteAlert] = useState(false);
+  const [showUncompleteAlert, setShowUncompleteAlert] = useState(false);
   const [showCancelAlert, setShowCancelAlert] = useState(false);
   const document = row.original as Document;
 
@@ -227,6 +230,11 @@ export function DataTableRowActions<TData>({
 
       toast.success("Document completed successfully.");
       setShowCompleteAlert(false);
+      
+      // Refresh data to maintain assigned action buttons
+      if (onActionSuccess) {
+        onActionSuccess();
+      }
     } catch (error: any) {
       console.error("Error completing document:", error);
       toast.error(error.message || "Failed to complete document.");
@@ -237,6 +245,44 @@ export function DataTableRowActions<TData>({
 
   const handleComplete = () => {
     setShowCompleteAlert(true);
+  };
+
+  const handleUncompleteConfirm = async () => {
+    try {
+      setIsLoading(true);
+
+      const response = await fetch(`/api/documents/${document.id}/uncomplete`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error?.message || "Failed to uncomplete document",
+        );
+      }
+
+      toast.success("Document status reverted successfully.");
+      setShowUncompleteAlert(false);
+      
+      // Refresh data to maintain assigned action buttons
+      if (onActionSuccess) {
+        onActionSuccess();
+      }
+    } catch (error: any) {
+      console.error("Error uncompleting document:", error);
+      toast.error(error.message || "Failed to uncomplete document.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUncomplete = () => {
+    setShowUncompleteAlert(true);
   };
 
   const handleCancel = () => {
@@ -283,6 +329,11 @@ export function DataTableRowActions<TData>({
       const result = await response.json();
       toast.success(result.message || "Document cancelled successfully.");
       setShowCancelAlert(false);
+      
+      // Refresh data to maintain assigned action buttons
+      if (onActionSuccess) {
+        onActionSuccess();
+      }
     } catch (error: any) {
       console.error("Error cancelling document:", error);
       toast.error(error.message || "Failed to cancel document.");
@@ -347,6 +398,11 @@ export function DataTableRowActions<TData>({
 
         toast.success("Document successfully deleted.");
       }
+      
+      // Refresh data to maintain assigned action buttons
+      if (onActionSuccess) {
+        onActionSuccess();
+      }
     } catch (error: any) {
       console.error("Error deleting document:", error);
       toast.error(error.message || "Failed to delete document.");
@@ -383,6 +439,11 @@ export function DataTableRowActions<TData>({
       }
 
       toast.success("Document successfully archived.");
+      
+      // Refresh data to maintain assigned action buttons
+      if (onActionSuccess) {
+        onActionSuccess();
+      }
     } catch (error: any) {
       console.error("Error archiving document:", error);
       toast.error(error.message || "Failed to archive document.");
@@ -428,6 +489,11 @@ export function DataTableRowActions<TData>({
       }
 
       toast.success("Document successfully restored.");
+      
+      // Refresh data to maintain assigned action buttons
+      if (onActionSuccess) {
+        onActionSuccess();
+      }
     } catch (error: any) {
       console.error("Error restoring document:", error);
       toast.error(error.message || "Failed to restore document.");
@@ -456,6 +522,7 @@ export function DataTableRowActions<TData>({
   // Status-based checks
   const isDispatch = document.status?.toLowerCase().includes("pending");
   const isInTransit = document.status?.toLowerCase() === "intransit";
+  const isCompleted = document.status?.toLowerCase() === "completed";
 
   // Check if document is already in transit (released) - in which case release should be disabled
   const isAlreadyReleased = isInTransit;
@@ -552,15 +619,19 @@ export function DataTableRowActions<TData>({
     ? (isForApproval || isForReview || isForSignature || isApproved || isReviewed ? true : (canEditDoc && hasAssignedSignature))
     : canEditDoc;
   
-  // Release: FOR APPROVAL OR FOR REVIEW OR FOR CANCELLATION OR FOR SIGNATURE OR FOR COMPLETE OR APPROVED OR REVIEWED
-  const showRelease = (isForApproval || isForReview || isForCancellation || isForSignature || isForComplete || isApproved || isReviewed)
+  // Release: FOR APPROVAL OR FOR REVIEW OR FOR CANCELLATION OR FOR SIGNATURE OR FOR COMPLETE OR APPROVED OR REVIEWED (but not for completed documents)
+  const showRelease = ((isForApproval || isForReview || isForCancellation || isForSignature || isForComplete || isApproved || isReviewed) && !isCompleted)
     ? true 
-    : (canRelease && !isAlreadyReleased); // Release is hidden when document is already in-transit
+    : (canRelease && !isAlreadyReleased && !isCompleted); // Release is hidden when document is already in-transit or completed
   
-  // Complete: FOR APPROVAL OR FOR COMPLETE OR APPROVED OR REVIEWED
+  // Complete/Uncomplete: FOR APPROVAL OR FOR COMPLETE OR APPROVED OR REVIEWED
   const showComplete = viewType === "shared"
-    ? (isForApproval || isForComplete || isApproved || isReviewed)  // Show for FOR APPROVAL or FOR COMPLETE or APPROVED or REVIEWED in shared view
-    : (canComplete && !isDispatch); // Normal logic for other views
+    ? (isForApproval || isForComplete || isApproved || isReviewed) && !isCompleted  // Show Complete for FOR APPROVAL or FOR COMPLETE or APPROVED or REVIEWED in shared view, but not if already completed
+    : (canComplete && !isDispatch && !isCompleted); // Normal logic for other views
+  
+  const showUncomplete = viewType === "shared"
+    ? (isForApproval || isForComplete || isApproved || isReviewed) && isCompleted  // Show Uncomplete if document is completed
+    : (canComplete && isCompleted); // Show Uncomplete for completed documents
   
   const showCancel = viewType === "shared" 
     ? false // No cancel button for shared documents
@@ -682,6 +753,16 @@ export function DataTableRowActions<TData>({
                 >
                   <CheckCircle className="mr-2 h-4 w-4" />
                   Complete
+                </DropdownMenuItem>
+              )}
+
+              {/* Uncomplete - for completed documents */}
+              {showUncomplete && (
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleUncomplete)}
+                >
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Uncomplete
                 </DropdownMenuItem>
               )}
 
@@ -968,6 +1049,16 @@ export function DataTableRowActions<TData>({
                   Complete
                 </DropdownMenuItem>
               )}
+
+              {/* Uncomplete - for completed documents */}
+              {showUncomplete && (
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleUncomplete)}
+                >
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Uncomplete
+                </DropdownMenuItem>
+              )}
             </>
           )}
 
@@ -1153,6 +1244,12 @@ export function DataTableRowActions<TData>({
         isOpen={modalState.release}
         onClose={() => toggleModal("release", false)}
         document={selectedDocument}
+        onSuccess={() => {
+          // Refresh data to maintain assigned action buttons
+          if (onActionSuccess) {
+            onActionSuccess();
+          }
+        }}
       />
 
       {/* Edit Modal */}
@@ -1162,7 +1259,10 @@ export function DataTableRowActions<TData>({
           onOpenChange={(open) => toggleModal("edit", open)}
           documentId={selectedDocument.id}
           onSuccess={() => {
-            // The real-time update will handle the UI update
+            // Refresh data to maintain assigned action buttons
+            if (onActionSuccess) {
+              onActionSuccess();
+            }
           }}
         />
       )}
@@ -1174,6 +1274,12 @@ export function DataTableRowActions<TData>({
           onOpenChange={(open) => toggleModal("checkoutFile", open)}
           documentId={selectedDocument.id}
           action={checkoutAction}
+          onSuccess={() => {
+            // Refresh data to maintain assigned action buttons
+            if (onActionSuccess) {
+              onActionSuccess();
+            }
+          }}
         />
       )}
 
@@ -1197,6 +1303,24 @@ export function DataTableRowActions<TData>({
             <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleCompleteConfirm} disabled={isLoading}>
               {isLoading ? "Completing..." : "Complete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Uncomplete Confirmation Alert Dialog */}
+      <AlertDialog open={showUncompleteAlert} onOpenChange={setShowUncompleteAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revert Completed Status?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to revert this document from completed status? This action will change the document status back to pending.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleUncompleteConfirm} disabled={isLoading}>
+              {isLoading ? "Reverting..." : "Revert"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

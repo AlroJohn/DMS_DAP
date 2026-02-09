@@ -458,7 +458,7 @@ export const createOwnedDocumentColumns = (
     },
     {
       id: "actions",
-      cell: ({ row }) => <DataTableRowActions row={row} viewType="owned" />,
+      cell: ({ row }) => <DataTableRowActions row={row} viewType="owned" onActionSuccess={meta?.onRefetch} />,
       enableSorting: false,
       enableHiding: false,
     },

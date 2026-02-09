@@ -119,6 +119,7 @@ export default function RecycleBinPage() {
           },
         }}
         isLoading={isLoading}
+        meta={{ onRefetch: refetch }}
       />
     </div>
   );

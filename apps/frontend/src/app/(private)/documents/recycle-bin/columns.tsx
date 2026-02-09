@@ -396,7 +396,7 @@ export const columns: ColumnDef<RecycleBinDocument, unknown>[] = [
     id: "actions",
     cell: ({ row }) => (
       <div className="flex justify-center">
-        <DataTableRowActions row={row} viewType="recycle-bin" />
+        <DataTableRowActions row={row} viewType="recycle-bin" onActionSuccess={meta?.onRefetch} />
       </div>
     ),
     enableSorting: false,
