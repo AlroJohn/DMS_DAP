@@ -10,19 +10,19 @@ async function main() {
   console.log('🌱 Seeding Process Types...');
   for (const process of processes) {
     await prisma.processType.upsert({
-      where: { code: process.code },
+      where: { name: process.name },
       update: {
-          name: process.name,
-          description: process.description,
-          duration_value: process.duration_value,
-          duration_unit: process.duration_unit
+        code: process.code,
+        description: process.description,
+        duration_value: process.duration_value,
+        duration_unit: process.duration_unit
       },
       create: {
-          code: process.code,
-          name: process.name,
-          description: process.description,
-          duration_value: process.duration_value,
-          duration_unit: process.duration_unit
+        code: process.code,
+        name: process.name,
+        description: process.description,
+        duration_value: process.duration_value,
+        duration_unit: process.duration_unit
       }
     });
   }
@@ -109,7 +109,7 @@ async function main() {
 
         // Delete uploaded files
         await tx.documentFile.deleteMany({
-            where: { uploaded_by: existingSuperAdmin.account_id }
+          where: { uploaded_by: existingSuperAdmin.account_id }
         });
 
         await tx.account.delete({

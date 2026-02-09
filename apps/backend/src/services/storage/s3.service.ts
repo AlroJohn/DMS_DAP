@@ -33,26 +33,38 @@ const parseS3Uri = (uri: string): S3Location | null => {
 const getEnv = (key: string) => process.env[key];
 
 class S3StorageService {
-  private client: S3Client;
+  private client: S3Client | null = null;
+  private isEnabled: boolean;
 
   constructor() {
     const region = getEnv('AWS_REGION') || getEnv('AWS_DEFAULT_REGION');
-    if (!region) {
-      throw new Error('AWS_REGION is required for S3 storage.');
+    const bucket = getEnv('S3_BUCKET_NAME');
+    
+    // Check if S3 is properly configured
+    this.isEnabled = !!(region && bucket);
+    
+    if (this.isEnabled) {
+      const accessKeyId = getEnv('AWS_ACCESS_KEY_ID');
+      const secretAccessKey = getEnv('AWS_SECRET_ACCESS_KEY');
+
+      this.client = new S3Client({
+        region: region!,
+        credentials: accessKeyId && secretAccessKey
+          ? {
+              accessKeyId,
+              secretAccessKey,
+            }
+          : undefined,
+      });
+    } else {
+      console.warn('S3 storage is not configured. Using alternative storage method.');
     }
+  }
 
-    const accessKeyId = getEnv('AWS_ACCESS_KEY_ID');
-    const secretAccessKey = getEnv('AWS_SECRET_ACCESS_KEY');
-
-    this.client = new S3Client({
-      region,
-      credentials: accessKeyId && secretAccessKey
-        ? {
-            accessKeyId,
-            secretAccessKey,
-          }
-        : undefined,
-    });
+  private ensureEnabled(): void {
+    if (!this.isEnabled || !this.client) {
+      throw new Error('S3 storage is not enabled or properly configured.');
+    }
   }
 
   getBucket(): string {
@@ -72,6 +84,11 @@ class S3StorageService {
     body: Buffer;
     contentType?: string;
   }): Promise<string> {
+    this.ensureEnabled();
+    if (!this.client) {
+      throw new Error('S3 client not initialized');
+    }
+    
     const bucket = this.getBucket();
     await this.client.send(
       new PutObjectCommand({
@@ -85,6 +102,11 @@ class S3StorageService {
   }
 
   async getObjectStream(uriOrKey: string): Promise<Readable> {
+    this.ensureEnabled();
+    if (!this.client) {
+      throw new Error('S3 client not initialized');
+    }
+    
     const location = parseS3Uri(uriOrKey) || {
       bucket: this.getBucket(),
       key: uriOrKey,
@@ -117,6 +139,11 @@ class S3StorageService {
   }
 
   async deleteObject(uriOrKey: string): Promise<void> {
+    this.ensureEnabled();
+    if (!this.client) {
+      throw new Error('S3 client not initialized');
+    }
+    
     const location = parseS3Uri(uriOrKey) || {
       bucket: this.getBucket(),
       key: uriOrKey,
@@ -131,5 +158,6 @@ class S3StorageService {
   }
 }
 
+// Export S3 storage service instance
 export const s3Storage = new S3StorageService();
 export { S3_URI_PREFIX, buildS3Uri, parseS3Uri };

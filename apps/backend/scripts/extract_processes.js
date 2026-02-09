@@ -53,11 +53,17 @@ function parseDuration(durationStr) {
 }
 
 function generateCode(name) {
-    return name
-        .toUpperCase()
-        .replace(/[^A-Z0-9]+/g, '_') // Replace non-alphanumeric with underscore
-        .replace(/^_+|_+$/g, '') // Trim underscores
-        .substring(0, 100);
+    const parts = name.split(' - ');
+    return parts.map(part => {
+        // Remove content in parentheses to avoid double acronyms if needed, or just keep simple
+        // For "APPLICATION ... (PMDP)", "PMDP" adds "P". User had ATTPMDP.
+        // Let's try to just take the first letter of words that start with alphanumeric
+        return part
+            .replace(/\([^\)]*\)/g, '') // Remove parentheses content like (PMDP)
+            .match(/\b[a-zA-Z0-9]/g)
+            ?.join('')
+            .toUpperCase() || '';
+    }).join('-');
 }
 
 data.forEach(row => {
