@@ -18,12 +18,9 @@ import {
   Calendar,
   Building,
   User,
-  Eye,
-  Download,
   Filter,
   ChevronRight,
   Clock,
-  AlertCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -33,6 +30,7 @@ import {
   ReportFilters,
   type ReportFilters as ReportFiltersType,
 } from "@/components/reports/report-filters";
+import { calculateDuration, calculateTotalDocumentDuration, getExpectedDuration, compareDurations } from "@/utils/duration";
 
 interface DocumentTrail {
   id: string;
@@ -50,6 +48,8 @@ interface DocumentTrail {
   updatedAt?: string; // When the trail record was last updated
   remarks: string;
   isOwned: boolean; // Whether the document was created by the current user's department
+  durationMs?: number | null; // Time held in this stage before next action (in milliseconds)
+  documentCreatedAt?: string | null; // Document creation date for total duration calculation
   processType?: {
     id: string;
     code: string;
@@ -952,6 +952,107 @@ export default function DocumentTrailingPage() {
                               {doc.remarks}
                             </div>
                           </div>
+                        </div>
+                      )}
+
+                      {/* Duration Summary - Only show when user held the document */}
+                      {doc.durationMs !== null && doc.durationMs !== undefined && doc.durationMs > 0 && (
+                        <div className="border-t pt-3 mt-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {/* Time held by user/department before release */}
+                            <div className="p-3 bg-linear-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
+                              <div className="mb-1">
+                                <span className="text-xs font-semibold text-blue-900 dark:text-blue-100 uppercase tracking-wider">
+                                  Duration Held
+                                </span>
+                              </div>
+                              <p className="text-lg font-bold text-blue-700 dark:text-blue-300">
+                                {(() => {
+                                  const durationInSeconds = Math.floor(doc.durationMs / 1000);
+                                  const days = Math.floor(durationInSeconds / (24 * 60 * 60));
+                                  const hours = Math.floor((durationInSeconds % (24 * 60 * 60)) / (60 * 60));
+                                  const minutes = Math.floor((durationInSeconds % (60 * 60)) / 60);
+                                  
+                                  const parts: string[] = [];
+                                  if (days > 0) parts.push(`${days}d`);
+                                  if (hours > 0) parts.push(`${hours}h`);
+                                  if (minutes > 0 || parts.length === 0) parts.push(`${minutes}m`);
+                                  
+                                  return parts.join(' ');
+                                })()}
+                              </p>
+                              <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                                {doc.user} held document before next action
+                              </p>
+                            </div>
+
+                            {/* Total document duration */}
+                            {doc.documentCreatedAt && (
+                              <div className="p-3 bg-linear-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/20 rounded-md border border-purple-200 dark:border-purple-800">
+                                <div className="mb-1">
+                                  <span className="text-xs font-semibold text-purple-900 dark:text-purple-100 uppercase tracking-wider">
+                                    Total Document Age
+                                  </span>
+                                </div>
+                                <p className="text-lg font-bold text-purple-700 dark:text-purple-300">
+                                  {(() => {
+                                    const duration = calculateTotalDocumentDuration(doc.documentCreatedAt);
+                                    return duration.shortFormat;
+                                  })()}
+                                </p>
+                                <p className="text-xs text-purple-600 dark:text-purple-400 mt-0.5">
+                                  Since {format(new Date(doc.documentCreatedAt), "MMM d, yyyy")}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Process status if available */}
+                          {doc.processType && doc.processType.durationValue && doc.processType.durationUnit && doc.documentCreatedAt && (
+                            <div className={`p-3 rounded-md border mt-2 ${(() => {
+                                const duration = calculateTotalDocumentDuration(doc.documentCreatedAt);
+                                const comparison = compareDurations(duration.days, doc.processType.durationValue, doc.processType.durationUnit);
+                                if (comparison.status === 'on-time') return 'bg-linear-to-br from-green-50 to-green-100 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800';
+                                if (comparison.status === 'warning') return 'bg-linear-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950/30 dark:to-yellow-900/20 border-yellow-200 dark:border-yellow-800';
+                                return 'bg-linear-to-br from-red-50 to-red-100 dark:from-red-950/30 dark:to-red-900/20 border-red-200 dark:border-red-800';
+                              })()}`}>
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <span className={`text-xs font-semibold uppercase tracking-wider ${(() => {
+                                      const duration = calculateTotalDocumentDuration(doc.documentCreatedAt);
+                                      const comparison = compareDurations(duration.days, doc.processType.durationValue, doc.processType.durationUnit);
+                                      if (comparison.status === 'on-time') return 'text-green-900 dark:text-green-100';
+                                      if (comparison.status === 'warning') return 'text-yellow-900 dark:text-yellow-100';
+                                      return 'text-red-900 dark:text-red-100';
+                                    })()}`}>
+                                    Process Status: 
+                                  </span>
+                                  <span className={`ml-1 text-sm font-bold ${(() => {
+                                      const duration = calculateTotalDocumentDuration(doc.documentCreatedAt);
+                                      const comparison = compareDurations(duration.days, doc.processType.durationValue, doc.processType.durationUnit);
+                                      if (comparison.status === 'on-time') return 'text-green-700 dark:text-green-300';
+                                      if (comparison.status === 'warning') return 'text-yellow-700 dark:text-yellow-300';
+                                      return 'text-red-700 dark:text-red-300';
+                                    })()}`}>
+                                    {(() => {
+                                        const duration = calculateTotalDocumentDuration(doc.documentCreatedAt);
+                                        const comparison = compareDurations(duration.days, doc.processType.durationValue, doc.processType.durationUnit);
+                                        return comparison.message;
+                                      })()}
+                                  </span>
+                                </div>
+                                <p className={`text-xs ${(() => {
+                                    const duration = calculateTotalDocumentDuration(doc.documentCreatedAt);
+                                    const comparison = compareDurations(duration.days, doc.processType.durationValue, doc.processType.durationUnit);
+                                    if (comparison.status === 'on-time') return 'text-green-600 dark:text-green-400';
+                                    if (comparison.status === 'warning') return 'text-yellow-600 dark:text-yellow-400';
+                                    return 'text-red-600 dark:text-red-400';
+                                  })()}`}>
+                                  Expected: {getExpectedDuration(doc.processType.durationValue, doc.processType.durationUnit)}
+                                </p>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

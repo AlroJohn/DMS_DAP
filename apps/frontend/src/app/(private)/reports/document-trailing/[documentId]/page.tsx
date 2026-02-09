@@ -10,16 +10,14 @@ import {
   Building,
   User,
   ArrowRight,
-  Clock,
   Download,
   ChevronLeft,
-  MessageSquare,
-  FileDown,
 } from "lucide-react";
 import { format as formatDate } from "date-fns";
 import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import exportDocumentTrailsPDF, { exportDocumentTrailsCSV, exportDocumentTrailsExcel } from "@/utils/document-trails-export";
+import { calculateDuration, getExpectedDuration, compareDurations } from "@/utils/duration";
 
 interface DocumentTrailDetail {
   id: string;
@@ -32,6 +30,7 @@ interface DocumentTrailDetail {
   toDepartment: string;
   status: string;
   remarks: string;
+  durationMs?: number | null; // Duration to next trail in milliseconds
 }
 
 interface DocumentInfo {
@@ -269,6 +268,18 @@ export default function DocumentTrailsDetailPage() {
                   )}
                 </p>
               </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Total Duration</p>
+                <p className="font-medium text-blue-700 dark:text-blue-300">
+                  {(() => {
+                    const duration = calculateDuration(documentInfo.createdAt, new Date().toISOString());
+                    return duration.shortFormat;
+                  })()}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Since {formatDate(new Date(documentInfo.createdAt), "MMM d, yyyy")}
+                </p>
+              </div>
               {documentInfo.processType && (
                 <div className="sm:col-span-2 lg:col-span-3 space-y-2">
                   <p className="text-sm font-semibold text-muted-foreground">
@@ -442,6 +453,37 @@ export default function DocumentTrailsDetailPage() {
                           </p>
                           <div className="text-sm whitespace-pre-line leading-relaxed">
                             {trail.remarks}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Duration in this stage - Only shown when user held document */}
+                    {trail.durationMs && trail.durationMs > 0 && (
+                      <div className="mt-3 p-4 bg-linear-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20 border-l-4 border-blue-500 dark:border-blue-400 rounded-r-md shadow-sm">
+                        <div>
+                          <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 uppercase tracking-wider mb-2">
+                            DURATION HELD BY USER
+                          </p>
+                          <div className="space-y-1">
+                            <p className="text-xl font-bold text-blue-700 dark:text-blue-300">
+                              {(() => {
+                                const durationInSeconds = Math.floor(trail.durationMs / 1000);
+                                const days = Math.floor(durationInSeconds / (24 * 60 * 60));
+                                const hours = Math.floor((durationInSeconds % (24 * 60 * 60)) / (60 * 60));
+                                const minutes = Math.floor((durationInSeconds % (60 * 60)) / 60);
+                                
+                                const longParts: string[] = [];
+                                if (days > 0) longParts.push(`${days} ${days === 1 ? 'day' : 'days'}`);
+                                if (hours > 0) longParts.push(`${hours} ${hours === 1 ? 'hour' : 'hours'}`);
+                                if (minutes > 0 || longParts.length === 0) longParts.push(`${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`);
+                                
+                                return longParts.join(', ');
+                              })()}
+                            </p>
+                            <p className="text-sm text-blue-700 dark:text-blue-300">
+                              {trail.user} held this document {index === trails.length - 1 ? "and is currently in this stage" : "before releasing to next user"}
+                            </p>
                           </div>
                         </div>
                       </div>
