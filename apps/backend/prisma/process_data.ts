@@ -1,0 +1,51 @@
+export const processes = [
+  {
+    "name": "APPLICATION TO THE PUBLIC MANAGEMENT DEVELOPMENT PROGRAM (PMDP) - Phronetic Leadership Class (PLC)",
+    "code": "APPLICATION_TO_THE_PUBLIC_MANAGEMENT_DEVELOPMENT_PROGRAM_PMDP_PHRONETIC_LEADERSHIP_CLASS_PLC",
+    "description": "APPLICATION TO THE PUBLIC MANAGEMENT DEVELOPMENT PROGRAM (PMDP) - Phronetic Leadership Class (PLC)",
+    "duration_value": 3,
+    "duration_unit": "days"
+  },
+  {
+    "name": "APPLICATION TO THE PUBLIC MANAGEMENT DEVELOPMENT PROGRAM (PMDP) - SEC, MMC, and LGEMC Tracks",
+    "code": "APPLICATION_TO_THE_PUBLIC_MANAGEMENT_DEVELOPMENT_PROGRAM_PMDP_SEC_MMC_AND_LGEMC_TRACKS",
+    "description": "APPLICATION TO THE PUBLIC MANAGEMENT DEVELOPMENT PROGRAM (PMDP) - SEC, MMC, and LGEMC Tracks",
+    "duration_value": 148,
+    "duration_unit": "hours"
+  },
+  {
+    "name": "REQUEST FOR PMDP NON-ACADEMIC RECORDS AND CERTIFICATIONS",
+    "code": "REQUEST_FOR_PMDP_NON_ACADEMIC_RECORDS_AND_CERTIFICATIONS",
+    "description": "REQUEST FOR PMDP NON-ACADEMIC RECORDS AND CERTIFICATIONS",
+    "duration_value": 3,
+    "duration_unit": "days"
+  },
+  {
+    "name": "ENROLLMENT IN PUBLIC COURSES/DELIVERY OF PUBLIC COURSE OFFERINGS",
+    "code": "ENROLLMENT_IN_PUBLIC_COURSES_DELIVERY_OF_PUBLIC_COURSE_OFFERINGS",
+    "description": "ENROLLMENT IN PUBLIC COURSES/DELIVERY OF PUBLIC COURSE OFFERINGS",
+    "duration_value": null,
+    "duration_unit": "days"
+  },
+  {
+    "name": "DELIVERY OF CUSTOMIZED TRAINING SERVICES",
+    "code": "DELIVERY_OF_CUSTOMIZED_TRAINING_SERVICES",
+    "description": "DELIVERY OF CUSTOMIZED TRAINING SERVICES",
+    "duration_value": 17285,
+    "duration_unit": "minutes"
+  },
+  {
+    "name": "REQUEST FOR TECHNICAL ASSISTANCE/ CONSULTANCY/ RESEARCH SERVICES",
+    "code": "REQUEST_FOR_TECHNICAL_ASSISTANCE_CONSULTANCY_RESEARCH_SERVICES",
+    "description": "REQUEST FOR TECHNICAL ASSISTANCE/ CONSULTANCY/ RESEARCH SERVICES",
+    "duration_value": 5,
+    "duration_unit": "minutes"
+  },
+  {
+    "name": "APPLICATION FOR APO SCHOLARSHIP TRAINING PROGRAM",
+    "code": "APPLICATION_FOR_APO_SCHOLARSHIP_TRAINING_PROGRAM",
+    "description": "APPLICATION FOR APO SCHOLARSHIP TRAINING PROGRAM",
+    "duration_value": 3315,
+    "duration_unit": "minutes"
+  }
+];

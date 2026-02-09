@@ -1,9 +1,33 @@
 import { Prisma, Prisma as PrismaType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../src/lib/prisma';
+import { processes } from './process_data';
 
 async function main() {
   console.log('🌱 Starting database seeding for Super Admin...');
+
+  // Seed Process Types
+  console.log('🌱 Seeding Process Types...');
+  for (const process of processes) {
+    await prisma.processType.upsert({
+      where: { code: process.code },
+      update: {
+          name: process.name,
+          description: process.description,
+          duration_value: process.duration_value,
+          duration_unit: process.duration_unit
+      },
+      create: {
+          code: process.code,
+          name: process.name,
+          description: process.description,
+          duration_value: process.duration_value,
+          duration_unit: process.duration_unit
+      }
+    });
+  }
+  console.log(`✅ Seeded ${processes.length} Process Types.`);
+
 
   try {
     const superAdminEmails = [
@@ -81,6 +105,11 @@ async function main() {
               { updated_by: existingSuperAdmin.account_id }
             ]
           }
+        });
+
+        // Delete uploaded files
+        await tx.documentFile.deleteMany({
+            where: { uploaded_by: existingSuperAdmin.account_id }
         });
 
         await tx.account.delete({
@@ -1086,6 +1115,8 @@ async function main() {
         console.log(`✅ Sidebar setting already exists: ${setting.section_name}`);
       }
     }
+
+
 
     console.log('\n🧾 Seeded account summary:');
     console.log(`- Super Admin accounts: ${seededSuperAdminEmails.join(', ') || 'none'}`);

@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { DataTable } from "@/components/reuseable/tables/data-table";
 import { getColumns } from "./columns";
 import { useSharedDocuments } from "@/hooks/use-shared-documents";
-import { Loader2, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSocket } from "@/components/providers/providers";
 import { useAuth } from "@/hooks/use-auth";

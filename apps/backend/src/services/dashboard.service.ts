@@ -485,6 +485,8 @@ export class DashboardService {
 
             const departmentId = user.account.department_id;
 
+            const accountId = user.account.account_id;
+
             // Count pending signatures
             const pendingSignaturesCount = await this.getPendingSignaturesCount(userId);
 
@@ -501,7 +503,7 @@ export class DashboardService {
             const recentActivityCount = await this.getUserRecentActivityCount(userId);
 
             // Get additional counts: Completed (User vs Dept), Shared to Dept, Shared to User
-            const additionalCounts = await this.getAdditionalDocumentCounts(userId, departmentId);
+            const additionalCounts = await this.getAdditionalDocumentCounts(userId, departmentId, accountId);
 
             return {
                 pendingSignatures: pendingSignaturesCount,
@@ -519,13 +521,14 @@ export class DashboardService {
         }
     }
 
-    private async getAdditionalDocumentCounts(userId: string, departmentId: string) {
+    private async getAdditionalDocumentCounts(userId: string, departmentId: string, accountId: string) {
         try {
             const allDetails = await prisma.documentAdditionalDetails.findMany({
                 select: {
                     document_id: true,
                     work_flow_id: true,
                     received_by_departments: true,
+                    account_id: true,
                 },
             });
 
@@ -533,6 +536,11 @@ export class DashboardService {
             const userDocIds = new Set<string>();
 
             for (const detail of allDetails) {
+                // Skip if current user is the owner
+                if (detail.account_id === accountId) {
+                    continue;
+                }
+
                 // Check Department Workflow
                 const workflowDepartments = this.parseWorkflowDepartments(detail.work_flow_id);
                 if (workflowDepartments.includes(departmentId)) {

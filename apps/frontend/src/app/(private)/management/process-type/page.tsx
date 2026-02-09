@@ -258,69 +258,53 @@ const ProcessTypeManagementPage = () => {
   };
 
   return (
-    <div className="w-full flex h-full flex-col bg-background">
-      {/* Modals */}
-      <AlertModal
-        isOpen={showDeleteAlert}
-        onClose={() => setShowDeleteAlert(false)}
-        onConfirm={handleDeleteConfirm}
-        loading={isDeleting}
-        title="Delete Process Type"
-        description="Are you sure you want to delete this process type? This action cannot be undone."
-      />
+    <div className="flex flex-col h-full flex-1 overflow-hidden">
+      {/* Main Content Area with Scroll */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {/* Page Header */}
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold tracking-tight">Process Type Management</h1>
+          <p className="text-muted-foreground">
+            Manage process types and their durations
+          </p>
+        </div>
 
-      {/* Header */}
-      <div className="flex flex-col gap-2 mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">Process Type Management</h1>
-        <p className="text-muted-foreground">
-          Manage process types and their durations
-        </p>
-      </div>
-
-      {/* Toolbar */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative w-64">
-              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search process types..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8"
-              />
+        {/* Toolbar */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="relative w-64">
+                <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search process types..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="h-9 w-[140px]">
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button onClick={() => setIsCreateModalOpen(true)} className="h-9">
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Add Process Type
-            </Button>
+            <div className="flex items-center gap-2">
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="h-9 w-[140px]">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button onClick={() => setIsCreateModalOpen(true)} className="h-9">
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Add Process Type
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Table */}
-      <div className="flex flex-col gap-4 mt-4">
-        {loading ? (
-          <div className="rounded-md border bg-card">
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="rounded-md border bg-card">
+        {/* Table Container */}
+        <div className="rounded-md border bg-card overflow-hidden">
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -334,9 +318,17 @@ const ProcessTypeManagementPage = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedProcessTypes.length === 0 ? (
+                {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="h-24 text-center">
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : paginatedProcessTypes.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                       No process types found
                     </TableCell>
                   </TableRow>
@@ -355,7 +347,7 @@ const ProcessTypeManagementPage = () => {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm text-muted-foreground">
+                        <span className="text-sm text-muted-foreground max-w-xs truncate" title={processType.description || ""}>
                           {processType.description || "No description"}
                         </span>
                       </TableCell>
@@ -425,8 +417,11 @@ const ProcessTypeManagementPage = () => {
               </TableBody>
             </Table>
           </div>
+        </div>
 
-          {filteredProcessTypes.length > 0 && (
+        {/* Pagination */}
+        {filteredProcessTypes.length > 0 && (
+          <div className="mt-4">
             <TablePagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -438,14 +433,13 @@ const ProcessTypeManagementPage = () => {
                 setCurrentPage(1);
               }}
             />
-          )}
-        </>
-      )}
+          </div>
+        )}
       </div>
 
       {/* Create Modal */}
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-blue-600" />
@@ -600,7 +594,7 @@ const ProcessTypeManagementPage = () => {
 
       {/* Edit Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-blue-600" />

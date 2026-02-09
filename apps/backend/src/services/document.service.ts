@@ -3050,17 +3050,20 @@ export class DocumentService {
       signature_data: signatureData,
     }));
 
-    // 4. Create SignedDocument records and delete placeholders in a transaction.
+    // 4. Create SignedDocument records and update placeholders status in a transaction.
     await prisma.$transaction(async (tx) => {
       await tx.signedDocument.createMany({
         data: signedDocumentsData,
       });
 
-      await tx.signaturePlaceholder.deleteMany({
+      await tx.signaturePlaceholder.updateMany({
         where: {
           placeholder_id: {
             in: placeholders.map(p => p.placeholder_id),
           },
+        },
+        data: {
+          signature_status: true,
         },
       });
     });

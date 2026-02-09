@@ -19,7 +19,6 @@ import {
   Calendar as CalendarIcon,
   FileSignature,
   FileInput,
-  Send,
   Activity,
   ArrowRight,
 } from "lucide-react";
@@ -52,7 +51,7 @@ const Homepage = () => {
 
   // Check if user is superadmin
   const isSuperAdmin = user?.roles?.some(
-    (role: any) => role.code === "SUPER_ADMIN",
+    (role: { code: string }) => role.code === "SUPER_ADMIN",
   );
 
   // Debug logging
