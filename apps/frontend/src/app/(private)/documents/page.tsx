@@ -9,11 +9,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useEffect, useRef, useMemo, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProcessType } from "@/hooks/use-process.type";
+import { useDocumentSidebarCounts } from "@/hooks/use-document-sidebar-counts";
 
 export default function DocumentsPage() {
   const { documents, isLoading, error, refetch } = useDocuments(1, 50);
   const { socket } = useSocket();
   const { processTypes } = useProcessType();
+  const { setCounts } = useDocumentSidebarCounts();
   const mountedRef = useRef(false);
   const [activeTab, setActiveTab] = useState("active");
 
@@ -21,6 +23,7 @@ export default function DocumentsPage() {
     const map: Record<
       string,
       {
+        code?: string;
         name: string;
         duration_value?: number | null;
         duration_unit?: string | null;
@@ -28,6 +31,7 @@ export default function DocumentsPage() {
     > = {};
     processTypes.forEach((type) => {
       map[type.process_type_id] = {
+        code: type.code || "",
         name: type.name,
         duration_value: type.duration_value ?? null,
         duration_unit: type.duration_unit ?? null,
@@ -156,6 +160,10 @@ export default function DocumentsPage() {
     return mappedDocuments.filter(doc => doc.status?.toLowerCase() !== "completed");
   }, [mappedDocuments, activeTab]);
 
+  useEffect(() => {
+    setCounts({ pendingDocuments: filteredDocuments.length });
+  }, [filteredDocuments.length, setCounts]);
+
   return (
     <div className="p-4 w-full flex h-full flex-col bg-background">
       {error && !isAuthError && (
@@ -195,8 +203,20 @@ export default function DocumentsPage() {
             viewType="document"
             initialState={{
               columnVisibility: {
-                dates: false,
+                dates: true,
               },
+              columnOrder: [
+                "select",
+                "scan",
+                "document",
+                "contact",
+                "type",
+                "processType",
+                "classification",
+                "status",
+                "dates",
+                "actions",
+              ],
             }}
             isLoading={isLoading}
             meta={{ onRefetch: refetch }}
@@ -213,8 +233,20 @@ export default function DocumentsPage() {
             viewType="document"
             initialState={{
               columnVisibility: {
-                dates: false,
+                dates: true,
               },
+              columnOrder: [
+                "select",
+                "scan",
+                "document",
+                "contact",
+                "type",
+                "processType",
+                "classification",
+                "status",
+                "dates",
+                "actions",
+              ],
             }}
             isLoading={isLoading}
             meta={{ onRefetch: refetch }}

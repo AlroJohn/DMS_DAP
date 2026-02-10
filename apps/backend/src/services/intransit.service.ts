@@ -360,10 +360,12 @@ export class IntransitService {
             contactPerson,
             contactOrganization,
             type: 'General',
+            process_type_id: doc.process_type_id,
             classification: doc.classification,
             status: doc.status, // Use actual document status instead of hardcoded 'incoming'
             activity: 'incoming',
             activityTime: doc.created_at.toISOString(),
+            created_at: doc.created_at.toISOString(),
             requestAction: releaseInfo?.requestAction || null,
             releaseRemarks: releaseInfo?.remarks || null
           };
@@ -693,10 +695,12 @@ export class IntransitService {
             contactPerson,
             contactOrganization,
             type: 'General',
+            process_type_id: doc.process_type_id,
             classification: doc.classification,
             status: doc.status, // Use actual document status instead of hardcoded 'sent'
             activity: 'sent',
-            activityTime: doc.created_at.toISOString()
+            activityTime: doc.created_at.toISOString(),
+            created_at: doc.created_at.toISOString()
           };
         })
       );

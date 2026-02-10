@@ -88,6 +88,7 @@ model Department {
   invitations           UserInvitation[]
   signaturePlaceholders SignaturePlaceholder[]
   textPlaceholders      TextPlaceholder[]
+  processTypes          ProcessType[]
 
   @@index([group_id])
   @@index([center_id])
@@ -715,16 +716,18 @@ model UploadedFile {
 }
 
 model ProcessType {
-  process_type_id String     @id @default(uuid()) @db.Uuid
-  code            String     @unique
-  name            String     @unique
-  description     String?
-  duration_value  Int? // Duration value (number)
-  duration_unit   String?    @default("days") // Duration unit: 'days', 'hours', 'minutes'
-  is_active       Boolean    @default(true)
-  created_at      DateTime   @default(now())
-  updated_at      DateTime   @default(now()) @updatedAt
-  documents       Document[]
+  process_type_id      String      @id @default(uuid()) @db.Uuid
+  code                 String      @unique
+  name                 String      @unique
+  description          String?
+  origin_department_id String?     @db.Uuid
+  originDepartment     Department? @relation(fields: [origin_department_id], references: [department_id])
+  duration_value       Int? // Duration value (number)
+  duration_unit        String?     @default("days") // Duration unit: 'days', 'hours', 'minutes'
+  is_active            Boolean     @default(true)
+  created_at           DateTime    @default(now())
+  updated_at           DateTime    @default(now()) @updatedAt
+  documents            Document[]
 }
 
 model ProcessStatus {

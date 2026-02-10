@@ -8,6 +8,7 @@ import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useEffect, useMemo, useRef } from "react";
 import { useDocumentTypes } from "@/hooks/use-document-types";
+import { useProcessType } from "@/hooks/use-process.type";
 
 export default function ArchivePage() {
   const {
@@ -18,6 +19,7 @@ export default function ArchivePage() {
   } = useArchive();
   const { socket } = useSocket();
   const { documentTypes } = useDocumentTypes();
+  const { processTypes } = useProcessType();
   const mountedRef = useRef(false);
 
   const documentTypeMap = useMemo(() => {
@@ -29,8 +31,31 @@ export default function ArchivePage() {
   }, [documentTypes]);
 
   const columns = useMemo(
-    () => createArchiveColumns({ documentTypeMap }),
-    [documentTypeMap]
+    () =>
+      createArchiveColumns({
+        documentTypeMap,
+        processTypeMap: processTypes.reduce(
+          (map, type) => {
+            map[type.process_type_id] = {
+              code: type.code || "",
+              name: type.name,
+              duration_value: type.duration_value ?? null,
+              duration_unit: type.duration_unit ?? null,
+            };
+            return map;
+          },
+          {} as Record<
+            string,
+            {
+              code?: string;
+              name?: string;
+              duration_value?: number | null;
+              duration_unit?: string | null;
+            }
+          >
+        ),
+      }),
+    [documentTypeMap, processTypes]
   );
 
   // Mark component as mounted and clean up on unmount
@@ -60,6 +85,13 @@ export default function ArchivePage() {
       status: (d.status || "completed") as string,
       activity: d.activity || "Archived",
       activityTime: d.activityTime || d.updated_at || d.deleted_at || "",
+      created_at: d.created_at || undefined,
+      process_type_id: d.process_type_id || undefined,
+      process_timer_start_at: d.process_timer_start_at || undefined,
+      process_timer_complete_at: d.process_timer_complete_at || undefined,
+      process_status: d.process_status || undefined,
+      process_delayed_at: d.process_delayed_at || undefined,
+      process_delay_seconds: d.process_delay_seconds || undefined,
       deletedBy: d.deletedBy || d.deleted_by || "",
       deletedAt: d.deletedAt || d.deleted_at || "",
       restoredBy: d.restoredBy || d.restored_by || undefined,
@@ -164,6 +196,18 @@ export default function ArchivePage() {
           columnVisibility: {
             dates: false,
           },
+          columnOrder: [
+            "select",
+            "scan",
+            "document",
+            "contact",
+            "type",
+            "processType",
+            "classification",
+            "status",
+            "dates",
+            "actions",
+          ],
         }}
         isLoading={loading}
         meta={{ onRefetch: fetchArchivedDocuments }}

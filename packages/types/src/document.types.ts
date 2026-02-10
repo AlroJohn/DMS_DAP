@@ -8,6 +8,7 @@ export interface SharedDocument {
   contactPerson?: string;  // Now contains the root owner's name instead of 'N/A'
   contactOrganization?: string;
   type: string;  // Now contains DocumentType name instead of UUID
+  process_type_id?: string | null;
   classification?: string;
   status?: string;
   activity?: string;
@@ -32,6 +33,7 @@ export interface Document {
   contactPerson?: string;
   contactOrganization?: string;
   type: string;
+  process_type_id?: string | null;
   classification?: string;
   status?: string;
   activity?: string;

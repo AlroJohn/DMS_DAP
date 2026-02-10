@@ -40,6 +40,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/use-auth";
 import { UploadVersionModal } from "./upload-version-modal";
+import { FullPageLoader } from "@/components/reuseable/full-page-loader";
 
 interface DocumentFile {
   id: string;
@@ -141,6 +142,7 @@ export function CheckoutFileModal({
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<DocumentFile | null>(null);
   const [currentPath, setCurrentPath] = useState<
@@ -233,6 +235,7 @@ export function CheckoutFileModal({
       if (!signatureTargets.length) return;
       const primaryFileId = signatureTargets[0];
       onOpenChange(false);
+      setIsNavigating(true);
       const params = new URLSearchParams();
       params.set("mode", "signature");
       params.set("fileId", primaryFileId);
@@ -251,6 +254,7 @@ export function CheckoutFileModal({
     ) {
       // File is already checked out by the current user, just navigate to edit
       onOpenChange(false);
+      setIsNavigating(true);
       router.push(
         `/documents/${documentId}?mode=edit&fileId=${selectedFileId}`,
       );
@@ -286,6 +290,7 @@ export function CheckoutFileModal({
       await fetchFiles();
       onOpenChange(false);
       onSuccess?.();
+      setIsNavigating(true);
       router.push(
         `/documents/${documentId}?mode=edit&fileId=${selectedFileId}`,
       );
@@ -455,6 +460,7 @@ export function CheckoutFileModal({
 
   return (
     <>
+      {isNavigating && <FullPageLoader message="Opening document" />}
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-4xl max-h-[80vh] flex flex-col">
           <DialogHeader>

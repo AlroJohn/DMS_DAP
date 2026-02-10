@@ -9,7 +9,7 @@ import { deleteFile } from '../middleware/upload.middleware';
 import { s3Storage } from './storage/s3.service';
 import { DoconchainService, SignerMarkPayload, SignerPayload, SignerRole } from './doconchain.service';
 import { getSocketInstance } from '../socket';
-import { EmailService, DocumentSharedEmailData, DocumentReleasedEmailData, DocumentCompletedEmailData } from './email.service';
+import { EmailService, DocumentCompletedEmailData } from './email.service';
 import { DocumentMetadataService } from './document-metadata.service';
 import { DocumentTrailsService } from './document-trails.service';
 import { ProcessStatusService } from './process-status.service';
@@ -190,6 +190,102 @@ export class DocumentService {
       select: { name: true }
     });
     return this.slugifyDepartmentName(department?.name || 'unknown');
+  }
+
+  async getPendingDocumentsCount(userId: string): Promise<number> {
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+      select: { department_id: true },
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const documentDetails = await prisma.documentAdditionalDetails.findMany({
+      select: {
+        document_id: true,
+        work_flow_id: true,
+      },
+    });
+
+    const relevantDocumentIds = documentDetails
+      .filter((detail: any) => {
+        if (!detail.work_flow_id) {
+          return true;
+        }
+
+        const workflowDepartments = this.parseWorkflowDepartments(
+          detail.work_flow_id,
+          'getPendingDocumentsCount'
+        );
+        return (
+          workflowDepartments.length > 0 &&
+          workflowDepartments[0] === user.department_id
+        );
+      })
+      .map((detail: any) => detail.document_id);
+
+    if (relevantDocumentIds.length === 0) {
+      return 0;
+    }
+
+    return prisma.document.count({
+      where: {
+        document_id: {
+          in: relevantDocumentIds,
+        },
+        status: 'pending',
+      },
+    });
+  }
+
+  async getOwnedPendingDocumentsCount(userId: string): Promise<number> {
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+      select: { department_id: true },
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const documentDetails = await prisma.documentAdditionalDetails.findMany({
+      select: {
+        document_id: true,
+        work_flow_id: true,
+      },
+    });
+
+    const ownedDocumentIds = documentDetails
+      .filter((detail: any) => {
+        if (!detail.work_flow_id) {
+          return false;
+        }
+
+        const workflowDepartments = this.parseWorkflowDepartments(
+          detail.work_flow_id,
+          'getOwnedPendingDocumentsCount'
+        );
+        return (
+          workflowDepartments.length > 0 &&
+          workflowDepartments[0] === user.department_id
+        );
+      })
+      .map((detail: any) => detail.document_id);
+
+    if (ownedDocumentIds.length === 0) {
+      return 0;
+    }
+
+    return prisma.document.count({
+      where: {
+        document_id: {
+          in: ownedDocumentIds,
+        },
+        status: 'pending',
+      },
+    });
   }
 
   private buildS3Key(params: {

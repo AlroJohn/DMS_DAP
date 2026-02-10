@@ -1,5 +1,7 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
+import fs from 'fs';
+import path from 'path';
 
 const S3_URI_PREFIX = 's3://';
 
@@ -35,10 +37,12 @@ const getEnv = (key: string) => process.env[key];
 class S3StorageService {
   private client: S3Client | null = null;
   private isEnabled: boolean;
+  private localBasePath: string;
 
   constructor() {
     const region = getEnv('AWS_REGION') || getEnv('AWS_DEFAULT_REGION');
     const bucket = getEnv('S3_BUCKET_NAME');
+    this.localBasePath = path.resolve(process.cwd(), 'uploads', 'documents');
     
     // Check if S3 is properly configured
     this.isEnabled = !!(region && bucket);
@@ -84,21 +88,26 @@ class S3StorageService {
     body: Buffer;
     contentType?: string;
   }): Promise<string> {
-    this.ensureEnabled();
-    if (!this.client) {
-      throw new Error('S3 client not initialized');
+    if (this.isEnabled && this.client) {
+      const bucket = this.getBucket();
+      await this.client.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: params.key,
+          Body: params.body,
+          ContentType: params.contentType,
+        })
+      );
+      return buildS3Uri(bucket, params.key);
     }
-    
-    const bucket = this.getBucket();
-    await this.client.send(
-      new PutObjectCommand({
-        Bucket: bucket,
-        Key: params.key,
-        Body: params.body,
-        ContentType: params.contentType,
-      })
-    );
-    return buildS3Uri(bucket, params.key);
+
+    const targetPath = path.resolve(this.localBasePath, params.key);
+    if (!targetPath.startsWith(this.localBasePath)) {
+      throw new Error('Invalid storage path');
+    }
+    await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+    await fs.promises.writeFile(targetPath, params.body);
+    return targetPath;
   }
 
   async getObjectStream(uriOrKey: string): Promise<Readable> {

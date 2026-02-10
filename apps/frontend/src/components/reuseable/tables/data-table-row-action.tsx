@@ -46,6 +46,7 @@ import { EditDocumentModal } from "@/app/(private)/documents/[id]/components/edi
 import { CheckoutFileModal } from "@/components/modals/checkout-file-modal";
 import { Document } from "@/hooks/use-documents-owned";
 import { useAuth } from "@/hooks/use-auth";
+import { FullPageLoader } from "@/components/reuseable/full-page-loader";
 // import { useSignDocument } from "@/hooks/use-sign-document";
 import {
   canViewDocuments,
@@ -127,6 +128,7 @@ export function DataTableRowActions<TData>({
   const [showCompleteAlert, setShowCompleteAlert] = useState(false);
   const [showUncompleteAlert, setShowUncompleteAlert] = useState(false);
   const [showCancelAlert, setShowCancelAlert] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
   const document = row.original as Document;
 
   // Event handlers
@@ -158,11 +160,13 @@ export function DataTableRowActions<TData>({
   };
 
   const handleViewDocument = () => {
+    setIsNavigating(true);
     router.push(`/documents/${document.id}/view-documents`);
   };
 
   const handleOpenEditor = () => {
     const returnPath = getReturnPathForView(viewType);
+    setIsNavigating(true);
     router.push(
       `/documents/${document.id}?mode=edit&returnTo=${encodeURIComponent(
         returnPath,
@@ -179,6 +183,7 @@ export function DataTableRowActions<TData>({
     const returnPath = getReturnPathForView(viewType);
 
     // Redirect to the document page in signature mode with return path
+    setIsNavigating(true);
     router.push(
       `/documents/${document.id}?mode=sign&returnTo=${encodeURIComponent(
         returnPath,
@@ -640,6 +645,7 @@ export function DataTableRowActions<TData>({
   const showDelete = viewType === "shared" ? ((isApproved || isReviewed) ? true : canDelete) : canDelete; // Show delete for APPROVED or REVIEWED
   return (
     <>
+      {isNavigating && <FullPageLoader message="Opening document" />}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button

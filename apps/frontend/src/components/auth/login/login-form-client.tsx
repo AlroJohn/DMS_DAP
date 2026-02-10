@@ -33,7 +33,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loading } from "@/components/ui/loading";
 
 export function LoginFormClient({
   className,
@@ -103,7 +102,6 @@ export function LoginFormClient({
 
   return (
     <div className={cn("flex flex-col gap-6 relative", className)} {...props}>
-      {isLoading && <Loading />}
       <Dialog open={error === 'invitation_required' || error === 'oauth_failed' || error === 'oauth_error'} onOpenChange={() => router.replace('/login')}>
         <DialogContent className="sm:max-w-md w-[92vw] p-5">
           <DialogHeader className="text-center">

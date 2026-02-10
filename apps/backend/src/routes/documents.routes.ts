@@ -27,6 +27,12 @@ router.get('/received',
   documentController.getReceivedDocuments
 );
 
+// GET /api/documents/sidebar-counts - Get sidebar document counts
+router.get('/sidebar-counts',
+  requirePermission('document_read'),
+  documentController.getSidebarCounts
+);
+
 
 
 // GET /api/documents - Get all documents (requires document_read permission)

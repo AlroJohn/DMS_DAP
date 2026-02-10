@@ -80,17 +80,21 @@ export class AuthController {
 
     try {
       const { user, token, refreshToken } = await this.authService.login(credentials);
+      const accessTokenMaxAge = parseExpiresIn(config.jwt.expiresIn);
+      const refreshTokenMaxAge = parseExpiresIn(config.jwt.refreshExpiresIn);
 
-      // Session cookies: expire when browser closes
+      // Session cookies: expire after configured duration (default 8 hours)
       res.cookie('accessToken', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
+        maxAge: accessTokenMaxAge,
       });
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
+        maxAge: refreshTokenMaxAge,
       });
 
       return sendSuccess(res, { user });
@@ -114,17 +118,21 @@ export class AuthController {
 
     try {
       const { token, refreshToken } = await this.authService.refreshToken(currentRefreshToken);
+      const accessTokenMaxAge = parseExpiresIn(config.jwt.expiresIn);
+      const refreshTokenMaxAge = parseExpiresIn(config.jwt.refreshExpiresIn);
 
-      // Session cookies: expire when browser closes
+      // Session cookies: expire after configured duration (default 8 hours)
       res.cookie('accessToken', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
+        maxAge: accessTokenMaxAge,
       });
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
+        maxAge: refreshTokenMaxAge,
       });
 
       return sendSuccess(res, { message: 'Tokens refreshed successfully' });

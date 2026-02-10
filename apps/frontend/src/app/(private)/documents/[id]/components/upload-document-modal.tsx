@@ -22,6 +22,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useDocumentTypes } from "@/hooks/use-document-types";
 import { useProcessType } from "@/hooks/use-process.type";
 import {
@@ -167,6 +172,15 @@ export function UploadDocumentModal({
     const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
+
+  const formatProcessDuration = (
+    value?: number | null,
+    unit?: string | null,
+  ) => {
+    if (!value) return "";
+    const safeUnit = unit || "days";
+    return `${value} ${safeUnit}`;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -616,7 +630,7 @@ export function UploadDocumentModal({
                             <Loader2 className="h-4 w-4 ml-2 animate-spin" />
                           )}
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="max-h-48">
                           {processTypes
                             .filter((type) => type.is_active)
                             .map((type) => (
@@ -625,12 +639,43 @@ export function UploadDocumentModal({
                                 value={type.process_type_id}
                                 className="text-base py-2 px-3"
                               >
-                                {type.name}
-                                {type.duration_value
-                                  ? ` · ${type.duration_value} ${
-                                      type.duration_unit || "days"
-                                    }`
-                                  : ""}
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="flex items-center gap-2">
+                                      <span className="font-medium">
+                                        {type.code || type.name}
+                                      </span>
+                                      {type.duration_value && (
+                                        <span className="text-xs text-muted-foreground">
+                                          ·{" "}
+                                          {formatProcessDuration(
+                                            type.duration_value,
+                                            type.duration_unit,
+                                          )}
+                                        </span>
+                                      )}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent
+                                    side="right"
+                                    align="center"
+                                    sideOffset={6}
+                                    className="max-w-64 text-[10px] leading-snug break-words whitespace-normal"
+                                  >
+                                    <span className="font-medium">
+                                      {type.name}
+                                    </span>
+                                    {type.duration_value && (
+                                      <span className="ml-1 text-muted-foreground">
+                                        ·{" "}
+                                        {formatProcessDuration(
+                                          type.duration_value,
+                                          type.duration_unit,
+                                        )}
+                                      </span>
+                                    )}
+                                  </TooltipContent>
+                                </Tooltip>
                               </SelectItem>
                             ))}
                         </SelectContent>

@@ -17,6 +17,8 @@ import { DocumentPreviewModal } from "@/components/modals/document-preview-modal
 import { useDocumentDetail } from "@/hooks/use-document-detail";
 import { useDocumentFiles } from "@/hooks/use-document-files";
 import { useBreadcrumb } from "@/context/breadcrumb-context";
+import { useDocumentSidebarCounts } from "@/hooks/use-document-sidebar-counts";
+import { FullPageLoader } from "@/components/reuseable/full-page-loader";
 import {
   AlertCircle,
   ArrowLeft,
@@ -39,6 +41,7 @@ export default function ViewDocumentPage() {
     error: filesError,
   } = useDocumentFiles(documentId);
   const { setOverride, clearOverride } = useBreadcrumb();
+  const { setCounts } = useDocumentSidebarCounts();
 
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
@@ -59,6 +62,10 @@ export default function ViewDocumentPage() {
       document.title = `${title} - View Document`;
     }
   }, [title, document]);
+
+  useEffect(() => {
+    setCounts({ pendingDocuments: document ? 1 : 0 });
+  }, [document, setCounts]);
 
   // Update breadcrumb with document name
   useEffect(() => {
@@ -138,16 +145,7 @@ export default function ViewDocumentPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-3 p-1 md:p-2 lg:p-4 max-w-[95%] mx-auto w-full pt-2 pb-4">
-        <Skeleton className="h-12 w-2/3" />
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-          <Skeleton className="h-96 lg:col-span-2" />
-          <div className="space-y-3">
-            <Skeleton className="h-48" />
-            <Skeleton className="h-48" />
-          </div>
-        </div>
-      </div>
+      <FullPageLoader message="Loading document" />
     );
   }
 

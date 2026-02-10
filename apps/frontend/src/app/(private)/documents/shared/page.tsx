@@ -13,6 +13,8 @@ import { SignatureCaptureModal } from "@/components/modals/signature-capture-mod
 import { toast } from "sonner";
 import { SharedDocument } from "@dms/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useProcessType } from "@/hooks/use-process.type";
+import { useDocumentSidebarCounts } from "@/hooks/use-document-sidebar-counts";
 
 export default function SharedDocumentsPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -25,6 +27,8 @@ export default function SharedDocumentsPage() {
   } = useSharedDocuments(1, 100);
   const { socket } = useSocket();
   const mountedRef = useRef(false);
+  const { processTypes } = useProcessType();
+  const { setCounts } = useDocumentSidebarCounts();
 
   const [isSignModalOpen, setIsSignModalOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] =
@@ -63,10 +67,40 @@ export default function SharedDocumentsPage() {
     }
   };
 
-  const columns = useMemo(() => getColumns({ 
-    onSign: handleSignClick,
-    onRefetch: refetch 
-  }), [refetch]);
+  const processTypeMap = useMemo(
+    () =>
+      processTypes.reduce(
+        (map, type) => {
+          map[type.process_type_id] = {
+            code: type.code || "",
+            name: type.name,
+            duration_value: type.duration_value ?? null,
+            duration_unit: type.duration_unit ?? null,
+          };
+          return map;
+        },
+        {} as Record<
+          string,
+          {
+            code?: string;
+            name?: string;
+            duration_value?: number | null;
+            duration_unit?: string | null;
+          }
+        >
+      ),
+    [processTypes]
+  );
+
+  const columns = useMemo(
+    () =>
+      getColumns({
+        onSign: handleSignClick,
+        onRefetch: refetch,
+        processTypeMap,
+      }),
+    [refetch, processTypeMap]
+  );
 
   // Mark component as mounted and clean up on unmount
   useEffect(() => {
@@ -101,6 +135,8 @@ export default function SharedDocumentsPage() {
     const handleDocumentDeleted = safeRefetch;
     const handleDocumentShared = safeRefetch;
     const handleDocumentAddedToUser = safeRefetch;
+    const handleDocumentReceived = safeRefetch;
+    const handleDocumentReceivedAlt = safeRefetch;
     const handleDocumentCanceled = (payload: { documentId?: string; documentTitle?: string }) => {
       const documentId = payload?.documentId;
       if (!documentId) return;
@@ -126,6 +162,8 @@ export default function SharedDocumentsPage() {
     socket.on("documentShared", handleDocumentShared); // Handle document sharing events
     socket.on("documentAddedToUser", handleDocumentAddedToUser); // Handle when document is shared specifically to this user
     socket.on("documentUploadCompleted", handleDocumentAdded); // Also refetch on upload completion
+    socket.on("document_received", handleDocumentReceived);
+    socket.on("documentReceived", handleDocumentReceivedAlt);
     socket.on("checkout", handleCheckout); // Listen for checkout events
     socket.on("checkin", handleCheckin); // Listen for checkin events
     socket.on("checkoutOverridden", handleCheckoutOverridden); // Listen for checkout override events
@@ -138,6 +176,8 @@ export default function SharedDocumentsPage() {
       socket.off("documentDeleted", handleDocumentDeleted);
       socket.off("documentShared", handleDocumentShared);
       socket.off("documentUploadCompleted", handleDocumentAdded);
+      socket.off("document_received", handleDocumentReceived);
+      socket.off("documentReceived", handleDocumentReceivedAlt);
       socket.off("checkout", handleCheckout);
       socket.off("checkin", handleCheckin);
       socket.off("checkoutOverridden", handleCheckoutOverridden);
@@ -187,6 +227,10 @@ export default function SharedDocumentsPage() {
     return sanitizedDocuments.filter(doc => doc.status?.toLowerCase() !== "completed");
   }, [sanitizedDocuments, activeTab]);
 
+  useEffect(() => {
+    setCounts({ sharedDocuments: filteredDocuments.length });
+  }, [filteredDocuments.length, setCounts]);
+
   return (
     <>
       <div className="flex h-full flex-col p-4 gap-4 bg-background">
@@ -227,6 +271,21 @@ export default function SharedDocumentsPage() {
               viewType="shared"
               isLoading={isLoading}
               onSign={handleSignClick}
+              initialState={{
+                columnOrder: [
+                  "select",
+                  "scan",
+                  "document",
+                  "contact",
+                  "type",
+                  "processType",
+                  "classification",
+                  "status",
+                  "checkout",
+                  "activity",
+                  "actions",
+                ],
+              }}
               meta={{ onRefetch: refetch }}
             />
           </TabsContent>
@@ -239,6 +298,21 @@ export default function SharedDocumentsPage() {
               viewType="shared"
               isLoading={isLoading}
               onSign={handleSignClick}
+              initialState={{
+                columnOrder: [
+                  "select",
+                  "scan",
+                  "document",
+                  "contact",
+                  "type",
+                  "processType",
+                  "classification",
+                  "status",
+                  "checkout",
+                  "activity",
+                  "actions",
+                ],
+              }}
               meta={{ onRefetch: refetch }}
             />
           </TabsContent>

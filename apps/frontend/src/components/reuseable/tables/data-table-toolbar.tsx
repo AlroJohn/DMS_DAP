@@ -169,7 +169,7 @@ export function DataTableFacetedFilter<TData, TValue>({
                 ) : (
                   options
                     .filter((option) =>
-                      internalSelectedValues.has(option.value)
+                      internalSelectedValues.has(option.value),
                     )
                     .map((option) => (
                       <Badge
@@ -211,7 +211,7 @@ export function DataTableFacetedFilter<TData, TValue>({
                         "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
                         isSelected
                           ? "bg-primary text-primary-foreground"
-                          : "opacity-50 [&_svg]:invisible"
+                          : "opacity-50 [&_svg]:invisible",
                       )}
                     >
                       <Check className={cn("h-4 w-4")} />
@@ -292,7 +292,7 @@ export function DataTableViewOptions<TData>({
           .filter(
             (column) =>
               column.id.toLowerCase() !== "security" &&
-              column.id.toLowerCase() !== "blockchain"
+              column.id.toLowerCase() !== "blockchain",
           )
           .map((column) => {
             return (
@@ -531,17 +531,8 @@ export function DataTableToolbar<TData>({
       const toggleValue = !newShowWarning;
       localStorage.setItem("recycleBinWarningHidden", String(!toggleValue));
 
-      // Dispatch a storage event to trigger updates in other tabs
-      window.pendingEvent(
-        new StorageEvent("storage", {
-          key: "recycleBinWarningHidden",
-          oldValue: hidden,
-          newValue: String(!toggleValue),
-        })
-      );
-
       // Dispatch a custom event to trigger updates in the same tab
-      window.pendingEvent(new CustomEvent("recycleBinWarningChange"));
+      window.dispatchEvent(new CustomEvent("recycleBinWarningChange"));
     } else {
       // For non-recycle-bin views, just update local state
       const newShowWarning = !showWarning;
@@ -594,18 +585,18 @@ export function DataTableToolbar<TData>({
               "Content-Type": "application/json",
             },
             credentials: "include",
-          })
-        )
+          }),
+        ),
       );
 
       // Count successful operations
       const successfulCount = results.filter(
-        (result) => result.status === "fulfilled" && result.value.ok
+        (result) => result.status === "fulfilled" && result.value.ok,
       ).length;
 
       if (successfulCount > 0) {
         toast.success(
-          `${successfulCount} document(s) moved to recycle bin successfully.`
+          `${successfulCount} document(s) moved to recycle bin successfully.`,
         );
       }
 
@@ -613,7 +604,7 @@ export function DataTableToolbar<TData>({
       const failedCount = results.length - successfulCount;
       if (failedCount > 0) {
         toast.error(
-          `${failedCount} document(s) failed to move to recycle bin.`
+          `${failedCount} document(s) failed to move to recycle bin.`,
         );
       }
 
@@ -648,9 +639,8 @@ export function DataTableToolbar<TData>({
         selectedRows.map((row) => {
           const item = row.original as Record<string, unknown>;
           const id = typeof item.id === "string" ? item.id : "";
-          const status = typeof item.status === "string"
-            ? item.status.toLowerCase()
-            : "";
+          const status =
+            typeof item.status === "string" ? item.status.toLowerCase() : "";
           const isInTransit =
             status === "intransit" || status === "intransit_signature";
           const endpoint = isInTransit
@@ -663,12 +653,12 @@ export function DataTableToolbar<TData>({
             },
             credentials: "include",
           });
-        })
+        }),
       );
 
       // Count successful operations
       const successfulCount = results.filter(
-        (result) => result.status === "fulfilled" && result.value.ok
+        (result) => result.status === "fulfilled" && result.value.ok,
       ).length;
 
       if (successfulCount > 0) {
@@ -716,13 +706,13 @@ export function DataTableToolbar<TData>({
               "Content-Type": "application/json",
             },
             credentials: "include",
-          })
-        )
+          }),
+        ),
       );
 
       // Count successful operations
       const successfulCount = results.filter(
-        (result) => result.status === "fulfilled" && result.value.ok
+        (result) => result.status === "fulfilled" && result.value.ok,
       ).length;
 
       if (successfulCount > 0) {
@@ -770,13 +760,13 @@ export function DataTableToolbar<TData>({
               "Content-Type": "application/json",
             },
             credentials: "include",
-          })
-        )
+          }),
+        ),
       );
 
       // Count successful operations
       const successfulCount = results.filter(
-        (result) => result.status === "fulfilled" && result.value.ok
+        (result) => result.status === "fulfilled" && result.value.ok,
       ).length;
 
       if (successfulCount > 0) {
@@ -811,8 +801,8 @@ export function DataTableToolbar<TData>({
             typeof item.id === "string"
               ? item.id
               : typeof item.document_id === "string"
-              ? item.document_id
-              : undefined;
+                ? item.document_id
+                : undefined;
           return id;
         })
         .filter((id): id is string => id !== undefined && id.length > 0);
@@ -833,7 +823,7 @@ export function DataTableToolbar<TData>({
             },
             credentials: "include",
             body: JSON.stringify({ documentIds }),
-          }
+          },
         );
 
         if (!response.ok) {
@@ -859,7 +849,7 @@ export function DataTableToolbar<TData>({
           throw new Error(
             errorData.error?.message ||
               errorData.message ||
-              `Failed to restore documents from recycle bin (Status: ${response.status})`
+              `Failed to restore documents from recycle bin (Status: ${response.status})`,
           );
         }
 
@@ -877,17 +867,17 @@ export function DataTableToolbar<TData>({
               },
               credentials: "include",
             });
-          })
+          }),
         );
 
         // Count successful operations
         const successfulCount = results.filter(
-          (result) => result.status === "fulfilled" && result.value.ok
+          (result) => result.status === "fulfilled" && result.value.ok,
         ).length;
 
         if (successfulCount > 0) {
           toast.success(
-            `${successfulCount} document(s) restored successfully.`
+            `${successfulCount} document(s) restored successfully.`,
           );
         }
 
@@ -922,7 +912,7 @@ export function DataTableToolbar<TData>({
         const errorData: { error?: { message?: string }; message?: string } =
           await response.json();
         throw new Error(
-          errorData.error?.message || "Failed to empty recycle bin"
+          errorData.error?.message || "Failed to empty recycle bin",
         );
       }
 
@@ -930,7 +920,7 @@ export function DataTableToolbar<TData>({
       toast.success(
         `Recycle bin emptied successfully. ${
           data.count || 0
-        } document(s) permanently deleted.`
+        } document(s) permanently deleted.`,
       );
       // Refresh the table after emptying
       window.location.reload(); // Simple refresh for now
@@ -1271,7 +1261,7 @@ export function DataTableToolbar<TData>({
                 }
                 if (!canRelease) {
                   toast.error(
-                    "You don't have permission to release documents."
+                    "You don't have permission to release documents.",
                   );
                   setIsTransmitByCodeOpen(true);
                   return;
@@ -1280,7 +1270,7 @@ export function DataTableToolbar<TData>({
                 toast.info(
                   `Preparing to transmit ${selectedRows.length} document${
                     selectedRows.length !== 1 ? "s" : ""
-                  }`
+                  }`,
                 );
                 setBulkTransmitOpen(true);
               }}

@@ -19,6 +19,7 @@ import {
   useDocumentFiles,
   type DocumentFileMetadata,
 } from "@/hooks/use-document-files";
+import { FullPageLoader } from "@/components/reuseable/full-page-loader";
 import { toast } from "sonner";
 import { EditablePdfViewer } from "./components/editable-pdf-viewer";
 import {
@@ -817,12 +818,7 @@ export default function DocumentDetailPage() {
     return (
       <div className="flex flex-col gap-2 p-1 md:p-2 lg:p-4 mx-auto w-full pb-2">
         {isRedirectingToList && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-            <div className="flex items-center gap-2 rounded-md border bg-white/90 px-4 py-3 text-sm text-muted-foreground shadow-lg">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Returning to documents…</span>
-            </div>
-          </div>
+          <FullPageLoader message="Returning to documents" />
         )}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
@@ -860,12 +856,7 @@ export default function DocumentDetailPage() {
   return (
     <div className="flex flex-col gap-2 mx-auto w-full p-1 md:p-2 lg:p-4">
       {isRedirectingToView && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="flex items-center gap-2 rounded-md border bg-white/90 px-4 py-3 text-sm text-muted-foreground shadow-lg">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span>Opening the updated document…</span>
-          </div>
-        </div>
+        <FullPageLoader message="Opening the updated document" />
       )}
 
       {isEditorOpen && (

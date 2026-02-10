@@ -28,13 +28,21 @@ export function NavMain({
     url: string;
     icon?: LucideIcon;
     isActive?: boolean;
+    badgeCount?: number;
     items?: {
       title: string;
       url: string;
+      badgeCount?: number;
     }[];
   }[];
 }) {
   const pathname = usePathname();
+  const renderBadge = (count?: number) =>
+    count && count > 0 ? (
+      <span className="ml-auto rounded-full bg-secondary/10 px-2 py-0.5 text-xs font-medium text-secondary">
+        {count}
+      </span>
+    ) : null;
 
   return (
     <SidebarGroup>
@@ -66,9 +74,13 @@ export function NavMain({
                       className="flex-1"
                       isActive={isItemActive && !isSubItemActive}
                     >
-                      <Link href={item.url}>
+                      <Link
+                        href={item.url}
+                        className="flex w-full items-center gap-2"
+                      >
                         {item.icon && <item.icon />}
                         <span>{item.title}</span>
+                        {/* {renderBadge(item.badgeCount)} */}
                       </Link>
                     </SidebarMenuButton>
                     <CollapsibleTrigger asChild>
@@ -85,8 +97,12 @@ export function NavMain({
                             asChild
                             isActive={pathname === subItem.url}
                           >
-                            <Link href={subItem.url}>
+                            <Link
+                              href={subItem.url}
+                              className="flex w-full items-center justify-between"
+                            >
                               <span>{subItem.title}</span>
+                              {renderBadge(subItem.badgeCount)}
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -104,9 +120,13 @@ export function NavMain({
                   asChild
                   isActive={isItemActive}
                 >
-                  <Link href={item.url}>
+                  <Link
+                    href={item.url}
+                    className="flex w-full items-center gap-2"
+                  >
                     {item.icon && <item.icon />}
                     <span>{item.title}</span>
+                    {renderBadge(item.badgeCount)}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

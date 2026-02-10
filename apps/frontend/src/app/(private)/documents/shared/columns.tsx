@@ -6,9 +6,11 @@ import { ScanCodes } from "@/components/ui/scan-codes";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTableRowActions } from "@/components/reuseable/tables/data-table-row-action";
 import { toast } from "sonner";
-import { Copy, User, Building2, Calendar } from "lucide-react";
+import { Copy, User, Building2 } from "lucide-react";
 import { CheckoutStatusCell } from "./checkout-status-cell";
 import { SharedDocument } from "@dms/types/document.types";
+import { ActivityCell } from "@/components/reuseable/tables/activity-cell";
+import { ProcessTypeCell } from "@/components/reuseable/tables/process-type-cell";
 
 const formatText = (text: string | undefined): string => {
   if (!text) return "";
@@ -25,12 +27,56 @@ const getDocumentTitle = (document: SharedDocument): string => {
   return document.document || "";
 };
 
+const resolveProcessType = (
+  document: SharedDocument,
+  processTypeMap: Record<
+    string,
+    {
+      code?: string;
+      name?: string;
+      duration_value?: number | null;
+      duration_unit?: string | null;
+    }
+  >
+) => {
+  const processTypeId =
+    (document as any).process_type_id || (document as any).processTypeId || "";
+  const record = processTypeId ? processTypeMap[processTypeId] : undefined;
+  return {
+    code: record?.code || "",
+    name: record?.name || "N/A",
+  };
+};
+
+const resolveProcessTypeName = (
+  document: SharedDocument,
+  processTypeMap: Record<
+    string,
+    {
+      code?: string;
+      name?: string;
+      duration_value?: number | null;
+      duration_unit?: string | null;
+    }
+  >
+) => resolveProcessType(document, processTypeMap).name;
+
 export const getColumns = ({
   onSign,
   onRefetch,
+  processTypeMap = {},
 }: {
   onSign: (document: SharedDocument) => void;
   onRefetch?: () => void;
+  processTypeMap?: Record<
+    string,
+    {
+      code?: string;
+      name?: string;
+      duration_value?: number | null;
+      duration_unit?: string | null;
+    }
+  >;
 }): ColumnDef<SharedDocument>[] => {
   // Debug log to see what data we're getting
   console.log('🔍 Columns: Sample document data for debugging');
@@ -283,34 +329,34 @@ export const getColumns = ({
       <DataTableColumnHeader column={column} title="Activity" />
     ),
     cell: ({ row }) => {
-      const d = row.original;
-      // show date only (no time)
-      const formattedDate = d.activityTime
-        ? new Date(d.activityTime).toLocaleDateString("en-US", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          })
-        : "";
-
       return (
-        <div className="flex flex-col gap-1 text-xs">
-          <div className="flex items-center gap-1">
-            <Calendar className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
-            <span className="text-muted-foreground" title="Received">
-              Rec
-            </span>
-          </div>
-          {formattedDate && (
-            <div className="flex items-center gap-1">
-              <Calendar className="w-2.5 h-2.5 text-blue-500 shrink-0" />
-              <span className="text-muted-foreground" title={formattedDate}>
-                {formattedDate}
-              </span>
-            </div>
-          )}
-        </div>
+        <ActivityCell
+          document={row.original as any}
+          processTypeMap={processTypeMap}
+        />
       );
+    },
+  },
+  {
+    id: "processType",
+    accessorFn: (row) => resolveProcessTypeName(row, processTypeMap),
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Process Type" />
+    ),
+    cell: ({ row }) => {
+      const { name, code } = resolveProcessType(row.original, processTypeMap);
+      return <ProcessTypeCell name={name} code={code} minClampLength={20} />;
+    },
+    enableSorting: true,
+    enableHiding: true,
+    filterFn: (row, id, value) => {
+      if (!value || (Array.isArray(value) && value.length === 0)) return true;
+      const processType = String(row.getValue(id) ?? "").toLowerCase();
+      return Array.isArray(value)
+        ? (value as string[]).some(
+            (v) => String(v).toLowerCase() === processType
+          )
+        : false;
     },
   },
   {

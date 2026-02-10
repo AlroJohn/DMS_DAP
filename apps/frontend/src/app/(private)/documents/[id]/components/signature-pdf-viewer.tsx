@@ -33,6 +33,7 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { getAccessToken } from "@/lib/token-utils";
+import { FullPageLoader } from "@/components/reuseable/full-page-loader";
 
 const PDFJS_WORKER_CDN =
   process.env.NEXT_PUBLIC_PDFJS_WORKER_URL ||
@@ -1278,16 +1279,7 @@ export function SignaturePdfViewer({
   };
 
   if (isLoadingFiles) {
-    return (
-      <Card className="h-full w-full min-h-[600px] flex flex-col">
-        <CardHeader>
-          <CardTitle>Prepare Signature Positions</CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
-    );
+    return <FullPageLoader message="Loading document files" />;
   }
 
   if (!pdfFiles.length) {
@@ -1316,9 +1308,10 @@ export function SignaturePdfViewer({
     allowedDepartmentIds.length > 0 &&
     (isLoadingFiles || isRendering || pages.length === 0);
 
-  return (
-    <Card className="h-full w-full min-h-[600px] flex flex-col border-primary/40">
-      <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+    return (
+      <Card className="h-full w-full min-h-[600px] flex flex-col border-primary/40">
+        {isRendering && <FullPageLoader message="Loading signature workspace" />}
+        <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
           <CardTitle className="flex items-center gap-2">
             Prepare Signature Positions

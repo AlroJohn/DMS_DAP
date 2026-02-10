@@ -6,9 +6,10 @@ import { DataTableRowActions } from "@/components/reuseable/tables/data-table-ro
 import { DataTableColumnHeader } from "@/components/reuseable/tables/data-table-column-header";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Clock, Copy, User, Building2 } from "lucide-react";
+import { Copy, User, Building2 } from "lucide-react";
 import { ScanCodes } from "@/components/ui/scan-codes";
-import { CountdownTimer } from "@/components/reuseable/countdown-timer";
+import { ActivityCell } from "@/components/reuseable/tables/activity-cell";
+import { ProcessTypeCell } from "@/components/reuseable/tables/process-type-cell";
 
 export type ReceivedDocument = {
   id: string;
@@ -32,6 +33,7 @@ export type ReceivedDocument = {
 };
 
 type ProcessTypeInfo = {
+  code?: string;
   name: string;
   duration_value?: number | null;
   duration_unit?: string | null;
@@ -51,6 +53,7 @@ const formatText = (text: string): string => {
     .replace(/^\w/, (c) => c.toUpperCase());
 };
 
+
 export const createDocumentColumns = (
   options: CreateDocumentColumnsOptions = {}
 ): ColumnDef<ReceivedDocument>[] => {
@@ -63,6 +66,7 @@ export const createDocumentColumns = (
     const name = document.processTypeName || record?.name || "";
     return {
       id: processTypeId,
+      code: record?.code || "",
       name,
       durationValue: record?.duration_value ?? null,
       durationUnit: record?.duration_unit ?? null,
@@ -256,11 +260,9 @@ export const createDocumentColumns = (
       <DataTableColumnHeader column={column} title="Process Type" />
     ),
     cell: ({ row }) => {
-      const name = resolveProcessTypeName(row.original);
+      const { name, code } = resolveProcessType(row.original);
       return (
-        <span className="text-xs text-muted-foreground" title={name}>
-          {name}
-        </span>
+        <ProcessTypeCell name={name} code={code} minClampLength={20} />
       );
     },
     enableSorting: true,
@@ -356,118 +358,28 @@ export const createDocumentColumns = (
         : false;
     },
   },
-  {
-    id: "dates",
-    accessorFn: (row) => row,
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Activity" />
-    ),
-    cell: ({ row }) => {
-      const data = row.original;
-      const processType = resolveProcessType(data);
-      const startAt =
-        data.processTimerStartAt || data.createdAt || data.activityTime;
-      const isCompleted = Boolean(data.processTimerCompleteAt);
-      const hasTimer = Boolean(processType.durationValue && startAt);
-
-      if (isCompleted) {
-        const completedDate = data.processTimerCompleteAt
-          ? new Date(data.processTimerCompleteAt).toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "short",
-              day: "numeric",
-            })
-          : "";
-
+    {
+      id: "dates",
+      accessorFn: (row) => row,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Activity" />
+      ),
+      cell: ({ row }) => {
         return (
-          <div className="flex flex-col gap-1 text-xs">
-            <div className="flex items-center gap-1">
-              <Clock className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
-              <span className="text-muted-foreground" title="Completed">
-                Completed
-              </span>
-            </div>
-            {completedDate && (
-              <div className="flex items-center gap-1">
-                <Clock className="w-2.5 h-2.5 text-blue-500 shrink-0" />
-                <span className="text-muted-foreground" title={completedDate}>
-                  {completedDate}
-                </span>
-              </div>
-            )}
-          </div>
+          <ActivityCell
+            document={{
+              ...row.original,
+              process_timer_start_at: row.original.processTimerStartAt,
+              process_timer_complete_at: row.original.processTimerCompleteAt,
+              created_at: row.original.createdAt,
+              process_type_id: row.original.processTypeId,
+            }}
+            processTypeMap={processTypeMap}
+          />
         );
-      }
-
-      if (hasTimer) {
-        return (
-          <div className="flex flex-col gap-1 text-xs">
-            <div className="flex items-center gap-1">
-              <Clock className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
-              <span className="text-muted-foreground" title="Time left">
-                Time left
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="font-medium text-foreground">
-                <CountdownTimer
-                  startAt={startAt}
-                  durationValue={processType.durationValue || undefined}
-                  durationUnit={processType.durationUnit || undefined}
-                />
-              </span>
-            </div>
-          </div>
-        );
-      }
-
-      if (processType.durationValue) {
-        return (
-          <div className="flex flex-col gap-1 text-xs">
-            <div className="flex items-center gap-1">
-              <Clock className="w-2.5 h-2.5 text-amber-500 shrink-0" />
-              <span className="text-muted-foreground" title="Waiting">
-                Waiting
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-muted-foreground">
-                Awaiting receive
-              </span>
-            </div>
-          </div>
-        );
-      }
-
-      const formattedDate = data.activityTime
-        ? new Date(data.activityTime).toLocaleDateString("en-US", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          })
-        : "";
-
-      return (
-        <div className="flex flex-col gap-1 text-xs">
-          <div className="flex items-center gap-1">
-            <Clock className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
-            <span className="text-muted-foreground" title="Activity date">
-              Activity
-            </span>
-          </div>
-          {formattedDate && (
-            <div className="flex items-center gap-1">
-              <Clock className="w-2.5 h-2.5 text-blue-500 shrink-0" />
-              <span className="text-muted-foreground" title={formattedDate}>
-                {formattedDate}
-              </span>
-            </div>
-          )}
-        </div>
-      );
+      },
+      enableHiding: true,
     },
-    enableHiding: true,
-  },
   {
     id: "actions",
     cell: ({ row }) => (

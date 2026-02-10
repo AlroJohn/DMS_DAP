@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { DocumentService } from '../services/document.service';
 import { SharedDocumentService } from '../services/shared-document.service';
+import { IntransitService } from '../services/intransit.service';
 import { AuthRequest } from '../middleware/auth-middleware';
 import { asyncHandler } from '../middleware/error-handler';
 import { sendSuccess, sendError, getPaginationParams, validateRequiredFields } from '../utils/response';
@@ -9,10 +10,12 @@ import { CreateDocumentRequest, UpdateDocumentRequest } from '../types';
 export class DocumentController {
   private documentService: DocumentService;
   private sharedDocumentService: SharedDocumentService;
+  private intransitService: IntransitService;
 
   constructor() {
     this.documentService = new DocumentService();
     this.sharedDocumentService = new SharedDocumentService();
+    this.intransitService = new IntransitService();
   }
 
   // Helper method to extract string value from potentially array parameter
@@ -44,6 +47,32 @@ export class DocumentController {
 
     return sendSuccess(res, result.data, 200, {
       pagination: result.pagination
+    });
+  });
+
+  /**
+   * GET /api/documents/sidebar-counts - Get sidebar document counts
+   */
+  getSidebarCounts = asyncHandler(async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
+    const userId = authReq.user.id;
+
+    const [pendingDocuments, ownedPendingDocuments, incomingResult, sharedResult] =
+      await Promise.all([
+        this.documentService.getPendingDocumentsCount(userId),
+        this.documentService.getOwnedPendingDocumentsCount(userId),
+        this.intransitService.getIncomingDocuments(userId, 1, 1),
+        this.sharedDocumentService.getSharedDocuments(userId, 1, 1),
+      ]);
+
+    const incomingInTransitDocuments = incomingResult.pagination?.total ?? 0;
+    const sharedDocuments = sharedResult.pagination?.total ?? 0;
+
+    return sendSuccess(res, {
+      pendingDocuments,
+      ownedPendingDocuments,
+      incomingInTransitDocuments,
+      sharedDocuments,
     });
   });
 

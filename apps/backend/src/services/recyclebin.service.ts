@@ -311,6 +311,7 @@ export class RecycleBinService {
             contactOrganization,
             currentLocation: 'Recycle Bin',
             type: documentTypeMap.get(doc.document_type) || (doc as any).document_type || 'General',
+            process_type_id: doc.process_type_id,
             classification: doc.classification,
             status: 'deleted',
             activity: 'deleted',

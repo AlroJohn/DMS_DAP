@@ -8,6 +8,7 @@ import { GuardProvider } from "@/components/providers/GuardProvider";
 import { SessionTimeoutProvider } from "@/components/providers/session-timeout-provider";
 import { SessionAlertProvider } from "@/components/providers/session-alert-provider";
 import { BreadcrumbProvider } from "@/context/breadcrumb-context";
+import { DocumentSidebarCountsProvider } from "@/hooks/use-document-sidebar-counts";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -15,15 +16,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <SessionTimeoutProvider>
         <SessionAlertProvider>
           <BreadcrumbProvider>
-            <SidebarProvider>
-              <TooltipProvider delayDuration={0}>
-                <AppSidebar />
-                <SidebarInset>
-                  <Header />
-                  <div className=" max-w-dvw flex flex-1 flex-col">{children}</div>
-                </SidebarInset>
-              </TooltipProvider>
-            </SidebarProvider>
+            <DocumentSidebarCountsProvider>
+              <SidebarProvider>
+                <TooltipProvider delayDuration={0}>
+                  <AppSidebar />
+                  <SidebarInset>
+                    <Header />
+                    <div className=" max-w-dvw flex flex-1 flex-col">{children}</div>
+                  </SidebarInset>
+                </TooltipProvider>
+              </SidebarProvider>
+            </DocumentSidebarCountsProvider>
           </BreadcrumbProvider>
         </SessionAlertProvider>
       </SessionTimeoutProvider>

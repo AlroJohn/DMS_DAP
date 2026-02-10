@@ -31,6 +31,7 @@ interface SharedDocument {
   contactPerson: string;
   contactOrganization: string;
   type: string;
+  process_type_id?: string | null;
   classification: string;
   status: string;
   activity: string;
@@ -504,6 +505,7 @@ export class SharedDocumentService {
             contactPerson: contactPerson, // This will now be the root owner (first uploader)
             contactOrganization: contactOrganization,
             type: documentTypeName,
+            process_type_id: doc.process_type_id,
             classification: doc.classification,
             status: doc.status,
             activity: 'shared',

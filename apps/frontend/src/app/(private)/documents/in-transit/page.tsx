@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DataTable } from "@/components/reuseable/tables/data-table";
 import { createOutgoingColumns, type OutgoingDocument } from "./outgoing-columns";
-import { incomingColumns, type IncomingDocument } from "./incoming-columns";
+import { createIncomingColumns, type IncomingDocument } from "./incoming-columns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useIncomingDocuments,
@@ -14,6 +14,8 @@ import { Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSocket } from "@/components/providers/providers";
 import { toast } from "sonner";
+import { useProcessType } from "@/hooks/use-process.type";
+import { useDocumentSidebarCounts } from "@/hooks/use-document-sidebar-counts";
 
 export default function InTransitDocumentsPage() {
   const searchParams = useSearchParams();
@@ -26,6 +28,8 @@ export default function InTransitDocumentsPage() {
   const { socket } = useSocket();
   const mountedRef = useRef(false);
   const router = useRouter();
+  const { processTypes } = useProcessType();
+  const { setCounts } = useDocumentSidebarCounts();
 
   // Mark component as mounted and clean up on unmount
   useEffect(() => {
@@ -65,6 +69,36 @@ export default function InTransitDocumentsPage() {
     error: outgoingError,
     refetch: refetchOutgoing,
   } = useOutgoingDocuments(1, 100);
+
+  useEffect(() => {
+    const totalInTransit = incomingDocuments.length + outgoingDocuments.length;
+    setCounts({ incomingInTransitDocuments: totalInTransit });
+  }, [incomingDocuments.length, outgoingDocuments.length, setCounts]);
+  
+  const processTypeMap = useMemo(
+    () =>
+      processTypes.reduce(
+        (map, type) => {
+          map[type.process_type_id] = {
+            code: type.code || "",
+            name: type.name,
+            duration_value: type.duration_value ?? null,
+            duration_unit: type.duration_unit ?? null,
+          };
+          return map;
+        },
+        {} as Record<
+          string,
+          {
+            code?: string;
+            name?: string;
+            duration_value?: number | null;
+            duration_unit?: string | null;
+          }
+        >
+      ),
+    [processTypes]
+  );
 
   // Listen for real-time document updates
   useEffect(() => {
@@ -155,10 +189,24 @@ export default function InTransitDocumentsPage() {
             </div>
           )}
           <DataTable
-            columns={incomingColumns}
+            columns={createIncomingColumns(processTypeMap)}
             data={incomingDocuments}
             selection={true}
             isLoading={isLoadingIncoming}
+            initialState={{
+              columnOrder: [
+                "select",
+                "scan",
+                "document",
+                "contact",
+                "type",
+                "processType",
+                "classification",
+                "status",
+                "dates",
+                "receive",
+              ],
+            }}
             meta={{
               onReceived: handleReceiveSuccess,
               onRefetch: refetchIncoming,
@@ -190,11 +238,25 @@ export default function InTransitDocumentsPage() {
             </div>
           )}
           <DataTable
-            columns={createOutgoingColumns(refetchOutgoing)}
+            columns={createOutgoingColumns(refetchOutgoing, processTypeMap)}
             data={outgoingDocuments}
             selection={true}
             viewType="outgoing"
             isLoading={isLoadingOutgoing}
+            initialState={{
+              columnOrder: [
+                "select",
+                "scan",
+                "document",
+                "contact",
+                "type",
+                "processType",
+                "classification",
+                "status",
+                "dates",
+                "actions",
+              ],
+            }}
           />
         </TabsContent>
       </Tabs>

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { ScanCodes } from "@/components/ui/scan-codes";
 import { DateTime } from "@/components/wrapper/DateTime";
+import { ProcessTypeCell } from "@/components/reuseable/tables/process-type-cell";
 
 // Define the RecycleBinDocument type based on the API response
 export type RecycleBinDocument = {
@@ -27,6 +28,7 @@ export type RecycleBinDocument = {
   contactPerson: string;
   contactOrganization: string;
   type: string;
+  process_type_id?: string | null;
   classification: string;
   currentLocation: string;
   status: string;
@@ -45,7 +47,17 @@ const formatText = (text: string): string => {
     .replace(/^\w/, (c) => c.toUpperCase());
 };
 
-export const columns: ColumnDef<RecycleBinDocument, unknown>[] = [
+export const createRecycleBinColumns = (
+  processTypeMap: Record<
+    string,
+    {
+      code?: string;
+      name?: string;
+      duration_value?: number | null;
+      duration_unit?: string | null;
+    }
+  > = {}
+): ColumnDef<RecycleBinDocument, unknown>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -215,6 +227,39 @@ export const columns: ColumnDef<RecycleBinDocument, unknown>[] = [
       const type = String(row.getValue(id) ?? "").toLowerCase();
       return Array.isArray(value)
         ? (value as string[]).some((v) => String(v).toLowerCase() === type)
+        : false;
+    },
+  },
+  {
+    id: "processType",
+    accessorFn: (row) => {
+      const processTypeId =
+        (row as any).process_type_id || (row as any).processTypeId || "";
+      const record = processTypeId ? processTypeMap[processTypeId] : undefined;
+      return record?.name || "N/A";
+    },
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Process Type" />
+    ),
+    cell: ({ row }) => {
+      const processTypeId =
+        (row.original as any).process_type_id ||
+        (row.original as any).processTypeId ||
+        "";
+      const record = processTypeId ? processTypeMap[processTypeId] : undefined;
+      const name = record?.name || "N/A";
+      const code = record?.code || "";
+      return <ProcessTypeCell name={name} code={code} minClampLength={20} />;
+    },
+    enableSorting: true,
+    enableHiding: true,
+    filterFn: (row, id, value) => {
+      if (!value || (Array.isArray(value) && value.length === 0)) return true;
+      const processType = String(row.getValue(id) ?? "").toLowerCase();
+      return Array.isArray(value)
+        ? (value as string[]).some(
+            (v) => String(v).toLowerCase() === processType
+          )
         : false;
     },
   },
@@ -394,12 +439,18 @@ export const columns: ColumnDef<RecycleBinDocument, unknown>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }) => (
+    cell: ({ row, table }) => (
       <div className="flex justify-center">
-        <DataTableRowActions row={row} viewType="recycle-bin" onActionSuccess={meta?.onRefetch} />
+        <DataTableRowActions
+          row={row}
+          viewType="recycle-bin"
+          onActionSuccess={table.options.meta?.onRefetch}
+        />
       </div>
     ),
     enableSorting: false,
     enableHiding: false,
   },
 ];
+
+export const columns = createRecycleBinColumns();

@@ -7,6 +7,7 @@ import { prisma } from '../lib/prisma';
 import { GoogleUserData } from '../config/oauth.config';
 import { EmailService } from './email.service';
 import { PermissionService } from './permission.service';
+import { parseExpiresIn } from '../utils/time';
 
 export interface LoginCredentials {
   email: string;
@@ -264,16 +265,18 @@ export class AuthService {
     const { token, refreshToken } = this.generateTokens(user, roleCodes);
 
     // Create a user session
-    const refreshTokenExpires = new Date();
-    refreshTokenExpires.setDate(refreshTokenExpires.getDate() + 6); // 6 days validity
+    const accessTokenExpiresAt = new Date(Date.now() + parseExpiresIn(config.jwt.expiresIn));
+    const refreshTokenExpiresAt = new Date(
+      Date.now() + parseExpiresIn(config.jwt.refreshExpiresIn)
+    );
 
     await prisma.userSession.create({
       data: {
         account_id: account.account_id,
         session_token: token, // Or a unique session ID
         refresh_token: refreshToken,
-        expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000), // 8 hours for access token
-        refresh_expires_at: refreshTokenExpires, // 6 days for refresh token
+        expires_at: accessTokenExpiresAt,
+        refresh_expires_at: refreshTokenExpiresAt,
         last_activity: new Date(),
       },
     });
@@ -393,8 +396,9 @@ export class AuthService {
     const { token: newToken, refreshToken: newRefreshToken } = this.generateTokens(userObj, roleCodes);
 
     // Update the session with the new refresh token and expiry
-    const newRefreshTokenExpires = new Date();
-    newRefreshTokenExpires.setDate(newRefreshTokenExpires.getDate() + 6); // 6 days validity
+    const newRefreshTokenExpires = new Date(
+      Date.now() + parseExpiresIn(config.jwt.refreshExpiresIn)
+    );
 
     await prisma.userSession.update({
       where: { session_id: session.session_id },
@@ -505,12 +509,14 @@ export class AuthService {
       roles: roleCodes || []
     };
 
-    // Session-based tokens: no expiration unless browser closes
-    const token = jwt.sign(payload, config.jwt.secret);
+    const token = jwt.sign(payload, config.jwt.secret, {
+      expiresIn: config.jwt.expiresIn,
+    });
 
     const refreshToken = jwt.sign(
       { userId: user.id },
-      config.jwt.refreshSecret || config.jwt.secret
+      config.jwt.refreshSecret || config.jwt.secret,
+      { expiresIn: config.jwt.refreshExpiresIn }
     );
 
     return { token, refreshToken };
@@ -693,17 +699,18 @@ export class AuthService {
 
       const tokens = this.generateTokens(user, roleCodes);
 
-      // Create a user session
-      const refreshTokenExpires = new Date();
-      refreshTokenExpires.setDate(refreshTokenExpires.getDate() + 6); // 6 days validity
+      const accessTokenExpiresAt = new Date(Date.now() + parseExpiresIn(config.jwt.expiresIn));
+      const refreshTokenExpiresAt = new Date(
+        Date.now() + parseExpiresIn(config.jwt.refreshExpiresIn)
+      );
 
       await prisma.userSession.create({
         data: {
           account_id: account.account_id,
           session_token: tokens.token,
           refresh_token: tokens.refreshToken,
-        expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000), // 8 hours for access token
-          refresh_expires_at: refreshTokenExpires, // 6 days for refresh token
+          expires_at: accessTokenExpiresAt,
+          refresh_expires_at: refreshTokenExpiresAt,
           last_activity: new Date(),
           login_method: 'google', // OAuth login
         },

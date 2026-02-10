@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSocket } from "@/components/providers/providers";
 import { useDocumentTypes } from "@/hooks/use-document-types";
 import { useProcessType } from "@/hooks/use-process.type";
+import { useDocumentSidebarCounts } from "@/hooks/use-document-sidebar-counts";
 
 export default function OwnedDocumentsPage() {
   const [page, setPage] = useState(1);
@@ -20,6 +21,7 @@ export default function OwnedDocumentsPage() {
   const { socket } = useSocket();
   const { documentTypes } = useDocumentTypes();
   const { processTypes } = useProcessType();
+  const { setCounts } = useDocumentSidebarCounts();
 
   // Mark component as mounted and clean up on unmount
   useEffect(() => {
@@ -47,6 +49,7 @@ export default function OwnedDocumentsPage() {
         processTypeMap: processTypes.reduce(
           (map, type) => {
             map[type.process_type_id] = {
+              code: type.code || "",
               name: type.name,
               duration_value: type.duration_value ?? null,
               duration_unit: type.duration_unit ?? null,
@@ -55,7 +58,12 @@ export default function OwnedDocumentsPage() {
           },
           {} as Record<
             string,
-            { name: string; duration_value?: number | null; duration_unit?: string | null }
+            {
+              code?: string;
+              name: string;
+              duration_value?: number | null;
+              duration_unit?: string | null;
+            }
           >
         ),
       }),
@@ -109,6 +117,10 @@ export default function OwnedDocumentsPage() {
     );
   }, [documents]);
 
+  useEffect(() => {
+    setCounts({ ownedPendingDocuments: filteredDocuments.length });
+  }, [filteredDocuments.length, setCounts]);
+
   return (
     <div className="flex p-4 h-full flex-col bg-background">
       {error && !isAuthError && (
@@ -145,6 +157,21 @@ export default function OwnedDocumentsPage() {
         selection={true}
         viewType="owned"
         isLoading={isLoading}
+        initialState={{
+          columnOrder: [
+            "select",
+            "scan",
+            "document",
+            "contact",
+            "currentLocation",
+            "type",
+            "processType",
+            "classification",
+            "status",
+            "dates",
+            "actions",
+          ],
+        }}
         meta={{ onRefetch: refetch }}
       />
     </div>

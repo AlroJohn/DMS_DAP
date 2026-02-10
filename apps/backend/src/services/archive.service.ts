@@ -391,6 +391,7 @@ export class ArchiveService {
           document_code: doc.document_code,
           document_type: doc.document_type,
           type: typeName, // Changed to use typeName from the map
+          process_type_id: doc.process_type_id,
           classification: classification,
           origin: doc.origin || 'external',
           status: status,
@@ -570,6 +571,7 @@ export class ArchiveService {
         document_code: document.document_code,
         document_type: document.document_type,
         type: typeName, // Changed to use typeName
+        process_type_id: document.process_type_id,
         classification: classification,
         origin: document.origin || 'external',
         status: status,

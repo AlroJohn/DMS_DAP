@@ -6,8 +6,10 @@ import { DataTableRowActions } from "@/components/reuseable/tables/data-table-ro
 import { DataTableColumnHeader } from "@/components/reuseable/tables/data-table-column-header";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Calendar, Copy, User, Building2 } from "lucide-react";
+import { Copy, User, Building2 } from "lucide-react";
 import { ScanCodes } from "@/components/ui/scan-codes";
+import { ActivityCell } from "@/components/reuseable/tables/activity-cell";
+import { ProcessTypeCell } from "@/components/reuseable/tables/process-type-cell";
 
 // Define the ArchiveDocument type based on the actual API response
 // This is adapted from RecycleBinDocument structure which should be similar to what we need
@@ -25,6 +27,13 @@ export type ArchiveDocument = {
   status: string;
   activity: string;
   activityTime: string;
+  created_at?: string;
+  process_type_id?: string | null;
+  process_timer_start_at?: string | null;
+  process_timer_complete_at?: string | null;
+  process_status?: "ongoing" | "delayed" | "completed" | null;
+  process_delayed_at?: string | null;
+  process_delay_seconds?: number | null;
   deletedBy: string;
   deletedAt: string;
   restoredBy?: string;
@@ -40,8 +49,18 @@ const formatText = (text: string): string => {
 
 export const createArchiveColumns = ({
   documentTypeMap,
+  processTypeMap = {},
 }: {
   documentTypeMap: Record<string, string>;
+  processTypeMap?: Record<
+    string,
+    {
+      code?: string;
+      name?: string;
+      duration_value?: number | null;
+      duration_unit?: string | null;
+    }
+  >;
 }): ColumnDef<ArchiveDocument>[] => [
   {
     id: "select",
@@ -302,42 +321,54 @@ export const createArchiveColumns = ({
       <DataTableColumnHeader column={column} title="Activity" />
     ),
     cell: ({ row }) => {
-      const data = row.original;
-      // show date only (no time)
-      const formattedDate = data.activityTime
-        ? new Date(data.activityTime).toLocaleDateString("en-US", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          })
-        : "";
-
       return (
-        <div className="flex flex-col gap-1 text-xs">
-          <div className="flex items-center gap-1">
-            <Calendar className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
-            <span className="text-muted-foreground" title="Received">
-              Delete Date
-            </span>
-          </div>
-          {formattedDate && (
-            <div className="flex items-center gap-1">
-              <Calendar className="w-2.5 h-2.5 text-blue-500 shrink-0" />
-              <span className="text-muted-foreground" title={formattedDate}>
-                {formattedDate}
-              </span>
-            </div>
-          )}
-        </div>
+        <ActivityCell document={row.original} />
       );
     },
     enableHiding: true,
   },
   {
+    id: "processType",
+    accessorFn: (row) => {
+      const processTypeId =
+        (row as any).process_type_id || (row as any).processTypeId || "";
+      const record = processTypeId ? processTypeMap[processTypeId] : undefined;
+      return record?.name || "N/A";
+    },
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Process Type" />
+    ),
+    cell: ({ row }) => {
+      const processTypeId =
+        (row.original as any).process_type_id ||
+        (row.original as any).processTypeId ||
+        "";
+      const record = processTypeId ? processTypeMap[processTypeId] : undefined;
+      const name = record?.name || "N/A";
+      const code = record?.code || "";
+      return <ProcessTypeCell name={name} code={code} minClampLength={20} />;
+    },
+    enableSorting: true,
+    enableHiding: true,
+    filterFn: (row, id, value) => {
+      if (!value || (Array.isArray(value) && value.length === 0)) return true;
+      const processType = String(row.getValue(id) ?? "").toLowerCase();
+      return Array.isArray(value)
+        ? (value as string[]).some(
+            (v) => String(v).toLowerCase() === processType
+          )
+        : false;
+    },
+  },
+  {
     id: "actions",
-    cell: ({ row }) => (
+    cell: ({ row, table }) => (
       <div className="flex justify-center">
-        <DataTableRowActions row={row} viewType="archive" onActionSuccess={meta?.onRefetch} />
+        <DataTableRowActions
+          row={row}
+          viewType="archive"
+          onActionSuccess={table.options.meta?.onRefetch}
+        />
       </div>
     ),
     enableSorting: false,
