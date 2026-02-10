@@ -1,3 +1,6 @@
+import config from './config';
+import securityConfig from './config/security.config';
+
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -64,8 +67,6 @@ import { errorHandler, notFoundHandler } from './middleware/error-handler';
 import { securityHeaders, rateLimiter } from './middleware/security';
 
 // Import configuration
-import config from './config';
-import securityConfig from './config/security.config';
 
 // Import Prisma disconnect function and instance for health check
 import { disconnectPrisma, prisma } from './lib/prisma';

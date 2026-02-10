@@ -40,17 +40,30 @@ class S3StorageService {
   private localBasePath: string;
 
   constructor() {
+    this.localBasePath = path.resolve(process.cwd(), 'uploads', 'documents');
+    this.isEnabled = false;
+    this.refreshConfig();
+  }
+
+  private refreshConfig(): void {
     const region = getEnv('AWS_REGION') || getEnv('AWS_DEFAULT_REGION');
     const bucket = getEnv('S3_BUCKET_NAME');
-    this.localBasePath = path.resolve(process.cwd(), 'uploads', 'documents');
-    
-    // Check if S3 is properly configured
-    this.isEnabled = !!(region && bucket);
-    
-    if (this.isEnabled) {
-      const accessKeyId = getEnv('AWS_ACCESS_KEY_ID');
-      const secretAccessKey = getEnv('AWS_SECRET_ACCESS_KEY');
+    const accessKeyId = getEnv('AWS_ACCESS_KEY_ID');
+    const secretAccessKey = getEnv('AWS_SECRET_ACCESS_KEY');
+    const canEnable = Boolean(region && bucket);
 
+    if (!canEnable) {
+      if (this.isEnabled) {
+        console.warn('S3 storage is no longer configured. Falling back to local storage.');
+      } else {
+        console.warn('S3 storage is not configured. Using alternative storage method.');
+      }
+      this.isEnabled = false;
+      this.client = null;
+      return;
+    }
+
+    if (!this.isEnabled || !this.client) {
       this.client = new S3Client({
         region: region!,
         credentials: accessKeyId && secretAccessKey
@@ -60,12 +73,12 @@ class S3StorageService {
             }
           : undefined,
       });
-    } else {
-      console.warn('S3 storage is not configured. Using alternative storage method.');
     }
+    this.isEnabled = true;
   }
 
   private ensureEnabled(): void {
+    this.refreshConfig();
     if (!this.isEnabled || !this.client) {
       throw new Error('S3 storage is not enabled or properly configured.');
     }
@@ -88,6 +101,7 @@ class S3StorageService {
     body: Buffer;
     contentType?: string;
   }): Promise<string> {
+    this.refreshConfig();
     if (this.isEnabled && this.client) {
       const bucket = this.getBucket();
       await this.client.send(

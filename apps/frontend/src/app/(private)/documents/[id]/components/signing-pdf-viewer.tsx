@@ -28,6 +28,7 @@ import { SignatureModal } from "@/components/modals/signature-modal";
 import { TextPlaceholderModal } from "@/components/modals/text-placeholder-modal";
 import { useAuth } from "@/hooks/use-auth";
 import { useSocket } from "@/components/providers/providers";
+import { FullPageLoader } from "@/components/reuseable/full-page-loader";
 
 const PDFJS_WORKER_CDN =
   process.env.NEXT_PUBLIC_PDFJS_WORKER_URL ||
@@ -1557,16 +1558,7 @@ export function SigningPdfViewer({
   };
 
   if (isLoadingFiles || isLoadingPlaceholders || isLoadingTextPlaceholders) {
-    return (
-      <Card className="h-full w-full min-h-150 flex flex-col">
-        <CardHeader>
-          <CardTitle>Sign Document</CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
-    );
+    return <FullPageLoader message="Loading signing workspace" />;
   }
 
   if (!sortedPdfFiles.length) {
@@ -1604,6 +1596,7 @@ export function SigningPdfViewer({
 
   return (
     <Card className="h-full w-full min-h-150 flex flex-col border-primary/40">
+      {isRendering && <FullPageLoader message="Loading signing workspace" />}
       <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-col gap-1">
           <CardTitle className="text-base">

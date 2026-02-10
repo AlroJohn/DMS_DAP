@@ -185,7 +185,7 @@ export function UploadDocumentModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (files.length === 0 || !title || !selectedType) {
+    if (files.length === 0 || !title || !selectedType || !selectedProcessType) {
       toast.error(
         "Please complete all required fields and select at least one file.",
       );
@@ -202,9 +202,7 @@ export function UploadDocumentModal({
       formData.append("description", description || "");
       formData.append("classification", selectedClassification);
       formData.append("type_id", selectedType);
-      if (selectedProcessType) {
-        formData.append("process_type_id", selectedProcessType);
-      }
+      formData.append("process_type_id", selectedProcessType);
       formData.append("origin", selectedOrigin);
       formData.append("enableOcr", String(enableOcr));
       formData.append("file", files[0]); // Only send the first file to create the document
@@ -605,7 +603,7 @@ export function UploadDocumentModal({
                         htmlFor="processType"
                         className="text-sm font-medium"
                       >
-                        Process Type
+                        Process Type *
                       </Label>
                       <Select
                         disabled={processTypesLoading}
@@ -680,6 +678,11 @@ export function UploadDocumentModal({
                             ))}
                         </SelectContent>
                       </Select>
+                      {!selectedProcessType && (
+                        <p className="text-xs text-muted-foreground">
+                          Process type is required
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label
@@ -804,7 +807,11 @@ export function UploadDocumentModal({
             <Button
               type="submit"
               disabled={
-                files.length === 0 || uploading || !title || !selectedType
+                files.length === 0 ||
+                uploading ||
+                !title ||
+                !selectedType ||
+                !selectedProcessType
               }
             >
               {uploading ? "Uploading..." : "Upload Documents"}

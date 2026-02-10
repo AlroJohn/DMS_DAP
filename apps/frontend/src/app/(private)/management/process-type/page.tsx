@@ -54,15 +54,28 @@ interface ProcessType {
   duration_value?: number;
   duration_unit?: string;
   is_active: boolean;
+  origin_department_id?: string | null;
+  originDepartment?: {
+    department_id: string;
+    name: string;
+  } | null;
   created_at: string;
   updated_at: string;
 }
 
+interface Department {
+  department_id: string;
+  name: string;
+  code?: string;
+}
+
 const ProcessTypeManagementPage = () => {
   const [processTypes, setProcessTypes] = useState<ProcessType[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [departmentsLoading, setDepartmentsLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -76,6 +89,7 @@ const ProcessTypeManagementPage = () => {
     description: "",
     duration_value: "",
     duration_unit: "days",
+    origin_department_id: "",
     is_active: true,
   });
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
@@ -87,6 +101,29 @@ const ProcessTypeManagementPage = () => {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Fetch departments
+  const fetchDepartments = async () => {
+    try {
+      setDepartmentsLoading(true);
+      const response = await fetch("/api/departments", {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch departments");
+      }
+
+      const data = await response.json();
+      setDepartments(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error fetching departments:", error);
+      toast.error("Error fetching departments");
+      setDepartments([]);
+    } finally {
+      setDepartmentsLoading(false);
+    }
+  };
 
   // Fetch process types
   const fetchProcessTypes = async () => {
@@ -148,6 +185,7 @@ const ProcessTypeManagementPage = () => {
   }, [filteredProcessTypes, currentPage, itemsPerPage]);
 
   useEffect(() => {
+    fetchDepartments();
     fetchProcessTypes();
   }, []);
 
@@ -176,6 +214,7 @@ const ProcessTypeManagementPage = () => {
           duration_value: formData.duration_value
             ? parseInt(formData.duration_value)
             : null,
+          origin_department_id: formData.origin_department_id || null,
         }),
       });
 
@@ -188,6 +227,7 @@ const ProcessTypeManagementPage = () => {
           description: "",
           duration_value: "",
           duration_unit: "days",
+          origin_department_id: "",
           is_active: true,
         });
         fetchProcessTypes();
@@ -208,6 +248,7 @@ const ProcessTypeManagementPage = () => {
       description: processType.description || "",
       duration_value: processType.duration_value?.toString() || "",
       duration_unit: processType.duration_unit || "days",
+      origin_department_id: processType.origin_department_id || "",
       is_active: processType.is_active,
     });
     setIsEditModalOpen(true);
@@ -237,6 +278,7 @@ const ProcessTypeManagementPage = () => {
             duration_value: formData.duration_value
               ? parseInt(formData.duration_value)
               : null,
+            origin_department_id: formData.origin_department_id || null,
           }),
         },
       );
@@ -251,6 +293,7 @@ const ProcessTypeManagementPage = () => {
           description: "",
           duration_value: "",
           duration_unit: "days",
+          origin_department_id: "",
           is_active: true,
         });
         fetchProcessTypes();
@@ -354,6 +397,7 @@ const ProcessTypeManagementPage = () => {
                   <TableHead>Code</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Duration</TableHead>
+                  <TableHead>Origin Department</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created Date</TableHead>
                   <TableHead className="text-center">Actions</TableHead>
@@ -362,7 +406,7 @@ const ProcessTypeManagementPage = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center">
+                    <TableCell colSpan={8} className="h-24 text-center">
                       <div className="flex items-center justify-center py-8">
                         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                       </div>
@@ -371,7 +415,7 @@ const ProcessTypeManagementPage = () => {
                 ) : paginatedProcessTypes.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={8}
                       className="h-24 text-center text-muted-foreground"
                     >
                       No process types found
@@ -410,6 +454,17 @@ const ProcessTypeManagementPage = () => {
                         ) : (
                           <span className="text-sm text-muted-foreground">
                             Not set
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {processType.originDepartment ? (
+                          <Badge variant="secondary" className="text-xs">
+                            {processType.originDepartment.name}
+                          </Badge>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            No department
                           </span>
                         )}
                       </TableCell>
@@ -578,6 +633,50 @@ const ProcessTypeManagementPage = () => {
                   <p className="text-xs text-muted-foreground">
                     Optional: Provide additional details about when to use this
                     process type
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="origin_department_id"
+                    className="text-sm font-medium"
+                  >
+                    Origin Department
+                  </Label>
+                  <Select
+                    disabled={departmentsLoading}
+                    value={formData.origin_department_id}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        origin_department_id: value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="text-sm">
+                      <SelectValue
+                        placeholder={
+                          departmentsLoading
+                            ? "Loading departments..."
+                            : "Select department (optional)"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No Department</SelectItem>
+                      {departments.map((dept) => (
+                        <SelectItem
+                          key={dept.department_id}
+                          value={dept.department_id}
+                        >
+                          {dept.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Assign this process type to a specific department. Other
+                    departments can still use it.
                   </p>
                 </div>
               </div>
@@ -764,6 +863,50 @@ const ProcessTypeManagementPage = () => {
                     process type
                   </p>
                 </div>
+
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="edit-origin_department_id"
+                    className="text-sm font-medium"
+                  >
+                    Origin Department
+                  </Label>
+                  <Select
+                    disabled={departmentsLoading}
+                    value={formData.origin_department_id}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        origin_department_id: value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="text-sm">
+                      <SelectValue
+                        placeholder={
+                          departmentsLoading
+                            ? "Loading departments..."
+                            : "Select department (optional)"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No Department</SelectItem>
+                      {departments.map((dept) => (
+                        <SelectItem
+                          key={dept.department_id}
+                          value={dept.department_id}
+                        >
+                          {dept.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Assign this process type to a specific department. Other
+                    departments can still use it.
+                  </p>
+                </div>
               </div>
 
               {/* Duration Configuration Section */}
@@ -917,6 +1060,23 @@ const ProcessTypeManagementPage = () => {
                       {viewingProcessType.description ||
                         "No description provided"}
                     </p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">
+                      Origin Department
+                    </label>
+                    <div className="mt-1">
+                      {viewingProcessType.originDepartment ? (
+                        <Badge variant="secondary" className="text-sm">
+                          {viewingProcessType.originDepartment.name}
+                        </Badge>
+                      ) : (
+                        <p className="text-base text-muted-foreground">
+                          No department assigned
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   <div>

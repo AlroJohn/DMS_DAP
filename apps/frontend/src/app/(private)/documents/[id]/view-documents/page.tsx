@@ -149,6 +149,10 @@ export default function ViewDocumentPage() {
     );
   }
 
+  if (filesLoading) {
+    return <FullPageLoader message="Loading document files" />;
+  }
+
   if (error) {
     return (
       <div className="p-1 md:p-2 lg:p-4 max-w-[95%] mx-auto w-full pt-2 pb-4">

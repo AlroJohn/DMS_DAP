@@ -972,6 +972,17 @@ export class DocumentReleaseService {
         console.error('Error creating notifications for document received:', notificationError);
       }
 
+      const io = getSocketInstance();
+      if (io) {
+        io.emit('documentUpdated', {
+          documentId,
+          status: 'received',
+          updatedBy: userId,
+          timestamp: new Date().toISOString()
+        });
+        io.to(`user-${userId}`).emit('documentAddedToUser', { documentId });
+      }
+
       return {
         success: true,
         data: { message: 'Document received successfully' }

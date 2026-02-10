@@ -29,6 +29,7 @@ import {
 import type { DocumentFileMetadata } from "@/hooks/use-document-files";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { FullPageLoader } from "@/components/reuseable/full-page-loader";
 
 import {
   GlobalWorkerOptions,
@@ -609,6 +610,8 @@ export function EditablePdfViewer({
     any[]
   >([]);
   const [isLoadingPlaceholders, setIsLoadingPlaceholders] = useState(false);
+  const showFullPageLoader =
+    isLoadingFiles || isRendering || isLoadingPlaceholders;
 
   const getSafeFontSize = (value?: number | null) => {
     if (typeof value !== "number" || Number.isNaN(value)) return 12;
@@ -1125,8 +1128,7 @@ export function EditablePdfViewer({
           }
 
           try {
-            const isPng =
-              signature.signature_data.startsWith("data:image/png");
+            const isPng = signature.signature_data.startsWith("data:image/png");
             const isJpg =
               signature.signature_data.startsWith("data:image/jpeg") ||
               signature.signature_data.startsWith("data:image/jpg");
@@ -1862,6 +1864,7 @@ export function EditablePdfViewer({
 
   return (
     <Card className="border h-fit border-primary/40 bg-muted/30">
+      {showFullPageLoader && <FullPageLoader message="Loading editor" />}
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <FileText className="h-5 w-5" />

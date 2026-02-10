@@ -9,6 +9,11 @@ export interface SharedDocument {
   contactOrganization?: string;
   type: string;  // Now contains DocumentType name instead of UUID
   process_type_id?: string | null;
+  process_timer_start_at?: string | null;
+  process_timer_complete_at?: string | null;
+  process_status?: 'ongoing' | 'delayed' | 'completed' | null;
+  process_delayed_at?: string | null;
+  process_delay_seconds?: number | null;
   classification?: string;
   status?: string;
   activity?: string;

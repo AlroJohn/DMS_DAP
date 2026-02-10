@@ -32,6 +32,11 @@ interface SharedDocument {
   contactOrganization: string;
   type: string;
   process_type_id?: string | null;
+  process_timer_start_at?: string | null;
+  process_timer_complete_at?: string | null;
+  process_status?: 'ongoing' | 'delayed' | 'completed' | null;
+  process_delayed_at?: string | null;
+  process_delay_seconds?: number | null;
   classification: string;
   status: string;
   activity: string;
@@ -66,6 +71,59 @@ export class SharedDocumentService {
         .filter(Boolean);
     }
     return [];
+  }
+
+  private async buildProcessTrailTimers(documentIds: string[]) {
+    const startAtByDocument = new Map<string, Date>();
+    const completeAtByDocument = new Map<string, Date>();
+
+    if (documentIds.length === 0) {
+      return { startAtByDocument, completeAtByDocument };
+    }
+
+    const receivedTrails = await prisma.documentTrail.findMany({
+      where: {
+        document_id: { in: documentIds },
+        status: 'received'
+      },
+      select: {
+        document_id: true,
+        action_date: true,
+        created_at: true
+      }
+    });
+
+    receivedTrails.forEach((trail) => {
+      const date = trail.action_date || trail.created_at;
+      if (!date) return;
+      const current = startAtByDocument.get(trail.document_id);
+      if (!current || date < current) {
+        startAtByDocument.set(trail.document_id, date);
+      }
+    });
+
+    const completedTrails = await prisma.documentTrail.findMany({
+      where: {
+        document_id: { in: documentIds },
+        status: 'completed'
+      },
+      select: {
+        document_id: true,
+        action_date: true,
+        created_at: true
+      }
+    });
+
+    completedTrails.forEach((trail) => {
+      const date = trail.action_date || trail.created_at;
+      if (!date) return;
+      const current = completeAtByDocument.get(trail.document_id);
+      if (!current || date < current) {
+        completeAtByDocument.set(trail.document_id, date);
+      }
+    });
+
+    return { startAtByDocument, completeAtByDocument };
   }
   /**
    * Get documents that have been shared to the current user (documents where user is specifically in received_by_users)
@@ -279,6 +337,24 @@ export class SharedDocumentService {
       ]);
 
       console.log('📍 [getSharedDocuments] Documents found:', documents.length, 'Total count:', total);
+
+      const documentIds = documents.map((doc) => doc.document_id);
+      const processStatuses = await prisma.processStatus.findMany({
+        where: { document_id: { in: documentIds } },
+        select: {
+          document_id: true,
+          status: true,
+          started_at: true,
+          completed_at: true,
+          delayed_at: true,
+          delayed_duration_seconds: true
+        }
+      });
+      const processStatusMap = new Map(
+        processStatuses.map((status) => [status.document_id, status])
+      );
+      const { startAtByDocument, completeAtByDocument } =
+        await this.buildProcessTrailTimers(documentIds);
 
       // Create a map of document details for quick lookup
       const documentDetailsMap = new Map();
@@ -496,6 +572,12 @@ export class SharedDocumentService {
             } : 'NO TRAIL FOUND'
           });
 
+          const processStatus = processStatusMap.get(doc.document_id);
+          const processStartAt =
+            processStatus?.started_at || startAtByDocument.get(doc.document_id);
+          const processCompleteAt =
+            processStatus?.completed_at || completeAtByDocument.get(doc.document_id);
+
           return {
             id: doc.document_id,
             qrCode,
@@ -506,6 +588,17 @@ export class SharedDocumentService {
             contactOrganization: contactOrganization,
             type: documentTypeName,
             process_type_id: doc.process_type_id,
+            process_timer_start_at: processStartAt
+              ? processStartAt.toISOString()
+              : null,
+            process_timer_complete_at: processCompleteAt
+              ? processCompleteAt.toISOString()
+              : null,
+            process_status: processStatus?.status || null,
+            process_delayed_at: processStatus?.delayed_at
+              ? processStatus.delayed_at.toISOString()
+              : null,
+            process_delay_seconds: processStatus?.delayed_duration_seconds ?? null,
             classification: doc.classification,
             status: doc.status,
             activity: 'shared',

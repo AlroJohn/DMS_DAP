@@ -329,9 +329,22 @@ export const getColumns = ({
       <DataTableColumnHeader column={column} title="Activity" />
     ),
     cell: ({ row }) => {
+      const data = row.original as any;
+      const normalizedDocument = {
+        ...data,
+        process_type_id: data.process_type_id || data.processTypeId || null,
+        process_timer_start_at:
+          data.process_timer_start_at || data.processTimerStartAt || null,
+        process_timer_complete_at:
+          data.process_timer_complete_at || data.processTimerCompleteAt || null,
+        process_status: data.process_status || data.processStatus || null,
+        process_delayed_at: data.process_delayed_at || data.processDelayedAt || null,
+        process_delay_seconds:
+          data.process_delay_seconds || data.processDelaySeconds || null,
+      };
       return (
         <ActivityCell
-          document={row.original as any}
+          document={normalizedDocument}
           processTypeMap={processTypeMap}
         />
       );

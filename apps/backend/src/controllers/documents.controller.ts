@@ -87,7 +87,7 @@ export class DocumentController {
       }
       return param;
     };
-    
+
     const { id } = req.params;
     const idStr = getStringValue(id);
 
@@ -144,7 +144,7 @@ export class DocumentController {
       return sendError(res, 'File upload is required', 400);
     }
 
-    const requiredFields = ['document_name', 'classification', 'type_id', 'origin'];
+    const requiredFields = ['document_name', 'classification', 'type_id', 'process_type_id', 'origin'];
     const missingFields = validateRequiredFields(req.body, requiredFields);
 
     if (missingFields.length > 0) {
@@ -168,7 +168,7 @@ export class DocumentController {
    */
   uploadFilesToDocument = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    
+
     // Helper function to extract string value from potentially array parameter
     const getStringValue = (param: string | string[] | undefined): string | undefined => {
       if (Array.isArray(param)) {
@@ -176,7 +176,7 @@ export class DocumentController {
       }
       return param;
     };
-    
+
     const { id } = req.params;
     const idStr = getStringValue(id);
     const files = (req as any).files as Express.Multer.File[] | undefined;
@@ -209,7 +209,7 @@ export class DocumentController {
    */
   replaceDocumentFile = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    
+
     // Helper function to extract string value from potentially array parameter
     const getStringValue = (param: string | string[] | undefined): string | undefined => {
       if (Array.isArray(param)) {
@@ -217,7 +217,7 @@ export class DocumentController {
       }
       return param;
     };
-    
+
     const { id, fileId } = req.params;
     const idStr = getStringValue(id);
     const fileIdStr = getStringValue(fileId);
