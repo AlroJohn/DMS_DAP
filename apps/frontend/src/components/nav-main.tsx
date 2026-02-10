@@ -39,7 +39,7 @@ export function NavMain({
   const pathname = usePathname();
   const renderBadge = (count?: number) =>
     count && count > 0 ? (
-      <span className="ml-auto rounded-full bg-secondary/10 px-2 py-0.5 text-xs font-medium text-secondary">
+      <span className="ml-auto rounded-full bg-secondary/20 px-2 py-0.5 font-bold text-secondary">
         {count}
       </span>
     ) : null;
@@ -80,7 +80,7 @@ export function NavMain({
                       >
                         {item.icon && <item.icon />}
                         <span>{item.title}</span>
-                        {/* {renderBadge(item.badgeCount)} */}
+                        {renderBadge(item.badgeCount)}
                       </Link>
                     </SidebarMenuButton>
                     <CollapsibleTrigger asChild>
