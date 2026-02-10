@@ -19,9 +19,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { Loader2, UserPlus, Mail } from "lucide-react";
+import { Check, Loader2, UserPlus, Mail, ChevronDown } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 interface Department {
   department_id: string;
@@ -53,6 +64,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [creationMode, setCreationMode] = useState<"manual" | "invite">("manual");
+  const [departmentOpen, setDepartmentOpen] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     first_name: "",
@@ -86,6 +98,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
     });
     setErrors({});
     setCreationMode("manual");
+    setDepartmentOpen(false);
   };
 
   // Reset form when modal is closed
@@ -123,6 +136,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
       });
     }
   };
+
+  const selectedDepartment = departments.find((dept) => dept.department_id === formData.department_id);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -225,7 +240,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
           }),
         });
 
-        const result = await response.json();
+        const responseText = await response.text();
+        const result = responseText ? JSON.parse(responseText) : {};
 
         if (response.ok && result.success) {
           toast.success("User created successfully");
@@ -251,7 +267,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
           }),
         });
 
-        const result = await response.json();
+        const responseText = await response.text();
+        const result = responseText ? JSON.parse(responseText) : {};
 
         if (response.ok && result.success) {
           toast.success("Invitation sent successfully! The user will receive an email to sign up with Google.");
@@ -532,27 +549,70 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 <Label htmlFor="department_id">
                   Department <span className="text-red-500">*</span>
                 </Label>
-                <Select 
-                  value={formData.department_id} 
-                  onValueChange={(value) => handleSelectChange("department_id", value)}
-                >
-                  <SelectTrigger className={errors.department_id ? "border-red-500" : ""}>
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.length > 0 ? (
-                      departments.map((dept) => (
-                        <SelectItem key={dept.department_id} value={dept.department_id}>
-                          {dept.name} ({dept.code})
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="loading" disabled>
-                        Loading departments...
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                <Popover open={departmentOpen} onOpenChange={setDepartmentOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={departmentOpen}
+                      className={cn(
+                        "w-full justify-between px-3 font-normal",
+                        errors.department_id && "border-red-500"
+                      )}
+                    >
+                      {selectedDepartment ? (
+                        <span className="truncate">
+                          {selectedDepartment.name} ({selectedDepartment.code})
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">Select department</span>
+                      )}
+                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[320px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search departments..." />
+                      <CommandList>
+                        <CommandEmpty>No departments found.</CommandEmpty>
+                        <CommandGroup>
+                          {departments.map((dept) => (
+                            <CommandItem
+                              key={dept.department_id}
+                              value={`${dept.name} ${dept.code}`}
+                              onSelect={() => {
+                                handleSelectChange("department_id", dept.department_id);
+                                setDepartmentOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  dept.department_id === formData.department_id
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                                )}
+                              />
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex flex-col text-left">
+                                    <span className="text-sm">{dept.name}</span>
+                                    <span className="text-xs text-muted-foreground">{dept.code}</span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" align="start" sideOffset={6}>
+                                  <span className="font-medium">{dept.name}</span>{" "}
+                                  <span className="text-muted-foreground">({dept.code})</span>
+                                </TooltipContent>
+                              </Tooltip>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
                 {errors.department_id && (
                   <p className="text-xs text-red-500">{errors.department_id}</p>
                 )}

@@ -42,6 +42,12 @@ import {
   CheckCircle2,
   XCircle,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { AlertModal } from "@/components/reuseable/alert-modal";
 import { TablePagination } from "@/components/reuseable/table-pagination";
 import { toast } from "sonner";
@@ -393,9 +399,7 @@ const ProcessTypeManagementPage = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Process Type</TableHead>
                   <TableHead>Code</TableHead>
-                  <TableHead>Description</TableHead>
                   <TableHead>Duration</TableHead>
                   <TableHead>Origin Department</TableHead>
                   <TableHead>Status</TableHead>
@@ -406,7 +410,7 @@ const ProcessTypeManagementPage = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">
+                    <TableCell colSpan={6} className="h-24 text-center">
                       <div className="flex items-center justify-center py-8">
                         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                       </div>
@@ -415,7 +419,7 @@ const ProcessTypeManagementPage = () => {
                 ) : paginatedProcessTypes.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={6}
                       className="h-24 text-center text-muted-foreground"
                     >
                       No process types found
@@ -425,25 +429,21 @@ const ProcessTypeManagementPage = () => {
                   paginatedProcessTypes.map((processType) => (
                     <TableRow key={processType.process_type_id}>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                          <span className="font-medium">
-                            {processType.name}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="font-mono text-xs">
-                          {processType.code || "N/A"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className="text-sm text-muted-foreground max-w-xs truncate"
-                          title={processType.description || ""}
-                        >
-                          {processType.description || "No description"}
-                        </span>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-2 cursor-default">
+                                <Clock className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                <Badge variant="outline" className="font-mono text-xs">
+                                  {processType.code || "N/A"}
+                                </Badge>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs break-words">
+                              <p>{processType.name}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </TableCell>
                       <TableCell>
                         {processType.duration_value ? (

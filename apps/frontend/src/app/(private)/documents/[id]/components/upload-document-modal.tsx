@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,8 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectScrollDownButton,
+  SelectScrollUpButton,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -28,7 +30,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useDocumentTypes } from "@/hooks/use-document-types";
-import { useProcessType } from "@/hooks/use-process.type";
+import { useProcessType, type ProcessType } from "@/hooks/use-process.type";
 import {
   useFileIntegrity,
   detectPotentialCorruption,
@@ -43,8 +45,82 @@ import {
   Shield,
   FileSearch,
   AlertCircle,
+  Recycle,
 } from "lucide-react";
 import { toast } from "sonner";
+
+type CenterLookup = {
+  code: string;
+  name: string;
+  departments: Map<string, string>;
+};
+
+type GroupLookup = {
+  code: string;
+  name: string;
+  centers: Map<string, CenterLookup>;
+  departments: Map<string, string>;
+};
+
+const NO_CENTER_CODE = "__NO_CENTER__";
+const NO_CENTER_LABEL = "No center assignment";
+
+const mapToSortedArray = (entries: Map<string, string>) =>
+  Array.from(entries.entries())
+    .map(([code, name]) => ({ code, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+const getBaseProcessCode = (code?: string) => {
+  if (!code) return "";
+  const separator = code.lastIndexOf("_");
+  if (separator <= 0) {
+    return code;
+  }
+  return code.slice(0, separator);
+};
+
+const UNIT_TO_MINUTES = {
+  weeks: 7 * 24 * 60,
+  days: 24 * 60,
+  hours: 60,
+  minutes: 1,
+} as const;
+
+const formatProcessDuration = (value?: number | null, unit?: string | null) => {
+  if (!value) return "";
+  const normalizedUnit = (
+    unit || "minutes"
+  ).toLowerCase() as keyof typeof UNIT_TO_MINUTES;
+  const totalMinutes = value * (UNIT_TO_MINUTES[normalizedUnit] ?? 1);
+
+  const parts = [];
+  let remaining = totalMinutes;
+
+  const weeks = Math.floor(remaining / UNIT_TO_MINUTES.weeks);
+  if (weeks) {
+    parts.push(`${weeks}w`);
+    remaining -= weeks * UNIT_TO_MINUTES.weeks;
+  }
+
+  const days = Math.floor(remaining / UNIT_TO_MINUTES.days);
+  if (days) {
+    parts.push(`${days}d`);
+    remaining -= days * UNIT_TO_MINUTES.days;
+  }
+
+  const hours = Math.floor(remaining / UNIT_TO_MINUTES.hours);
+  if (hours) {
+    parts.push(`${hours}h`);
+    remaining -= hours * UNIT_TO_MINUTES.hours;
+  }
+
+  const minutes = remaining;
+  if (minutes || parts.length === 0) {
+    parts.push(`${minutes}m`);
+  }
+
+  return parts.join(" ");
+};
 
 interface UploadDocumentModalProps {
   open: boolean;
@@ -80,6 +156,16 @@ export function UploadDocumentModal({
   const [enableOcr, setEnableOcr] = useState(ocrDefaultEnabled);
   const [enableEncryption, setEnableEncryption] = useState(true);
   const maxInlineChecksumMB = 15;
+  const [groupFilter, setGroupFilter] = useState("");
+  const [centerFilter, setCenterFilter] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [processSearch, setProcessSearch] = useState("");
+  const clearFilters = () => {
+    setGroupFilter("");
+    setCenterFilter("");
+    setDepartmentFilter("");
+    setProcessSearch("");
+  };
 
   // Get socket instance for real-time updates
   const { socket } = useSocket();
@@ -87,6 +173,195 @@ export function UploadDocumentModal({
   // Fetch data from database
   const { documentTypes, isLoading: typesLoading } = useDocumentTypes();
   const { processTypes, loading: processTypesLoading } = useProcessType();
+
+  const activeProcessTypes = useMemo(
+    () => processTypes.filter((type) => type.is_active),
+    [processTypes],
+  );
+
+  const hierarchy = useMemo(() => {
+    const map = new Map<string, GroupLookup>();
+    activeProcessTypes.forEach((type) => {
+      const dept = type.originDepartment;
+      if (!dept || !dept.group) return;
+
+      const groupCode = dept.group.code;
+      const groupName = dept.group.name;
+
+      let groupEntry = map.get(groupCode);
+      if (!groupEntry) {
+        groupEntry = {
+          code: groupCode,
+          name: groupName,
+          centers: new Map(),
+          departments: new Map(),
+        };
+        map.set(groupCode, groupEntry);
+      }
+
+      if (dept.code && dept.name) {
+        groupEntry.departments.set(dept.code, dept.name);
+      }
+
+      const centerCode = dept.center?.code ?? NO_CENTER_CODE;
+      const centerName = dept.center?.name ?? NO_CENTER_LABEL;
+      let centerEntry = groupEntry.centers.get(centerCode);
+      if (!centerEntry) {
+        centerEntry = {
+          code: centerCode,
+          name: centerName,
+          departments: new Map(),
+        };
+        groupEntry.centers.set(centerCode, centerEntry);
+      }
+
+      if (dept.code && dept.name) {
+        centerEntry.departments.set(dept.code, dept.name);
+      }
+    });
+
+    return new Map(
+      [...map.entries()].sort(([, a], [, b]) => a.name.localeCompare(b.name)),
+    );
+  }, [activeProcessTypes]);
+
+  const groupOptions = useMemo(
+    () =>
+      Array.from(hierarchy.values()).map((group) => ({
+        code: group.code,
+        name: group.name,
+      })),
+    [hierarchy],
+  );
+
+  const buildCenterArray = (centers: Map<string, CenterLookup>) =>
+    Array.from(centers.values())
+      .map((center) => ({
+        code: center.code,
+        name: center.name,
+        departments: center.departments,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+  const availableCenters = useMemo(() => {
+    if (groupFilter) {
+      const group = hierarchy.get(groupFilter);
+      if (!group) return [];
+      return buildCenterArray(group.centers);
+    }
+    const aggregated = new Map<string, CenterLookup>();
+    hierarchy.forEach((group) => {
+      group.centers.forEach((center, centerCode) => {
+        if (!aggregated.has(centerCode)) {
+          aggregated.set(centerCode, {
+            code: center.code,
+            name: center.name,
+            departments: center.departments,
+          });
+        }
+      });
+    });
+    return buildCenterArray(aggregated);
+  }, [hierarchy, groupFilter]);
+
+  const availableDepartments = useMemo(() => {
+    if (centerFilter) {
+      const selectedCenter = availableCenters.find(
+        (center) => center.code === centerFilter,
+      );
+      if (!selectedCenter) return [];
+      return mapToSortedArray(selectedCenter.departments);
+    }
+    if (groupFilter) {
+      const selectedGroup = hierarchy.get(groupFilter);
+      if (!selectedGroup) return [];
+      return mapToSortedArray(selectedGroup.departments);
+    }
+    const allDepartments = new Map<string, string>();
+    hierarchy.forEach((group) => {
+      group.departments.forEach((name, code) => {
+        if (!allDepartments.has(code)) {
+          allDepartments.set(code, name);
+        }
+      });
+    });
+    return mapToSortedArray(allDepartments);
+  }, [hierarchy, groupFilter, centerFilter, availableCenters]);
+
+  const searchTerm = processSearch.trim().toLowerCase();
+
+  const filteredProcessTypes = useMemo(() => {
+    return activeProcessTypes.filter((type) => {
+      const origin = type.originDepartment;
+      if (groupFilter && origin?.group?.code !== groupFilter) {
+        return false;
+      }
+      if (centerFilter) {
+        const centerCode = origin?.center?.code ?? NO_CENTER_CODE;
+        if (centerCode !== centerFilter) {
+          return false;
+        }
+      }
+      if (departmentFilter && origin?.code !== departmentFilter) {
+        return false;
+      }
+      if (!searchTerm) {
+        return true;
+      }
+      const haystack = `${type.code ?? ""} ${type.name} ${origin?.name ?? ""} ${
+        origin?.code ?? ""
+      }`.toLowerCase();
+      return haystack.includes(searchTerm);
+    });
+  }, [
+    activeProcessTypes,
+    groupFilter,
+    centerFilter,
+    departmentFilter,
+    searchTerm,
+  ]);
+
+  const isFilterActive = Boolean(
+    groupFilter || centerFilter || departmentFilter || searchTerm,
+  );
+
+  const visibleProcessTypes = useMemo(() => {
+    if (isFilterActive) {
+      return filteredProcessTypes;
+    }
+    const seen = new Set<string>();
+    return filteredProcessTypes.filter((type) => {
+      const durationKey = `${type.duration_value ?? ""}-${
+        type.duration_unit ?? ""
+      }`;
+      const dedupeKey = `${getBaseProcessCode(type.code ?? type.name)}-${durationKey}`;
+      if (seen.has(dedupeKey)) {
+        return false;
+      }
+      seen.add(dedupeKey);
+      return true;
+    });
+  }, [filteredProcessTypes, isFilterActive]);
+
+  useEffect(() => {
+    if (
+      selectedProcessType &&
+      !visibleProcessTypes.find(
+        (type) => type.process_type_id === selectedProcessType,
+      )
+    ) {
+      setSelectedProcessType("");
+    }
+  }, [selectedProcessType, visibleProcessTypes]);
+
+  useEffect(() => {
+    setCenterFilter("");
+    setDepartmentFilter("");
+  }, [groupFilter]);
+
+  useEffect(() => {
+    setDepartmentFilter("");
+  }, [centerFilter]);
 
   // File integrity checking
   const { verifyFile } = useFileIntegrity({ maxInlineChecksumMB });
@@ -174,14 +449,9 @@ export function UploadDocumentModal({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
-  const formatProcessDuration = (
-    value?: number | null,
-    unit?: string | null,
-  ) => {
-    if (!value) return "";
-    const safeUnit = unit || "days";
-    return `${value} ${safeUnit}`;
-  };
+  const getCenterCodeFromType = (
+    originDepartment?: ProcessType["originDepartment"],
+  ) => originDepartment?.center?.code ?? NO_CENTER_CODE;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -628,23 +898,137 @@ export function UploadDocumentModal({
                             <Loader2 className="h-4 w-4 ml-2 animate-spin" />
                           )}
                         </SelectTrigger>
-                        <SelectContent className="max-h-48">
-                          {processTypes
-                            .filter((type) => type.is_active)
-                            .map((type) => (
-                              <SelectItem
-                                key={type.process_type_id}
-                                value={type.process_type_id}
-                                className="text-base py-2 px-3"
+                        <SelectContent className="w-[320px]">
+                          <div className="space-y-3 px-3 pt-3 pb-2 border-b border-muted-foreground/20">
+                            <div className="flex items-center gap-2">
+                              <div className="relative flex-1">
+                                <Input
+                                  placeholder="Search code or name"
+                                  value={processSearch}
+                                  onChange={(event) =>
+                                    setProcessSearch(event.target.value)
+                                  }
+                                  className="text-sm"
+                                />
+                                {processSearch && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setProcessSearch("")}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:text-foreground"
+                                    aria-label="Clear search"
+                                  >
+                                    <X className="size-3" />
+                                  </button>
+                                )}
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={clearFilters}
+                                className="text-[11px] uppercase tracking-[0.15em]"
                               >
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="flex items-center gap-2">
+                                <Recycle />
+                              </Button>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-[11px] font-semibold uppercase text-muted-foreground">
+                                Group
+                              </p>
+                              <select
+                                className="w-full rounded-md border border-input bg-background py-1 px-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/70"
+                                value={groupFilter}
+                                onChange={(event) =>
+                                  setGroupFilter(event.target.value)
+                                }
+                              >
+                                <option value="">All groups</option>
+                                {groupOptions.map((group) => (
+                                  <option key={group.code} value={group.code}>
+                                    {group.name} ({group.code})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-[11px] font-semibold uppercase text-muted-foreground">
+                                Center
+                              </p>
+                              <select
+                                className="w-full rounded-md border border-input bg-background py-1 px-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/70"
+                                value={centerFilter}
+                                onChange={(event) =>
+                                  setCenterFilter(event.target.value)
+                                }
+                              >
+                                <option value="">All centers</option>
+                                {availableCenters.map((center) => (
+                                  <option key={center.code} value={center.code}>
+                                    {center.name} ({center.code})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-[11px] font-semibold uppercase text-muted-foreground">
+                                Department
+                              </p>
+                              <select
+                                className="w-full rounded-md border border-input bg-background py-1 px-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/70"
+                                value={departmentFilter}
+                                onChange={(event) =>
+                                  setDepartmentFilter(event.target.value)
+                                }
+                              >
+                                <option value="">All departments</option>
+                                {availableDepartments.map((dept) => (
+                                  <option key={dept.code} value={dept.code}>
+                                    {dept.name} ({dept.code})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <SelectScrollUpButton className="text-muted-foreground" />
+                          <div className="max-h-[280px] space-y-1 px-1 py-1 overflow-y-auto">
+                            {visibleProcessTypes.length === 0 ? (
+                              <div className="px-3 py-4 text-xs text-muted-foreground">
+                                No process types match your filters.
+                              </div>
+                            ) : (
+                              visibleProcessTypes.map((type) => (
+                                <SelectItem
+                                  key={type.process_type_id}
+                                  value={type.process_type_id}
+                                  className="text-base py-2 px-3"
+                                >
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="flex items-center gap-2">
+                                        <span className="font-medium">
+                                          {type.code || type.name}
+                                        </span>
+                                        {type.duration_value && (
+                                          <span className="text-xs text-muted-foreground">
+                                            ·{" "}
+                                            {formatProcessDuration(
+                                              type.duration_value,
+                                              type.duration_unit,
+                                            )}
+                                          </span>
+                                        )}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent
+                                      side="right"
+                                      align="center"
+                                      sideOffset={6}
+                                      className="max-w-64 leading-snug break-words whitespace-normal"
+                                    >
                                       <span className="font-medium">
-                                        {type.code || type.name}
+                                        {type.name}
                                       </span>
                                       {type.duration_value && (
-                                        <span className="text-xs text-muted-foreground">
+                                        <span className="ml-1 text-muted-foreground">
                                           ·{" "}
                                           {formatProcessDuration(
                                             type.duration_value,
@@ -652,30 +1036,13 @@ export function UploadDocumentModal({
                                           )}
                                         </span>
                                       )}
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent
-                                    side="right"
-                                    align="center"
-                                    sideOffset={6}
-                                    className="max-w-64 text-[10px] leading-snug break-words whitespace-normal"
-                                  >
-                                    <span className="font-medium">
-                                      {type.name}
-                                    </span>
-                                    {type.duration_value && (
-                                      <span className="ml-1 text-muted-foreground">
-                                        ·{" "}
-                                        {formatProcessDuration(
-                                          type.duration_value,
-                                          type.duration_unit,
-                                        )}
-                                      </span>
-                                    )}
-                                  </TooltipContent>
-                                </Tooltip>
-                              </SelectItem>
-                            ))}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </SelectItem>
+                              ))
+                            )}
+                          </div>
+                          <SelectScrollDownButton className="text-muted-foreground" />
                         </SelectContent>
                       </Select>
                       {!selectedProcessType && (

@@ -10,6 +10,21 @@ export interface ProcessType {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  originDepartment?: {
+    department_id: string;
+    code: string;
+    name: string;
+    group?: {
+      group_id: string;
+      name: string;
+      code: string;
+    };
+    center?: {
+      center_id: string;
+      name: string;
+      code: string;
+    };
+  } | null;
 }
 
 export const useProcessType = () => {
