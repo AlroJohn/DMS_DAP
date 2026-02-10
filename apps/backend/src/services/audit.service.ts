@@ -285,7 +285,7 @@ class AuditService {
         }
       });
 
-      // Get document status information to determine if document is completed
+      // Get document status and creation information to determine if document is completed and calculate durations
       const documentStatuses = await prisma.document.findMany({
         where: {
           document_id: {
@@ -294,13 +294,33 @@ class AuditService {
         },
         select: {
           document_id: true,
-          status: true
+          status: true,
+          created_at: true
         }
       });
 
-      // Create maps for document workflow and status
+      // Get all trails for duration calculation, grouped by document
+      const allTrailsByDocument = await prisma.documentTrail.findMany({
+        where: {
+          document_id: {
+            in: documentIds
+          }
+        },
+        select: {
+          trail_id: true,
+          document_id: true,
+          action_date: true
+        },
+        orderBy: {
+          action_date: 'asc'
+        }
+      });
+
+      // Create maps for document workflow, status, and trail durations
       const documentWorkflowMap = new Map<string, any>();
       const documentStatusMap = new Map<string, string>();
+      const documentCreatedAtMap = new Map<string, Date>();
+      const trailDurationMap = new Map<string, number>(); // trail_id -> duration in ms
 
       documentDetails.forEach(detail => {
         documentWorkflowMap.set(detail.document_id, detail.work_flow_id);
@@ -308,6 +328,46 @@ class AuditService {
 
       documentStatuses.forEach(doc => {
         documentStatusMap.set(doc.document_id, doc.status);
+        documentCreatedAtMap.set(doc.document_id, doc.created_at);
+      });
+
+      // Calculate duration for each trail (time held before next action)
+      const trailsByDoc = new Map<string, typeof allTrailsByDocument>();
+      allTrailsByDocument.forEach(trail => {
+        if (!trailsByDoc.has(trail.document_id)) {
+          trailsByDoc.set(trail.document_id, []);
+        }
+        trailsByDoc.get(trail.document_id)!.push(trail);
+      });
+
+      // For each document, calculate duration only for meaningful transfers
+      // Duration is calculated when:
+      // 1. There's a next trail (not the last one)
+      // 2. The trail represents a user holding the document before releasing it
+      trailsByDoc.forEach((docTrails, documentId) => {
+        for (let i = 0; i < docTrails.length - 1; i++) {
+          const currentTrail = docTrails[i];
+          const nextTrail = docTrails[i + 1];
+          
+          // Calculate duration: time from current action to next action
+          const currentTime = new Date(currentTrail.action_date).getTime();
+          const nextTime = new Date(nextTrail.action_date).getTime();
+          const duration = nextTime - currentTime;
+          
+          // Store duration for this trail (time held before next action)
+          trailDurationMap.set(currentTrail.trail_id, duration);
+        }
+        
+        // For the last trail, calculate duration to now if status indicates it's still in progress
+        if (docTrails.length > 0) {
+          const lastTrail = docTrails[docTrails.length - 1];
+          const currentTime = new Date(lastTrail.action_date).getTime();
+          const nowTime = new Date().getTime();
+          const duration = nowTime - currentTime;
+          
+          // Only set duration for last trail if document is not completed/archived/deleted
+          trailDurationMap.set(lastTrail.trail_id, duration);
+        }
       });
 
       // Process trails to add ownership information
@@ -358,6 +418,12 @@ class AuditService {
         const documentStatus = documentStatusMap.get(trail.document_id);
         const finalStatus = documentStatus === 'completed' ? 'completed' : trail.status;
 
+        // Get duration for this trail (time held before next action)
+        const durationMs = trailDurationMap.get(trail.trail_id) || null;
+
+        // Get document creation date for total duration calculation
+        const documentCreatedAt = documentCreatedAtMap.get(trail.document_id);
+
         return {
           id: trail.trail_id,
           documentId: trail.document_id,
@@ -382,7 +448,9 @@ class AuditService {
           createdAt: trail.created_at.toISOString(),
           updatedAt: trail.updated_at.toISOString(),
           remarks: trail.remarks || '',
-          isOwned
+          isOwned,
+          durationMs, // Time held in this stage before next action
+          documentCreatedAt: documentCreatedAt?.toISOString() || null // Document creation date for total duration
         };
       });
 
@@ -454,7 +522,7 @@ class AuditService {
           }
         },
         orderBy: {
-          action_date: 'asc'
+          action_date: 'desc'
         }
       });
 
@@ -476,19 +544,43 @@ class AuditService {
         } : null
       };
 
-      const trailDetails = trails.map(trail => ({
-        id: trail.trail_id,
-        documentId: trail.document_id,
-        actionDate: trail.action_date.toISOString(),
-        createdAt: trail.created_at.toISOString(),
-        updatedAt: trail.updated_at.toISOString(),
-        actionName: trail.documentAction?.action_name || '',
-        user: `${trail.user?.first_name || ''} ${trail.user?.last_name || ''}`.trim() || 'Unknown User',
-        fromDepartment: trail.fromDept?.name || 'Unknown',
-        toDepartment: trail.toDept?.name || 'Unknown',
-        status: trail.status,
-        remarks: trail.remarks || ''
-      }));
+      // Sort trails in chronological order (oldest first) for duration calculation
+      const sortedTrails = [...trails].sort((a, b) => 
+        new Date(a.action_date).getTime() - new Date(b.action_date).getTime()
+      );
+
+      const trailDetails = sortedTrails.map((trail, index) => {
+        // Calculate duration to next trail (time spent in this stage)
+        let durationToNext: number | null = null;
+        if (index < sortedTrails.length - 1) {
+          const currentTime = new Date(trail.action_date).getTime();
+          const nextTime = new Date(sortedTrails[index + 1].action_date).getTime();
+          durationToNext = nextTime - currentTime; // Duration in milliseconds
+        } else {
+          // For the last trail, calculate duration to now
+          const currentTime = new Date(trail.action_date).getTime();
+          const nowTime = new Date().getTime();
+          durationToNext = nowTime - currentTime;
+        }
+
+        return {
+          id: trail.trail_id,
+          documentId: trail.document_id,
+          actionDate: trail.action_date.toISOString(),
+          createdAt: trail.created_at.toISOString(),
+          updatedAt: trail.updated_at.toISOString(),
+          actionName: trail.documentAction?.action_name || '',
+          user: `${trail.user?.first_name || ''} ${trail.user?.last_name || ''}`.trim() || 'Unknown User',
+          fromDepartment: trail.fromDept?.name || 'Unknown',
+          toDepartment: trail.toDept?.name || 'Unknown',
+          status: trail.status,
+          remarks: trail.remarks || '',
+          durationMs: durationToNext
+        };
+      });
+
+      // Reverse back to descending order for display
+      trailDetails.reverse();
 
       return {
         documentInfo,

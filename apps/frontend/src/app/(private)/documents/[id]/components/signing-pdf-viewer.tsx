@@ -1558,7 +1558,7 @@ export function SigningPdfViewer({
 
   if (isLoadingFiles || isLoadingPlaceholders || isLoadingTextPlaceholders) {
     return (
-      <Card className="h-full w-full min-h-[600px] flex flex-col">
+      <Card className="h-full w-full min-h-150 flex flex-col">
         <CardHeader>
           <CardTitle>Sign Document</CardTitle>
         </CardHeader>
@@ -1571,7 +1571,7 @@ export function SigningPdfViewer({
 
   if (!sortedPdfFiles.length) {
     return (
-      <Card className="h-full w-full min-h-[300px] flex flex-col">
+      <Card className="h-full w-full min-h-75 flex flex-col">
         <CardHeader>
           <CardTitle>Sign Document</CardTitle>
         </CardHeader>
@@ -1603,7 +1603,7 @@ export function SigningPdfViewer({
     : false;
 
   return (
-    <Card className="h-full w-full min-h-[600px] flex flex-col border-primary/40">
+    <Card className="h-full w-full min-h-150 flex flex-col border-primary/40">
       <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-col gap-1">
           <CardTitle className="text-base">
@@ -1690,7 +1690,7 @@ export function SigningPdfViewer({
                               setSelectedFileId(group.files[0].id);
                             }}
                             className={cn(
-                              "max-w-[160px] truncate text-left font-semibold",
+                              "max-w-40 truncate text-left font-semibold",
                               group.files.some((f) => f.id === selectedFileId)
                                 ? "text-primary"
                                 : "",
@@ -1785,7 +1785,7 @@ export function SigningPdfViewer({
                                 type="button"
                                 onClick={() => setSelectedFileId(file.id)}
                                 className={cn(
-                                  "max-w-[160px] truncate text-left",
+                                  "max-w-40 truncate text-left",
                                   file.id === selectedFileId
                                     ? "font-semibold"
                                     : "",
@@ -2001,7 +2001,7 @@ export function SigningPdfViewer({
             </div>
           </div>
 
-          <div className="flex-1 overflow-auto rounded-md bg-muted/20 min-h-[300px]">
+          <div className="flex-1 overflow-auto rounded-md bg-muted/20 min-h-75">
             {isRendering || !activePageData ? (
               <div className="flex flex-col items-center gap-2 p-6 text-sm text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin" />

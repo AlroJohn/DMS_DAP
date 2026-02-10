@@ -89,7 +89,7 @@ export const createOwnedDocumentColumns = (
           }
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label="Select all"
-          className="translate-y-[2px] data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+          className="translate-y-0.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
         />
       ),
       cell: ({ row }) => {
@@ -98,7 +98,7 @@ export const createOwnedDocumentColumns = (
             checked={row.getIsSelected()}
             onCheckedChange={(value) => row.toggleSelected(!!value)}
             aria-label="Select row"
-            className="translate-y-[2px] data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+            className="translate-y-0.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
           />
         );
       },

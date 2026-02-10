@@ -37,8 +37,8 @@ export default function DocumentsPage() {
   }, [processTypes]);
 
   const documentColumns = useMemo(
-    () => createDocumentColumns({ processTypeMap }),
-    [processTypeMap]
+    () => createDocumentColumns({ processTypeMap, onRefetch: refetch }),
+    [processTypeMap, refetch]
   );
 
   // Mark component as mounted and clean up on unmount
