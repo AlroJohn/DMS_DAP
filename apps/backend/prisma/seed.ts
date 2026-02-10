@@ -848,40 +848,7 @@ async function main() {
 
     // Step 9b: Create process types
     console.log('\n⏱️ Creating process types...');
-    const processTypes = [
-      {
-        code: 'DOC_REVIEW',
-        name: 'Document Review',
-        description: 'Internal review workflow',
-        duration_value: 3,
-        duration_unit: 'days',
-        is_active: true
-      },
-      {
-        code: 'APPROVAL',
-        name: 'Approval Process',
-        description: 'Approval routing for documents',
-        duration_value: 5,
-        duration_unit: 'days',
-        is_active: true
-      },
-      {
-        code: 'SIGNING',
-        name: 'Signature Process',
-        description: 'Signature and sign-off workflow',
-        duration_value: 48,
-        duration_unit: 'hours',
-        is_active: true
-      },
-      {
-        code: 'FAST_TRACK',
-        name: 'Fast Track',
-        description: 'Expedited processing',
-        duration_value: 6,
-        duration_unit: 'hours',
-        is_active: true
-      }
-    ];
+    const processTypes: any[] = [];
 
     for (const processType of processTypes) {
       const existingType = await prisma.processType.findUnique({

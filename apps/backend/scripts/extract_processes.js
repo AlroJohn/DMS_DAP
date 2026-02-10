@@ -12,28 +12,25 @@ if (!fs.existsSync(excelPath)) {
 const workbook = XLSX.readFile(excelPath);
 const sheetName = workbook.SheetNames[0];
 const sheet = workbook.Sheets[sheetName];
-const data = XLSX.utils.sheet_to_json(sheet);
+const data = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-const processes = [];
+const processMap = new Map(); // Name -> minutes (number)
+
 let currentMainHeader = '';
 let currentSubHeader = '';
 
-function parseDuration(durationStr) {
-    if (!durationStr) return { value: null, unit: 'days' };
+function parseMinutes(durationStr) {
+    if (!durationStr) return 0;
     
     // Normalize string
     const str = durationStr.toLowerCase().replace(/,/g, '').replace('&', 'and');
-    
-    if (str.includes('varies')) {
-        return { value: null, unit: 'days' };
-    }
+    if (str.includes('varies')) return 0;
 
     let totalMinutes = 0;
     
-    // Regex for "X days", "Y hours", "Z minutes"
     const dayMatch = str.match(/(\d+)\s*days?/);
     const hourMatch = str.match(/(\d+)\s*hours?/);
-    const minMatch = str.match(/(\d+)\s*minutes?/); // and "mins"
+    const minMatch = str.match(/(\d+)\s*minutes?/);
     const minMatchShort = str.match(/(\d+)\s*mins?/);
 
     if (dayMatch) totalMinutes += parseInt(dayMatch[1]) * 24 * 60;
@@ -41,25 +38,32 @@ function parseDuration(durationStr) {
     if (minMatch) totalMinutes += parseInt(minMatch[1]);
     else if (minMatchShort) totalMinutes += parseInt(minMatchShort[1]);
 
-    if (totalMinutes === 0) return { value: null, unit: 'days' };
+    return totalMinutes;
+}
 
-    if (totalMinutes % (24 * 60) === 0) {
-        return { value: totalMinutes / (24 * 60), unit: 'days' };
-    } else if (totalMinutes % 60 === 0) {
-        return { value: totalMinutes / 60, unit: 'hours' };
-    } else {
-        return { value: totalMinutes, unit: 'minutes' };
+function formatDuration(minutes) {
+    if (minutes === 0) return { value: null, unit: 'days' };
+    
+    // If exact days
+    if (minutes % (24 * 60) === 0) {
+        return { value: minutes / (24 * 60), unit: 'days' };
+    } 
+    // If exact hours
+    else if (minutes % 60 === 0) {
+        return { value: minutes / 60, unit: 'hours' };
+    } 
+    // Otherwise minutes
+    else {
+        return { value: minutes, unit: 'minutes' };
     }
 }
 
 function generateCode(name) {
     const parts = name.split(' - ');
     return parts.map(part => {
-        // Remove content in parentheses to avoid double acronyms if needed, or just keep simple
-        // For "APPLICATION ... (PMDP)", "PMDP" adds "P". User had ATTPMDP.
-        // Let's try to just take the first letter of words that start with alphanumeric
+        // Remove content in parentheses e.g. (PMDP) -> PMDP is usually in the acronym
         return part
-            .replace(/\([^\)]*\)/g, '') // Remove parentheses content like (PMDP)
+            .replace(/\([^\)]*\)/g, '') 
             .match(/\b[a-zA-Z0-9]/g)
             ?.join('')
             .toUpperCase() || '';
@@ -67,52 +71,55 @@ function generateCode(name) {
 }
 
 data.forEach(row => {
-    const docType = row['DOCUMENT TYPE'];
-    const timeline = row['TIMELINE'];
+    const docType = row['DOCUMENT TYPE'] ? row['DOCUMENT TYPE'].trim() : '';
+    const timeline = row['TIMELINE'] ? row['TIMELINE'].trim() : '';
 
-    if (docType) {
-        const trimmedDocType = docType.trim();
-        // Check for Main Header (Uppercase and length > 10 to avoid short words, and not starting with number)
-        if (trimmedDocType === trimmedDocType.toUpperCase() && trimmedDocType.length > 10 && !/^\d/.test(trimmedDocType)) {
-            currentMainHeader = trimmedDocType;
-            currentSubHeader = '';
-        } 
-        // Check for Sub Header (starts with number like "1.")
-        else if (/^\d+\./.test(trimmedDocType)) {
-            currentSubHeader = trimmedDocType;
-        }
+    // Main Header: Uppercase, > 10 chars, not starting with number
+    const isMain = docType === docType.toUpperCase() && docType.length > 10 && !/^\d/.test(docType);
+    
+    // Sub Header: Starts with "Number."
+    const isSub = /^\d+\./.test(docType);
+
+    if (isMain) {
+        currentMainHeader = docType;
+        currentSubHeader = '';
+    } else if (isSub) {
+        currentSubHeader = docType.replace(/^\d+\.\s*/, ''); // Remove numbering
     }
 
-    if (timeline && (!docType || docType.trim() === '')) {
-        // Found a timeline row for the current process
-        let name = currentMainHeader;
-        if (currentSubHeader) {
-            // Clean subheader "1. Name" -> "Name"
-            const subName = currentSubHeader.replace(/^\d+\.\s*/, '');
-            name = `${currentMainHeader} - ${subName}`;
-        }
-        
-        // Remove newlines from name
-        name = name.replace(/\r?\n|\r/g, ' ');
+    // Process Timeline rows (excluding the headers themselves)
+    if (timeline && !isMain && !isSub) {
+        if (!currentMainHeader) return;
 
-        const { value, unit } = parseDuration(timeline);
-        
-        // Avoid duplicates if parsing logic hits same thing
-        if (!processes.find(p => p.name === name)) {
-             processes.push({
-                name: name,
-                code: generateCode(name),
-                description: name, // Use name as description for now
-                duration_value: value,
-                duration_unit: unit
-            });
+        // Construct Process Name
+        const name = currentSubHeader 
+            ? ${currentMainHeader} - 
+            : currentMainHeader;
+            
+        // Clean name (remove newlines)
+        const cleanName = name.replace(/\r?\n|\r/g, ' ');
+
+        const minutes = parseMinutes(timeline);
+
+        if (!processMap.has(cleanName)) {
+            processMap.set(cleanName, 0);
         }
-        
-        // Reset subheader
-        currentSubHeader = '';
+        processMap.set(cleanName, processMap.get(cleanName) + minutes);
     }
 });
 
-const outputContent = `export const processes = ${JSON.stringify(processes, null, 2)};`;
+const processes = [];
+for (const [name, minutes] of processMap.entries()) {
+    const { value, unit } = formatDuration(minutes);
+    processes.push({
+        name: name,
+        code: generateCode(name),
+        description: name,
+        duration_value: value,
+        duration_unit: unit
+    });
+}
+
+const outputContent = xport const processes = ;;
 fs.writeFileSync(path.resolve(__dirname, '../prisma/process_data.ts'), outputContent);
-console.log('Process data generated in apps/backend/prisma/process_data.ts');
+console.log(✅ Generated  processes in apps/backend/prisma/process_data.ts);
