@@ -31,6 +31,12 @@ export function SessionExpiredModal({
       ? "We could not refresh your session. Please sign in again."
       : "Your session has expired. Please sign in again.";
 
+  const handleLogin = () => {
+    onLogin();
+    // Force full page refresh to login page
+    window.location.href = "/login?session=expired";
+  };
+
   return (
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
@@ -42,7 +48,7 @@ export function SessionExpiredModal({
           <DialogDescription className="pt-3">{message}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button type="button" onClick={onLogin} className="w-full sm:w-auto">
+          <Button type="button" onClick={handleLogin} className="w-full sm:w-auto">
             Go to login
           </Button>
         </DialogFooter>
