@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Barcode, QrCode } from 'lucide-react'
+import { QrCode } from 'lucide-react'
 import { ImageModal } from './image-modal'
 
 interface ScanCodesProps {
@@ -10,7 +10,7 @@ interface ScanCodesProps {
     documentCode?: string
 }
 
-export function ScanCodes({ qrCode, barcode, documentCode }: ScanCodesProps) {
+export function ScanCodes({ qrCode, documentCode }: ScanCodesProps) {
     const [modalState, setModalState] = useState<{
         isOpen: boolean
         imageUrl: string
@@ -44,7 +44,7 @@ export function ScanCodes({ qrCode, barcode, documentCode }: ScanCodesProps) {
         })
     }
 
-    if (!qrCode && !barcode) {
+    if (!qrCode) {
         return null
     }
 
@@ -62,19 +62,6 @@ export function ScanCodes({ qrCode, barcode, documentCode }: ScanCodesProps) {
                         title='View QR Code'
                     >
                         <QrCode className='size-4' />
-                    </button>
-                )}
-                {barcode && barcode.trim() !== '' && (
-                    <button
-                        type='button'
-                        className='flex size-7 items-center justify-center rounded border border-border bg-background text-foreground hover:bg-muted transition-colors'
-                        onClick={() =>
-                            openModal(barcode, documentCode || 'Barcode', 'Barcode')
-                        }
-                        aria-label='View Barcode'
-                        title='View Barcode'
-                    >
-                        <Barcode className='size-4' />
                     </button>
                 )}
             </div>

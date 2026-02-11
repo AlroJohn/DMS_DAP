@@ -17,6 +17,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectScrollUpButton,
+  SelectScrollDownButton,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -41,6 +43,8 @@ import {
   Calendar,
   CheckCircle2,
   XCircle,
+  X,
+  Recycle,
 } from "lucide-react";
 import {
   Tooltip,
@@ -73,7 +77,57 @@ interface Department {
   department_id: string;
   name: string;
   code?: string;
+  group?: {
+    group_id: string;
+    name: string;
+    code: string;
+  } | null;
+  center?: {
+    center_id: string;
+    name: string;
+    code: string;
+  } | null;
 }
+
+const NO_CENTER_CODE = "__NO_CENTER__";
+const NO_CENTER_LABEL = "No Center";
+
+// Convert duration to minutes based on unit
+const convertDurationToMinutes = (days: number, hours: number, minutes: number): number => {
+  return (days * 24 * 60) + (hours * 60) + minutes;
+};
+
+// Format duration from minutes to readable format
+const formatDurationFromMinutes = (minutes: number): string => {
+  if (minutes >= 1440 && minutes % 1440 === 0) {
+    const days = minutes / 1440;
+    return `${days} day${days !== 1 ? "s" : ""}`;
+  } else if (minutes >= 60 && minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return `${hours} hour${hours !== 1 ? "s" : ""}`;
+  } else if (minutes >= 1440) {
+    const days = Math.floor(minutes / 1440);
+    const remainingHours = Math.floor((minutes % 1440) / 60);
+    const remainingMinutes = minutes % 60;
+    let result = `${days}d`;
+    if (remainingHours > 0) result += ` ${remainingHours}h`;
+    if (remainingMinutes > 0) result += ` ${remainingMinutes}m`;
+    return result;
+  } else if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours} hour${hours !== 1 ? "s" : ""}`;
+  }
+  return `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+};
+
+// Convert minutes to days, hours, minutes breakdown
+const convertMinutesToBreakdown = (totalMinutes: number): { days: number; hours: number; minutes: number } => {
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  return { days, hours, minutes };
+};
 
 const ProcessTypeManagementPage = () => {
   const [processTypes, setProcessTypes] = useState<ProcessType[]>([]);
@@ -93,8 +147,9 @@ const ProcessTypeManagementPage = () => {
     code: "",
     name: "",
     description: "",
-    duration_value: "",
-    duration_unit: "days",
+    duration_days: "",
+    duration_hours: "",
+    duration_minutes: "",
     origin_department_id: "",
     is_active: true,
   });
@@ -107,12 +162,83 @@ const ProcessTypeManagementPage = () => {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [departmentSearch, setDepartmentSearch] = useState("");
+  const [groupFilter, setGroupFilter] = useState("");
+  const [centerFilter, setCenterFilter] = useState("");
 
-  // Fetch departments
+  // Build group and center options from departments
+  const groupOptions = useMemo(() => {
+    const groups = new Map<string, { code: string; name: string }>();
+    departments.forEach((dept) => {
+      if (dept.group) {
+        groups.set(dept.group.code, { code: dept.group.code, name: dept.group.name });
+      }
+    });
+    return Array.from(groups.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [departments]);
+
+  const centerOptions = useMemo(() => {
+    const centers = new Map<string, { code: string; name: string }>();
+    departments
+      .filter((dept) => !groupFilter || dept.group?.code === groupFilter)
+      .forEach((dept) => {
+        if (dept.center) {
+          centers.set(dept.center.code, { code: dept.center.code, name: dept.center.name });
+        }
+      });
+    // Add "No Center" option if there are departments without center
+    const hasNoCenterDepts = departments.some(
+      (dept) => (!groupFilter || dept.group?.code === groupFilter) && !dept.center
+    );
+    const result = Array.from(centers.values()).sort((a, b) => a.name.localeCompare(b.name));
+    if (hasNoCenterDepts) {
+      result.unshift({ code: NO_CENTER_CODE, name: NO_CENTER_LABEL });
+    }
+    return result;
+  }, [departments, groupFilter]);
+
+  // Filter departments based on search and filters
+  const filteredDepartments = useMemo(() => {
+    let filtered = departments;
+
+    // Filter by group
+    if (groupFilter) {
+      filtered = filtered.filter((dept) => dept.group?.code === groupFilter);
+    }
+
+    // Filter by center
+    if (centerFilter) {
+      if (centerFilter === NO_CENTER_CODE) {
+        filtered = filtered.filter((dept) => !dept.center);
+      } else {
+        filtered = filtered.filter((dept) => dept.center?.code === centerFilter);
+      }
+    }
+
+    // Filter by search
+    if (departmentSearch.trim()) {
+      const search = departmentSearch.toLowerCase();
+      filtered = filtered.filter(
+        (dept) =>
+          dept.code?.toLowerCase().includes(search) ||
+          dept.name.toLowerCase().includes(search)
+      );
+    }
+
+    return filtered;
+  }, [departments, departmentSearch, groupFilter, centerFilter]);
+
+  const clearDepartmentFilters = () => {
+    setDepartmentSearch("");
+    setGroupFilter("");
+    setCenterFilter("");
+  };
+
+  // Fetch departments (all)
   const fetchDepartments = async () => {
     try {
       setDepartmentsLoading(true);
-      const response = await fetch("/api/departments", {
+      const response = await fetch("/api/departments?limit=1000", {
         credentials: "include",
       });
 
@@ -121,7 +247,9 @@ const ProcessTypeManagementPage = () => {
       }
 
       const data = await response.json();
-      setDepartments(Array.isArray(data) ? data : []);
+      // Handle both array response and { data: [...] } response
+      const deptArray = Array.isArray(data) ? data : (data.data || []);
+      setDepartments(deptArray);
     } catch (error) {
       console.error("Error fetching departments:", error);
       toast.error("Error fetching departments");
@@ -208,6 +336,14 @@ const ProcessTypeManagementPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Convert duration to minutes (days + hours + minutes)
+    const days = parseInt(formData.duration_days) || 0;
+    const hours = parseInt(formData.duration_hours) || 0;
+    const minutes = parseInt(formData.duration_minutes) || 0;
+    const durationInMinutes = (days > 0 || hours > 0 || minutes > 0)
+      ? convertDurationToMinutes(days, hours, minutes)
+      : null;
+
     try {
       const response = await fetch("/api/process-type", {
         method: "POST",
@@ -216,11 +352,12 @@ const ProcessTypeManagementPage = () => {
         },
         credentials: "include",
         body: JSON.stringify({
-          ...formData,
-          duration_value: formData.duration_value
-            ? parseInt(formData.duration_value)
-            : null,
+          code: formData.code,
+          name: formData.name,
+          description: formData.description,
+          duration_value: durationInMinutes,
           origin_department_id: formData.origin_department_id || null,
+          is_active: formData.is_active,
         }),
       });
 
@@ -231,8 +368,9 @@ const ProcessTypeManagementPage = () => {
           code: "",
           name: "",
           description: "",
-          duration_value: "",
-          duration_unit: "days",
+          duration_days: "",
+          duration_hours: "",
+          duration_minutes: "",
           origin_department_id: "",
           is_active: true,
         });
@@ -248,12 +386,17 @@ const ProcessTypeManagementPage = () => {
 
   const handleEdit = (processType: ProcessType) => {
     setEditingProcessType(processType);
+    // Convert stored minutes back to days/hours/minutes breakdown
+    const breakdown = processType.duration_value 
+      ? convertMinutesToBreakdown(processType.duration_value)
+      : { days: 0, hours: 0, minutes: 0 };
     setFormData({
       code: processType.code || "",
       name: processType.name || "",
       description: processType.description || "",
-      duration_value: processType.duration_value?.toString() || "",
-      duration_unit: processType.duration_unit || "days",
+      duration_days: breakdown.days > 0 ? breakdown.days.toString() : "",
+      duration_hours: breakdown.hours > 0 ? breakdown.hours.toString() : "",
+      duration_minutes: breakdown.minutes > 0 ? breakdown.minutes.toString() : "",
       origin_department_id: processType.origin_department_id || "",
       is_active: processType.is_active,
     });
@@ -270,6 +413,14 @@ const ProcessTypeManagementPage = () => {
 
     if (!editingProcessType) return;
 
+    // Convert duration to minutes (days + hours + minutes)
+    const days = parseInt(formData.duration_days) || 0;
+    const hours = parseInt(formData.duration_hours) || 0;
+    const minutes = parseInt(formData.duration_minutes) || 0;
+    const durationInMinutes = (days > 0 || hours > 0 || minutes > 0)
+      ? convertDurationToMinutes(days, hours, minutes)
+      : null;
+
     try {
       const response = await fetch(
         `/api/process-type/${editingProcessType.process_type_id}`,
@@ -280,11 +431,12 @@ const ProcessTypeManagementPage = () => {
           },
           credentials: "include",
           body: JSON.stringify({
-            ...formData,
-            duration_value: formData.duration_value
-              ? parseInt(formData.duration_value)
-              : null,
+            code: formData.code,
+            name: formData.name,
+            description: formData.description,
+            duration_value: durationInMinutes,
             origin_department_id: formData.origin_department_id || null,
+            is_active: formData.is_active,
           }),
         },
       );
@@ -297,8 +449,9 @@ const ProcessTypeManagementPage = () => {
           code: "",
           name: "",
           description: "",
-          duration_value: "",
-          duration_unit: "days",
+          duration_days: "",
+          duration_hours: "",
+          duration_minutes: "",
           origin_department_id: "",
           is_active: true,
         });
@@ -448,8 +601,7 @@ const ProcessTypeManagementPage = () => {
                       <TableCell>
                         {processType.duration_value ? (
                           <span className="text-sm">
-                            {processType.duration_value}{" "}
-                            {processType.duration_unit || "days"}
+                            {formatDurationFromMinutes(processType.duration_value)}
                           </span>
                         ) : (
                           <span className="text-sm text-muted-foreground">
@@ -645,13 +797,14 @@ const ProcessTypeManagementPage = () => {
                   </Label>
                   <Select
                     disabled={departmentsLoading}
-                    value={formData.origin_department_id}
-                    onValueChange={(value) =>
+                    value={formData.origin_department_id || "none"}
+                    onValueChange={(value) => {
                       setFormData((prev) => ({
                         ...prev,
-                        origin_department_id: value,
-                      }))
-                    }
+                        origin_department_id: value === "none" ? "" : value,
+                      }));
+                      clearDepartmentFilters();
+                    }}
                   >
                     <SelectTrigger className="text-sm">
                       <SelectValue
@@ -661,17 +814,113 @@ const ProcessTypeManagementPage = () => {
                             : "Select department (optional)"
                         }
                       />
+                      {departmentsLoading && (
+                        <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                      )}
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">No Department</SelectItem>
-                      {departments.map((dept) => (
-                        <SelectItem
-                          key={dept.department_id}
-                          value={dept.department_id}
-                        >
-                          {dept.name}
-                        </SelectItem>
-                      ))}
+                    <SelectContent className="w-[320px]">
+                      <div className="space-y-3 px-3 pt-3 pb-2 border-b border-muted-foreground/20">
+                        <div className="flex items-center gap-2">
+                          <div className="relative flex-1">
+                            <Input
+                              placeholder="Search code or name"
+                              value={departmentSearch}
+                              onChange={(e) => setDepartmentSearch(e.target.value)}
+                              className="text-sm pr-8"
+                            />
+                            {departmentSearch && (
+                              <button
+                                type="button"
+                                onClick={() => setDepartmentSearch("")}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:text-foreground"
+                                aria-label="Clear search"
+                              >
+                                <X className="size-3" />
+                              </button>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={clearDepartmentFilters}
+                            className="text-[11px] uppercase tracking-[0.15em]"
+                          >
+                            <Recycle />
+                          </Button>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-semibold uppercase text-muted-foreground">
+                            Group
+                          </p>
+                          <select
+                            className="w-full rounded-md border border-input bg-background py-1 px-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/70"
+                            value={groupFilter}
+                            onChange={(e) => {
+                              setGroupFilter(e.target.value);
+                              setCenterFilter("");
+                            }}
+                          >
+                            <option value="">All groups</option>
+                            {groupOptions.map((group) => (
+                              <option key={group.code} value={group.code}>
+                                {group.name} ({group.code})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-semibold uppercase text-muted-foreground">
+                            Center
+                          </p>
+                          <select
+                            className="w-full rounded-md border border-input bg-background py-1 px-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/70"
+                            value={centerFilter}
+                            onChange={(e) => setCenterFilter(e.target.value)}
+                          >
+                            <option value="">All centers</option>
+                            {centerOptions.map((center) => (
+                              <option key={center.code} value={center.code}>
+                                {center.name} ({center.code})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <SelectScrollUpButton className="text-muted-foreground" />
+                      <div className="max-h-[200px] overflow-y-auto px-1 py-1">
+                        <SelectItem value="none">No Department</SelectItem>
+                        {filteredDepartments.length === 0 ? (
+                          <div className="px-3 py-4 text-xs text-muted-foreground text-center">
+                            No departments match your filters.
+                          </div>
+                        ) : (
+                          filteredDepartments.map((dept) => (
+                            <TooltipProvider key={dept.department_id}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <SelectItem
+                                    value={dept.department_id}
+                                    className="text-sm py-2"
+                                  >
+                                    <span className="font-medium">
+                                      {dept.code || dept.name}
+                                    </span>
+                                  </SelectItem>
+                                </TooltipTrigger>
+                                <TooltipContent
+                                  side="right"
+                                  align="center"
+                                  sideOffset={6}
+                                  className="max-w-64 leading-snug break-words whitespace-normal"
+                                >
+                                  {dept.name}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ))
+                        )}
+                      </div>
+                      <SelectScrollDownButton className="text-muted-foreground" />
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
@@ -694,35 +943,53 @@ const ProcessTypeManagementPage = () => {
                   <Label className="text-sm font-medium">
                     Expected Duration
                   </Label>
-                  <div className="grid grid-cols-5 gap-3">
-                    <div className="col-span-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="duration_days" className="text-xs text-muted-foreground">
+                        Days
+                      </Label>
                       <Input
-                        id="duration_value"
-                        name="duration_value"
+                        id="duration_days"
+                        name="duration_days"
                         type="number"
                         min="0"
-                        value={formData.duration_value}
+                        value={formData.duration_days}
                         onChange={handleInputChange}
-                        placeholder="Enter number"
+                        placeholder="0"
                         className="text-sm"
                       />
                     </div>
-                    <div className="col-span-2">
-                      <Select
-                        value={formData.duration_unit}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, duration_unit: value })
-                        }
-                      >
-                        <SelectTrigger id="duration_unit" className="text-sm">
-                          <SelectValue placeholder="Unit" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="minutes">Minutes</SelectItem>
-                          <SelectItem value="hours">Hours</SelectItem>
-                          <SelectItem value="days">Days</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="space-y-1">
+                      <Label htmlFor="duration_hours" className="text-xs text-muted-foreground">
+                        Hours
+                      </Label>
+                      <Input
+                        id="duration_hours"
+                        name="duration_hours"
+                        type="number"
+                        min="0"
+                        max="23"
+                        value={formData.duration_hours}
+                        onChange={handleInputChange}
+                        placeholder="0"
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="duration_minutes" className="text-xs text-muted-foreground">
+                        Minutes
+                      </Label>
+                      <Input
+                        id="duration_minutes"
+                        name="duration_minutes"
+                        type="number"
+                        min="0"
+                        max="59"
+                        value={formData.duration_minutes}
+                        onChange={handleInputChange}
+                        placeholder="0"
+                        className="text-sm"
+                      />
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -873,13 +1140,14 @@ const ProcessTypeManagementPage = () => {
                   </Label>
                   <Select
                     disabled={departmentsLoading}
-                    value={formData.origin_department_id}
-                    onValueChange={(value) =>
+                    value={formData.origin_department_id || "none"}
+                    onValueChange={(value) => {
                       setFormData((prev) => ({
                         ...prev,
-                        origin_department_id: value,
-                      }))
-                    }
+                        origin_department_id: value === "none" ? "" : value,
+                      }));
+                      clearDepartmentFilters();
+                    }}
                   >
                     <SelectTrigger className="text-sm">
                       <SelectValue
@@ -889,17 +1157,113 @@ const ProcessTypeManagementPage = () => {
                             : "Select department (optional)"
                         }
                       />
+                      {departmentsLoading && (
+                        <Loader2 className="h-4 w-4 ml-2 animate-spin" />
+                      )}
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">No Department</SelectItem>
-                      {departments.map((dept) => (
-                        <SelectItem
-                          key={dept.department_id}
-                          value={dept.department_id}
-                        >
-                          {dept.name}
-                        </SelectItem>
-                      ))}
+                    <SelectContent className="w-[320px]">
+                      <div className="space-y-3 px-3 pt-3 pb-2 border-b border-muted-foreground/20">
+                        <div className="flex items-center gap-2">
+                          <div className="relative flex-1">
+                            <Input
+                              placeholder="Search code or name"
+                              value={departmentSearch}
+                              onChange={(e) => setDepartmentSearch(e.target.value)}
+                              className="text-sm pr-8"
+                            />
+                            {departmentSearch && (
+                              <button
+                                type="button"
+                                onClick={() => setDepartmentSearch("")}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:text-foreground"
+                                aria-label="Clear search"
+                              >
+                                <X className="size-3" />
+                              </button>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={clearDepartmentFilters}
+                            className="text-[11px] uppercase tracking-[0.15em]"
+                          >
+                            <Recycle />
+                          </Button>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-semibold uppercase text-muted-foreground">
+                            Group
+                          </p>
+                          <select
+                            className="w-full rounded-md border border-input bg-background py-1 px-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/70"
+                            value={groupFilter}
+                            onChange={(e) => {
+                              setGroupFilter(e.target.value);
+                              setCenterFilter("");
+                            }}
+                          >
+                            <option value="">All groups</option>
+                            {groupOptions.map((group) => (
+                              <option key={group.code} value={group.code}>
+                                {group.name} ({group.code})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-semibold uppercase text-muted-foreground">
+                            Center
+                          </p>
+                          <select
+                            className="w-full rounded-md border border-input bg-background py-1 px-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/70"
+                            value={centerFilter}
+                            onChange={(e) => setCenterFilter(e.target.value)}
+                          >
+                            <option value="">All centers</option>
+                            {centerOptions.map((center) => (
+                              <option key={center.code} value={center.code}>
+                                {center.name} ({center.code})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <SelectScrollUpButton className="text-muted-foreground" />
+                      <div className="max-h-[200px] overflow-y-auto px-1 py-1">
+                        <SelectItem value="none">No Department</SelectItem>
+                        {filteredDepartments.length === 0 ? (
+                          <div className="px-3 py-4 text-xs text-muted-foreground text-center">
+                            No departments match your filters.
+                          </div>
+                        ) : (
+                          filteredDepartments.map((dept) => (
+                            <TooltipProvider key={dept.department_id}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <SelectItem
+                                    value={dept.department_id}
+                                    className="text-sm py-2"
+                                  >
+                                    <span className="font-medium">
+                                      {dept.code || dept.name}
+                                    </span>
+                                  </SelectItem>
+                                </TooltipTrigger>
+                                <TooltipContent
+                                  side="right"
+                                  align="center"
+                                  sideOffset={6}
+                                  className="max-w-64 leading-snug break-words whitespace-normal"
+                                >
+                                  {dept.name}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ))
+                        )}
+                      </div>
+                      <SelectScrollDownButton className="text-muted-foreground" />
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
@@ -922,38 +1286,53 @@ const ProcessTypeManagementPage = () => {
                   <Label className="text-sm font-medium">
                     Expected Duration
                   </Label>
-                  <div className="grid grid-cols-5 gap-3">
-                    <div className="col-span-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="edit-duration_days" className="text-xs text-muted-foreground">
+                        Days
+                      </Label>
                       <Input
-                        id="edit-duration_value"
-                        name="duration_value"
+                        id="edit-duration_days"
+                        name="duration_days"
                         type="number"
                         min="0"
-                        value={formData.duration_value}
+                        value={formData.duration_days}
                         onChange={handleInputChange}
-                        placeholder="Enter number"
+                        placeholder="0"
                         className="text-sm"
                       />
                     </div>
-                    <div className="col-span-2">
-                      <Select
-                        value={formData.duration_unit}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, duration_unit: value })
-                        }
-                      >
-                        <SelectTrigger
-                          id="edit-duration_unit"
-                          className="text-sm"
-                        >
-                          <SelectValue placeholder="Unit" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="minutes">Minutes</SelectItem>
-                          <SelectItem value="hours">Hours</SelectItem>
-                          <SelectItem value="days">Days</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="space-y-1">
+                      <Label htmlFor="edit-duration_hours" className="text-xs text-muted-foreground">
+                        Hours
+                      </Label>
+                      <Input
+                        id="edit-duration_hours"
+                        name="duration_hours"
+                        type="number"
+                        min="0"
+                        max="23"
+                        value={formData.duration_hours}
+                        onChange={handleInputChange}
+                        placeholder="0"
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="edit-duration_minutes" className="text-xs text-muted-foreground">
+                        Minutes
+                      </Label>
+                      <Input
+                        id="edit-duration_minutes"
+                        name="duration_minutes"
+                        type="number"
+                        min="0"
+                        max="59"
+                        value={formData.duration_minutes}
+                        onChange={handleInputChange}
+                        placeholder="0"
+                        className="text-sm"
+                      />
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -1113,7 +1492,7 @@ const ProcessTypeManagementPage = () => {
                       <Clock className="h-5 w-5 text-blue-600" />
                       <p className="text-base font-semibold">
                         {viewingProcessType.duration_value
-                          ? `${viewingProcessType.duration_value} ${viewingProcessType.duration_unit || "days"}`
+                          ? formatDurationFromMinutes(viewingProcessType.duration_value)
                           : "Not specified"}
                       </p>
                     </div>

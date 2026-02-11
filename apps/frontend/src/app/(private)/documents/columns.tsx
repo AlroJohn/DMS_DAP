@@ -53,9 +53,8 @@ const formatText = (text: string): string => {
     .replace(/^\w/, (c) => c.toUpperCase());
 };
 
-
 export const createDocumentColumns = (
-  options: CreateDocumentColumnsOptions = {}
+  options: CreateDocumentColumnsOptions = {},
 ): ColumnDef<ReceivedDocument>[] => {
   const { processTypeMap = {}, onRefetch } = options;
 
@@ -79,285 +78,287 @@ export const createDocumentColumns = (
   };
 
   return [
-  {
-    id: "select",
-    header: ({ table }) => (
-      <div className="flex justify-center">
-        <Checkbox
-          checked={
-            table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && "indeterminate")
-          }
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Select all"
-          className="translate-y-0.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
-        />
-      </div>
-    ),
-    cell: ({ row }) => (
-      <div className="flex justify-center">
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Select row"
-          className="translate-y-0.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
-        />
-      </div>
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    id: "scan",
-    header: ({ column }) => (
-      <DataTableColumnHeader className="w-20" column={column} title="Scan" />
-    ),
-    cell: ({ row }) => {
-      const data = row.original;
-      return (
-        <div className="flex items-center">
-          <ScanCodes
-            qrCode={data.qrCode}
-            barcode={data.barcode}
-            documentCode={data.documentId}
+    {
+      id: "select",
+      header: ({ table }) => (
+        <div className="flex justify-center">
+          <Checkbox
+            checked={
+              table.getIsAllPageRowsSelected() ||
+              (table.getIsSomePageRowsSelected() && "indeterminate")
+            }
+            onCheckedChange={(value) =>
+              table.toggleAllPageRowsSelected(!!value)
+            }
+            aria-label="Select all"
+            className="translate-y-0.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
           />
         </div>
-      );
+      ),
+      cell: ({ row }) => (
+        <div className="flex justify-center">
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+            className="translate-y-0.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+          />
+        </div>
+      ),
+      enableSorting: false,
+      enableHiding: false,
     },
-    enableSorting: false,
-  },
-  {
-    id: "document",
-    accessorFn: (row) => row,
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Document" />
-    ),
-    cell: ({ row }) => {
-      const data = row.original;
-      const isOwned = data.isOwned ?? false; // Default to false if not specified (enrolled)
-
-      return (
-        <div className="flex flex-col gap-1.5 py-1 min-w-45 max-w-60">
-          <div className="font-medium" title={data.document}>
-            {data.document}
-          </div>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span
-              className="text-xs text-muted-foreground"
-              title={data.documentId}
-            >
-              {data.documentId}
-            </span>
-            <Copy
-              className="h-3.5 w-3.5 cursor-pointer text-muted-foreground hover:text-primary transition-colors shrink-0"
-              onClick={() => {
-                navigator.clipboard.writeText(data.documentId);
-                toast.success("Document ID copied to clipboard!");
-              }}
+    {
+      id: "scan",
+      header: ({ column }) => (
+        <DataTableColumnHeader className="w-20" column={column} title="Scan" />
+      ),
+      cell: ({ row }) => {
+        const data = row.original;
+        return (
+          <div className="flex items-center">
+            <ScanCodes
+              qrCode={data.qrCode}
+              barcode={data.barcode}
+              documentCode={data.documentId}
             />
           </div>
-        </div>
-      );
+        );
+      },
+      enableSorting: false,
     },
-    filterFn: (row, id, filterValue) => {
-      // Handle array filter values (for faceted filters)
-      if (Array.isArray(filterValue) && filterValue.length > 0) {
-        const document = row.original as ReceivedDocument;
-        const fileStatus = document.isOwned ? "owned" : "received";
-        return filterValue.includes(fileStatus);
-      }
-
-      // Handle string filter values (for search)
-      if (typeof filterValue === "string") {
-        const searchTerm = filterValue.toLowerCase();
-        const document = row.original as ReceivedDocument;
+    {
+      id: "document",
+      accessorFn: (row) => row,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Document" />
+      ),
+      cell: ({ row }) => {
+        const data = row.original;
+        const isOwned = data.isOwned ?? false; // Default to false if not specified (enrolled)
 
         return (
-          document.id?.toLowerCase().includes(searchTerm) ||
-          document.document?.toLowerCase().includes(searchTerm) ||
-          document.documentId?.toLowerCase().includes(searchTerm) ||
-          document.type?.toLowerCase().includes(searchTerm) ||
-          resolveProcessTypeName(document).toLowerCase().includes(searchTerm) ||
-          document.classification?.toLowerCase().includes(searchTerm) ||
-          document.contactPerson?.toLowerCase().includes(searchTerm) ||
-          document.contactOrganization?.toLowerCase().includes(searchTerm) ||
-          document.status?.toLowerCase().includes(searchTerm) ||
-          (document.isOwned ? "owned" : "received").includes(searchTerm)
+          <div className="flex flex-col gap-1.5 py-1 min-w-45 max-w-60">
+            <div className="font-medium" title={data.document}>
+              {data.document}
+            </div>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span
+                className="text-xs text-muted-foreground"
+                title={data.documentId}
+              >
+                {data.documentId}
+              </span>
+              <Copy
+                className="h-3.5 w-3.5 cursor-pointer text-muted-foreground hover:text-primary transition-colors shrink-0"
+                onClick={() => {
+                  navigator.clipboard.writeText(data.documentId);
+                  toast.success("Document ID copied to clipboard!");
+                }}
+              />
+            </div>
+          </div>
         );
-      }
+      },
+      filterFn: (row, id, filterValue) => {
+        // Handle array filter values (for faceted filters)
+        if (Array.isArray(filterValue) && filterValue.length > 0) {
+          const document = row.original as ReceivedDocument;
+          const fileStatus = document.isOwned ? "owned" : "received";
+          return filterValue.includes(fileStatus);
+        }
 
-      return true;
+        // Handle string filter values (for search)
+        if (typeof filterValue === "string") {
+          const searchTerm = filterValue.toLowerCase();
+          const document = row.original as ReceivedDocument;
+
+          return (
+            document.id?.toLowerCase().includes(searchTerm) ||
+            document.document?.toLowerCase().includes(searchTerm) ||
+            document.documentId?.toLowerCase().includes(searchTerm) ||
+            document.type?.toLowerCase().includes(searchTerm) ||
+            resolveProcessTypeName(document)
+              .toLowerCase()
+              .includes(searchTerm) ||
+            document.classification?.toLowerCase().includes(searchTerm) ||
+            document.contactPerson?.toLowerCase().includes(searchTerm) ||
+            document.contactOrganization?.toLowerCase().includes(searchTerm) ||
+            document.status?.toLowerCase().includes(searchTerm) ||
+            (document.isOwned ? "owned" : "received").includes(searchTerm)
+          );
+        }
+
+        return true;
+      },
     },
-  },
-  {
-    id: "contact",
-    accessorFn: (row) => row,
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Contact" />
-    ),
-    cell: ({ row }) => {
-      const data = row.original;
-      return (
-        <div className="flex flex-col gap-1.5 py-1 min-w-40 max-w-50">
-          <div className="flex items-center gap-1.5">
-            <User className="h-3.5 w-3.5 text-orange-500 shrink-0" />
-            <span className="text-xs font-medium" title={data.contactPerson}>
-              {data.contactPerson}
-            </span>
+    {
+      id: "contact",
+      accessorFn: (row) => row,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Contact" />
+      ),
+      cell: ({ row }) => {
+        const data = row.original;
+        return (
+          <div className="flex flex-col gap-1.5 py-1 min-w-40 max-w-50">
+            <div className="flex items-center gap-1.5">
+              <User className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+              <span className="text-xs font-medium" title={data.contactPerson}>
+                {data.contactPerson}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+              <span
+                className="text-xs text-muted-foreground"
+                title={data.contactOrganization}
+              >
+                {data.contactOrganization}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Building2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-            <span
-              className="text-xs text-muted-foreground"
-              title={data.contactOrganization}
-            >
-              {data.contactOrganization}
-            </span>
-          </div>
-        </div>
-      );
+        );
+      },
+      enableSorting: false,
+      filterFn: (row, id, filterValue) => {
+        const searchTerm = (filterValue as string).toLowerCase();
+        const document = row.original as ReceivedDocument;
+        return (
+          document.contactPerson?.toLowerCase().includes(searchTerm) ||
+          document.contactOrganization?.toLowerCase().includes(searchTerm)
+        );
+      },
     },
-    enableSorting: false,
-    filterFn: (row, id, filterValue) => {
-      const searchTerm = (filterValue as string).toLowerCase();
-      const document = row.original as ReceivedDocument;
-      return (
-        document.contactPerson?.toLowerCase().includes(searchTerm) ||
-        document.contactOrganization?.toLowerCase().includes(searchTerm)
-      );
-    },
-  },
-  {
-    accessorKey: "type",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Type" />
-    ),
-    cell: ({ row }) => {
-      const type = row.original.type;
-      return (
-        <span
-          className="text-xs text-muted-foreground"
-          title={formatText(type)}
-        >
-          {formatText(type)}
-        </span>
-      );
-    },
-    enableSorting: true,
-    enableHiding: true,
-    filterFn: (row, id, value) => {
-      if (!value || (Array.isArray(value) && value.length === 0)) return true;
-      const type = String(row.getValue(id) ?? "").toLowerCase();
-      return Array.isArray(value)
-        ? (value as string[]).some((v) => String(v).toLowerCase() === type)
-        : false;
-    },
-  },
-  {
-    id: "processType",
-    accessorFn: (row) => resolveProcessTypeName(row),
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Process Type" />
-    ),
-    cell: ({ row }) => {
-      const { name, code } = resolveProcessType(row.original);
-      return (
-        <ProcessTypeCell name={name} code={code} minClampLength={20} />
-      );
-    },
-    enableSorting: true,
-    enableHiding: true,
-    filterFn: (row, id, value) => {
-      if (!value || (Array.isArray(value) && value.length === 0)) return true;
-      const processType = String(row.getValue(id) ?? "").toLowerCase();
-      return Array.isArray(value)
-        ? (value as string[]).some(
-            (v) => String(v).toLowerCase() === processType
-          )
-        : false;
-    },
-  },
-  {
-    accessorKey: "classification",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Classification" />
-    ),
-    cell: ({ row }) => {
-      const classification = row.original.classification;
-      return (
-        <Badge
-          variant={classification === "Complex" ? "destructive" : "secondary"}
-          className="font-medium text-xs px-1.5 py-0.5"
-        >
-          {formatText(classification)}
-        </Badge>
-      );
-    },
-    enableSorting: true,
-    enableHiding: true,
-    filterFn: (row, id, value) => {
-      if (!value || (Array.isArray(value) && value.length === 0)) return true;
-      const classification = String(row.getValue(id) ?? "").toLowerCase();
-      return Array.isArray(value)
-        ? (value as string[]).some(
-            (v) => String(v).toLowerCase() === classification
-          )
-        : false;
-    },
-  },
-  {
-    id: "status",
-    accessorFn: (row) => row.status,
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Status" />
-    ),
-    cell: ({ row }) => {
-      const status = row.original.status.toLowerCase();
-
-      // Define status styling for received documents
-      const statusConfig: {
-        [key: string]: { color: string; bgColor: string; label: string };
-      } = {
-        received: {
-          color: "text-emerald-600",
-          bgColor: "bg-emerald-500",
-          label: "Received",
-        },
-        completed: {
-          color: "text-emerald-600",
-          bgColor: "bg-emerald-500",
-          label: "Completed",
-        },
-        pending: {
-          color: "text-blue-600",
-          bgColor: "bg-blue-500",
-          label: "Dispatch",
-        },
-      };
-
-      const config = statusConfig[status] || {
-        color: "text-muted-foreground",
-        bgColor: "bg-gray-300",
-        label: formatText(status),
-      };
-
-      return (
-        <div className="flex items-center gap-1.5">
-          <div className={`h-2 w-2 rounded-full ${config.bgColor}`} />
-          <span className={`text-xs ${config.color}`} title={config.label}>
-            {config.label}
+    {
+      accessorKey: "type",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Type" />
+      ),
+      cell: ({ row }) => {
+        const type = row.original.type;
+        return (
+          <span
+            className="text-xs text-muted-foreground"
+            title={formatText(type)}
+          >
+            {formatText(type)}
           </span>
-        </div>
-      );
+        );
+      },
+      enableSorting: true,
+      enableHiding: true,
+      filterFn: (row, id, value) => {
+        if (!value || (Array.isArray(value) && value.length === 0)) return true;
+        const type = String(row.getValue(id) ?? "").toLowerCase();
+        return Array.isArray(value)
+          ? (value as string[]).some((v) => String(v).toLowerCase() === type)
+          : false;
+      },
     },
-    filterFn: (row, id, value) => {
-      if (!value || (Array.isArray(value) && value.length === 0)) return true;
-      const status = String(row.getValue(id) ?? "").toLowerCase();
-      return Array.isArray(value)
-        ? (value as string[]).some((v) => String(v).toLowerCase() === status)
-        : false;
+    {
+      id: "processType",
+      accessorFn: (row) => resolveProcessTypeName(row),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Process Type" />
+      ),
+      cell: ({ row }) => {
+        const { name, code } = resolveProcessType(row.original);
+        return <ProcessTypeCell name={name} code={code} minClampLength={20} />;
+      },
+      enableSorting: true,
+      enableHiding: true,
+      filterFn: (row, id, value) => {
+        if (!value || (Array.isArray(value) && value.length === 0)) return true;
+        const processType = String(row.getValue(id) ?? "").toLowerCase();
+        return Array.isArray(value)
+          ? (value as string[]).some(
+              (v) => String(v).toLowerCase() === processType,
+            )
+          : false;
+      },
     },
-  },
+    {
+      accessorKey: "classification",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Classification" />
+      ),
+      cell: ({ row }) => {
+        const classification = row.original.classification;
+        return (
+          <Badge
+            variant={classification === "Complex" ? "destructive" : "secondary"}
+            className="font-medium text-xs px-1.5 py-0.5"
+          >
+            {formatText(classification)}
+          </Badge>
+        );
+      },
+      enableSorting: true,
+      enableHiding: true,
+      filterFn: (row, id, value) => {
+        if (!value || (Array.isArray(value) && value.length === 0)) return true;
+        const classification = String(row.getValue(id) ?? "").toLowerCase();
+        return Array.isArray(value)
+          ? (value as string[]).some(
+              (v) => String(v).toLowerCase() === classification,
+            )
+          : false;
+      },
+    },
+    {
+      id: "status",
+      accessorFn: (row) => row.status,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Status" />
+      ),
+      cell: ({ row }) => {
+        const status = row.original.status.toLowerCase();
+
+        // Define status styling for received documents
+        const statusConfig: {
+          [key: string]: { color: string; bgColor: string; label: string };
+        } = {
+          received: {
+            color: "text-emerald-600",
+            bgColor: "bg-emerald-500",
+            label: "Received",
+          },
+          completed: {
+            color: "text-emerald-600",
+            bgColor: "bg-emerald-500",
+            label: "Completed",
+          },
+          pending: {
+            color: "text-blue-600",
+            bgColor: "bg-blue-500",
+            label: "Pending",
+          },
+        };
+
+        const config = statusConfig[status] || {
+          color: "text-muted-foreground",
+          bgColor: "bg-gray-300",
+          label: formatText(status),
+        };
+
+        return (
+          <div className="flex items-center gap-1.5">
+            <div className={`h-2 w-2 rounded-full ${config.bgColor}`} />
+            <span className={`text-xs ${config.color}`} title={config.label}>
+              {config.label}
+            </span>
+          </div>
+        );
+      },
+      filterFn: (row, id, value) => {
+        if (!value || (Array.isArray(value) && value.length === 0)) return true;
+        const status = String(row.getValue(id) ?? "").toLowerCase();
+        return Array.isArray(value)
+          ? (value as string[]).some((v) => String(v).toLowerCase() === status)
+          : false;
+      },
+    },
     {
       id: "dates",
       accessorFn: (row) => row,
@@ -380,16 +381,16 @@ export const createDocumentColumns = (
       },
       enableHiding: true,
     },
-  {
-    id: "actions",
-    cell: ({ row }) => (
-      <div className="flex justify-center">
-        <DataTableRowActions row={row} onActionSuccess={onRefetch} />
-      </div>
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
+    {
+      id: "actions",
+      cell: ({ row }) => (
+        <div className="flex justify-center">
+          <DataTableRowActions row={row} onActionSuccess={onRefetch} />
+        </div>
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    },
   ];
 };
 
