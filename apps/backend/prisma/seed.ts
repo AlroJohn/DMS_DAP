@@ -1330,6 +1330,7 @@ async function main() {
       { action_name: 'FOR CANCELLATION', description: 'Document is requested to be cancelled', sender_tag: 'FROM', recipient_tag: 'TO' },
       { action_name: 'FOR SIGNATURE', description: 'Document requires signature', sender_tag: 'FROM', recipient_tag: 'TO' },
       { action_name: 'FOR COMPLETE', description: 'Document is ready for completion', sender_tag: 'FROM', recipient_tag: 'TO' },
+      { action_name: 'FOR EDIT', description: 'Document requires editing', sender_tag: 'FROM', recipient_tag: 'TO' },
       { action_name: 'APPROVED', description: 'Document has been approved', sender_tag: 'FROM', recipient_tag: 'TO' },
       { action_name: 'REVIEWED', description: 'Document has been reviewed', sender_tag: 'FROM', recipient_tag: 'TO' },
       { action_name: 'CANCELLED', description: 'Document has been cancelled', sender_tag: 'FROM', recipient_tag: 'TO' }

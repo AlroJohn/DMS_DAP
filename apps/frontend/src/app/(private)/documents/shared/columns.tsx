@@ -12,6 +12,10 @@ import { SharedDocument } from "@dms/types/document.types";
 import { ActivityCell } from "@/components/reuseable/tables/activity-cell";
 import { ProcessTypeCell } from "@/components/reuseable/tables/process-type-cell";
 
+// Flag to prevent duplicate logging in React Strict Mode
+let hasLoggedColumns = false;
+const loggedDocuments = new Set<string>();
+
 const formatText = (text: string | undefined): string => {
   if (!text) return "";
   return text
@@ -78,8 +82,11 @@ export const getColumns = ({
     }
   >;
 }): ColumnDef<SharedDocument>[] => {
-  // Debug log to see what data we're getting
-  console.log('🔍 Columns: Sample document data for debugging');
+  // Debug log to see what data we're getting (only log once)
+  if (!hasLoggedColumns) {
+    console.log('🔍 Columns: Sample document data for debugging');
+    hasLoggedColumns = true;
+  }
   
   return [
   {
@@ -138,12 +145,15 @@ export const getColumns = ({
     cell: ({ row }) => {
       const d = row.original;
       
-      // Debug log
-      console.log('🔍 Document in row:', d.documentId, {
-        assignedActionType: d.assignedActionType,
-        hasAssignedSignature: d.hasAssignedSignature,
-        fullDoc: d
-      });
+      // Debug log (only log each document once)
+      if (d.documentId && !loggedDocuments.has(d.documentId)) {
+        console.log('🔍 Document in row:', d.documentId, {
+          assignedActionType: d.assignedActionType,
+          hasAssignedSignature: d.hasAssignedSignature,
+          fullDoc: d
+        });
+        loggedDocuments.add(d.documentId);
+      }
 
       return (
         <div className="flex flex-col gap-1.5 py-1 min-w-45 max-w-60">
@@ -153,9 +163,9 @@ export const getColumns = ({
           <div className="flex items-center gap-1.5 mt-0.5">
             <span
               className="text-xs text-muted-foreground"
-              title={d.documentId}
+              title={d.documentId || ""}
             >
-              {d.documentId}
+              {d.documentId || "N/A"}
             </span>
             <Copy
               className="h-3.5 w-3.5 cursor-pointer text-muted-foreground hover:text-primary transition-colors shrink-0"
@@ -181,17 +191,17 @@ export const getColumns = ({
         <div className="flex flex-col gap-1.5 py-1 min-w-40 max-w-50">
           <div className="flex items-center gap-1.5">
             <User className="h-3.5 w-3.5 text-orange-500 shrink-0" />
-            <span className="text-xs font-medium" title={d.contactPerson}>
-              {d.contactPerson}
+            <span className="text-xs font-medium" title={d.contactPerson || ""}>
+              {d.contactPerson || "N/A"}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
             <Building2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />
             <span
               className="text-xs text-muted-foreground"
-              title={d.contactOrganization}
+              title={d.contactOrganization || ""}
             >
-              {d.contactOrganization}
+              {d.contactOrganization || "N/A"}
             </span>
           </div>
         </div>
