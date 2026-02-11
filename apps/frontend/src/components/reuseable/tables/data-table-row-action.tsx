@@ -587,6 +587,9 @@ export function DataTableRowActions<TData>({
   // For shared documents with "FOR COMPLETE" action, show specific buttons
   const isForComplete = viewType === "shared" && hasActionType("COMPLETE");
   
+  // For shared documents with "FOR EDIT" action, show specific buttons
+  const isForEdit = viewType === "shared" && hasActionType("EDIT");
+  
   // For shared documents with "APPROVED" action, show all buttons except archive
   const isApproved = viewType === "shared" && hasActionType("APPROVED");
   
@@ -601,6 +604,7 @@ export function DataTableRowActions<TData>({
     isForCancellation,
     isForSignature,
     isForComplete,
+    isForEdit,
     isApproved,
     isReviewed
   });
@@ -614,10 +618,21 @@ export function DataTableRowActions<TData>({
   // Edit Details: FOR APPROVAL OR APPROVED OR REVIEWED
   const showEditDetails = viewType === "shared" ? (isForApproval || isApproved || isReviewed) : canEditDetails;
   
-  // Edit Document: FOR APPROVAL OR FOR CANCELLATION OR APPROVED OR REVIEWED
+  // Edit Document: ONLY FOR EDIT
   const showEditDocument = viewType === "shared" 
-    ? (isForApproval || isForCancellation || isApproved || isReviewed)
+    ? isForEdit
     : canEditDoc;
+  
+  // Debug log for showEditDocument
+  if (viewType === "shared") {
+    console.log('🔍 [DataTableRowActions] showEditDocument debug:', document.documentId, {
+      showEditDocument,
+      isForEdit,
+      viewType,
+      assignedActionType,
+      hasActionTypeEdit: hasActionType("EDIT")
+    });
+  }
   
   // Signature Placeholder: FOR APPROVAL OR FOR REVIEW OR FOR SIGNATURE OR APPROVED OR REVIEWED or if user has signature placeholders assigned
   const showSignaturePlaceholder = viewType === "shared" 
@@ -1018,7 +1033,7 @@ export function DataTableRowActions<TData>({
                 </DropdownMenuItem>
               )}
 
-              {/* Edit Documents - show based on FOR APPROVAL or existing permissions */}
+              {/* Edit Documents - show ONLY for FOR EDIT action */}
               {showEditDocument && (
                 <DropdownMenuItem
                   onClick={(e) => handleAction(e, handleCheckoutFile)}
