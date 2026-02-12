@@ -57,10 +57,9 @@ export class DocumentController {
     const authReq = req as AuthRequest;
     const userId = authReq.user.id;
 
-    const [pendingDocuments, ownedPendingDocuments, incomingResult, sharedResult] =
+    const [allStatusCounts, incomingResult, sharedResult] =
       await Promise.all([
-        this.documentService.getPendingDocumentsCount(userId),
-        this.documentService.getOwnedPendingDocumentsCount(userId),
+        this.documentService.getDocumentCountsByStatus(userId),
         this.intransitService.getIncomingDocuments(userId, 1, 1),
         this.sharedDocumentService.getSharedDocuments(userId, 1, 1),
       ]);
@@ -68,9 +67,16 @@ export class DocumentController {
     const incomingInTransitDocuments = incomingResult.pagination?.total ?? 0;
     const sharedDocuments = sharedResult.pagination?.total ?? 0;
 
+    const [totalOwnedDocuments, outgoingInTransitDocuments] = await Promise.all([
+      this.documentService.getTotalOwnedDocumentsCount(userId),
+      this.documentService.getOutgoingDocumentsCount(userId)
+    ]);
+
     return sendSuccess(res, {
-      pendingDocuments,
-      ownedPendingDocuments,
+      ...allStatusCounts,
+      ownedPendingDocuments: allStatusCounts.pending, // Keep the existing field for compatibility
+      totalOwnedDocuments, // Add the total count for owned documents across all statuses
+      outgoingInTransitDocuments, // Add the count for outgoing in-transit documents
       incomingInTransitDocuments,
       sharedDocuments,
     });
@@ -373,7 +379,11 @@ export class DocumentController {
 
     const updateData: UpdateDocumentRequest = {
       name: req.body.name,
-      content: req.body.content
+      content: req.body.content,
+      classification: req.body.classification,
+      origin: req.body.origin,
+      document_type: req.body.document_type,
+      process_type_id: req.body.process_type_id,
     };
 
     const updatedDocument = await this.documentService.updateDocument(id, updateData, authReq.user.id);

@@ -38,6 +38,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { DocumentListItem as Document } from "@/hooks/use-documents";
 import { useAuth } from "@/hooks/use-auth";
 import { ScrollArea } from "../ui/scroll-area";
@@ -565,15 +571,15 @@ export function ReleaseDocumentModal({
   };
 
   const selectedCount = selectedDepartmentIds.length;
-  const departmentNameById = useMemo(() => {
-    const map = new Map<string, string>();
+  const departmentInfoById = useMemo(() => {
+    const map = new Map<string, { name: string; code: string }>();
     groups.forEach((group) => {
       group.departments.forEach((dept) => {
-        map.set(dept.department_id, dept.name);
+        map.set(dept.department_id, { name: dept.name, code: dept.code });
       });
       group.centers.forEach((center) => {
         center.departments.forEach((dept) => {
-          map.set(dept.department_id, dept.name);
+          map.set(dept.department_id, { name: dept.name, code: dept.code });
         });
       });
     });
@@ -792,24 +798,38 @@ export function ReleaseDocumentModal({
                                         Loading...
                                       </div>
                                     ) : availableDepartments.length > 0 ? (
-                                      availableDepartments.map((dept) => (
-                                        <label
-                                          key={dept.department_id}
-                                          className={cn(
-                                            "flex items-center gap-2 text-sm p-2 rounded hover:bg-muted/50 cursor-pointer transition-colors",
-                                            dept.department_id === currentDepartmentId && "opacity-50 cursor-not-allowed"
-                                          )}
-                                        >
-                                          <Checkbox
-                                            checked={selectedDepartmentIds.includes(dept.department_id)}
-                                            disabled={dept.department_id === currentDepartmentId}
-                                            onCheckedChange={(checked) =>
-                                              handleDepartmentToggle(dept.department_id, checked === true)
-                                            }
-                                          />
-                                          <span className="flex-1">{dept.name}</span>
-                                        </label>
-                                      ))
+                                      <TooltipProvider>
+                                        {availableDepartments.map((dept) => (
+                                          <label
+                                            key={dept.department_id}
+                                            className={cn(
+                                              "flex items-center gap-2 text-sm p-2 rounded hover:bg-muted/50 cursor-pointer transition-colors",
+                                              dept.department_id === currentDepartmentId && "opacity-50 cursor-not-allowed"
+                                            )}
+                                          >
+                                            <Checkbox
+                                              checked={selectedDepartmentIds.includes(dept.department_id)}
+                                              disabled={dept.department_id === currentDepartmentId}
+                                              onCheckedChange={(checked) =>
+                                                handleDepartmentToggle(dept.department_id, checked === true)
+                                              }
+                                            />
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <span className="flex-1">
+                                                  <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded mr-1.5">
+                                                    {dept.code}
+                                                  </span>
+                                                  <span>{dept.name}</span>
+                                                </span>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                <p>{dept.name}</p>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </label>
+                                        ))}
+                                      </TooltipProvider>
                                     ) : (
                                       <div className="text-sm text-muted-foreground py-4 text-center">
                                         No departments available
@@ -869,14 +889,19 @@ export function ReleaseDocumentModal({
                                         {/* Department Header */}
                                         <div className="flex items-start justify-between gap-2">
                                           <div className="flex-1 min-w-0">
-                                            <h4 className="font-medium text-sm truncate">
-                                              {departmentNameById.get(deptId) || "Unknown"}
-                                            </h4>
-                                            <p className="text-xs text-muted-foreground">
-                                              {assignedActions.length > 0
-                                                ? `${assignedActions.length} action${assignedActions.length === 1 ? "" : "s"}`
-                                                : "Drop actions here"}
-                                            </p>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <h4 className="font-medium text-sm truncate flex items-center gap-1">
+                                                  <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                                                    {departmentInfoById.get(deptId)?.code || "CODE"}
+                                                  </span>
+                                                  <span>{departmentInfoById.get(deptId)?.name || "Unknown"}</span>
+                                                </h4>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                <p>{departmentInfoById.get(deptId)?.name || "Unknown"}</p>
+                                              </TooltipContent>
+                                            </Tooltip>
                                           </div>
                                         </div>
 

@@ -29,7 +29,7 @@ export default function PendingSignaturesPage() {
 
   const handleViewAndSign = (documentId: string) => {
     router.push(
-      `/documents/${documentId}?mode=sign&returnTo=/workflows/pending-signatures`,
+      `/documents/${documentId}?mode=sign&returnTo=${encodeURIComponent('/workflows/pending-signatures')}`,
     );
   };
 

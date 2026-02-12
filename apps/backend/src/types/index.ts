@@ -214,6 +214,10 @@ export interface CreateDocumentRequest {
 export interface UpdateDocumentRequest {
   name?: string;
   content?: string;
+  classification?: string;
+  origin?: string;
+  document_type?: string;
+  process_type_id?: string | null;
 }
 
 // Pagination types

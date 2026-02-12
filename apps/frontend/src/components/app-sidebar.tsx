@@ -323,6 +323,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const ownedPendingCount = counts.ownedPendingDocuments ?? 0;
   const incomingCount = counts.incomingInTransitDocuments ?? 0;
   const sharedCount = counts.sharedDocuments ?? 0;
+  const receivedCount = counts.received ?? 0;
+  const intransitCount = counts.intransit ?? 0;
+  const intransitSignatureCount = counts.intransit_signature ?? 0;
+  const signedCount = counts.signed ?? 0;
+  const completedCount = counts.completed ?? 0;
+  const cancelledCount = counts.cancelled ?? 0;
+  const deletedCount = counts.deleted ?? 0;
+  const archiveCount = counts.archive ?? 0;
+  const checkoutCount = counts.checkout ?? 0;
+  const checkinCount = counts.checkin ?? 0;
+  const totalOwnedDocumentsCount = counts.totalOwnedDocuments ?? 0;
+  const outgoingInTransitCount = counts.outgoingInTransitDocuments ?? 0;
 
   const navMainItems = React.useMemo(() => {
     return data.navMain.map((item) => {
@@ -335,14 +347,32 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       const subItems = item.items?.map((subItem) => {
         if (subItem.url?.includes("/owned")) {
-          return { ...subItem, badgeCount: ownedPendingCount };
+          // For owned documents, show the total count of documents owned by the user across all statuses
+          return { ...subItem, badgeCount: totalOwnedDocumentsCount };
         }
         if (subItem.url?.includes("/in-transit")) {
-          return { ...subItem, badgeCount: incomingCount };
+          // For in-transit documents, show separate incoming and outgoing counts
+          // incoming first, outgoing second
+          return { 
+            ...subItem, 
+            badgeCount: outgoingInTransitCount + incomingCount, // Total for backward compatibility
+            incomingCount: incomingCount,  // Incoming count first
+            outgoingCount: outgoingInTransitCount  // Outgoing count second
+          };
         }
         if (subItem.url?.includes("/shared")) {
+          // For shared documents, show shared count
           return { ...subItem, badgeCount: sharedCount };
         }
+        if (subItem.url?.includes("/archive")) {
+          // For archive, show archived documents count
+          return { ...subItem, badgeCount: archiveCount };
+        }
+        if (subItem.url?.includes("/recycle-bin")) {
+          // For recycle bin, show deleted count
+          return { ...subItem, badgeCount: deletedCount };
+        }
+        // Add more status mappings as needed
         return { ...subItem };
       });
 
@@ -352,7 +382,24 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         items: subItems,
       };
     });
-  }, [incomingCount, ownedPendingCount, pendingDocumentsCount, sharedCount]);
+  }, [
+    incomingCount, 
+    ownedPendingCount, 
+    pendingDocumentsCount, 
+    sharedCount,
+    receivedCount,
+    intransitCount,
+    intransitSignatureCount,
+    signedCount,
+    completedCount,
+    cancelledCount,
+    deletedCount,
+    archiveCount,
+    checkoutCount,
+    checkinCount,
+    totalOwnedDocumentsCount,
+    outgoingInTransitCount
+  ]);
 
   // Filter navigation items based on user permissions
   const getFilteredNavItems = () => {

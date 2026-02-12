@@ -288,6 +288,229 @@ export class DocumentService {
     });
   }
 
+  async getDocumentCountsByStatus(userId: string): Promise<Record<string, number>> {
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+      select: { department_id: true },
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const documentDetails = await prisma.documentAdditionalDetails.findMany({
+      select: {
+        document_id: true,
+        work_flow_id: true,
+      },
+    });
+
+    const relevantDocumentIds = documentDetails
+      .filter((detail: any) => {
+        if (!detail.work_flow_id) {
+          return true;
+        }
+
+        const workflowDepartments = this.parseWorkflowDepartments(
+          detail.work_flow_id,
+          'getDocumentCountsByStatus'
+        );
+        return (
+          workflowDepartments.length > 0 &&
+          workflowDepartments[0] === user.department_id
+        );
+      })
+      .map((detail: any) => detail.document_id);
+
+    if (relevantDocumentIds.length === 0) {
+      return {
+        pending: 0,
+        received: 0,
+        intransit: 0,
+        intransit_signature: 0,
+        signed: 0,
+        completed: 0,
+        cancelled: 0,
+        deleted: 0,
+        archive: 0,
+        checkout: 0,
+        checkin: 0,
+      };
+    }
+
+    // Get counts for each status
+    const [
+      pending,
+      received,
+      intransit,
+      intransit_signature,
+      signed,
+      completed,
+      cancelled,
+      deleted,
+      archive,
+      checkout,
+      checkin
+    ] = await Promise.all([
+      prisma.document.count({
+        where: {
+          document_id: { in: relevantDocumentIds },
+          status: 'pending',
+        },
+      }),
+      prisma.document.count({
+        where: {
+          document_id: { in: relevantDocumentIds },
+          status: 'received',
+        },
+      }),
+      prisma.document.count({
+        where: {
+          document_id: { in: relevantDocumentIds },
+          status: 'intransit',
+        },
+      }),
+      prisma.document.count({
+        where: {
+          document_id: { in: relevantDocumentIds },
+          status: 'intransit_signature',
+        },
+      }),
+      prisma.document.count({
+        where: {
+          document_id: { in: relevantDocumentIds },
+          status: 'signed',
+        },
+      }),
+      prisma.document.count({
+        where: {
+          document_id: { in: relevantDocumentIds },
+          status: 'completed',
+        },
+      }),
+      prisma.document.count({
+        where: {
+          document_id: { in: relevantDocumentIds },
+          status: 'cancelled',
+        },
+      }),
+      prisma.document.count({
+        where: {
+          document_id: { in: relevantDocumentIds },
+          status: 'deleted',
+        },
+      }),
+      prisma.document.count({
+        where: {
+          document_id: { in: relevantDocumentIds },
+          status: 'archive',
+        },
+      }),
+      prisma.document.count({
+        where: {
+          document_id: { in: relevantDocumentIds },
+          status: 'checkout',
+        },
+      }),
+      prisma.document.count({
+        where: {
+          document_id: { in: relevantDocumentIds },
+          status: 'checkin',
+        },
+      }),
+    ]);
+
+    return {
+      pending,
+      received,
+      intransit,
+      intransit_signature,
+      signed,
+      completed,
+      cancelled,
+      deleted,
+      archive,
+      checkout,
+      checkin
+    };
+  }
+
+  async getTotalOwnedDocumentsCount(userId: string): Promise<number> {
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+      select: { department_id: true },
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const documentDetails = await prisma.documentAdditionalDetails.findMany({
+      select: {
+        document_id: true,
+        work_flow_id: true,
+      },
+    });
+
+    const ownedDocumentIds = documentDetails
+      .filter((detail: any) => {
+        if (!detail.work_flow_id) {
+          return false;
+        }
+
+        const workflowDepartments = this.parseWorkflowDepartments(
+          detail.work_flow_id,
+          'getTotalOwnedDocumentsCount'
+        );
+        return (
+          workflowDepartments.length > 0 &&
+          workflowDepartments[0] === user.department_id
+        );
+      })
+      .map((detail: any) => detail.document_id);
+
+    if (ownedDocumentIds.length === 0) {
+      return 0;
+    }
+
+    return prisma.document.count({
+      where: {
+        document_id: {
+          in: ownedDocumentIds,
+        },
+        // Count all documents regardless of status (excluding deleted and archived)
+        status: {
+          notIn: ['deleted', 'archive']
+        }
+      },
+    });
+  }
+
+  async getOutgoingDocumentsCount(userId: string): Promise<number> {
+    const user = await prisma.user.findUnique({
+      where: { user_id: userId },
+      select: { department_id: true },
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Get documents where the user's department is the sender (from_department)
+    const outgoingTrails = await prisma.documentTrail.findMany({
+      where: {
+        from_department: user.department_id,
+        status: 'intransit', // Only count documents currently in transit
+      },
+      select: {
+        document_id: true,
+      },
+      distinct: ['document_id'], // Ensure we count each document only once
+    });
+
+    return outgoingTrails.length;
+  }
+
   private buildS3Key(params: {
     departmentSlug: string;
     documentId: string;
@@ -3082,6 +3305,8 @@ export class DocumentService {
     if (updateData.content !== undefined) updateFields.description = updateData.content;
     if (updateData.classification) updateFields.classification = updateData.classification;
     if (updateData.origin) updateFields.origin = updateData.origin;
+    if (updateData.document_type) updateFields.document_type = updateData.document_type;
+    if (updateData.process_type_id !== undefined) updateFields.process_type_id = updateData.process_type_id;
 
     const document = await prisma.document.update({
       where: { document_id: id },
@@ -3251,6 +3476,44 @@ export class DocumentService {
           // signed_at: new Date() // Automatically set by @default(now())
         },
       });
+
+      // 5.5 Update the corresponding signature placeholder's status to true
+      // Find the signature placeholder that matches the position and document file
+      const EPSILON = 0.5; // Small tolerance for floating point comparisons
+      const signaturePlaceholder = await prisma.signaturePlaceholder.findFirst({
+        where: {
+          document_file_id: targetDocumentFile.file_id,
+          page_number: page_number,
+          // Using approximate matching for positions due to potential floating point precision differences
+          x_position: {
+            gte: x_position - EPSILON,
+            lte: x_position + EPSILON
+          },
+          y_position: {
+            gte: y_position - EPSILON,
+            lte: y_position + EPSILON
+          },
+          width: {
+            gte: width - EPSILON,
+            lte: width + EPSILON
+          },
+          height: {
+            gte: height - EPSILON,
+            lte: height + EPSILON
+          }
+        }
+      });
+
+      if (signaturePlaceholder) {
+        await prisma.signaturePlaceholder.update({
+          where: {
+            placeholder_id: signaturePlaceholder.placeholder_id
+          },
+          data: {
+            signature_status: true
+          }
+        });
+      }
 
       // 6. Update document status to 'signed' and relevant details in DocumentAdditionalDetails
       // Ensure DocumentAdditionalDetails exists or create it

@@ -31,6 +31,7 @@ interface Document {
   description?: string;
   document_code: string;
   document_type: string;
+  process_type_id?: string | null;
   classification: string;
   origin: string;
   status: string;
@@ -40,6 +41,17 @@ interface Document {
     origin?: string;
     document_code?: string;
   };
+}
+
+interface DocumentType {
+  type_id: string;
+  name: string;
+}
+
+interface ProcessType {
+  process_type_id: string;
+  code: string;
+  name: string;
 }
 
 interface EditDocumentModalProps {
@@ -58,20 +70,63 @@ export function EditDocumentModal({
   const [document, setDocument] = useState<Document | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
+  const [processTypes, setProcessTypes] = useState<ProcessType[]>([]);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     classification: "",
     origin: "",
+    document_type: "",
+    process_type_id: "",
   });
 
   const { socket } = useSocket();
 
+  const apiBaseUrl =
+    process.env.NODE_ENV === "development"
+      ? "http://localhost:3001"
+      : process.env.NEXT_PUBLIC_API_BASE_URL || "";
+
   useEffect(() => {
     if (open && documentId) {
       fetchDocument();
+      fetchDocumentTypes();
+      fetchProcessTypes();
     }
   }, [open, documentId]);
+
+  const fetchDocumentTypes = async () => {
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/document-types`, {
+        credentials: "include",
+      });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setDocumentTypes(result.data || []);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching document types:", error);
+    }
+  };
+
+  const fetchProcessTypes = async () => {
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/process-type`, {
+        credentials: "include",
+      });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setProcessTypes(result.data || []);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching process types:", error);
+    }
+  };
 
   const fetchDocument = async () => {
     if (!documentId) return;
@@ -92,6 +147,8 @@ export function EditDocumentModal({
             classification:
               doc.classification || doc.detail?.classification || "",
             origin: doc.origin || doc.detail?.origin || "",
+            document_type: doc.document_type || "",
+            process_type_id: doc.process_type_id || "",
           });
         }
       } else {
@@ -123,6 +180,8 @@ export function EditDocumentModal({
           content: formData.description,
           classification: formData.classification,
           origin: formData.origin,
+          document_type: formData.document_type || undefined,
+          process_type_id: formData.process_type_id || null,
         }),
       });
 
@@ -253,6 +312,50 @@ export function EditDocumentModal({
                         <SelectContent>
                           <SelectItem value="internal">Internal</SelectItem>
                           <SelectItem value="external">External</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 pt-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="document_type">Document Type</Label>
+                      <Select
+                        value={formData.document_type}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, document_type: value })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select document type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {documentTypes.map((type) => (
+                            <SelectItem key={type.type_id} value={type.name}>
+                              {type.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="process_type">Process Type</Label>
+                      <Select
+                        value={formData.process_type_id}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, process_type_id: value === "none" ? "" : value })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select process type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {processTypes.map((type) => (
+                            <SelectItem key={type.process_type_id} value={type.process_type_id}>
+                              {type.name} ({type.code})
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>

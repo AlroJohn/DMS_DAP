@@ -602,7 +602,7 @@ export function UploadDocumentModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl max-h-[90vh]">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Upload Documents</DialogTitle>
         </DialogHeader>
@@ -898,7 +898,7 @@ export function UploadDocumentModal({
                             <Loader2 className="h-4 w-4 ml-2 animate-spin" />
                           )}
                         </SelectTrigger>
-                        <SelectContent className="w-[320px]">
+                        <SelectContent className="w-[320px] h-auto max-h-[400px]">
                           <div className="space-y-3 px-3 pt-3 pb-2 border-b border-muted-foreground/20">
                             <div className="flex items-center gap-2">
                               <div className="relative flex-1">

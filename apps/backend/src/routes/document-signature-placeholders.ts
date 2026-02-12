@@ -623,6 +623,44 @@ router.post('/documents/:documentId/place-signature', async (req: Request, res: 
       }
     });
 
+    // Update the corresponding signature placeholder's status to true
+    // Find the signature placeholder that matches the position and document file
+    const EPSILON = 0.5; // Small tolerance for floating point comparisons
+    const signaturePlaceholder = await prisma.signaturePlaceholder.findFirst({
+      where: {
+        document_file_id: document_file_id,
+        page_number: page_number,
+        // Using approximate matching for positions due to potential floating point precision differences
+        x_position: {
+          gte: x_position - EPSILON,
+          lte: x_position + EPSILON
+        },
+        y_position: {
+          gte: y_position - EPSILON,
+          lte: y_position + EPSILON
+        },
+        width: {
+          gte: width - EPSILON,
+          lte: width + EPSILON
+        },
+        height: {
+          gte: height - EPSILON,
+          lte: height + EPSILON
+        }
+      }
+    });
+
+    if (signaturePlaceholder) {
+      await prisma.signaturePlaceholder.update({
+        where: {
+          placeholder_id: signaturePlaceholder.placeholder_id
+        },
+        data: {
+          signature_status: true
+        }
+      });
+    }
+
     // Log signature to document trail
     await auditService.logDocumentSigned(signee_id, documentId!, {
       description: `Document signed by ${user.first_name} ${user.last_name}`

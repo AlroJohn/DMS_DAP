@@ -713,62 +713,129 @@ export class DashboardService {
                 return 0;
             }
 
+            // Collect all incoming document IDs using the same logic as intransit.service.ts
+            const incomingDocumentIds = new Set<string>();
+
+            // Get documents released TO this department via DocumentTrail
             const releasedToThisDepartment = await prisma.documentTrail.findMany({
                 where: {
                     to_department: departmentId,
-                    status: "released",
+                    status: 'intransit',
+                    from_department: {
+                        not: departmentId // Exclude documents from same department
+                    },
+                    OR: [
+                        { assigned_to_user_id: null },
+                        { assigned_to_user_id: userId }
+                    ]
                 },
                 select: {
                     document_id: true,
-                    created_at: true,
                 },
                 orderBy: {
-                    created_at: "desc",
-                },
+                    created_at: 'desc'
+                }
             });
 
-            const documentIds = new Set<string>();
-            const latestTrailMap = new Map<string, Date>();
+            // Add all documents that have been released to this department
+            releasedToThisDepartment.forEach(trail => {
+                incomingDocumentIds.add(trail.document_id);
+            });
 
-            for (const trail of releasedToThisDepartment) {
-                const docId = trail.document_id;
-                const trailDate = trail.created_at;
-
-                if (!latestTrailMap.has(docId) || trailDate > latestTrailMap.get(docId)!) {
-                    latestTrailMap.set(docId, trailDate);
+            // Also get documents assigned specifically to this user (from any department)
+            const assignedToUserTrails = await prisma.documentTrail.findMany({
+                where: {
+                    assigned_to_user_id: userId,
+                    status: 'intransit',
+                },
+                select: {
+                    document_id: true,
+                },
+                orderBy: {
+                    created_at: 'desc'
                 }
-            }
+            });
 
-            for (const [docId, latestReleaseDate] of latestTrailMap) {
-                const receivedTrail = await prisma.documentTrail.findFirst({
+            assignedToUserTrails.forEach(trail => {
+                incomingDocumentIds.add(trail.document_id);
+            });
+
+            // Remove documents that the user has already received IN THE CURRENT TRANSIT CYCLE
+            const documentsToCheck = Array.from(incomingDocumentIds);
+            for (const docId of documentsToCheck) {
+                const latestIntransitTrail = await prisma.documentTrail.findFirst({
                     where: {
                         document_id: docId,
-                        status: "received",
                         to_department: departmentId,
-                        created_at: {
-                            gte: latestReleaseDate,
-                        },
+                        status: 'intransit'
                     },
+                    orderBy: {
+                        created_at: 'desc'
+                    },
+                    select: {
+                        created_at: true
+                    }
                 });
 
-                if (!receivedTrail) {
-                    documentIds.add(docId);
+                if (!latestIntransitTrail) {
+                    // Check if it was assigned directly to user
+                    const latestUserAssignedTrail = await prisma.documentTrail.findFirst({
+                        where: {
+                            document_id: docId,
+                            assigned_to_user_id: userId,
+                            status: 'intransit'
+                        },
+                        orderBy: {
+                            created_at: 'desc'
+                        },
+                        select: {
+                            created_at: true
+                        }
+                    });
+
+                    if (!latestUserAssignedTrail) {
+                        incomingDocumentIds.delete(docId);
+                        continue;
+                    }
+
+                    // Check if user already received after user assignment
+                    const receivedAfterUserAssigned = await prisma.documentTrail.findFirst({
+                        where: {
+                            document_id: docId,
+                            status: 'received',
+                            user_id: userId,
+                            created_at: {
+                                gte: latestUserAssignedTrail.created_at
+                            }
+                        },
+                        select: { trail_id: true }
+                    });
+
+                    if (receivedAfterUserAssigned) {
+                        incomingDocumentIds.delete(docId);
+                    }
+                    continue;
+                }
+
+                const receivedAfterIntransit = await prisma.documentTrail.findFirst({
+                    where: {
+                        document_id: docId,
+                        status: 'received',
+                        user_id: userId,
+                        to_department: departmentId,
+                        created_at: {
+                            gte: latestIntransitTrail.created_at
+                        }
+                    },
+                    select: { trail_id: true }
+                });
+
+                if (receivedAfterIntransit) {
+                    incomingDocumentIds.delete(docId);
                 }
             }
 
-            const count = await prisma.document.count({
-                where: {
-                    document_id: {
-                        in: Array.from(documentIds),
-                    },
-                    status: {
-                        in: ["intransit", "pending"],
-                        not: "received",
-                    },
-                },
-            });
-
-            return count;
+            return incomingDocumentIds.size;
         } catch (error) {
             console.error("Error counting incoming documents:", error);
             return 0;
