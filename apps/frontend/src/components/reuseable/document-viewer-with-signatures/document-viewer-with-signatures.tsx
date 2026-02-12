@@ -3,13 +3,14 @@
 import React, { useState, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getAccessToken } from "@/lib/token-utils";
 import Draggable from "react-draggable";
 import { ResizableBox } from "react-resizable";
 import { Button } from "@/components/ui/button";
 import { Loader2, ZoomIn, ZoomOut, RotateCw } from "lucide-react";
 
-// Set up the worker for react-pdf
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+// Set up the worker for react-pdf from local public directory
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 interface DocumentViewerWithSignaturesProps {
   documentFiles: Array<{
@@ -83,6 +84,81 @@ export function DocumentViewerWithSignatures({
   const primaryFile =
     documentFiles.find((file) => file.isPrimary) || documentFiles[0];
   const fileUrl = primaryFile?.downloadUrl;
+  const token = getAccessToken();
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [fetchComplete, setFetchComplete] = useState(false);
+
+  useEffect(() => {
+    let abort = false;
+    let objectUrl: string | null = null;
+
+    async function fetchWithAuth() {
+      if (!fileUrl) {
+        setFetchComplete(true);
+        setLoading(false);
+        return;
+      }
+      
+      if (!token) {
+        // No token, just use URL directly
+        console.log("No token found, using direct URL");
+        setFetchComplete(true);
+        setLoading(false);
+        return;
+      }
+
+      console.log("Fetching PDF with auth token...", fileUrl);
+      setLoading(true);
+      setError(null);
+      setFetchComplete(false);
+
+      try {
+        const res = await fetch(fileUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+          method: "GET",
+        });
+
+        console.log("PDF fetch response:", res.status, res.statusText);
+
+        if (!res.ok) {
+          throw new Error(`PDF fetch failed: ${res.status} ${res.statusText}`);
+        }
+
+        const blob = await res.blob();
+        console.log("PDF blob created:", blob.size, "bytes");
+        objectUrl = URL.createObjectURL(blob);
+        if (!abort) {
+          setBlobUrl(objectUrl);
+          setFetchComplete(true);
+          console.log("Blob URL set:", objectUrl);
+        }
+      } catch (err: any) {
+        console.error("Error fetching PDF with auth:", err);
+        if (!abort) {
+          setError(err?.message || String(err));
+          setFetchComplete(true);
+        }
+      } finally {
+        if (!abort) setLoading(false);
+      }
+    }
+
+    // Clear previous blob
+    if (blobUrl) {
+      URL.revokeObjectURL(blobUrl);
+      setBlobUrl(null);
+    }
+
+    fetchWithAuth();
+
+    return () => {
+      abort = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [fileUrl, token]);
+
+  // Use blobUrl if available, otherwise fall back to direct URL with auth headers or plain URL
+  const fileProp = blobUrl || (token ? { url: fileUrl, httpHeaders: { Authorization: `Bearer ${token}` } } : fileUrl);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
@@ -93,7 +169,8 @@ export function DocumentViewerWithSignatures({
 
   function onDocumentLoadError(error: any) {
     console.error("Error loading PDF document:", error);
-    setError("Failed to load document. Please try again.");
+    const msg = error?.message || JSON.stringify(error) || "Failed to load document.";
+    setError(`Failed to load document. ${msg}`);
     setLoading(false);
   }
 
@@ -137,7 +214,7 @@ export function DocumentViewerWithSignatures({
   }
 
   if (loading) {
-    return <Skeleton className="w-full h-full min-h-[500px]" />;
+    return <Skeleton className="w-full h-full min-h-125" />;
   }
 
   if (error) {
@@ -222,7 +299,7 @@ export function DocumentViewerWithSignatures({
           >
             <ZoomOut className="h-4 w-4" />
           </Button>
-          <span className="text-sm font-medium min-w-[60px] text-center">
+          <span className="text-sm font-medium min-w-15 text-center">
             {Math.round(scale * 100)}%
           </span>
           <Button
@@ -246,7 +323,7 @@ export function DocumentViewerWithSignatures({
 
       <div className="relative border shadow-lg rounded-md overflow-auto max-w-full">
         <Document
-          file={fileUrl}
+          file={fileProp as any}
           onLoadSuccess={onDocumentLoadSuccess}
           onLoadError={onDocumentLoadError}
           className="w-full h-full"
@@ -254,8 +331,8 @@ export function DocumentViewerWithSignatures({
           <Page
             pageNumber={pageNumber}
             scale={scale}
-            renderTextLayer={true}
-            renderAnnotationLayer={true}
+            renderTextLayer={false}
+            renderAnnotationLayer={false}
             className="relative"
             onRenderSuccess={() => setLoading(false)}
           >

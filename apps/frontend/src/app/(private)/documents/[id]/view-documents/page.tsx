@@ -188,7 +188,7 @@ export default function ViewDocumentPage() {
             Document Code: {document?.detail?.document_code || documentId}
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <Button
             variant="outline"
             size="sm"
@@ -212,12 +212,12 @@ export default function ViewDocumentPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-9 min-w-[180px] max-w-[250px]"
+                    className="h-9 min-w-45 max-w-62.5"
                   >
                     <span className="truncate flex-1 text-left">
                       {previewFile?.name || `File ${files.findIndex((f) => f.id === previewFile?.id) + 1}`}
                     </span>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50 flex-shrink-0" />
+                    <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50 shrink-0" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-64 max-h-80 overflow-y-auto">
@@ -233,7 +233,7 @@ export default function ViewDocumentPage() {
                             {file.name || `File ${index + 1}`}
                           </span>
                           {file.isPrimary && (
-                            <Badge variant="default" className="h-5 text-xs">Primary</Badge>
+                            <Badge variant="default" className="h-5 text-xs text-green-600">Primary</Badge>
                           )}
                         </div>
                         <span className="text-xs text-muted-foreground">
@@ -247,7 +247,7 @@ export default function ViewDocumentPage() {
             </>
           )}
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <Button
             variant="outline"
             size="sm"
@@ -273,7 +273,7 @@ export default function ViewDocumentPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Preview Section */}
         <Card className="lg:col-span-2 flex flex-col">
-          <CardHeader className="pb-3 flex-shrink-0">
+          <CardHeader className="pb-3 shrink-0">
             <CardTitle className="flex items-center gap-2 text-base">
               <FileText className="h-5 w-5" />
               Document Preview
@@ -281,12 +281,12 @@ export default function ViewDocumentPage() {
           </CardHeader>
           <CardContent className="flex-1 flex flex-col">
             {filesLoading ? (
-              <div className="flex items-center justify-center flex-1 min-h-[700px] rounded-lg border bg-muted/10">
+              <div className="flex items-center justify-center flex-1 min-h-175 rounded-lg border bg-muted/10">
                 <Skeleton className="h-8 w-8" />
               </div>
             ) : previewFile && isPreviewSupported && previewBaseUrl ? (
               <div
-                className="relative w-full flex-1 min-h-[700px] rounded-lg border bg-muted/5 overflow-hidden cursor-pointer"
+                className="relative w-full flex-1 min-h-175 rounded-lg border bg-muted/5 overflow-hidden cursor-pointer"
                 onClick={handlePreviewClick}
               >
                 {previewMime.startsWith("image/") ? (
@@ -308,7 +308,7 @@ export default function ViewDocumentPage() {
               </div>
             ) : (
               <div
-                className="flex flex-col items-center justify-center gap-4 flex-1 min-h-[700px] rounded-lg border-2 border-dashed bg-muted/10 p-8 text-center cursor-pointer hover:bg-muted/20 transition-colors"
+                className="flex flex-col items-center justify-center gap-4 flex-1 min-h-175 rounded-lg border-2 border-dashed bg-muted/10 p-8 text-center cursor-pointer hover:bg-muted/20 transition-colors"
                 onClick={handlePreviewClick}
               >
                 <FileText className="h-16 w-16 text-muted-foreground" />
@@ -365,7 +365,7 @@ export default function ViewDocumentPage() {
                   <Skeleton className="h-20 w-full" />
                 </div>
               ) : files && files.length > 0 ? (
-                <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
+                <div className="space-y-3 max-h-150 overflow-y-auto pr-1">
                   {files.map((file) => {
                     const isPlaceholder = /placeholder/i.test(file.name);
                     const isActive = file.id === previewFile?.id;
@@ -382,7 +382,7 @@ export default function ViewDocumentPage() {
                             {file.name}
                           </p>
                           {file.isPrimary && (
-                            <Badge variant="default" className="flex-shrink-0 h-5">
+                            <Badge variant="default" className="shrink-0 h-5 text-green-600">
                               Primary
                             </Badge>
                           )}
