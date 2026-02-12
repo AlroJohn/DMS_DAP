@@ -47,6 +47,17 @@ export class HomeCMSController {
       // Get current CMS to get cms_id for tracking
       const currentCMS = await homeCMSService.getActiveCMS();
 
+      // Delete old file of the same type if it exists
+      if (currentCMS) {
+        if (fileType === "logo" && currentCMS.logo_url) {
+          console.log(`🗑️ Deleting old logo before uploading new one: ${currentCMS.logo_url}`);
+          await homeCMSService.deleteFileByUrl(currentCMS.logo_url);
+        } else if (fileType === "video" && currentCMS.video_url) {
+          console.log(`🗑️ Deleting old video before uploading new one: ${currentCMS.video_url}`);
+          await homeCMSService.deleteFileByUrl(currentCMS.video_url);
+        }
+      }
+
       // Upload file with home_cms relation
       const result = await fileUploadService.uploadFile({
         buffer: file.buffer,
