@@ -51,7 +51,7 @@ export default function SigningHistoryPage() {
         entry.document.toLowerCase().includes(search) ||
         entry.signer.toLowerCase().includes(search) ||
         entry.documentCode.toLowerCase().includes(search) ||
-        entry.department.toLowerCase().includes(search)
+        entry.department.toLowerCase().includes(search),
     );
   }, [data?.signingHistory, searchTerm]);
 
@@ -79,7 +79,7 @@ export default function SigningHistoryPage() {
           csvContent += `"${entry.document}","${entry.documentCode}","${
             entry.signer
           }","${entry.department}","${new Date(
-            entry.timestamp
+            entry.timestamp,
           ).toLocaleString()}","${entry.txHash}","${entry.status}"\n`;
         });
 
@@ -93,7 +93,7 @@ export default function SigningHistoryPage() {
         link.setAttribute("href", url);
         link.setAttribute(
           "download",
-          `signing-history-report-${new Date().toISOString().split("T")[0]}.csv`
+          `signing-history-report-${new Date().toISOString().split("T")[0]}.csv`,
         );
         link.style.visibility = "hidden";
 
@@ -148,7 +148,7 @@ export default function SigningHistoryPage() {
           wb,
           `signing-history-report-${
             new Date().toISOString().split("T")[0]
-          }.xlsx`
+          }.xlsx`,
         );
       } else if (format === "pdf") {
         // For PDF export, we'll create a properly styled PDF using jsPDF
@@ -212,7 +212,7 @@ export default function SigningHistoryPage() {
           }`,
           pageWidth / 2,
           margin + 18,
-          { align: "center" }
+          { align: "center" },
         );
 
         // Add report generation date
@@ -311,13 +311,13 @@ export default function SigningHistoryPage() {
           doc.text(
             `Page ${i} of ${pageCount}`,
             pageWidth - margin - 25,
-            doc.internal.pageSize.height - 10
+            doc.internal.pageSize.height - 10,
           );
         }
 
         // Save the PDF
         doc.save(
-          `signing-history-report-${new Date().toISOString().split("T")[0]}.pdf`
+          `signing-history-report-${new Date().toISOString().split("T")[0]}.pdf`,
         );
       }
     } catch (err: any) {
@@ -325,7 +325,7 @@ export default function SigningHistoryPage() {
       alert(
         `Failed to export report as ${format.toUpperCase()}: ${
           err.message || "Unknown error"
-        }`
+        }`,
       );
     } finally {
       setLoading(false);
@@ -362,7 +362,7 @@ export default function SigningHistoryPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Signing History</h1>
           <p className="text-muted-foreground">
-            Complete history of blockchain signatures
+            Complete history of document signed
           </p>
         </div>
         <div className="relative group inline-block">
