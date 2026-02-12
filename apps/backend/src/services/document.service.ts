@@ -3616,6 +3616,7 @@ export class DocumentService {
           where: { document_id: id },
           data: {
             status: 'deleted',
+            deleted_at: new Date(), // Set deleted_at on the main document
             updated_at: new Date(),
           },
         });

@@ -13,7 +13,7 @@ import { useProcessType } from "@/hooks/use-process.type";
 export default function RecycleBinPage() {
   const { documents, isLoading, error, refetch } = useRecycleBinDocuments(
     1,
-    100
+    100,
   ); // Use page 1 with high limit
   const { socket } = useSocket();
   const mountedRef = useRef(false);
@@ -41,10 +41,10 @@ export default function RecycleBinPage() {
               duration_value?: number | null;
               duration_unit?: string | null;
             }
-          >
-        )
+          >,
+        ),
       ),
-    [processTypes]
+    [processTypes],
   );
 
   // Mark component as mounted and clean up on unmount
@@ -105,7 +105,7 @@ export default function RecycleBinPage() {
             Auto-deletion Notice
           </AlertTitle>
           <AlertDescription className="text-orange-700">
-            Documents in the recycle bin will be permanently deleted after 30
+            Documents in the recycle bin will be permanently deleted after 5
             days.
           </AlertDescription>
         </Alert>

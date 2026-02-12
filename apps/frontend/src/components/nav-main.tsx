@@ -43,20 +43,29 @@ export function NavMain({
   const pathname = usePathname();
   const formatCount = (count: number): string => {
     if (count >= 1000000) {
-      return (count / 1000000).toFixed(1).replace(/\.0$/, '') + 'm';
+      return (count / 1000000).toFixed(1).replace(/\.0$/, "") + "m";
     }
     if (count >= 1000) {
-      return (count / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+      return (count / 1000).toFixed(1).replace(/\.0$/, "") + "k";
     }
     if (count >= 100) {
-      return (count / 100).toFixed(1).replace(/\.0$/, '') + 'h';
+      return (count / 100).toFixed(1).replace(/\.0$/, "") + "h";
     }
     return count.toString();
   };
 
-  const renderBadge = (count?: number, outgoing?: number, incoming?: number) => {
+  const renderBadge = (
+    count?: number,
+    outgoing?: number,
+    incoming?: number,
+  ) => {
     // If both outgoing and incoming counts are provided, show them in the format "incoming/outgoing"
-    if (outgoing !== undefined && incoming !== undefined && outgoing >= 0 && incoming >= 0) {
+    if (
+      outgoing !== undefined &&
+      incoming !== undefined &&
+      outgoing >= 0 &&
+      incoming >= 0
+    ) {
       if (outgoing > 0 || incoming > 0) {
         return (
           <span className="ml-auto rounded-full bg-secondary/20 px-2 py-0.5 font-bold text-secondary text-xs">
@@ -65,7 +74,7 @@ export function NavMain({
         );
       }
     }
-    
+
     // Otherwise, use the single count if provided
     if (count && count > 0) {
       return (
@@ -74,7 +83,7 @@ export function NavMain({
         </span>
       );
     }
-    
+
     return null;
   };
 
@@ -114,7 +123,11 @@ export function NavMain({
                       >
                         {item.icon && <item.icon />}
                         <span>{item.title}</span>
-                        {renderBadge(item.badgeCount, item.outgoingCount, item.incomingCount)}
+                        {renderBadge(
+                          item.badgeCount,
+                          item.outgoingCount,
+                          item.incomingCount,
+                        )}
                       </Link>
                     </SidebarMenuButton>
                     <CollapsibleTrigger asChild>
@@ -136,7 +149,7 @@ export function NavMain({
                               className="flex w-full items-center justify-between"
                             >
                               <span>{subItem.title}</span>
-                              {renderBadge(subItem.badgeCount, subItem.outgoingCount, subItem.incomingCount)}
+                              {/* {renderBadge(subItem.badgeCount, subItem.outgoingCount, subItem.incomingCount)} */}
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -160,7 +173,11 @@ export function NavMain({
                   >
                     {item.icon && <item.icon />}
                     <span>{item.title}</span>
-                    {renderBadge(item.badgeCount, item.outgoingCount, item.incomingCount)}
+                    {renderBadge(
+                      item.badgeCount,
+                      item.outgoingCount,
+                      item.incomingCount,
+                    )}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
