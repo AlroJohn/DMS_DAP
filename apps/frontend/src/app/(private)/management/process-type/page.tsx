@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,6 +22,7 @@ import {
   SelectScrollDownButton,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import ViewProcessType from "./[id]/viewID";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -138,6 +141,7 @@ const ProcessTypeManagementPage = () => {
   const [departmentsLoading, setDepartmentsLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const router = useRouter();
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [viewingProcessType, setViewingProcessType] =
     useState<ProcessType | null>(null);
@@ -273,9 +277,9 @@ const ProcessTypeManagementPage = () => {
 
       const data = await response.json();
 
-      // Ensure data is an array
-      if (Array.isArray(data)) {
-        setProcessTypes(data);
+      // Handle the response format { success: true, data: [] }
+      if (data.success && Array.isArray(data.data)) {
+        setProcessTypes(data.data);
       } else {
         console.error("Invalid response format:", data);
         setProcessTypes([]);
@@ -404,6 +408,7 @@ const ProcessTypeManagementPage = () => {
   };
 
   const handleView = (processType: ProcessType) => {
+    // Open inline modal (don't navigate away)
     setViewingProcessType(processType);
     setIsViewModalOpen(true);
   };
@@ -526,7 +531,7 @@ const ProcessTypeManagementPage = () => {
             </div>
             <div className="flex items-center gap-2">
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="h-9 w-[140px]">
+                <SelectTrigger className="h-9 w-35">
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -586,13 +591,13 @@ const ProcessTypeManagementPage = () => {
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <div className="flex items-center gap-2 cursor-default">
-                                <Clock className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                <Clock className="h-4 w-4 text-blue-500 shrink-0" />
                                 <Badge variant="outline" className="font-mono text-xs">
                                   {processType.code || "N/A"}
                                 </Badge>
                               </div>
                             </TooltipTrigger>
-                            <TooltipContent className="max-w-xs break-words">
+                            <TooltipContent className="max-w-xs wrap-break-word">
                               <p>{processType.name}</p>
                             </TooltipContent>
                           </Tooltip>
@@ -710,7 +715,7 @@ const ProcessTypeManagementPage = () => {
 
       {/* Create Modal */}
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-3xl w-full max-h-[88vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-blue-600" />
@@ -887,7 +892,7 @@ const ProcessTypeManagementPage = () => {
                         </div>
                       </div>
                       <SelectScrollUpButton className="text-muted-foreground" />
-                      <div className="max-h-[200px] overflow-y-auto px-1 py-1">
+                      <div className="max-h-50 overflow-y-auto px-1 py-1">
                         <SelectItem value="none">No Department</SelectItem>
                         {filteredDepartments.length === 0 ? (
                           <div className="px-3 py-4 text-xs text-muted-foreground text-center">
@@ -911,7 +916,7 @@ const ProcessTypeManagementPage = () => {
                                   side="right"
                                   align="center"
                                   sideOffset={6}
-                                  className="max-w-64 leading-snug break-words whitespace-normal"
+                                  className="max-w-64 leading-snug wrap-break-word whitespace-normal"
                                 >
                                   {dept.name}
                                 </TooltipContent>
@@ -1051,7 +1056,7 @@ const ProcessTypeManagementPage = () => {
 
       {/* Edit Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-3xl w-full max-h-[88vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-blue-600" />
@@ -1230,7 +1235,7 @@ const ProcessTypeManagementPage = () => {
                         </div>
                       </div>
                       <SelectScrollUpButton className="text-muted-foreground" />
-                      <div className="max-h-[200px] overflow-y-auto px-1 py-1">
+                      <div className="max-h-50 overflow-y-auto px-1 py-1">
                         <SelectItem value="none">No Department</SelectItem>
                         {filteredDepartments.length === 0 ? (
                           <div className="px-3 py-4 text-xs text-muted-foreground text-center">
@@ -1254,7 +1259,7 @@ const ProcessTypeManagementPage = () => {
                                   side="right"
                                   align="center"
                                   sideOffset={6}
-                                  className="max-w-64 leading-snug break-words whitespace-normal"
+                                  className="max-w-64 leading-snug wrap-break-word whitespace-normal"
                                 >
                                   {dept.name}
                                 </TooltipContent>
@@ -1392,9 +1397,10 @@ const ProcessTypeManagementPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* View Modal */}
+      {/* View handled by dedicated viewID route/modal */}
+      {/* Inline View Modal (single-column) */}
       <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-3xl w-full max-h-[88vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl">Process Type Details</DialogTitle>
             <DialogDescription>
@@ -1404,158 +1410,13 @@ const ProcessTypeManagementPage = () => {
 
           {viewingProcessType && (
             <div className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                {/* Basic Information */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-lg border-b pb-2">
-                    Basic Information
-                  </h3>
-
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">
-                      Process Code
-                    </label>
-                    <div className="mt-1">
-                      <Badge variant="outline" className="font-mono text-sm">
-                        {viewingProcessType.code || "N/A"}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">
-                      Name
-                    </label>
-                    <p className="text-base font-semibold mt-1">
-                      {viewingProcessType.name}
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">
-                      Description
-                    </label>
-                    <p className="text-base mt-1">
-                      {viewingProcessType.description ||
-                        "No description provided"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">
-                      Origin Department
-                    </label>
-                    <div className="mt-1">
-                      {viewingProcessType.originDepartment ? (
-                        <Badge variant="secondary" className="text-sm">
-                          {viewingProcessType.originDepartment.name}
-                        </Badge>
-                      ) : (
-                        <p className="text-base text-muted-foreground">
-                          No department assigned
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">
-                      Status
-                    </label>
-                    <div className="flex items-center gap-2 mt-1">
-                      {viewingProcessType.is_active ? (
-                        <>
-                          <CheckCircle2 className="h-5 w-5 text-green-600" />
-                          <Badge variant="default">Active</Badge>
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="h-5 w-5 text-gray-400" />
-                          <Badge variant="secondary">Inactive</Badge>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Duration & Timeline */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-lg border-b pb-2">
-                    Duration & Timeline
-                  </h3>
-
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">
-                      Duration
-                    </label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Clock className="h-5 w-5 text-blue-600" />
-                      <p className="text-base font-semibold">
-                        {viewingProcessType.duration_value
-                          ? formatDurationFromMinutes(viewingProcessType.duration_value)
-                          : "Not specified"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">
-                      Created At
-                    </label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Calendar className="h-5 w-5 text-gray-600" />
-                      <p className="text-sm">
-                        {new Date(
-                          viewingProcessType.created_at,
-                        ).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-gray-500">
-                      Last Updated
-                    </label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Calendar className="h-5 w-5 text-gray-600" />
-                      <p className="text-sm">
-                        {new Date(
-                          viewingProcessType.updated_at,
-                        ).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Process Type ID */}
-              <div className="border-t pt-4">
-                <label className="text-sm font-medium text-gray-500">
-                  Process Type ID
-                </label>
-                <code className="text-xs bg-gray-100 px-3 py-2 rounded block mt-2 break-all">
-                  {viewingProcessType.process_type_id}
-                </code>
-              </div>
+              <ViewProcessType id={viewingProcessType.process_type_id} />
             </div>
           )}
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsViewModalOpen(false)}
-            >
-              Close
-            </Button>
-            <Button
-              onClick={() => {
-                if (viewingProcessType) {
-                  setIsViewModalOpen(false);
-                  handleEdit(viewingProcessType);
-                }
-              }}
-            >
+            <Button type="button" variant="outline" onClick={() => setIsViewModalOpen(false)}>Close</Button>
+            <Button onClick={() => { if (viewingProcessType) { setIsViewModalOpen(false); handleEdit(viewingProcessType); } }}>
               <Edit className="h-4 w-4 mr-2" />
               Edit
             </Button>

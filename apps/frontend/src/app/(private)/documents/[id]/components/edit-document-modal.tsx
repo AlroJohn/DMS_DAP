@@ -549,7 +549,7 @@ export function EditDocumentModal({
             Make changes to your document here. Click save when you're done.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-grow overflow-y-auto p-6">
+        <div className="grow overflow-y-auto p-6">
           {isLoading ? (
             <div className="flex items-center justify-center h-96">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />

@@ -8,5 +8,6 @@ router.get('/admin/counts/departments', authMiddleware, counterController.getDep
 router.get('/admin/counts/document-types', authMiddleware, counterController.getDocumentTypeCount);
 router.get('/admin/counts/document-actions', authMiddleware, counterController.getDocumentActionCount);
 router.get('/admin/counts/users', authMiddleware, counterController.getUserCount);
+router.get('/admin/counts/process-types', authMiddleware, counterController.getProcessTypeCount);
 
 export default router;
