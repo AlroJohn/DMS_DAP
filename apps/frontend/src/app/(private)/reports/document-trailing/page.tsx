@@ -988,27 +988,51 @@ export default function DocumentTrailingPage() {
 
                             {/* Total document duration */}
                             {doc.documentCreatedAt && (
-                              <div className="p-3 bg-linear-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/20 rounded-md border border-purple-200 dark:border-purple-800">
+                              <div className={`p-3 rounded-md border ${
+                                doc.status === "completed" 
+                                  ? "bg-linear-to-br from-green-50 to-green-100 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800"
+                                  : "bg-linear-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/20 border-purple-200 dark:border-purple-800"
+                              }`}>
                                 <div className="mb-1">
-                                  <span className="text-xs font-semibold text-purple-900 dark:text-purple-100 uppercase tracking-wider">
-                                    Total Document Age
+                                  <span className={`text-xs font-semibold uppercase tracking-wider ${
+                                    doc.status === "completed"
+                                      ? "text-green-900 dark:text-green-100"
+                                      : "text-purple-900 dark:text-purple-100"
+                                  }`}>
+                                    {doc.status === "completed" ? "Completed At" : "Total Document Age"}
                                   </span>
                                 </div>
-                                <p className="text-lg font-bold text-purple-700 dark:text-purple-300">
-                                  {(() => {
-                                    const duration = calculateTotalDocumentDuration(doc.documentCreatedAt);
-                                    return duration.shortFormat;
-                                  })()}
-                                </p>
-                                <p className="text-xs text-purple-600 dark:text-purple-400 mt-0.5">
-                                  Since {format(new Date(doc.documentCreatedAt), "MMM d, yyyy")}
-                                </p>
+                                {doc.status === "completed" ? (
+                                  <>
+                                    <p className="text-lg font-bold text-green-700 dark:text-green-300">
+                                      {format(new Date(doc.actionDate), "MMM d, yyyy h:mm a")}
+                                    </p>
+                                    <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                                      {(() => {
+                                        const duration = calculateDuration(doc.documentCreatedAt, doc.actionDate);
+                                        return `Completed in ${duration.shortFormat}`;
+                                      })()}
+                                    </p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <p className="text-lg font-bold text-purple-700 dark:text-purple-300">
+                                      {(() => {
+                                        const duration = calculateTotalDocumentDuration(doc.documentCreatedAt);
+                                        return duration.shortFormat;
+                                      })()}
+                                    </p>
+                                    <p className="text-xs text-purple-600 dark:text-purple-400 mt-0.5">
+                                      Since {format(new Date(doc.documentCreatedAt), "MMM d, yyyy")}
+                                    </p>
+                                  </>
+                                )}
                               </div>
                             )}
                           </div>
 
                           {/* Process status if available */}
-                          {doc.processType && doc.processType.durationValue && doc.processType.durationUnit && doc.documentCreatedAt && (
+                          {doc.processType && doc.processType.durationValue && doc.processType.durationUnit && doc.documentCreatedAt && doc.status !== "completed" && (
                             <div className={`p-3 rounded-md border mt-2 ${(() => {
                                 const duration = calculateTotalDocumentDuration(doc.documentCreatedAt);
                                 const comparison = compareDurations(duration.days, doc.processType.durationValue, doc.processType.durationUnit);

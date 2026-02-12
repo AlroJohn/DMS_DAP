@@ -269,16 +269,44 @@ export default function DocumentTrailsDetailPage() {
                 </p>
               </div>
               <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Total Duration</p>
-                <p className="font-medium text-blue-700 dark:text-blue-300">
-                  {(() => {
-                    const duration = calculateDuration(documentInfo.createdAt, new Date().toISOString());
-                    return duration.shortFormat;
-                  })()}
+                <p className="text-sm text-muted-foreground">
+                  {documentInfo.status === "completed" ? "Completed At" : "Total Duration"}
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  Since {formatDate(new Date(documentInfo.createdAt), "MMM d, yyyy")}
-                </p>
+                {documentInfo.status === "completed" ? (
+                  <>
+                    <p className="font-medium text-green-700 dark:text-green-300">
+                      {(() => {
+                        const completedTrail = trails.find(t => t.status === "completed");
+                        if (completedTrail) {
+                          return formatDate(new Date(completedTrail.actionDate), "MMM d, yyyy h:mm a");
+                        }
+                        return "N/A";
+                      })()}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {(() => {
+                        const completedTrail = trails.find(t => t.status === "completed");
+                        if (completedTrail) {
+                          const duration = calculateDuration(documentInfo.createdAt, completedTrail.actionDate);
+                          return `Completed in ${duration.shortFormat}`;
+                        }
+                        return "";
+                      })()}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium text-blue-700 dark:text-blue-300">
+                      {(() => {
+                        const duration = calculateDuration(documentInfo.createdAt, new Date().toISOString());
+                        return duration.shortFormat;
+                      })()}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Since {formatDate(new Date(documentInfo.createdAt), "MMM d, yyyy")}
+                    </p>
+                  </>
+                )}
               </div>
               {documentInfo.processType && (
                 <div className="sm:col-span-2 lg:col-span-3 space-y-2">
