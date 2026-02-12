@@ -1,5 +1,4 @@
 import { Response } from 'express';
-import type { ParsedQs } from 'qs';
 import { AccessHistoryService } from '../services/access-history.service';
 import { AuthRequest } from '../middleware/auth-middleware';
 import { prisma } from '../lib/prisma';
@@ -12,10 +11,8 @@ export class AccessHistoryController {
   }
 
   // Helper method to extract string value from potentially array parameter
-  private getStringValue = (
-    param: string | ParsedQs | string[] | ParsedQs[] | (string | ParsedQs)[] | undefined
-  ): string | undefined => {
-    if (param === undefined) return undefined;
+  private getStringValue = (param: any): string | undefined => {
+    if (param === undefined || param === null) return undefined;
     if (typeof param === 'string') return param;
     if (Array.isArray(param)) {
       const first = param[0];
