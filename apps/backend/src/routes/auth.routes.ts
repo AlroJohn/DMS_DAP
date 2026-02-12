@@ -54,4 +54,20 @@ router.post('/user/:userId/roles', authMiddleware, authController.assignRoleToUs
 // DELETE /api/auth/user/:userId/roles/:roleId - Remove role from user (requires role_assign permission)
 router.delete('/user/:userId/roles/:roleId', authMiddleware, authController.removeRoleFromUser);
 
+// Two-Factor Authentication (2FA) endpoints
+// GET /api/auth/2fa/status - Get 2FA status (requires authentication)
+router.get('/2fa/status', authMiddleware, authController.get2FAStatus);
+
+// POST /api/auth/2fa/enable - Enable 2FA (requires authentication)
+router.post('/2fa/enable', authMiddleware, authController.enable2FA);
+
+// POST /api/auth/2fa/disable - Disable 2FA (requires authentication)
+router.post('/2fa/disable', authMiddleware, authController.disable2FA);
+
+// POST /api/auth/2fa/send-code - Send 2FA verification code (no auth required - uses temp token)
+router.post('/2fa/send-code', authController.send2FACode);
+
+// POST /api/auth/2fa/verify - Verify 2FA code and complete login (no auth required - uses temp token)
+router.post('/2fa/verify', authController.verify2FACode);
+
 export default router;

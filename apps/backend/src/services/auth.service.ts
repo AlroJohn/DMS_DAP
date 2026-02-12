@@ -169,7 +169,13 @@ export class AuthService {
   /**
    * Login user
    */
-  async login(credentials: LoginCredentials): Promise<{ user: Omit<User, 'password'>; token: string; refreshToken: string }> {
+  async login(credentials: LoginCredentials): Promise<{ 
+    user: Omit<User, 'password'>; 
+    token: string; 
+    refreshToken: string;
+    requires2FA?: boolean;
+    tempToken?: string;
+  }> {
     console.log(`[AuthService] Login attempt for email: ${credentials.email}`);
     // Find account by email in database
     const account = await prisma.account.findUnique({
@@ -201,6 +207,30 @@ export class AuthService {
 
     if (!account.user) {
       throw new Error('User profile not found');
+    }
+
+    // Check if 2FA is enabled
+    const twoFactorEnabled = (account as any).two_factor_enabled || false;
+    if (twoFactorEnabled) {
+      console.log(`[AuthService] 2FA required for email: ${credentials.email}`);
+      // Generate temporary token for 2FA verification
+      const tempToken = jwt.sign(
+        { 
+          email: account.email, 
+          accountId: account.account_id,
+          purpose: '2fa_pending'
+        },
+        config.jwt.secret,
+        { expiresIn: '10m' }
+      );
+
+      return {
+        user: {} as Omit<User, 'password'>,
+        token: '',
+        refreshToken: '',
+        requires2FA: true,
+        tempToken
+      };
     }
 
     const now = new Date();
@@ -285,6 +315,7 @@ export class AuthService {
       user: this.sanitizeUser(user),
       token,
       refreshToken,
+      requires2FA: false
     };
   }
 
@@ -1201,16 +1232,44 @@ export class AuthService {
 
       // Get user permissions
       let permissions: Permission[] = [];
+      const roleCodes: string[] = [];
       if (account.user) {
         permissions = await this.permissionService.getUserPermissions(account.user.user_id);
+        account.user.user_roles?.forEach((ur: any) => {
+          if (ur.role?.code) {
+            roleCodes.push(ur.role.code);
+          }
+        });
       }
 
-      // Generate tokens
-      const token = this.generateToken(account.account_id, account.email, permissions);
-      const refreshToken = this.generateRefreshToken(account.account_id);
+      if (!account.user) {
+        throw new Error('User profile not found');
+      }
 
-      // Get user data
-      const userData = await this.getUserData(account);
+      // Build user object for token generation
+      const user: User = {
+        id: account.user.user_id,
+        accountId: account.account_id,
+        email: account.email,
+        name: `${account.user.first_name} ${account.user.last_name}`,
+        password: '',
+        permissions: permissions,
+        roles: account.user.user_roles?.map((ur: any) => ur.role) || [],
+        department_id: account.user.department_id,
+        first_name: account.user.first_name,
+        last_name: account.user.last_name,
+        middle_name: account.user.middle_name,
+        user_name: account.user.user_name,
+        title: account.user.title,
+        type: account.user.type,
+        avatar: account.user.avatar,
+        active: account.user.active,
+        created_at: account.user.created_at,
+        updated_at: account.user.updated_at
+      };
+
+      // Generate tokens
+      const { token, refreshToken } = this.generateTokens(user, roleCodes);
 
       // Update last login
       await prisma.account.update({
@@ -1219,7 +1278,7 @@ export class AuthService {
       });
 
       return {
-        user: userData,
+        user: this.sanitizeUser(user),
         token,
         refreshToken
       };

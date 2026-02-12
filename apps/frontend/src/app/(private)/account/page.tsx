@@ -31,6 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SignaturePad } from "@/components/signature-pad";
 import { PenTool } from "lucide-react";
 import { ChangePasswordModal } from "@/components/modals/change-password-modal";
+import { TwoFactorSettingsModal } from "@/components/modals/two-factor-settings-modal";
 
 export default function AccountPage() {
   const { user, isLoading, login } = useAuth();
@@ -38,6 +39,8 @@ export default function AccountPage() {
   const [isEditing, setIsEditing] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isSavingSignature, setIsSavingSignature] = React.useState(false);
+  const [show2FASettings, setShow2FASettings] = React.useState(false);
+  const [twoFactorEnabled, setTwoFactorEnabled] = React.useState(false);
   const [signature, setSignature] = React.useState<string | null>(
     user?.signature || null,
   );
@@ -696,7 +699,11 @@ export default function AccountPage() {
               >
                 Change Password
               </Button>
-              <Button variant="outline" className="w-full justify-start">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => setShow2FASettings(true)}
+              >
                 Two-Factor Authentication
               </Button>
               <Separator />
@@ -722,6 +729,12 @@ export default function AccountPage() {
           setShowNewPassword(false);
           setShowConfirmNewPassword(false);
         }}
+      />
+      <TwoFactorSettingsModal
+        isOpen={show2FASettings}
+        onClose={() => setShow2FASettings(false)}
+        twoFactorEnabled={twoFactorEnabled}
+        onStatusChange={setTwoFactorEnabled}
       />
     </>
   );

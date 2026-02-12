@@ -195,6 +195,7 @@ async function main() {
           password: superAdminPassword,
           email_verified: true,
           is_active: true,
+          two_factor_enabled: false,
           last_login: new Date(),
           department_id: tempDepartment.department_id
         }
@@ -641,6 +642,7 @@ async function main() {
             password: superAdminPassword,
             email_verified: true,
             is_active: true,
+            two_factor_enabled: false,
             last_login: new Date(),
             department_id: tempDepartment.department_id
           }
@@ -1204,6 +1206,7 @@ async function main() {
             password: commonPassword,
             email_verified: true,
             is_active: true,
+            two_factor_enabled: false,
             last_login: new Date(),
             department_id: params.departmentId
           },

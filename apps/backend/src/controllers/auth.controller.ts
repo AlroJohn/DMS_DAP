@@ -79,7 +79,18 @@ export class AuthController {
     const credentials: LoginCredentials = { email, password }; // Define credentials
 
     try {
-      const { user, token, refreshToken } = await this.authService.login(credentials);
+      const { user, token, refreshToken, requires2FA, tempToken } = await this.authService.login(credentials);
+      
+      // Check if 2FA is required
+      if (requires2FA && tempToken) {
+        return sendSuccess(res, { 
+          requires2FA: true, 
+          tempToken,
+          email,
+          message: 'Two-factor authentication required. Please check your email for the verification code.'
+        });
+      }
+      
       const accessTokenMaxAge = parseExpiresIn(config.jwt.expiresIn);
       const refreshTokenMaxAge = parseExpiresIn(config.jwt.refreshExpiresIn);
 

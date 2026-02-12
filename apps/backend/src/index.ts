@@ -21,6 +21,7 @@ import cookieParser from 'cookie-parser'; // Import cookie-parser
 import { AuthService } from './services/auth.service';
 import { UserService } from './services/user.service';
 import { ScheduledReportsProcessor } from './services/scheduled-reports.processor';
+import { recycleBinCleanupProcessor } from './services/recycle-bin-cleanup.processor';
 
 // Import routes
 import authRoutes from './routes/auth.routes';
@@ -549,6 +550,9 @@ dbMonitor.startMonitoring(30000); // Monitor every 30 seconds
 const scheduledReportsProcessor = new ScheduledReportsProcessor();
 scheduledReportsProcessor.start();
 
+// Start recycle bin cleanup processor (auto-delete after 5 days)
+recycleBinCleanupProcessor.start();
+
 // Start server
 server.listen(config.port, () => {
   console.log(`🚀 Server is running on port ${config.port}`);
@@ -556,6 +560,7 @@ server.listen(config.port, () => {
   console.log(`🔗 Health check: http://localhost:${config.port}/health`);
   console.log(`📡 Socket.IO enabled`);
   console.log(`🔐 Security: ${securityConfig.audit.enableAuditLog ? 'Enabled' : 'Disabled'}`);
+  console.log(`🗑️ Recycle bin auto-cleanup: Documents deleted after ${recycleBinCleanupProcessor.getRetentionDays()} days`);
 });
 
 // Graceful shutdown
@@ -563,6 +568,7 @@ process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully');
   dbMonitor.stopMonitoring();
   scheduledReportsProcessor.stop();
+  recycleBinCleanupProcessor.stop();
   await disconnectPrisma();
   server.close(() => {
     console.log('Process terminated');
@@ -574,6 +580,7 @@ process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully');
   dbMonitor.stopMonitoring();
   scheduledReportsProcessor.stop();
+  recycleBinCleanupProcessor.stop();
   await disconnectPrisma();
   server.close(() => {
     console.log('Process terminated');

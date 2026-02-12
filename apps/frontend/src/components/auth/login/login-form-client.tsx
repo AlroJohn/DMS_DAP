@@ -33,6 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { TwoFactorAuthModal } from "@/components/modals/two-factor-auth-modal";
 
 export function LoginFormClient({
   className,
@@ -42,6 +43,8 @@ export function LoginFormClient({
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [show2FAModal, setShow2FAModal] = useState(false);
+  const [tempToken, setTempToken] = useState("");
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth(); // Use the login function
@@ -82,6 +85,16 @@ export function LoginFormClient({
       });
 
       if (response.ok) {
+        const data = await response.json();
+
+        // Check if 2FA is required
+        if (data.data?.requires2FA && data.data?.tempToken) {
+          setIsLoading(false);
+          setTempToken(data.data.tempToken);
+          setShow2FAModal(true);
+          return;
+        }
+
         // Trigger the login function from useAuth to re-fetch user data and update state
         await login();
 
@@ -98,6 +111,17 @@ export function LoginFormClient({
       setIsLoading(false);
       setPassword("");
     }
+  };
+
+  const handle2FAVerifySuccess = async () => {
+    setShow2FAModal(false);
+    setTempToken("");
+    
+    // Trigger the login function from useAuth to re-fetch user data and update state
+    await login();
+
+    // Redirect to home after auth state is refreshed
+    router.push("/home");
   };
 
   return (
@@ -255,6 +279,19 @@ export function LoginFormClient({
           </div>
         </CardContent>
       </Card>
+
+      {/* Two-Factor Authentication Modal */}
+      <TwoFactorAuthModal
+        isOpen={show2FAModal}
+        onClose={() => {
+          setShow2FAModal(false);
+          setTempToken("");
+          setPassword("");
+        }}
+        email={email}
+        tempToken={tempToken}
+        onVerifySuccess={handle2FAVerifySuccess}
+      />
     </div>
   );
 }

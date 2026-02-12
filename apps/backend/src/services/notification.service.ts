@@ -93,7 +93,7 @@ export class NotificationService {
   /**
    * Send email notification based on type
    */
-  private async sendEmailNotification(userId: string, title: string, message: string, metadata?: any) {
+  private async sendEmailNotification(userId: string, title: string, message: string, metadata?: any, workflowEvent?: string) {
     try {
       // Get user email
       const user = await prisma.user.findUnique({
@@ -112,9 +112,20 @@ export class NotificationService {
 
       const recipientName = `${user.first_name} ${user.last_name}`;
       const recipientEmail = user.account.email;
-      const documentUrl = metadata?.documentId 
-        ? `${process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000'}/documents/${metadata.documentId}`
-        : undefined;
+      
+      // Construct document URL with appropriate query parameters based on notification type
+      let documentUrl: string | undefined;
+      if (metadata?.documentId) {
+        const baseUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000';
+        const documentPath = `/documents/${metadata.documentId}`;
+        
+        // Add mode=sign query parameter for signature-related notifications
+        if (workflowEvent === 'signature_pending') {
+          documentUrl = `${baseUrl}${documentPath}?mode=sign&returnTo=%2Fdocuments`;
+        } else {
+          documentUrl = `${baseUrl}${documentPath}`;
+        }
+      }
 
       // Send appropriate email based on notification type
       const emailData = {
@@ -184,7 +195,7 @@ export class NotificationService {
       // Send email notification if enabled
       if (sendEmail) {
         console.log(`[NotificationService] Sending email notification to user ${userId}`);
-        this.sendEmailNotification(userId, title, message, metadata).catch((error) => {
+        this.sendEmailNotification(userId, title, message, metadata, workflowEvent).catch((error) => {
           console.error(
             `[NotificationService] Email notification failed for user ${userId}:`,
             error,
