@@ -93,9 +93,9 @@ export class HomeCMSService {
   }
 
   /**
-   * Delete file by URL from database and S3
+   * Delete file by URL from database and S3 (public method)
    */
-  private async deleteFileByUrl(fileUrl: string) {
+  async deleteFileByUrl(fileUrl: string) {
     try {
       console.log(`🔍 Searching for file in database: ${fileUrl}`);
       
@@ -112,12 +112,12 @@ export class HomeCMSService {
         console.log(`📁 Found file in database (ID: ${file.file_id}), proceeding to delete from S3 and database`);
         // Permanently delete the file (from S3 and database)
         await fileUploadService.permanentlyDeleteFile(file.file_id);
-        console.log(`Successfully deleted old file from S3 bucket and database: ${fileUrl}`);
+        console.log(`✅ Successfully deleted old file from S3 bucket and database: ${fileUrl}`);
       } else {
-        console.warn(`File not found in database (may have been manually deleted): ${fileUrl}`);
+        console.warn(`⚠️ File not found in database (may have been manually deleted): ${fileUrl}`);
       }
     } catch (error: any) {
-      console.error(`Error deleting file by URL ${fileUrl}:`, error.message || error);
+      console.error(`❌ Error deleting file by URL ${fileUrl}:`, error.message || error);
       // Don't throw - we log the error but don't want to stop the CMS update
     }
   }
