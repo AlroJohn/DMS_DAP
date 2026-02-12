@@ -613,4 +613,123 @@ export class AuthController {
     // Return the token for Socket.IO authentication
     return sendSuccess(res, { token });
   });
+
+  /**
+   * POST /api/auth/2fa/enable - Enable two-factor authentication
+   */
+  enable2FA = asyncHandler(async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
+
+    if (!authReq.user) {
+      return sendError(res, 'User not authenticated', 401);
+    }
+
+    try {
+      const result = await this.authService.enable2FA(authReq.user.id);
+      return sendSuccess(res, { 
+        message: 'Two-factor authentication enabled successfully',
+        two_factor_enabled: result.two_factor_enabled 
+      });
+    } catch (error: any) {
+      return sendError(res, error.message, 500);
+    }
+  });
+
+  /**
+   * POST /api/auth/2fa/disable - Disable two-factor authentication
+   */
+  disable2FA = asyncHandler(async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
+
+    if (!authReq.user) {
+      return sendError(res, 'User not authenticated', 401);
+    }
+
+    const { password } = req.body;
+
+    if (!password) {
+      return sendError(res, 'Password is required to disable 2FA', 400);
+    }
+
+    try {
+      const result = await this.authService.disable2FA(authReq.user.id, password);
+      return sendSuccess(res, { 
+        message: 'Two-factor authentication disabled successfully',
+        two_factor_enabled: result.two_factor_enabled 
+      });
+    } catch (error: any) {
+      return sendError(res, error.message, 400);
+    }
+  });
+
+  /**
+   * GET /api/auth/2fa/status - Get 2FA status for current user
+   */
+  get2FAStatus = asyncHandler(async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
+
+    if (!authReq.user) {
+      return sendError(res, 'User not authenticated', 401);
+    }
+
+    try {
+      const status = await this.authService.get2FAStatus(authReq.user.id);
+      return sendSuccess(res, { two_factor_enabled: status });
+    } catch (error: any) {
+      return sendError(res, error.message, 500);
+    }
+  });
+
+  /**
+   * POST /api/auth/2fa/send-code - Send 2FA verification code
+   */
+  send2FACode = asyncHandler(async (req: Request, res: Response) => {
+    const { email, tempToken } = req.body;
+
+    if (!email || !tempToken) {
+      return sendError(res, 'Email and tempToken are required', 400);
+    }
+
+    try {
+      await this.authService.send2FACode(email, tempToken);
+      return sendSuccess(res, { message: 'Verification code sent successfully' });
+    } catch (error: any) {
+      return sendError(res, error.message, 400);
+    }
+  });
+
+  /**
+   * POST /api/auth/2fa/verify - Verify 2FA code and complete login
+   */
+  verify2FACode = asyncHandler(async (req: Request, res: Response) => {
+    const { email, code, tempToken } = req.body;
+
+    if (!email || !code || !tempToken) {
+      return sendError(res, 'Email, code, and tempToken are required', 400);
+    }
+
+    try {
+      const result = await this.authService.verify2FACodeAndLogin(email, code, tempToken);
+      const accessTokenMaxAge = parseExpiresIn(config.jwt.expiresIn);
+      const refreshTokenMaxAge = parseExpiresIn(config.jwt.refreshExpiresIn);
+
+      // Set session cookies
+      res.cookie('accessToken', result.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: accessTokenMaxAge,
+      });
+      res.cookie('refreshToken', result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: refreshTokenMaxAge,
+      });
+
+      return sendSuccess(res, { user: result.user });
+    } catch (error: any) {
+      return sendError(res, error.message, 401);
+    }
+  });
 }

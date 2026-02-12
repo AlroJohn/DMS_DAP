@@ -1275,49 +1275,29 @@ export function ViewDocumentsModal({
                       </div>
                     )}
 
-                    {/* QR Code and Barcode */}
-                    <div className="bg-gray-50 rounded-lg p-6 border">
+                    {/* QR Code */}
+                    <div className="bg-background rounded-lg p-6 border">
                       <h4 className="font-semibold text-center mb-6">
-                        QR Code and Barcode
+                        QR Code
                       </h4>
-                      <div className="flex items-center justify-around gap-8">
+                      <div className="flex items-center justify-center">
                         <div className="text-center">
                           <label className="text-sm text-muted-foreground block mb-3">
                             QR Code
                           </label>
                           {document.qrCode ? (
-                            <img
-                              src={document.qrCode}
-                              alt="QR Code"
-                              className="w-48 h-48 mx-auto border-2 border-gray-200 rounded-lg p-2 bg-background"
-                            />
+                            <div className="rounded-md bg-gray-50">
+                              <img
+                                src={document.qrCode}
+                                alt="QR Code"
+                                className="w-48 h-48 mx-auto border-2 border-gray-200 rounded-lg p-2 bg-background"
+                              />
+                            </div>
                           ) : (
                             <div className="w-48 h-48 mx-auto border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-background">
                               <FileText className="h-12 w-12 text-gray-400" />
                             </div>
                           )}
-                        </div>
-
-                        <div className="text-center flex-1 max-w-lg">
-                          <label className="text-sm text-muted-foreground block mb-3">
-                            Barcode
-                          </label>
-                          {document.barcode ? (
-                            <div className="bg-background border-2 border-gray-200 rounded-lg p-4">
-                              <img
-                                src={document.barcode}
-                                alt="Barcode"
-                                className="w-full h-32 object-contain"
-                              />
-                            </div>
-                          ) : (
-                            <div className="h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-background">
-                              <FileText className="h-12 w-12 text-gray-400" />
-                            </div>
-                          )}
-                          <p className="text-xs text-muted-foreground mt-2 font-mono">
-                            {document.tracking_code || document.document_id}
-                          </p>
                         </div>
                       </div>
                     </div>

@@ -9,6 +9,7 @@ export interface RecycleBinDocument {
   contactPerson: string;
   contactOrganization: string;
   type: string;
+  origin: string;
   process_type_id?: string | null;
   classification: string;
   currentLocation: string;

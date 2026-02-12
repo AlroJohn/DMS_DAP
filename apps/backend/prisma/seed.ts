@@ -1096,7 +1096,7 @@ async function main() {
       const durationSummary = formatDurationSummary(definition.breakdown);
       const baseProcessCode = definition.code || deriveAcronym(definition.name);
       const uniqueCode = `${baseProcessCode}_${sanitizeDepartmentCode(departmentCode)}`;
-      const uniqueName = `${definition.name} (${departmentCode}) [${definition.key}]`;
+      const uniqueName = `${definition.name} (${departmentCode})`;
       const descriptionWithDuration = `${definition.description} (${durationSummary})`;
 
       await prisma.processType.upsert({

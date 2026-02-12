@@ -7,7 +7,14 @@ import { DataTableRowActions } from "@/components/reuseable/tables/data-table-ro
 import { DataTableColumnHeader } from "@/components/reuseable/tables/data-table-column-header";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Copy, User, Building2, Check, PackageCheck, Loader2 } from "lucide-react";
+import {
+  Copy,
+  User,
+  Building2,
+  Check,
+  PackageCheck,
+  Loader2,
+} from "lucide-react";
 import { ScanCodes } from "@/components/ui/scan-codes";
 import { useReceiveDocument } from "@/hooks/use-receive-document";
 import { useState } from "react";
@@ -49,7 +56,8 @@ export type IncomingDocument = {
   releaseRemarks?: string | null;
 };
 
-const formatText = (text: string): string => {
+const formatText = (text: string | null | undefined): string => {
+  if (!text) return "N/A";
   return text
     .replace(/_/g, " ")
     .toLowerCase()
@@ -94,7 +102,7 @@ function ReceiveButton({
       setIsReceived(true);
       onReceived?.();
       setOpen(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // The onError in the hook will show the toast.
       console.error("Receiving document failed", error);
     }
@@ -133,39 +141,54 @@ function ReceiveButton({
       </AlertDialogTrigger>
       <AlertDialogContent className="sm:max-w-lg">
         <AlertDialogHeader>
-            <div className="flex flex-col items-center text-center space-y-2">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
-                    <PackageCheck className="h-9 w-9 text-blue-600" />
-                </div>
-                <AlertDialogTitle className="text-2xl font-bold">
-                    Confirm Document Receipt
-                </AlertDialogTitle>
-                <AlertDialogDescription className="text-base px-4">
-                    You are about to confirm receipt of a document. This action is final.
-                </AlertDialogDescription>
+          <div className="flex flex-col items-center text-center space-y-2">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
+              <PackageCheck className="h-9 w-9 text-blue-600" />
             </div>
+            <AlertDialogTitle className="text-2xl font-bold">
+              Confirm Document Receipt
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-base px-4">
+              You are about to confirm receipt of a document. This action is
+              final.
+            </AlertDialogDescription>
+          </div>
         </AlertDialogHeader>
 
         <div className="my-6 space-y-6 rounded-lg border bg-background p-6 text-base">
-            <div className="space-y-2">
-                <p className="font-semibold text-muted-foreground">Requested Action</p>
-                <p className="font-bold text-lg text-primary">{actionLabel}</p>
-            </div>
-            <div className="space-y-2">
-                <p className="font-semibold text-muted-foreground">Release Remarks</p>
-                <p className="text-muted-foreground italic">"{remarksLabel}"</p>
-            </div>
+          <div className="space-y-2">
+            <p className="font-semibold text-muted-foreground">
+              Requested Action
+            </p>
+            <p className="font-bold text-lg text-primary">{actionLabel}</p>
+          </div>
+          <div className="space-y-2">
+            <p className="font-semibold text-muted-foreground">
+              Release Remarks
+            </p>
+            <p className="text-muted-foreground italic">"{remarksLabel}"</p>
+          </div>
         </div>
 
         <AlertDialogFooter className="grid grid-cols-2 gap-4 pt-4">
-            <AlertDialogCancel disabled={isLoading} className="h-12 text-lg">Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleReceive} disabled={isLoading} className="h-12 text-lg bg-blue-600 hover:bg-blue-700">
-                {isLoading ? (
-                    <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Working...</>
-                ) : (
-                    <><Check className="mr-2 h-5 w-5" /> Confirm</>
-                )}
-            </AlertDialogAction>
+          <AlertDialogCancel disabled={isLoading} className="h-12 text-lg">
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleReceive}
+            disabled={isLoading}
+            className="h-12 text-lg bg-blue-600 hover:bg-blue-700"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Working...
+              </>
+            ) : (
+              <>
+                <Check className="mr-2 h-5 w-5" /> Confirm
+              </>
+            )}
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -181,7 +204,7 @@ export const createIncomingColumns = (
       duration_value?: number | null;
       duration_unit?: string | null;
     }
-  > = {}
+  > = {},
 ): ColumnDef<IncomingDocument>[] => [
   {
     id: "select",
@@ -323,6 +346,35 @@ export const createIncomingColumns = (
     },
   },
   {
+    accessorKey: "origin",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Origin" />
+    ),
+    cell: ({ row }) => {
+      const origin = (row.original as any).origin;
+      if (!origin) return <span className="text-xs text-muted-foreground">-</span>;
+      return (
+        <Badge
+          variant={origin === "internal" ? "default" : "outline"}
+          className="font-medium text-xs px-1.5 py-0.5"
+        >
+          {formatText(origin)}
+        </Badge>
+      );
+    },
+    enableSorting: true,
+    enableHiding: true,
+    filterFn: (row, id, value) => {
+      if (!value || (Array.isArray(value) && value.length === 0)) return true;
+      const origin = String(row.getValue(id) ?? "").toLowerCase();
+      return Array.isArray(value)
+        ? (value as string[]).some(
+            (v) => String(v).toLowerCase() === origin,
+          )
+        : false;
+    },
+  },
+  {
     accessorKey: "classification",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Classification" />
@@ -345,7 +397,7 @@ export const createIncomingColumns = (
       const classification = String(row.getValue(id) ?? "").toLowerCase();
       return Array.isArray(value)
         ? (value as string[]).some(
-            (v) => String(v).toLowerCase() === classification
+            (v) => String(v).toLowerCase() === classification,
           )
         : false;
     },
@@ -472,7 +524,7 @@ export const createIncomingColumns = (
       const processType = String(row.getValue(id) ?? "").toLowerCase();
       return Array.isArray(value)
         ? (value as string[]).some(
-            (v) => String(v).toLowerCase() === processType
+            (v) => String(v).toLowerCase() === processType,
           )
         : false;
     },

@@ -186,7 +186,7 @@ export class DocumentController {
     const { id } = req.params;
     const idStr = getStringValue(id);
     const files = (req as any).files as Express.Multer.File[] | undefined;
-    const { versionGroupId, enableOcr } = req.body; // Get versionGroupId and enableOcr from request body if provided
+    const { versionGroupId, enableOcr, documentGroupId, documentGroupName } = req.body;
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -204,7 +204,9 @@ export class DocumentController {
       files,
       authReq.user.id,
       versionGroupId,
-      enableOcr === 'true'
+      enableOcr === 'true',
+      documentGroupId,
+      documentGroupName
     );
 
     return sendSuccess(res, uploaded, 201);

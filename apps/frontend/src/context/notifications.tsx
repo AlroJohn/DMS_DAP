@@ -24,6 +24,7 @@ interface NotificationsContextType {
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
   deleteNotification: (id: string) => void;
+  deleteAllNotifications: () => Promise<void>;
   fetchNotifications: () => Promise<void>;
 }
 
@@ -72,11 +73,17 @@ export const NotificationsProvider = ({
       fetchNotifications();
     };
 
+    const onAllNotificationsDeleted = () => {
+      // All notifications have been deleted, fetch all notifications to update the UI
+      fetchNotifications();
+    };
+
     // Listen to socket events for real-time updates
     socket.on('new_notification', onNewNotification);
     socket.on('notification_updated', onNotificationUpdated);
     socket.on('all_notifications_read', onAllNotificationsRead);
     socket.on('notification_deleted', onNotificationDeleted);
+    socket.on('all_notifications_deleted', onAllNotificationsDeleted);
 
     // Also listen to workflow events that should trigger notifications
     socket.on('document_shared', onNewNotification);
@@ -94,6 +101,7 @@ export const NotificationsProvider = ({
       socket.off('notification_updated', onNotificationUpdated);
       socket.off('all_notifications_read', onAllNotificationsRead);
       socket.off('notification_deleted', onNotificationDeleted);
+      socket.off('all_notifications_deleted', onAllNotificationsDeleted);
       socket.off('document_shared', onNewNotification);
       socket.off('document_released', onNewNotification);
       socket.off('document_completed', onNewNotification);
@@ -240,6 +248,29 @@ export const NotificationsProvider = ({
     }
   };
 
+  const deleteAllNotifications = async () => {
+    try {
+      const response = await fetch('/api/notifications/delete-all', {
+        method: 'DELETE',
+        credentials: 'include', // Include cookies for authentication
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete all notifications');
+      }
+      
+      // The socket event will handle updating the UI
+      toast.success('All notifications deleted');
+    } catch (error) {
+      console.error('Error deleting all notifications:', error);
+      toast.error('Failed to delete all notifications');
+    }
+  };
+
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
@@ -251,6 +282,7 @@ export const NotificationsProvider = ({
         markAsRead,
         markAllAsRead,
         deleteNotification,
+        deleteAllNotifications,
         fetchNotifications,
       }}
     >

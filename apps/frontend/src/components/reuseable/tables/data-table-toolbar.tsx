@@ -69,6 +69,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { CreateDocumentModal } from "@/components/modals/create-document-modal";
 import { UploadDocumentModal } from "@/app/(private)/documents/[id]/components/upload-document-modal";
 import { DocumentFiltersModal } from "@/components/modals/document-filters-modal";
@@ -481,6 +482,7 @@ export function DataTableToolbar<TData>({
   const [isFiltersModalOpen, setFiltersModalOpen] = React.useState(false);
   const [selectedDocuments, setSelectedDocuments] = React.useState<any[]>([]);
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = React.useState(false);
+  const [bulkDeleteConfirmInput, setBulkDeleteConfirmInput] = React.useState("");
   const [isBulkArchiveOpen, setIsBulkArchiveOpen] = React.useState(false);
   const [isBulkCompleteOpen, setIsBulkCompleteOpen] = React.useState(false);
   const [isBulkCancelOpen, setIsBulkCancelOpen] = React.useState(false);
@@ -609,11 +611,12 @@ export function DataTableToolbar<TData>({
       }
 
       table.toggleAllRowsSelected(false); // Clear selection
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error moving documents to recycle bin:", error);
       toast.error("Failed to move documents to recycle bin");
     } finally {
       setIsBulkDeleteOpen(false);
+      setBulkDeleteConfirmInput("");
     }
   };
 
@@ -989,23 +992,48 @@ export function DataTableToolbar<TData>({
         onClose={() => setIsTransmitByCodeOpen(false)}
       />
       {/* Bulk Delete Confirmation Dialog */}
-      <Dialog open={isBulkDeleteOpen} onOpenChange={setIsBulkDeleteOpen}>
+      <Dialog 
+        open={isBulkDeleteOpen} 
+        onOpenChange={(open) => {
+          setIsBulkDeleteOpen(open);
+          if (!open) setBulkDeleteConfirmInput("");
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Confirm Bulk Delete</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete {selectedRows.length} document(s)?
-              This action cannot be undone.
+              This action cannot be undone. To confirm, please type YES below.
             </DialogDescription>
           </DialogHeader>
+          <div className="py-4 space-y-2">
+            <Label htmlFor="bulk-delete-confirm" className="text-sm text-muted-foreground">
+              Type <span className="font-mono font-semibold text-foreground">YES</span> to confirm
+            </Label>
+            <Input
+              id="bulk-delete-confirm"
+              value={bulkDeleteConfirmInput}
+              onChange={(e) => setBulkDeleteConfirmInput(e.target.value)}
+              placeholder="Type YES to confirm"
+              autoComplete="off"
+            />
+          </div>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsBulkDeleteOpen(false)}
+              onClick={() => {
+                setIsBulkDeleteOpen(false);
+                setBulkDeleteConfirmInput("");
+              }}
             >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleBulkDelete}>
+            <Button 
+              variant="destructive" 
+              onClick={handleBulkDelete}
+              disabled={bulkDeleteConfirmInput !== "YES"}
+            >
               Delete
             </Button>
           </DialogFooter>

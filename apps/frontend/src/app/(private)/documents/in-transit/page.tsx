@@ -16,6 +16,7 @@ import { useSocket } from "@/components/providers/providers";
 import { toast } from "sonner";
 import { useProcessType } from "@/hooks/use-process.type";
 import { useDocumentSidebarCounts } from "@/hooks/use-document-sidebar-counts";
+import { FullPageLoader } from "@/components/reuseable/full-page-loader";
 
 export default function InTransitDocumentsPage() {
   const searchParams = useSearchParams();
@@ -25,6 +26,7 @@ export default function InTransitDocumentsPage() {
   const [activeTab, setActiveTab] = useState<"incoming" | "outgoing">(
     initialTab
   );
+  const [isReceiving, setIsReceiving] = useState(false);
   const { socket } = useSocket();
   const mountedRef = useRef(false);
   const router = useRouter();
@@ -137,6 +139,7 @@ export default function InTransitDocumentsPage() {
   }, [socket, refetchIncoming, refetchOutgoing]);
 
   const handleReceiveSuccess = () => {
+    setIsReceiving(true);
     refetchIncoming();
     toast.success("Document received successfully!", {
       description: "Redirecting to shared documents...",
@@ -152,7 +155,9 @@ export default function InTransitDocumentsPage() {
     outgoingError && outgoingError.includes("Authentication required");
 
   return (
-    <div className="flex h-full flex-col gap-4 p-4 bg-background">
+    <>
+      {isReceiving && <FullPageLoader message="Receiving document" />}
+      <div className="flex h-full flex-col gap-4 p-4 bg-background">
       <Tabs
         value={activeTab}
         className="w-full"
@@ -200,6 +205,7 @@ export default function InTransitDocumentsPage() {
                 "document",
                 "contact",
                 "type",
+                "origin",
                 "processType",
                 "classification",
                 "status",
@@ -250,6 +256,7 @@ export default function InTransitDocumentsPage() {
                 "document",
                 "contact",
                 "type",
+                "origin",
                 "processType",
                 "classification",
                 "status",
@@ -261,5 +268,6 @@ export default function InTransitDocumentsPage() {
         </TabsContent>
       </Tabs>
     </div>
+    </>
   );
 }

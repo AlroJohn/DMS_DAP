@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { DataTable } from "@/components/reuseable/tables/data-table";
 import { getColumns } from "./columns";
@@ -35,10 +35,10 @@ export default function SharedDocumentsPage() {
     useState<SharedDocument | null>(null);
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "active");
 
-  const handleSignClick = (document: SharedDocument) => {
+  const handleSignClick = useCallback((document: SharedDocument) => {
     setSelectedDocument(document);
     setIsSignModalOpen(true);
-  };
+  }, []);
 
   const handleSignConfirm = async (signatureData: string) => {
     if (!selectedDocument) return;
@@ -92,14 +92,31 @@ export default function SharedDocumentsPage() {
     [processTypes]
   );
 
+  // Store refetch in a ref to avoid re-subscribing socket listeners and recreating columns
+  const refetchRef = useRef(refetch);
+  useEffect(() => {
+    refetchRef.current = refetch;
+  }, [refetch]);
+
+  // Store documents in a ref for the cancel handler without triggering re-subscriptions
+  const documentsRef = useRef(documents);
+  useEffect(() => {
+    documentsRef.current = documents;
+  }, [documents]);
+
+  // Create a stable refetch callback using ref
+  const stableRefetch = useCallback(() => {
+    refetchRef.current();
+  }, []);
+
   const columns = useMemo(
     () =>
       getColumns({
         onSign: handleSignClick,
-        onRefetch: refetch,
+        onRefetch: stableRefetch,
         processTypeMap,
       }),
-    [refetch, processTypeMap]
+    [handleSignClick, stableRefetch, processTypeMap]
   );
 
   // Mark component as mounted and clean up on unmount
@@ -123,7 +140,7 @@ export default function SharedDocumentsPage() {
     const safeRefetch = async () => {
       if (mountedRef.current) {
         try {
-          await refetch();
+          await refetchRef.current();
         } catch (err) {
           console.error("Error refetching shared documents:", err);
         }
@@ -141,7 +158,7 @@ export default function SharedDocumentsPage() {
       const documentId = payload?.documentId;
       if (!documentId) return;
 
-      const isInList = documents.some((doc) => doc.id === documentId);
+      const isInList = documentsRef.current.some((doc) => doc.id === documentId);
       if (isInList) {
         toast.error(
           `Document cancelled: ${payload?.documentTitle || "Unknown document"}`,
@@ -159,14 +176,14 @@ export default function SharedDocumentsPage() {
     socket.on("documentAdded", handleDocumentAdded);
     socket.on("documentUpdated", handleDocumentUpdated);
     socket.on("documentDeleted", handleDocumentDeleted);
-    socket.on("documentShared", handleDocumentShared); // Handle document sharing events
-    socket.on("documentAddedToUser", handleDocumentAddedToUser); // Handle when document is shared specifically to this user
-    socket.on("documentUploadCompleted", handleDocumentAdded); // Also refetch on upload completion
+    socket.on("documentShared", handleDocumentShared);
+    socket.on("documentAddedToUser", handleDocumentAddedToUser);
+    socket.on("documentUploadCompleted", handleDocumentAdded);
     socket.on("document_received", handleDocumentReceived);
     socket.on("documentReceived", handleDocumentReceivedAlt);
-    socket.on("checkout", handleCheckout); // Listen for checkout events
-    socket.on("checkin", handleCheckin); // Listen for checkin events
-    socket.on("checkoutOverridden", handleCheckoutOverridden); // Listen for checkout override events
+    socket.on("checkout", handleCheckout);
+    socket.on("checkin", handleCheckin);
+    socket.on("checkoutOverridden", handleCheckoutOverridden);
     socket.on("documentCanceled", handleDocumentCanceled);
 
     // Cleanup listeners on unmount
@@ -183,7 +200,7 @@ export default function SharedDocumentsPage() {
       socket.off("checkoutOverridden", handleCheckoutOverridden);
       socket.off("documentCanceled", handleDocumentCanceled);
     };
-  }, [socket, refetch, user, documents]);
+  }, [socket, user]);
 
   const sanitizedDocuments = useMemo(() => {
     return documents.map((doc) => {
@@ -278,6 +295,7 @@ export default function SharedDocumentsPage() {
                   "document",
                   "contact",
                   "type",
+                  "origin",
                   "processType",
                   "classification",
                   "status",
@@ -305,6 +323,7 @@ export default function SharedDocumentsPage() {
                   "document",
                   "contact",
                   "type",
+                  "origin",
                   "processType",
                   "classification",
                   "status",

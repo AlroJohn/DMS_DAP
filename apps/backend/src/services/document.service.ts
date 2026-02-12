@@ -1064,6 +1064,7 @@ export class DocumentService {
             type: documentTypeMap.get(doc.document_type) || (doc as any).document_type || 'General',
             classification: doc.classification,
             status: doc.status,
+            origin: doc.origin,
             activity: 'created',
             activityTime: doc.created_at.toISOString(),
             created_at: doc.created_at.toISOString(),
@@ -1473,6 +1474,7 @@ export class DocumentService {
             type: documentTypeMap.get(doc.document_type) || (doc as any).document_type || 'General',
             classification: doc.classification,
             status: doc.status,
+            origin: doc.origin,
             activity: new Date(doc.created_at).toLocaleDateString(),
             activityTime: doc.created_at.toISOString(),
             created_at: doc.created_at.toISOString(),
@@ -1889,6 +1891,7 @@ export class DocumentService {
             type: 'General',
             classification: doc.classification,
             status: doc.status,
+            origin: doc.origin,
             activity: new Date(doc.created_at).toLocaleDateString(),
             activityTime: doc.created_at.toISOString(),
             created_at: doc.created_at.toISOString(),
@@ -2261,6 +2264,7 @@ export class DocumentService {
             type: 'General',
             classification: doc.classification,
             status: 'received',
+            origin: doc.origin,
             activity: new Date(doc.created_at).toLocaleDateString(),
             activityTime: doc.created_at.toISOString(),
             created_at: doc.created_at.toISOString()
@@ -2399,7 +2403,9 @@ export class DocumentService {
           checksum,
           is_primary: existingFileCount === 0,
           uploaded_by: user.account.account_id,
-          version_group_id: newVersionGroupId
+          version_group_id: newVersionGroupId,
+          document_group_id: documentData.documentGroupId || null,
+          document_group_name: documentData.documentGroupName || null
         }
       });
 
@@ -2492,7 +2498,15 @@ export class DocumentService {
   /**
    * Upload multiple files to existing document
    */
-  async uploadFilesToDocument(documentId: string, files: Express.Multer.File[], userId: string, versionGroupId?: string, enableOcr: boolean = false) {
+  async uploadFilesToDocument(
+    documentId: string,
+    files: Express.Multer.File[],
+    userId: string,
+    versionGroupId?: string,
+    enableOcr: boolean = false,
+    documentGroupId?: string,
+    documentGroupName?: string
+  ) {
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(documentId)) {
@@ -2628,7 +2642,9 @@ export class DocumentService {
           version,
           is_primary: shouldBePrimary,
           uploaded_by: user.account.account_id,
-          version_group_id: currentFileVersionGroupId
+          version_group_id: currentFileVersionGroupId,
+          document_group_id: documentGroupId || null,
+          document_group_name: documentGroupName || null
         }
       });
 
@@ -2962,6 +2978,8 @@ export class DocumentService {
           }
           : null,
         versionGroupId: file.version_group_id,
+        documentGroupId: file.document_group_id,
+        documentGroupName: file.document_group_name,
       };
     });
   }
@@ -4713,6 +4731,7 @@ export class DocumentService {
             type: (doc as any).document_type || 'General',
             classification: doc.classification,
             status: doc.status,
+            origin: doc.origin,
             activity: isOwned ? 'created' : 'shared',
             activityTime: doc.created_at.toISOString()
           };

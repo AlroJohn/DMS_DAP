@@ -235,3 +235,36 @@ export const deleteNotification = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to delete notification' });
   }
 };
+
+export const deleteAllNotifications = async (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthRequest;
+    // The auth middleware should ensure user exists, but we'll check to be safe
+    if (!authReq.user || !authReq.user.id) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    const userId = authReq.user.id;
+
+    // Instead of hard delete, mark all as deleted to maintain data integrity
+    await prisma.notification.updateMany({
+      where: {
+        user_id: userId,
+        is_deleted: false,
+      },
+      data: {
+        is_deleted: true,
+      },
+    });
+
+    // Emit socket event to update UI in real-time
+    const io = getSocketInstance();
+    if (io) {
+      io.to(`user-${userId}`).emit('all_notifications_deleted');
+    }
+
+    res.json({ message: 'All notifications deleted' });
+  } catch (error) {
+    console.error('Error deleting all notifications:', error);
+    res.status(500).json({ error: 'Failed to delete all notifications' });
+  }
+};

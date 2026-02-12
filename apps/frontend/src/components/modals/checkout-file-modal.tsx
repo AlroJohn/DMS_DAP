@@ -63,14 +63,17 @@ interface DocumentFile {
   };
   parentFileId?: string;
   versionGroupId?: string;
+  documentGroupId?: string | null;
+  documentGroupName?: string | null;
 }
 
 interface FileItem {
   id: string;
   name: string;
-  type: "file" | "version-group";
+  type: "file" | "version-group" | "document-group";
   data: DocumentFile | null;
   children?: DocumentFile[];
+  childItems?: FileItem[];
 }
 
 interface CheckoutFileModalProps {
@@ -82,51 +85,90 @@ interface CheckoutFileModalProps {
 }
 
 const groupFilesToItems = (filesToGroup: DocumentFile[]): FileItem[] => {
-  const filesByGroup = new Map<string, DocumentFile[]>();
-  const ungroupedFiles: DocumentFile[] = [];
+  // First level: Group by documentGroupId
+  const filesByDocGroup = new Map<string, DocumentFile[]>();
+  const ungroupedByDocGroup: DocumentFile[] = [];
 
   filesToGroup.forEach((file) => {
-    const groupId = file.versionGroupId || file.id;
-    if (file.versionGroupId) {
-      if (!filesByGroup.has(groupId)) {
-        filesByGroup.set(groupId, []);
+    if (file.documentGroupId) {
+      if (!filesByDocGroup.has(file.documentGroupId)) {
+        filesByDocGroup.set(file.documentGroupId, []);
       }
-      filesByGroup.get(groupId)!.push(file);
+      filesByDocGroup.get(file.documentGroupId)!.push(file);
     } else {
-      ungroupedFiles.push(file);
+      ungroupedByDocGroup.push(file);
     }
   });
 
+  // Helper: Group files by versionGroupId (second level)
+  const groupByVersionGroup = (files: DocumentFile[]): FileItem[] => {
+    const filesByVersion = new Map<string, DocumentFile[]>();
+    const ungroupedFiles: DocumentFile[] = [];
+
+    files.forEach((file) => {
+      const groupId = file.versionGroupId || file.id;
+      if (file.versionGroupId) {
+        if (!filesByVersion.has(groupId)) {
+          filesByVersion.set(groupId, []);
+        }
+        filesByVersion.get(groupId)!.push(file);
+      } else {
+        ungroupedFiles.push(file);
+      }
+    });
+
+    const items: FileItem[] = [];
+
+    filesByVersion.forEach((groupFiles, groupId) => {
+      items.push({
+        id: groupId,
+        name:
+          groupFiles.length > 1
+            ? `${groupFiles[0].name.substring(0, 30)}${
+                groupFiles[0].name.length > 30 ? "..." : ""
+              } (${groupFiles.length} versions)`
+            : groupFiles[0].name.substring(0, 30) +
+              (groupFiles[0].name.length > 30 ? "..." : ""),
+        type: "version-group",
+        data: null,
+        children: groupFiles.sort(
+          (a, b) =>
+            new Date(b.uploadDate as string).getTime() -
+            new Date(a.uploadDate as string).getTime(),
+        ),
+      });
+    });
+
+    ungroupedFiles.forEach((file) => {
+      items.push({
+        id: file.id,
+        name: file.name,
+        type: "file",
+        data: file,
+      });
+    });
+
+    return items;
+  };
+
   const items: FileItem[] = [];
 
-  filesByGroup.forEach((groupFiles, groupId) => {
+  // Create document group items
+  filesByDocGroup.forEach((groupFiles, docGroupId) => {
+    const groupName = groupFiles[0]?.documentGroupName || `Group ${docGroupId.substring(0, 8)}`;
+    const childItems = groupByVersionGroup(groupFiles);
     items.push({
-      id: groupId,
-      name:
-        groupFiles.length > 1
-          ? `${groupFiles[0].name.substring(0, 30)}${
-              groupFiles[0].name.length > 30 ? "..." : ""
-            } (${groupFiles.length} versions)`
-          : groupFiles[0].name.substring(0, 30) +
-            (groupFiles[0].name.length > 30 ? "..." : ""),
-      type: "version-group",
+      id: docGroupId,
+      name: groupName,
+      type: "document-group",
       data: null,
-      children: groupFiles.sort(
-        (a, b) =>
-          new Date(b.uploadDate as string).getTime() -
-          new Date(a.uploadDate as string).getTime(),
-      ),
+      childItems,
     });
   });
 
-  ungroupedFiles.forEach((file) => {
-    items.push({
-      id: file.id,
-      name: file.name,
-      type: "file",
-      data: file,
-    });
-  });
+  // Add ungrouped files (grouped by version)
+  const ungroupedItems = groupByVersionGroup(ungroupedByDocGroup);
+  items.push(...ungroupedItems);
 
   return items;
 };
@@ -404,6 +446,105 @@ export function CheckoutFileModal({
     setSelectedFileIds([]);
   };
 
+  // Get all selectable file IDs from a document group
+  const getSelectableFileIdsFromDocumentGroup = (item: FileItem): string[] => {
+    const fileIds: string[] = [];
+    if (item.childItems) {
+      item.childItems.forEach((child) => {
+        if (child.type === "version-group" && child.children) {
+          child.children.forEach((file) => {
+            if (isSelectableForSignature(file)) {
+              fileIds.push(file.id);
+            }
+          });
+        } else if (child.type === "file" && child.data) {
+          if (isSelectableForSignature(child.data)) {
+            fileIds.push(child.data.id);
+          }
+        }
+      });
+    }
+    return fileIds;
+  };
+
+  // Get all selectable file IDs from a version group
+  const getSelectableFileIdsFromVersionGroup = (item: FileItem): string[] => {
+    const fileIds: string[] = [];
+    if (item.children) {
+      item.children.forEach((file) => {
+        if (isSelectableForSignature(file)) {
+          fileIds.push(file.id);
+        }
+      });
+    }
+    return fileIds;
+  };
+
+  // Check if all selectable files in a group are selected
+  const isDocumentGroupFullySelected = (item: FileItem): boolean => {
+    const selectableIds = getSelectableFileIdsFromDocumentGroup(item);
+    if (selectableIds.length === 0) return false;
+    return selectableIds.every((id) => selectedFileIds.includes(id));
+  };
+
+  const isDocumentGroupPartiallySelected = (item: FileItem): boolean => {
+    const selectableIds = getSelectableFileIdsFromDocumentGroup(item);
+    if (selectableIds.length === 0) return false;
+    const selectedInGroup = selectableIds.filter((id) => selectedFileIds.includes(id));
+    return selectedInGroup.length > 0 && selectedInGroup.length < selectableIds.length;
+  };
+
+  const isVersionGroupFullySelected = (item: FileItem): boolean => {
+    const selectableIds = getSelectableFileIdsFromVersionGroup(item);
+    if (selectableIds.length === 0) return false;
+    return selectableIds.every((id) => selectedFileIds.includes(id));
+  };
+
+  const isVersionGroupPartiallySelected = (item: FileItem): boolean => {
+    const selectableIds = getSelectableFileIdsFromVersionGroup(item);
+    if (selectableIds.length === 0) return false;
+    const selectedInGroup = selectableIds.filter((id) => selectedFileIds.includes(id));
+    return selectedInGroup.length > 0 && selectedInGroup.length < selectableIds.length;
+  };
+
+  // Toggle selection of all files in a document group
+  const handleDocumentGroupSelection = (item: FileItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const selectableIds = getSelectableFileIdsFromDocumentGroup(item);
+    if (selectableIds.length === 0) return;
+
+    const allSelected = isDocumentGroupFullySelected(item);
+    if (allSelected) {
+      // Deselect all files in this group
+      setSelectedFileIds((prev) => prev.filter((id) => !selectableIds.includes(id)));
+    } else {
+      // Select all files in this group
+      setSelectedFileIds((prev) => {
+        const newIds = new Set([...prev, ...selectableIds]);
+        return Array.from(newIds);
+      });
+    }
+  };
+
+  // Toggle selection of all files in a version group
+  const handleVersionGroupSelection = (item: FileItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const selectableIds = getSelectableFileIdsFromVersionGroup(item);
+    if (selectableIds.length === 0) return;
+
+    const allSelected = isVersionGroupFullySelected(item);
+    if (allSelected) {
+      // Deselect all files in this group
+      setSelectedFileIds((prev) => prev.filter((id) => !selectableIds.includes(id)));
+    } else {
+      // Select all files in this group
+      setSelectedFileIds((prev) => {
+        const newIds = new Set([...prev, ...selectableIds]);
+        return Array.from(newIds);
+      });
+    }
+  };
+
   const handleVersionGroupClick = (item: FileItem) => {
     if (item.children && item.children.length > 0) {
       setCurrentPath((prev) => [...prev, { id: item.id, name: item.name }]);
@@ -415,6 +556,13 @@ export function CheckoutFileModal({
           data: child,
         })),
       );
+    }
+  };
+
+  const handleDocumentGroupClick = (item: FileItem) => {
+    if (item.childItems && item.childItems.length > 0) {
+      setCurrentPath((prev) => [...prev, { id: item.id, name: item.name }]);
+      setFileItems(item.childItems);
     }
   };
 
@@ -570,32 +718,132 @@ export function CheckoutFileModal({
                   <div className="space-y-2">
                     {fileItems.length > 0 ? (
                       fileItems.map((item) => {
-                        if (item.type === "version-group") {
+                        if (item.type === "document-group") {
+                          const totalFiles = item.childItems?.reduce((sum, child) => {
+                            if (child.type === "version-group") {
+                              return sum + (child.children?.length || 0);
+                            }
+                            return sum + (child.data ? 1 : 0);
+                          }, 0) || 0;
+                          const selectableCount = getSelectableFileIdsFromDocumentGroup(item).length;
+                          const isFullySelected = isDocumentGroupFullySelected(item);
+                          const isPartiallySelected = isDocumentGroupPartiallySelected(item);
                           return (
                             <div
                               key={item.id}
-                              className="grid grid-cols-[32px_1.6fr_0.6fr_0.6fr_0.6fr] items-center gap-3 rounded-lg border bg-card px-2 py-2 text-sm transition-colors hover:border-primary/50 hover:bg-accent/40"
+                              className={`grid grid-cols-[32px_1.6fr_0.6fr_0.6fr_0.6fr] items-center gap-3 rounded-lg border px-2 py-2 text-sm transition-colors cursor-pointer ${
+                                isFullySelected
+                                  ? "bg-primary/15 border-primary/50"
+                                  : isPartiallySelected
+                                    ? "bg-primary/8 border-primary/40"
+                                    : "bg-primary/5 border-primary/30 hover:border-primary/50 hover:bg-primary/10"
+                              }`}
+                              onClick={() => handleDocumentGroupClick(item)}
+                              role="button"
+                              tabIndex={0}
+                            >
+                              <div onClick={(e) => e.stopPropagation()}>
+                                {isSignatureAction ? (
+                                  <Checkbox
+                                    checked={isFullySelected}
+                                    ref={(el) => {
+                                      if (el && isPartiallySelected) {
+                                        (el as any).indeterminate = true;
+                                      }
+                                    }}
+                                    disabled={selectableCount === 0}
+                                    onCheckedChange={() => handleDocumentGroupSelection(item)}
+                                    className="data-[state=indeterminate]:bg-primary/50"
+                                  />
+                                ) : (
+                                  <Folder className="h-5 w-5 text-primary" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex items-center gap-2">
+                                {isSignatureAction && (
+                                  <Folder className="h-4 w-4 text-primary flex-shrink-0" />
+                                )}
+                                <div>
+                                  <p
+                                    className="truncate font-medium"
+                                    title={item.name}
+                                  >
+                                    {item.name}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Document Group
+                                  </p>
+                                </div>
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {totalFiles} file{totalFiles !== 1 ? "s" : ""}
+                              </span>
+                              <Badge variant="default" className="w-fit">
+                                Group
+                              </Badge>
+                              <span className="text-right text-xs text-muted-foreground">
+                                Open
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        if (item.type === "version-group") {
+                          const selectableCount = getSelectableFileIdsFromVersionGroup(item).length;
+                          const isFullySelected = isVersionGroupFullySelected(item);
+                          const isPartiallySelected = isVersionGroupPartiallySelected(item);
+                          return (
+                            <div
+                              key={item.id}
+                              className={`grid grid-cols-[32px_1.6fr_0.6fr_0.6fr_0.6fr] items-center gap-3 rounded-lg border px-2 py-2 text-sm transition-colors cursor-pointer ${
+                                isFullySelected
+                                  ? "bg-blue-500/15 border-blue-500/50"
+                                  : isPartiallySelected
+                                    ? "bg-blue-500/8 border-blue-500/40"
+                                    : "bg-card hover:border-primary/50 hover:bg-accent/40"
+                              }`}
                               onClick={() => handleVersionGroupClick(item)}
                               role="button"
                               tabIndex={0}
                             >
-                              <Folder className="h-5 w-5 text-blue-500" />
-                              <div className="min-w-0">
-                                <p
-                                  className="truncate font-medium"
-                                  title={item.name}
-                                >
-                                  {item.name}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  Version Group
-                                </p>
+                              <div onClick={(e) => e.stopPropagation()}>
+                                {isSignatureAction ? (
+                                  <Checkbox
+                                    checked={isFullySelected}
+                                    ref={(el) => {
+                                      if (el && isPartiallySelected) {
+                                        (el as any).indeterminate = true;
+                                      }
+                                    }}
+                                    disabled={selectableCount === 0}
+                                    onCheckedChange={() => handleVersionGroupSelection(item)}
+                                    className="data-[state=indeterminate]:bg-blue-500/50"
+                                  />
+                                ) : (
+                                  <Folder className="h-5 w-5 text-blue-500" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex items-center gap-2">
+                                {isSignatureAction && (
+                                  <Folder className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                )}
+                                <div>
+                                  <p
+                                    className="truncate font-medium"
+                                    title={item.name}
+                                  >
+                                    {item.name}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Version Group
+                                  </p>
+                                </div>
                               </div>
                               <span className="text-xs text-muted-foreground">
-                                {item.children?.length || 0} files
+                                {item.children?.length || 0} file{(item.children?.length || 0) !== 1 ? "s" : ""}
                               </span>
                               <Badge variant="outline" className="w-fit">
-                                Group
+                                Versions
                               </Badge>
                               <span className="text-right text-xs text-muted-foreground">
                                 Open

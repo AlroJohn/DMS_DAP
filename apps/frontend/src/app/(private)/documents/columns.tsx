@@ -24,6 +24,7 @@ export type ReceivedDocument = {
   processTypeName?: string;
   classification: string;
   status: string;
+  origin?: string;
   activity: string;
   activityTime: string;
   createdAt?: string;
@@ -46,7 +47,8 @@ type CreateDocumentColumnsOptions = {
   onRefetch?: () => void;
 };
 
-const formatText = (text: string): string => {
+const formatText = (text: string | null | undefined): string => {
+  if (!text) return "N/A";
   return text
     .replace(/_/g, " ")
     .toLowerCase()
@@ -253,6 +255,35 @@ export const createDocumentColumns = (
         const type = String(row.getValue(id) ?? "").toLowerCase();
         return Array.isArray(value)
           ? (value as string[]).some((v) => String(v).toLowerCase() === type)
+          : false;
+      },
+    },
+    {
+      accessorKey: "origin",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Origin" />
+      ),
+      cell: ({ row }) => {
+        const origin = row.original.origin;
+        if (!origin) return <span className="text-xs text-muted-foreground">-</span>;
+        return (
+          <Badge
+            variant={origin === "internal" ? "default" : "outline"}
+            className="font-medium text-xs px-1.5 py-0.5"
+          >
+            {formatText(origin)}
+          </Badge>
+        );
+      },
+      enableSorting: true,
+      enableHiding: true,
+      filterFn: (row, id, value) => {
+        if (!value || (Array.isArray(value) && value.length === 0)) return true;
+        const origin = String(row.getValue(id) ?? "").toLowerCase();
+        return Array.isArray(value)
+          ? (value as string[]).some(
+              (v) => String(v).toLowerCase() === origin,
+            )
           : false;
       },
     },

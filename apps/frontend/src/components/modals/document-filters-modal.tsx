@@ -14,6 +14,7 @@ import { DataTableFacetedFilter } from "@/components/reuseable/tables/data-table
 import {
   DOC_CLASSIFICATION_OPTIONS,
   DOC_STATUS_OPTIONS,
+  DOC_ORIGIN_OPTIONS,
 } from "@/lib/doc-enums";
 import { Table } from "@tanstack/react-table";
 import { useDocumentTypes } from "@/hooks/use-document-types";
@@ -72,10 +73,7 @@ export function DocumentFiltersModal<TData>({
     value: docType.name,
   }));
 
-  const fileStatusOptions = [
-    { label: "Uploaded", value: "uploaded" },
-    { label: "Enrolled", value: "enrolled" },
-  ];
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -130,13 +128,13 @@ export function DocumentFiltersModal<TData>({
               />
             </div>
 
-            {/* File Status Filter */}
+            {/* Origin Filter */}
             <div className="space-y-2">
-              <Label>File Status</Label>
+              <Label>Origin</Label>
               <DataTableFacetedFilter
-                column={documentColumn} // Using document column temporarily, we might need to adjust this
-                title="File Status"
-                options={fileStatusOptions}
+                column={table.getColumn("origin")}
+                title="Origin"
+                options={DOC_ORIGIN_OPTIONS}
               />
             </div>
           </div>

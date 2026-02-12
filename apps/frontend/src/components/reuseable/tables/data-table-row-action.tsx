@@ -5,6 +5,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Row } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   MoreHorizontal,
   Eye,
@@ -39,7 +41,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { ReleaseDocumentModal } from "@/components/modals/release-document-modal";
 import { EditDocumentModal } from "@/app/(private)/documents/[id]/components/edit-document-modal";
@@ -126,6 +127,9 @@ export function DataTableRowActions<TData>({
   const [viewDocumentModalOpen, setViewDocumentModalOpen] = useState(false);
   const [viewOcrModalOpen, setViewOcrModalOpen] = useState(false);
   const [showCompleteAlert, setShowCompleteAlert] = useState(false);
+  const [completeConfirmInput, setCompleteConfirmInput] = useState("");
+  const [showDeleteAlert, setShowDeleteAlert] = useState(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
   const [showUncompleteAlert, setShowUncompleteAlert] = useState(false);
   const [showCancelAlert, setShowCancelAlert] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -813,39 +817,17 @@ export function DataTableRowActions<TData>({
 
               {/* Delete - for users with delete permissions */}
               {showDelete && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <DropdownMenuItem
-                      onSelect={(e) => e.preventDefault()}
-                      disabled={isLoading}
-                      className="text-red-600 focus:text-red-600"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete
-                    </DropdownMenuItem>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>
-                        Are you sure you want to delete this document?
-                      </AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action cannot be undone. This will permanently
-                        delete the document and remove its data from our
-                        servers.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={handleDelete}
-                        disabled={isLoading}
-                      >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setShowDeleteAlert(true);
+                  }}
+                  disabled={isLoading}
+                  className="text-red-600 focus:text-red-600"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
               )}
             </>
           )}
@@ -941,39 +923,17 @@ export function DataTableRowActions<TData>({
 
               {/* Delete - for users with delete permissions */}
               {showDelete && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <DropdownMenuItem
-                      onSelect={(e) => e.preventDefault()}
-                      disabled={isLoading}
-                      className="text-red-600 focus:text-red-600"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete
-                    </DropdownMenuItem>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>
-                        Are you sure you want to delete this document?
-                      </AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action cannot be undone. This will permanently
-                        delete the document and remove its data from our
-                        servers.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={handleDelete}
-                        disabled={isLoading}
-                      >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setShowDeleteAlert(true);
+                  }}
+                  disabled={isLoading}
+                  className="text-red-600 focus:text-red-600"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
               )}
             </>
           )}
@@ -1117,38 +1077,17 @@ export function DataTableRowActions<TData>({
               </DropdownMenuItem>
 
               {/* Delete - for users with delete permissions */}
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem
-                    onSelect={(e) => e.preventDefault()}
-                    disabled={isLoading}
-                    className="text-red-600 focus:text-red-600"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                  </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      Are you sure you want to delete this document permanently?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete
-                      the document and remove its data from our servers.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDelete}
-                      disabled={isLoading}
-                    >
-                      Delete Permanently
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setShowDeleteAlert(true);
+                }}
+                disabled={isLoading}
+                className="text-red-600 focus:text-red-600"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
             </>
           )}
 
@@ -1162,38 +1101,17 @@ export function DataTableRowActions<TData>({
               </DropdownMenuItem>
 
               {/* Delete - for users with delete permissions - permanent delete in recycle bin */}
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem
-                    onSelect={(e) => e.preventDefault()}
-                    disabled={isLoading}
-                    className="text-red-600 focus:text-red-600"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Permanently
-                  </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      Are you sure you want to permanently delete this document?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete
-                      the document and remove its data from our servers.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDelete}
-                      disabled={isLoading}
-                    >
-                      Delete Permanently
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setShowDeleteAlert(true);
+                }}
+                disabled={isLoading}
+                className="text-red-600 focus:text-red-600"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Permanently
+              </DropdownMenuItem>
             </>
           )}
         </DropdownMenuContent>
@@ -1312,17 +1230,52 @@ export function DataTableRowActions<TData>({
       />
 
       {/* Complete Confirmation Alert Dialog */}
-      <AlertDialog open={showCompleteAlert} onOpenChange={setShowCompleteAlert}>
+      <AlertDialog 
+        open={showCompleteAlert} 
+        onOpenChange={(open) => {
+          setShowCompleteAlert(open);
+          if (!open) setCompleteConfirmInput("");
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Complete Document?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to mark this document as completed? This action will update the document status to completed.
+              This action will permanently mark this document as completed. To confirm, please type the document code below.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="py-4 space-y-2">
+            <Label htmlFor="confirm-code" className="text-sm text-muted-foreground">
+              Type{" "}
+              <span 
+                className="font-mono font-semibold text-foreground cursor-pointer hover:bg-muted px-1 py-0.5 rounded select-all"
+                onClick={() => {
+                  navigator.clipboard.writeText(document.documentId);
+                  toast.success("Document code copied!");
+                }}
+                title="Click to copy"
+              >
+                {document.documentId}
+              </span>{" "}
+              to confirm
+            </Label>
+            <Input
+              id="confirm-code"
+              value={completeConfirmInput}
+              onChange={(e) => setCompleteConfirmInput(e.target.value)}
+              placeholder="Enter document code"
+              disabled={isLoading}
+              autoComplete="off"
+            />
+          </div>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCompleteConfirm} disabled={isLoading}>
+            <AlertDialogCancel disabled={isLoading} onClick={() => setCompleteConfirmInput("")}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleCompleteConfirm}
+              disabled={isLoading || completeConfirmInput !== document.documentId}
+            >
               {isLoading ? "Completing..." : "Complete"}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1360,6 +1313,60 @@ export function DataTableRowActions<TData>({
             <AlertDialogCancel disabled={isLoading}>No, Keep It</AlertDialogCancel>
             <AlertDialogAction onClick={handleCancelConfirm} disabled={isLoading}>
               {isLoading ? "Cancelling..." : "Yes, Cancel Document"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation Alert Dialog */}
+      <AlertDialog 
+        open={showDeleteAlert} 
+        onOpenChange={(open) => {
+          setShowDeleteAlert(open);
+          if (!open) setDeleteConfirmInput("");
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the document and remove its data from our servers. To confirm, please type the document code below.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4 space-y-2">
+            <Label htmlFor="delete-confirm-code" className="text-sm text-muted-foreground">
+              Type{" "}
+              <span 
+                className="font-mono font-semibold text-foreground cursor-pointer hover:bg-muted px-1 py-0.5 rounded select-all"
+                onClick={() => {
+                  navigator.clipboard.writeText(document.documentId);
+                  toast.success("Document code copied!");
+                }}
+                title="Click to copy"
+              >
+                {document.documentId}
+              </span>{" "}
+              to confirm
+            </Label>
+            <Input
+              id="delete-confirm-code"
+              value={deleteConfirmInput}
+              onChange={(e) => setDeleteConfirmInput(e.target.value)}
+              placeholder="Enter document code"
+              disabled={isLoading}
+              autoComplete="off"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading} onClick={() => setDeleteConfirmInput("")}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDelete} 
+              disabled={isLoading || deleteConfirmInput !== document.documentId}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isLoading ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

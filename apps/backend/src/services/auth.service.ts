@@ -967,4 +967,265 @@ export class AuthService {
       return 0;
     }
   }
+
+  /**
+   * Enable two-factor authentication for a user
+   */
+  async enable2FA(userId: string): Promise<{ two_factor_enabled: boolean }> {
+    try {
+      // Get the user's account
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        include: { account: true }
+      });
+
+      if (!user || !user.account) {
+        throw new Error('User not found');
+      }
+
+      // Enable 2FA
+      await prisma.account.update({
+        where: { account_id: user.account.account_id },
+        data: {
+          two_factor_enabled: true,
+          updated_at: new Date()
+        }
+      });
+
+      return { two_factor_enabled: true };
+    } catch (error) {
+      console.error('Error enabling 2FA:', error);
+      throw new Error('Failed to enable two-factor authentication');
+    }
+  }
+
+  /**
+   * Disable two-factor authentication for a user
+   */
+  async disable2FA(userId: string, password: string): Promise<{ two_factor_enabled: boolean }> {
+    try {
+      // Get the user's account
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        include: { account: true }
+      });
+
+      if (!user || !user.account) {
+        throw new Error('User not found');
+      }
+
+      // Verify password
+      if (!user.account.password) {
+        throw new Error('Password verification not available for this account');
+      }
+
+      const isPasswordValid = await bcrypt.compare(password, user.account.password);
+      if (!isPasswordValid) {
+        throw new Error('Incorrect password');
+      }
+
+      // Disable 2FA
+      await prisma.account.update({
+        where: { account_id: user.account.account_id },
+        data: {
+          two_factor_enabled: false,
+          updated_at: new Date()
+        }
+      });
+
+      return { two_factor_enabled: false };
+    } catch (error) {
+      console.error('Error disabling 2FA:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get 2FA status for a user
+   */
+  async get2FAStatus(userId: string): Promise<boolean> {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        include: { account: true }
+      });
+
+      if (!user || !user.account) {
+        throw new Error('User not found');
+      }
+
+      return user.account.two_factor_enabled || false;
+    } catch (error) {
+      console.error('Error getting 2FA status:', error);
+      throw new Error('Failed to get two-factor authentication status');
+    }
+  }
+
+  /**
+   * Generate a random 6-digit code
+   */
+  private generate2FACode(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  /**
+   * Send 2FA verification code to user's email
+   */
+  async send2FACode(email: string, tempToken: string): Promise<void> {
+    try {
+      // Verify the temp token first
+      const decoded = jwt.verify(tempToken, config.jwt.secret) as { email: string; accountId: string; purpose: string };
+      
+      if (decoded.purpose !== '2fa_pending') {
+        throw new Error('Invalid token');
+      }
+
+      if (decoded.email !== email) {
+        throw new Error('Email mismatch');
+      }
+
+      // Get account
+      const account = await prisma.account.findUnique({
+        where: { account_id: decoded.accountId }
+      });
+
+      if (!account) {
+        throw new Error('Account not found');
+      }
+
+      if (!account.two_factor_enabled) {
+        throw new Error('Two-factor authentication is not enabled');
+      }
+
+      // Generate 6-digit code
+      const code = this.generate2FACode();
+
+      // Delete any existing unused codes for this account
+      await prisma.mFACode.deleteMany({
+        where: {
+          account_id: account.account_id,
+          used: false
+        }
+      });
+
+      // Store the code (expires in 10 minutes)
+      const expiresAt = new Date();
+      expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+
+      await prisma.mFACode.create({
+        data: {
+          account_id: account.account_id,
+          code: code,
+          used: false,
+          expires_at: expiresAt
+        }
+      });
+
+      // Get user info for email
+      const user = await prisma.user.findFirst({
+        where: { account_id: account.account_id }
+      });
+
+      // Send email
+      const emailSent = await this.emailService.send2FACodeEmail({
+        email: account.email,
+        userName: user ? `${user.first_name} ${user.last_name}` : undefined,
+        code: code,
+        expiresIn: '10 minutes'
+      });
+
+      if (!emailSent) {
+        throw new Error('Failed to send verification email');
+      }
+    } catch (error) {
+      console.error('Error sending 2FA code:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Verify 2FA code and complete login
+   */
+  async verify2FACodeAndLogin(email: string, code: string, tempToken: string): Promise<AuthResult> {
+    try {
+      // Verify the temp token
+      const decoded = jwt.verify(tempToken, config.jwt.secret) as { email: string; accountId: string; purpose: string };
+      
+      if (decoded.purpose !== '2fa_pending') {
+        throw new Error('Invalid token');
+      }
+
+      if (decoded.email !== email) {
+        throw new Error('Email mismatch');
+      }
+
+      // Get account
+      const account = await prisma.account.findUnique({
+        where: { account_id: decoded.accountId },
+        include: {
+          user: {
+            include: {
+              user_roles: {
+                include: {
+                  role: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!account) {
+        throw new Error('Account not found');
+      }
+
+      // Find and validate the 2FA code
+      const mfaCode = await prisma.mFACode.findFirst({
+        where: {
+          account_id: account.account_id,
+          code: code,
+          used: false,
+          expires_at: { gt: new Date() }
+        }
+      });
+
+      if (!mfaCode) {
+        throw new Error('Invalid or expired verification code');
+      }
+
+      // Mark code as used
+      await prisma.mFACode.update({
+        where: { code_id: mfaCode.code_id },
+        data: { used: true }
+      });
+
+      // Get user permissions
+      let permissions: Permission[] = [];
+      if (account.user) {
+        permissions = await this.permissionService.getUserPermissions(account.user.user_id);
+      }
+
+      // Generate tokens
+      const token = this.generateToken(account.account_id, account.email, permissions);
+      const refreshToken = this.generateRefreshToken(account.account_id);
+
+      // Get user data
+      const userData = await this.getUserData(account);
+
+      // Update last login
+      await prisma.account.update({
+        where: { account_id: account.account_id },
+        data: { last_login: new Date() }
+      });
+
+      return {
+        user: userData,
+        token,
+        refreshToken
+      };
+    } catch (error) {
+      console.error('Error verifying 2FA code:', error);
+      throw error;
+    }
+  }
 }

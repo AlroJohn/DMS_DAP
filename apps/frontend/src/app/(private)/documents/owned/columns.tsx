@@ -15,7 +15,8 @@ import { ProcessTypeCell } from "@/components/reuseable/tables/process-type-cell
 
 export type { Document };
 
-const formatText = (text: string): string => {
+const formatText = (text: string | null | undefined): string => {
+  if (!text) return "N/A";
   return text
     .replace(/_/g, " ")
     .toLowerCase()
@@ -255,6 +256,35 @@ export const createOwnedDocumentColumns = (
               const candidate = String(v).toLowerCase();
               return candidate === type || candidate === rawType;
             })
+          : false;
+      },
+    },
+    {
+      accessorKey: "origin",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Origin" />
+      ),
+      cell: ({ row }) => {
+        const origin = (row.original as any).origin;
+        if (!origin) return <span className="text-xs text-muted-foreground">-</span>;
+        return (
+          <Badge
+            variant={origin === "internal" ? "default" : "outline"}
+            className="font-medium text-xs px-1.5 py-0.5"
+          >
+            {formatText(origin)}
+          </Badge>
+        );
+      },
+      enableSorting: true,
+      enableHiding: true,
+      filterFn: (row, id, value) => {
+        if (!value || (Array.isArray(value) && value.length === 0)) return true;
+        const origin = String(row.getValue(id) ?? "").toLowerCase();
+        return Array.isArray(value)
+          ? (value as string[]).some(
+              (v) => String(v).toLowerCase() === origin,
+            )
           : false;
       },
     },

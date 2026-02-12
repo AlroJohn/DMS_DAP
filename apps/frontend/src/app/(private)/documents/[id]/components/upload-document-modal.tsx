@@ -46,8 +46,23 @@ import {
   FileSearch,
   AlertCircle,
   Recycle,
+  FolderPlus,
+  Folder,
 } from "lucide-react";
 import { toast } from "sonner";
+
+interface DocumentGroup {
+  id: string;
+  name: string;
+  files: File[];
+}
+
+const generateGroupId = () =>
+  "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 
 type CenterLookup = {
   code: string;
@@ -143,7 +158,7 @@ export function UploadDocumentModal({
     }
     return `${normalizedApiBaseUrl}/api${path}`;
   };
-  const [files, setFiles] = useState<File[]>([]);
+  const [documentGroups, setDocumentGroups] = useState<DocumentGroup[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [title, setTitle] = useState("");
@@ -244,33 +259,88 @@ export function UploadDocumentModal({
       .sort((a, b) => a.name.localeCompare(b.name));
 
   const availableCenters = useMemo(() => {
+    let centersToUse = new Map<string, CenterLookup>();
+
     if (groupFilter) {
       const group = hierarchy.get(groupFilter);
       if (!group) return [];
-      return buildCenterArray(group.centers);
-    }
-    const aggregated = new Map<string, CenterLookup>();
-    hierarchy.forEach((group) => {
-      group.centers.forEach((center, centerCode) => {
-        if (!aggregated.has(centerCode)) {
-          aggregated.set(centerCode, {
-            code: center.code,
-            name: center.name,
-            departments: center.departments,
-          });
-        }
+      centersToUse = group.centers;
+    } else {
+      const aggregated = new Map<string, CenterLookup>();
+      hierarchy.forEach((group) => {
+        group.centers.forEach((center, centerCode) => {
+          if (!aggregated.has(centerCode)) {
+            aggregated.set(centerCode, {
+              code: center.code,
+              name: center.name,
+              departments: center.departments,
+            });
+          }
+        });
       });
-    });
-    return buildCenterArray(aggregated);
-  }, [hierarchy, groupFilter]);
+      centersToUse = aggregated;
+    }
+
+    // Convert to array and filter out the NO_CENTER option since we're adding it separately in the UI
+    const centersArray = buildCenterArray(centersToUse);
+    const filteredCenters = centersArray.filter(
+      (center) => center.code !== NO_CENTER_CODE,
+    );
+
+    // Check if the current context (either specific group or all groups) has departments with no center
+    const hasNoCenterInContext = centersArray.some(
+      (center) => center.code === NO_CENTER_CODE,
+    );
+
+    if (hasNoCenterInContext) {
+      // Add the no center option back if it exists in the current context
+      filteredCenters.unshift({
+        code: NO_CENTER_CODE,
+        name: NO_CENTER_LABEL,
+        departments: new Map(), // Will be populated in availableDepartments when selected
+      });
+    }
+
+    return filteredCenters;
+  }, [hierarchy, groupFilter, NO_CENTER_CODE]);
 
   const availableDepartments = useMemo(() => {
     if (centerFilter) {
-      const selectedCenter = availableCenters.find(
-        (center) => center.code === centerFilter,
-      );
-      if (!selectedCenter) return [];
-      return mapToSortedArray(selectedCenter.departments);
+      if (centerFilter === NO_CENTER_CODE) {
+        // Find departments that belong to the NO_CENTER in the current context
+        if (groupFilter) {
+          // If a group is selected, only get departments with no center from that group
+          const selectedGroup = hierarchy.get(groupFilter);
+          if (selectedGroup) {
+            const noCenterInGroup = selectedGroup.centers.get(NO_CENTER_CODE);
+            if (noCenterInGroup) {
+              return mapToSortedArray(noCenterInGroup.departments);
+            }
+          }
+        } else {
+          // If no group is selected, get all departments with no center
+          const allDepartments = new Map<string, string>();
+          hierarchy.forEach((group) => {
+            group.centers.forEach((center) => {
+              if (center.code === NO_CENTER_CODE) {
+                center.departments.forEach((name, code) => {
+                  if (!allDepartments.has(code)) {
+                    allDepartments.set(code, name);
+                  }
+                });
+              }
+            });
+          });
+          return mapToSortedArray(allDepartments);
+        }
+        return []; // Return empty if no departments with no center exist in the current context
+      } else {
+        const selectedCenter = availableCenters.find(
+          (center) => center.code === centerFilter,
+        );
+        if (!selectedCenter) return [];
+        return mapToSortedArray(selectedCenter.departments);
+      }
     }
     if (groupFilter) {
       const selectedGroup = hierarchy.get(groupFilter);
@@ -286,7 +356,7 @@ export function UploadDocumentModal({
       });
     });
     return mapToSortedArray(allDepartments);
-  }, [hierarchy, groupFilter, centerFilter, availableCenters]);
+  }, [hierarchy, groupFilter, centerFilter, availableCenters, NO_CENTER_CODE]);
 
   const searchTerm = processSearch.trim().toLowerCase();
 
@@ -297,9 +367,17 @@ export function UploadDocumentModal({
         return false;
       }
       if (centerFilter) {
-        const centerCode = origin?.center?.code ?? NO_CENTER_CODE;
-        if (centerCode !== centerFilter) {
-          return false;
+        if (centerFilter === NO_CENTER_CODE) {
+          // Only show departments with no center assignment
+          if (origin?.center?.code) {
+            return false;
+          }
+        } else {
+          // Show departments with the selected center
+          const centerCode = origin?.center?.code ?? NO_CENTER_CODE;
+          if (centerCode !== centerFilter) {
+            return false;
+          }
         }
       }
       if (departmentFilter && origin?.code !== departmentFilter) {
@@ -319,6 +397,7 @@ export function UploadDocumentModal({
     centerFilter,
     departmentFilter,
     searchTerm,
+    NO_CENTER_CODE,
   ]);
 
   const isFilterActive = Boolean(
@@ -363,10 +442,46 @@ export function UploadDocumentModal({
     setDepartmentFilter("");
   }, [centerFilter]);
 
+  // Document group management
+  const addDocumentGroup = () => {
+    const newGroup: DocumentGroup = {
+      id: generateGroupId(),
+      name: `Group ${documentGroups.length + 1}`,
+      files: [],
+    };
+    setDocumentGroups((prev) => [...prev, newGroup]);
+  };
+
+  const removeDocumentGroup = (groupId: string) => {
+    setDocumentGroups((prev) => prev.filter((g) => g.id !== groupId));
+  };
+
+  const updateGroupName = (groupId: string, name: string) => {
+    setDocumentGroups((prev) =>
+      prev.map((g) => (g.id === groupId ? { ...g, name } : g)),
+    );
+  };
+
+  const removeFileFromGroup = (groupId: string, fileIndex: number) => {
+    setDocumentGroups((prev) =>
+      prev.map((g) =>
+        g.id === groupId
+          ? { ...g, files: g.files.filter((_, i) => i !== fileIndex) }
+          : g,
+      ),
+    );
+  };
+
+  const getTotalFileCount = () =>
+    documentGroups.reduce((sum, g) => sum + g.files.length, 0);
+
   // File integrity checking
   const { verifyFile } = useFileIntegrity({ maxInlineChecksumMB });
 
-  const validateAndAddFiles = async (incomingFiles: File[]) => {
+  const validateAndAddFiles = async (
+    incomingFiles: File[],
+    groupId: string,
+  ) => {
     if (incomingFiles.length === 0) return;
 
     const validations = await Promise.all(
@@ -425,20 +540,21 @@ export function UploadDocumentModal({
     );
 
     if (validFiles.length > 0) {
-      setFiles((prev) => [...prev, ...validFiles]);
+      setDocumentGroups((prev) =>
+        prev.map((g) =>
+          g.id === groupId ? { ...g, files: [...g.files, ...validFiles] } : g,
+        ),
+      );
     }
   };
 
   const handleFileSelect = async (
     event: React.ChangeEvent<HTMLInputElement>,
+    groupId: string,
   ) => {
     const selectedFiles = Array.from(event.target.files || []);
-    await validateAndAddFiles(selectedFiles);
+    await validateAndAddFiles(selectedFiles, groupId);
     event.target.value = "";
-  };
-
-  const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const formatFileSize = (bytes: number) => {
@@ -455,10 +571,18 @@ export function UploadDocumentModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (files.length === 0 || !title || !selectedType || !selectedProcessType) {
+    const totalFiles = getTotalFileCount();
+    if (totalFiles === 0 || !title || !selectedType || !selectedProcessType) {
       toast.error(
-        "Please complete all required fields and select at least one file.",
+        "Please complete all required fields and add at least one file to a group.",
       );
+      return;
+    }
+
+    // Filter out empty groups
+    const groupsWithFiles = documentGroups.filter((g) => g.files.length > 0);
+    if (groupsWithFiles.length === 0) {
+      toast.error("Please add at least one file to a group.");
       return;
     }
 
@@ -466,6 +590,10 @@ export function UploadDocumentModal({
     setUploadProgress(10);
 
     try {
+      // Get the first file from the first group to create the document
+      const firstGroup = groupsWithFiles[0];
+      const firstFile = firstGroup.files[0];
+
       // Create the initial document with the first file
       const formData = new FormData();
       formData.append("document_name", title);
@@ -475,7 +603,9 @@ export function UploadDocumentModal({
       formData.append("process_type_id", selectedProcessType);
       formData.append("origin", selectedOrigin);
       formData.append("enableOcr", String(enableOcr));
-      formData.append("file", files[0]); // Only send the first file to create the document
+      formData.append("file", firstFile);
+      formData.append("documentGroupId", firstGroup.id);
+      formData.append("documentGroupName", firstGroup.name);
 
       setUploadProgress(20);
 
@@ -498,57 +628,90 @@ export function UploadDocumentModal({
       const createdDocument = result.data ?? result;
       const documentId = createdDocument.document_id;
 
-      if (files.length > 1) {
-        const additionalFiles = files.slice(1);
+      // Prepare all additional files from all groups
+      const additionalUploads: {
+        file: File;
+        groupId: string;
+        groupName: string;
+      }[] = [];
+
+      // Add remaining files from first group
+      firstGroup.files.slice(1).forEach((file) => {
+        additionalUploads.push({
+          file,
+          groupId: firstGroup.id,
+          groupName: firstGroup.name,
+        });
+      });
+
+      // Add all files from remaining groups
+      groupsWithFiles.slice(1).forEach((group) => {
+        group.files.forEach((file) => {
+          additionalUploads.push({
+            file,
+            groupId: group.id,
+            groupName: group.name,
+          });
+        });
+      });
+
+      if (additionalUploads.length > 0) {
         let completed = 0;
-        const total = additionalFiles.length;
+        const total = additionalUploads.length;
         setUploadProgress(30);
 
-        const uploads = additionalFiles.map((file) => {
-          const additionalFileForm = new FormData();
-          additionalFileForm.append("files", file);
-          additionalFileForm.append("enableOcr", String(enableOcr));
+        const uploads = additionalUploads.map(
+          ({ file, groupId, groupName }) => {
+            const additionalFileForm = new FormData();
+            additionalFileForm.append("files", file);
+            additionalFileForm.append("enableOcr", String(enableOcr));
+            additionalFileForm.append("documentGroupId", groupId);
+            additionalFileForm.append("documentGroupName", groupName);
 
-          const versionGroupId = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
-            /[xy]/g,
-            function (c) {
-              const r = (Math.random() * 16) | 0;
-              const v = c === "x" ? r : (r & 0x3) | 0x8;
-              return v.toString(16);
-            },
-          );
-          additionalFileForm.append("versionGroupId", versionGroupId);
+            const versionGroupId =
+              "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+                /[xy]/g,
+                function (c) {
+                  const r = (Math.random() * 16) | 0;
+                  const v = c === "x" ? r : (r & 0x3) | 0x8;
+                  return v.toString(16);
+                },
+              );
+            additionalFileForm.append("versionGroupId", versionGroupId);
 
-          return fetch(buildApiUrl(`/documents/${documentId}/files`), {
-            method: "POST",
-            credentials: "include",
-            body: additionalFileForm,
-          })
-            .then(async (additionalResponse) => {
-              if (!additionalResponse.ok) {
-                const errorData = await additionalResponse.json().catch(() => ({
-                  error: { message: "Failed to upload additional file" },
-                }));
-                throw new Error(
-                  errorData.error?.message ||
-                    `Failed to upload additional file: ${file.name}`,
-                );
-              }
+            return fetch(buildApiUrl(`/documents/${documentId}/files`), {
+              method: "POST",
+              credentials: "include",
+              body: additionalFileForm,
             })
-            .finally(() => {
-              completed += 1;
-              const progress = 30 + Math.floor((completed / total) * 60);
-              setUploadProgress(progress);
-            });
-        });
+              .then(async (additionalResponse) => {
+                if (!additionalResponse.ok) {
+                  const errorData = await additionalResponse
+                    .json()
+                    .catch(() => ({
+                      error: { message: "Failed to upload additional file" },
+                    }));
+                  throw new Error(
+                    errorData.error?.message ||
+                      `Failed to upload additional file: ${file.name}`,
+                  );
+                }
+              })
+              .finally(() => {
+                completed += 1;
+                const progress = 30 + Math.floor((completed / total) * 60);
+                setUploadProgress(progress);
+              });
+          },
+        );
         await Promise.all(uploads);
       }
 
       setUploadProgress(100);
       toast.success(
-        `Document "${title}" created with ${files.length} file${
-          files.length > 1 ? "s" : ""
-        }!`,
+        `Document "${title}" created with ${totalFiles} file${
+          totalFiles > 1 ? "s" : ""
+        } in ${groupsWithFiles.length} group${groupsWithFiles.length > 1 ? "s" : ""}!`,
       );
       if (enableOcr) {
         toast.info("OCR processing started", {
@@ -565,7 +728,7 @@ export function UploadDocumentModal({
       }
 
       // Reset form and close modal
-      setFiles([]);
+      setDocumentGroups([]);
       setTitle("");
       setDescription("");
       setSelectedType("");
@@ -613,141 +776,205 @@ export function UploadDocumentModal({
         >
           <div className="w-full grid grid-cols-1 gap-6">
             <div className="space-y-6 lg:col-span-2">
+              {/* Add Group Button */}
               <Card className="border shadow-sm rounded-xl">
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Upload className="h-4 w-4 text-primary" />
-                    File Upload
-                  </CardTitle>
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <FolderPlus className="h-4 w-4 text-primary" />
+                      Document Groups
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      {getTotalFileCount() > 0 && (
+                        <Badge
+                          variant="secondary"
+                          className="text-sm py-1 px-3"
+                        >
+                          {getTotalFileCount()} file
+                          {getTotalFileCount() !== 1 ? "s" : ""} in{" "}
+                          {
+                            documentGroups.filter((g) => g.files.length > 0)
+                              .length
+                          }{" "}
+                          group
+                          {documentGroups.filter((g) => g.files.length > 0)
+                            .length !== 1
+                            ? "s"
+                            : ""}
+                        </Badge>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addDocumentGroup}
+                        className="gap-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add Group
+                      </Button>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div
-                    className="border-2 border-dashed border-muted-foreground/40 rounded-xl p-6 text-center transition-all hover:border-primary/50 hover:bg-primary/5"
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.currentTarget.classList.add(
-                        "border-primary",
-                        "bg-primary/10",
-                      );
-                    }}
-                    onDragLeave={(e) => {
-                      e.currentTarget.classList.remove(
-                        "border-primary",
-                        "bg-primary/10",
-                      );
-                    }}
-                    onDrop={async (e) => {
-                      e.preventDefault();
-                      e.currentTarget.classList.remove(
-                        "border-primary",
-                        "bg-primary/10",
-                      );
-                      const dt = e.dataTransfer;
-                      const newFiles = Array.from(dt.files || []);
-                      await validateAndAddFiles(newFiles);
-                    }}
-                  >
-                    <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-lg font-medium mb-2">
-                      Drop files here or click to browse
-                    </p>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Supports: PDF files only
-                    </p>
-                    <input
-                      type="file"
-                      multiple
-                      accept=".pdf"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                      id="file-upload-modal"
-                    />
-                    <Button
-                      asChild
-                      variant="secondary"
-                      className="px-4 py-2 text-sm"
-                    >
-                      <label
-                        htmlFor="file-upload-modal"
-                        className="cursor-pointer"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Select Files
-                      </label>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {files.length > 0 && (
-                <Card className="border shadow-sm rounded-xl">
-                  <CardHeader className="pb-4">
-                    <div className="flex justify-between items-center">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-primary" />
-                        Selected Files ({files.length})
-                      </CardTitle>
-                      <Badge
+                  {documentGroups.length === 0 ? (
+                    <div className="border-2 border-dashed border-muted-foreground/40 rounded-xl p-8 text-center">
+                      <Folder className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-lg font-medium mb-2">No groups yet</p>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Click &quot;Add Group&quot; to create a document group,
+                        then add files to it.
+                      </p>
+                      <Button
+                        type="button"
                         variant="secondary"
-                        className="text-base py-1 px-3"
+                        onClick={addDocumentGroup}
+                        className="gap-2"
                       >
-                        {files.length} file{files.length !== 1 ? "s" : ""}{" "}
-                        selected
-                      </Badge>
+                        <FolderPlus className="h-4 w-4" />
+                        Create First Group
+                      </Button>
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {files.map((file, index) => (
+                  ) : (
+                    <div className="space-y-4">
+                      {documentGroups.map((group, groupIndex) => (
                         <div
-                          key={index}
-                          className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 border rounded-xl bg-card hover:bg-accent/20 transition-all border-muted-foreground/20 group"
+                          key={group.id}
+                          className="border rounded-xl p-4 bg-card/50"
                         >
-                          <div className="flex items-center gap-3 w-full sm:w-auto">
-                            <div className="flex-shrink-0">
-                              <div className="p-2 rounded-lg bg-blue-500/10 group-hover:bg-blue-500/20 transition-colors">
-                                <FileText className="h-5 w-5 text-blue-600" />
+                          {/* Group Header */}
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3 flex-1">
+                              <div className="p-2 rounded-lg bg-primary/10">
+                                <Folder className="h-5 w-5 text-primary" />
                               </div>
+                              <Input
+                                value={group.name}
+                                onChange={(e) =>
+                                  updateGroupName(group.id, e.target.value)
+                                }
+                                className="max-w-[200px] h-8 text-sm font-medium"
+                                placeholder="Group name"
+                              />
+                              <Badge variant="outline" className="text-xs">
+                                {group.files.length} file
+                                {group.files.length !== 1 ? "s" : ""}
+                              </Badge>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm sm:text-base truncate">
-                                {file.name}
-                              </p>
-                              <div className="flex flex-wrap items-center gap-2 mt-1">
-                                <p className="text-xs sm:text-sm text-muted-foreground">
-                                  {formatFileSize(file.size)}
-                                </p>
-                                <div className="flex items-center gap-1">
-                                  <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                                  <span className="text-xs text-green-600">
-                                    Validated
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between sm:justify-end gap-3 opacity-0 sm:opacity-100 group-hover:opacity-100 transition-opacity w-full sm:w-auto">
-                            <Badge
-                              variant="outline"
-                              className="text-xs sm:text-sm py-1 px-2 border-green-500 text-green-700 bg-green-50"
-                            >
-                              Validated
-                            </Badge>
                             <Button
-                              variant="outline"
+                              type="button"
+                              variant="ghost"
                               size="icon"
-                              onClick={() => removeFile(index)}
-                              className="h-8 w-8 border-destructive/50 hover:bg-destructive hover:text-destructive-foreground"
+                              onClick={() => removeDocumentGroup(group.id)}
+                              className="h-8 w-8 text-destructive hover:bg-destructive/10"
                             >
                               <X className="h-4 w-4" />
                             </Button>
                           </div>
+
+                          {/* Drop Zone for Group */}
+                          <div
+                            className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-4 text-center transition-all hover:border-primary/50 hover:bg-primary/5 mb-3"
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.currentTarget.classList.add(
+                                "border-primary",
+                                "bg-primary/10",
+                              );
+                            }}
+                            onDragLeave={(e) => {
+                              e.currentTarget.classList.remove(
+                                "border-primary",
+                                "bg-primary/10",
+                              );
+                            }}
+                            onDrop={async (e) => {
+                              e.preventDefault();
+                              e.currentTarget.classList.remove(
+                                "border-primary",
+                                "bg-primary/10",
+                              );
+                              const dt = e.dataTransfer;
+                              const newFiles = Array.from(dt.files || []);
+                              await validateAndAddFiles(newFiles, group.id);
+                            }}
+                          >
+                            <Upload className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+                            <p className="text-sm text-muted-foreground mb-2">
+                              Drop PDF files here or click to browse
+                            </p>
+                            <input
+                              type="file"
+                              multiple
+                              accept=".pdf"
+                              onChange={(e) => handleFileSelect(e, group.id)}
+                              className="hidden"
+                              id={`file-upload-group-${group.id}`}
+                            />
+                            <Button
+                              type="button"
+                              asChild
+                              variant="secondary"
+                              size="sm"
+                            >
+                              <label
+                                htmlFor={`file-upload-group-${group.id}`}
+                                className="cursor-pointer"
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                Add Files
+                              </label>
+                            </Button>
+                          </div>
+
+                          {/* Files in Group */}
+                          {group.files.length > 0 && (
+                            <div className="space-y-2">
+                              {group.files.map((file, fileIndex) => (
+                                <div
+                                  key={fileIndex}
+                                  className="flex items-center gap-3 p-2 border rounded-lg bg-background hover:bg-accent/20 transition-all group/file"
+                                >
+                                  <div className="p-1.5 rounded bg-blue-500/10">
+                                    <FileText className="h-4 w-4 text-blue-600" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">
+                                      {file.name}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {formatFileSize(file.size)}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2 opacity-0 group-hover/file:opacity-100 transition-opacity">
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs py-0.5 px-1.5 border-green-500 text-green-700 bg-green-50"
+                                    >
+                                      Valid
+                                    </Badge>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() =>
+                                        removeFileFromGroup(group.id, fileIndex)
+                                      }
+                                      className="h-6 w-6 text-destructive hover:bg-destructive/10"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  )}
+                </CardContent>
+              </Card>
 
               {uploading && (
                 <Card className="border shadow-sm rounded-xl">
@@ -898,8 +1125,8 @@ export function UploadDocumentModal({
                             <Loader2 className="h-4 w-4 ml-2 animate-spin" />
                           )}
                         </SelectTrigger>
-                        <SelectContent className="w-[320px] h-auto max-h-[400px]">
-                          <div className="space-y-3 px-3 pt-3 pb-2 border-b border-muted-foreground/20">
+                        <SelectContent className="w-full max-w-[400px] h-auto max-h-[450px]">
+                          <div className="space-y-3 px-3 pt-3 pb-2 border-b border-muted-foreground/20 overflow-hidden">
                             <div className="flex items-center gap-2">
                               <div className="relative flex-1">
                                 <Input
@@ -908,7 +1135,7 @@ export function UploadDocumentModal({
                                   onChange={(event) =>
                                     setProcessSearch(event.target.value)
                                   }
-                                  className="text-sm"
+                                  className="text-sm truncate max-w-full"
                                 />
                                 {processSearch && (
                                   <button
@@ -925,17 +1152,19 @@ export function UploadDocumentModal({
                                 variant="ghost"
                                 size="sm"
                                 onClick={clearFilters}
-                                className="text-[11px] uppercase tracking-[0.15em]"
+                                className="text-[11px] uppercase tracking-[0.15em] flex-shrink-0"
                               >
                                 <Recycle />
                               </Button>
                             </div>
+
+                            {/* Group Filter */}
                             <div className="space-y-1">
                               <p className="text-[11px] font-semibold uppercase text-muted-foreground">
                                 Group
                               </p>
                               <select
-                                className="w-full rounded-md border border-input bg-background py-1 px-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/70"
+                                className="w-full rounded-md border border-input bg-background py-1 px-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/70 max-w-full truncate"
                                 value={groupFilter}
                                 onChange={(event) =>
                                   setGroupFilter(event.target.value)
@@ -943,37 +1172,62 @@ export function UploadDocumentModal({
                               >
                                 <option value="">All groups</option>
                                 {groupOptions.map((group) => (
-                                  <option key={group.code} value={group.code}>
+                                  <option
+                                    key={group.code}
+                                    value={group.code}
+                                    title={`${group.name} (${group.code})`}
+                                  >
                                     {group.name} ({group.code})
                                   </option>
                                 ))}
                               </select>
                             </div>
+
+                            {/* Center Filter */}
                             <div className="space-y-1">
                               <p className="text-[11px] font-semibold uppercase text-muted-foreground">
                                 Center
                               </p>
                               <select
-                                className="w-full rounded-md border border-input bg-background py-1 px-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/70"
+                                className="w-full rounded-md border border-input bg-background py-1 px-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/70 max-w-full truncate"
                                 value={centerFilter}
                                 onChange={(event) =>
                                   setCenterFilter(event.target.value)
                                 }
                               >
                                 <option value="">All centers</option>
-                                {availableCenters.map((center) => (
-                                  <option key={center.code} value={center.code}>
-                                    {center.name} ({center.code})
+                                {availableCenters.some(
+                                  (center) => center.code === NO_CENTER_CODE,
+                                ) && (
+                                  <option
+                                    value={NO_CENTER_CODE}
+                                    title="No center assignment"
+                                  >
+                                    No center assignment
                                   </option>
-                                ))}
+                                )}
+                                {availableCenters.map(
+                                  (center) =>
+                                    center.code !== NO_CENTER_CODE && (
+                                      <option
+                                        key={center.code}
+                                        value={center.code}
+                                        title={`${center.name} (${center.code})`}
+                                      >
+                                        {center.name} ({center.code})
+                                      </option>
+                                    ),
+                                )}
                               </select>
                             </div>
+
+                            {/* Department Filter */}
                             <div className="space-y-1">
                               <p className="text-[11px] font-semibold uppercase text-muted-foreground">
                                 Department
                               </p>
                               <select
-                                className="w-full rounded-md border border-input bg-background py-1 px-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/70"
+                                className="w-full rounded-md border border-input bg-background py-1 px-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/70 max-w-full truncate"
                                 value={departmentFilter}
                                 onChange={(event) =>
                                   setDepartmentFilter(event.target.value)
@@ -981,7 +1235,11 @@ export function UploadDocumentModal({
                               >
                                 <option value="">All departments</option>
                                 {availableDepartments.map((dept) => (
-                                  <option key={dept.code} value={dept.code}>
+                                  <option
+                                    key={dept.code}
+                                    value={dept.code}
+                                    title={`${dept.name} (${dept.code})`}
+                                  >
                                     {dept.name} ({dept.code})
                                   </option>
                                 ))}
@@ -989,7 +1247,7 @@ export function UploadDocumentModal({
                             </div>
                           </div>
                           <SelectScrollUpButton className="text-muted-foreground" />
-                          <div className="max-h-[280px] space-y-1 px-1 py-1 overflow-y-auto">
+                          <div className="max-h-[280px] space-y-1 px-1 py-1 overflow-y-auto overflow-x-hidden">
                             {visibleProcessTypes.length === 0 ? (
                               <div className="px-3 py-4 text-xs text-muted-foreground">
                                 No process types match your filters.
@@ -999,16 +1257,16 @@ export function UploadDocumentModal({
                                 <SelectItem
                                   key={type.process_type_id}
                                   value={type.process_type_id}
-                                  className="text-base py-2 px-3"
+                                  className="text-base py-2 px-3 max-w-full"
                                 >
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <span className="flex items-center gap-2">
-                                        <span className="font-medium">
+                                      <span className="flex items-center gap-2 truncate max-w-full">
+                                        <span className="font-medium truncate max-w-[200px]">
                                           {type.code || type.name}
                                         </span>
                                         {type.duration_value && (
-                                          <span className="text-xs text-muted-foreground">
+                                          <span className="text-xs text-muted-foreground flex-shrink-0">
                                             ·{" "}
                                             {formatProcessDuration(
                                               type.duration_value,
@@ -1028,7 +1286,7 @@ export function UploadDocumentModal({
                                         {type.name}
                                       </span>
                                       {type.duration_value && (
-                                        <span className="ml-1 text-muted-foreground">
+                                        <span className="ml-1 text-secondary">
                                           ·{" "}
                                           {formatProcessDuration(
                                             type.duration_value,
@@ -1174,7 +1432,7 @@ export function UploadDocumentModal({
             <Button
               type="submit"
               disabled={
-                files.length === 0 ||
+                getTotalFileCount() === 0 ||
                 uploading ||
                 !title ||
                 !selectedType ||

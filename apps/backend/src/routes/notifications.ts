@@ -4,6 +4,7 @@ import {
   markNotificationAsRead, 
   markAllNotificationsAsRead, 
   deleteNotification,
+  deleteAllNotifications,
   createNotification 
 } from '../controllers/notificationController';
 import { authMiddleware as authenticateToken } from '../middleware/auth-middleware';
@@ -11,8 +12,9 @@ import { authMiddleware as authenticateToken } from '../middleware/auth-middlewa
 const router = Router();
 
 router.get('/', authenticateToken, getNotifications);
-router.patch('/:notificationId/read', authenticateToken, markNotificationAsRead);
 router.patch('/read-all', authenticateToken, markAllNotificationsAsRead);
+router.delete('/delete-all', authenticateToken, deleteAllNotifications);
+router.patch('/:notificationId/read', authenticateToken, markNotificationAsRead);
 router.delete('/:notificationId', authenticateToken, deleteNotification);
 router.post('/', authenticateToken, createNotification); // Only for admin/internal use
 

@@ -152,6 +152,7 @@ export default function RecycleBinPage() {
             "document",
             "contact",
             "type",
+            "origin",
             "processType",
             "classification",
             "status",

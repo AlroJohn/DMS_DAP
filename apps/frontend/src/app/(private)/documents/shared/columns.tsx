@@ -1,5 +1,6 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTableColumnHeader } from "@/components/reuseable/tables/data-table-column-header";
 import { ScanCodes } from "@/components/ui/scan-codes";
@@ -16,8 +17,8 @@ import { ProcessTypeCell } from "@/components/reuseable/tables/process-type-cell
 let hasLoggedColumns = false;
 const loggedDocuments = new Set<string>();
 
-const formatText = (text: string | undefined): string => {
-  if (!text) return "";
+const formatText = (text: string | null | undefined): string => {
+  if (!text) return "N/A";
   return text
     .replace(/_/g, " ")
     .toLowerCase()
@@ -232,6 +233,35 @@ export const getColumns = ({
       const type = String(row.getValue(id) ?? "").toLowerCase();
       return Array.isArray(value)
         ? (value as string[]).some((v) => String(v).toLowerCase() === type)
+        : false;
+    },
+  },
+  {
+    accessorKey: "origin",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Origin" />
+    ),
+    cell: ({ row }) => {
+      const origin = (row.original as any).origin;
+      if (!origin) return <span className="text-xs text-muted-foreground">-</span>;
+      return (
+        <Badge
+          variant={origin === "internal" ? "default" : "outline"}
+          className="font-medium text-xs px-1.5 py-0.5"
+        >
+          {formatText(origin)}
+        </Badge>
+      );
+    },
+    enableSorting: true,
+    enableHiding: true,
+    filterFn: (row, id, value) => {
+      if (!value || (Array.isArray(value) && value.length === 0)) return true;
+      const origin = String(row.getValue(id) ?? "").toLowerCase();
+      return Array.isArray(value)
+        ? (value as string[]).some(
+            (v) => String(v).toLowerCase() === origin,
+          )
         : false;
     },
   },

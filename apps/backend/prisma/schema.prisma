@@ -16,6 +16,8 @@ model Account {
   microsoft_provider_id      String?                     @unique
   is_active                  Boolean                     @default(true)
   email_verified             Boolean                     @default(false)
+  two_factor_enabled         Boolean                     @default(false)
+  two_factor_secret          String?
   last_login                 DateTime?
   created_at                 DateTime                    @default(now())
   updated_at                 DateTime                    @default(now()) @updatedAt
@@ -37,6 +39,7 @@ model Account {
   user_permissions_granted   UserPermission[]            @relation("UserPermissionGrantedBy")
   user_role_assignments      UserRole[]                  @relation("UserRoleAssignedBy")
   sessions                   UserSession[]
+  mfa_codes                  MFACode[]
 }
 
 model User {
@@ -273,6 +276,8 @@ model DocumentFile {
   uploaded_at            DateTime               @default(now())
   updated_at             DateTime               @default(now()) @updatedAt
   version_group_id       String?                @db.Uuid
+  document_group_id      String?                @db.Uuid
+  document_group_name    String?
   Document               Document               @relation("DocumentFiles", fields: [document_id], references: [document_id], onDelete: Cascade)
   uploaded_by_account    Account                @relation("AccountUploadedFiles", fields: [uploaded_by], references: [account_id])
   DocumentMetadata       DocumentMetadata?
@@ -284,6 +289,7 @@ model DocumentFile {
   @@index([document_id])
   @@index([uploaded_by])
   @@index([version_group_id])
+  @@index([document_group_id])
 }
 
 model UserCheckout {
@@ -629,6 +635,21 @@ model PasswordResetToken {
 
   @@index([token])
   @@index([account_id])
+  @@index([expires_at])
+}
+
+model MFACode {
+  code_id    String   @id @default(uuid()) @db.Uuid
+  account_id String   @db.Uuid
+  code       String
+  used       Boolean  @default(false)
+  expires_at DateTime
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+  account    Account  @relation(fields: [account_id], references: [account_id], onDelete: Cascade)
+
+  @@index([account_id])
+  @@index([code])
   @@index([expires_at])
 }
 
