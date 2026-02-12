@@ -29,6 +29,12 @@ class CounterService {
       }
     });
   }
+
+  async getProcessTypeCount() {
+    return await prisma.processType.count({
+      where: { is_active: true }
+    });
+  }
 }
 
 export default new CounterService();

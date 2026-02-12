@@ -65,6 +65,7 @@ model User {
   assigned_signature_placeholders SignaturePlaceholder[]     @relation("SignaturePlaceholderAssignee")
   assigned_text_placeholders      TextPlaceholder[]          @relation("TextPlaceholderAssignee")
   account                         Account                    @relation(fields: [account_id], references: [account_id], onDelete: Cascade)
+  department                      Department                 @relation("UserDepartment", fields: [department_id], references: [department_id])
   user_permissions                UserPermission[]
   user_roles                      UserRole[]
   scheduled_reports               ScheduledReport[]
@@ -83,6 +84,7 @@ model Department {
   group                 Group                  @relation(fields: [group_id], references: [group_id])
   center                Center?                @relation(fields: [center_id], references: [center_id])
   Account               Account[]
+  users                 User[]                 @relation("UserDepartment")
   from_trails           DocumentTrail[]        @relation("FromDepartment")
   to_trails             DocumentTrail[]        @relation("ToDepartment")
   invitations           UserInvitation[]
