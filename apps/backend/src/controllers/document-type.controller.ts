@@ -36,7 +36,7 @@ export class DocumentTypeController {
   // Get document type by ID
   async getDocumentTypeById(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       
       const documentType = await this.documentTypeService.getDocumentTypeById(id);
       
@@ -115,7 +115,7 @@ export class DocumentTypeController {
   // Update document type
   async updateDocumentType(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { name, description, active } = req.body;
       
       // Validation
@@ -162,7 +162,7 @@ export class DocumentTypeController {
   // Delete document type (hard delete)
   async deleteDocumentType(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       
       try {
         const deletedType = await this.documentTypeService.deleteDocumentType(id);
@@ -195,7 +195,7 @@ export class DocumentTypeController {
   // Toggle document type status
   async toggleDocumentTypeStatus(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       
       try {
         const updatedType = await this.documentTypeService.toggleDocumentTypeStatus(id);

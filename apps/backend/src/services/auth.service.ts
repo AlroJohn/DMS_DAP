@@ -510,13 +510,13 @@ export class AuthService {
     };
 
     const token = jwt.sign(payload, config.jwt.secret, {
-      expiresIn: config.jwt.expiresIn,
+      expiresIn: config.jwt.expiresIn as jwt.SignOptions['expiresIn'],
     });
 
     const refreshToken = jwt.sign(
       { userId: user.id },
       config.jwt.refreshSecret || config.jwt.secret,
-      { expiresIn: config.jwt.refreshExpiresIn }
+      { expiresIn: config.jwt.refreshExpiresIn as jwt.SignOptions['expiresIn'] }
     );
 
     return { token, refreshToken };

@@ -96,6 +96,11 @@ export type Permission =
   | "api_write"
   | "api_delete"
   | "api_admin"
+  // Process type permissions
+  | "process_type_read"
+  | "process_type_create"
+  | "process_type_edit"
+  | "process_type_delete"
   // Legacy permissions (for backward compatibility)
   | "DOCUMENT_CREATE"
   | "DOCUMENT_VIEW"

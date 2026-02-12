@@ -80,6 +80,7 @@
     "@types/passport-jwt": "^4.0.1",
     "@types/pdf-parse": "^1.1.5",
     "@types/pdfkit": "^0.12.11",
+    "@types/pngjs": "^6.0.5",
     "@types/qrcode": "^1.5.5",
     "prisma": "6.17.1",
     "ts-node": "^10.9.2",

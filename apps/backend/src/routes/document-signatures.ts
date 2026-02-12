@@ -8,6 +8,12 @@ import { prisma } from '../lib/prisma';
 
 const router = express.Router();
 
+// Helper to safely extract string from req.params
+const getParamString = (param: string | string[] | undefined): string | undefined => {
+  if (Array.isArray(param)) return param[0];
+  return param;
+};
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -37,7 +43,7 @@ const upload = multer({
 // Endpoint to get document with signature placeholders
 router.get('/documents/:documentId/signatures', async (req: Request, res: Response) => {
   try {
-    const { documentId } = req.params;
+    const documentId = getParamString(req.params.documentId);
 
     const document = await prisma.document.findUnique({
       where: { document_id: documentId },
@@ -64,7 +70,7 @@ router.get('/documents/:documentId/signatures', async (req: Request, res: Respon
 // Endpoint to add signature placeholder to document
 router.post('/documents/:documentId/signatures', upload.none(), async (req: Request, res: Response) => {
   try {
-    const { documentId } = req.params;
+    const documentId = getParamString(req.params.documentId);
     const {
       page_number,
       x_position,
@@ -118,7 +124,7 @@ router.post('/documents/:documentId/signatures', upload.none(), async (req: Requ
     // Create signature placeholder
     const signaturePlaceholder = await prisma.signaturePlaceholder.create({
       data: {
-        document_id: documentId,
+        document_id: documentId!,
         document_file_id: document_file_id,
         page_number: parseInt(page_number),
         x_position: parseFloat(x_position),
@@ -207,7 +213,7 @@ router.post('/documents/:documentId/signatures', upload.none(), async (req: Requ
         }
       }
 
-      await auditService.logSignaturePlaceholderAdded(user_id, documentId, {
+      await auditService.logSignaturePlaceholderAdded(user_id, documentId!, {
         description: placeholderDesc,
         fromDepartmentId: creatingUser?.department_id,
         toDepartmentId: creatingUser?.department_id
@@ -224,7 +230,7 @@ router.post('/documents/:documentId/signatures', upload.none(), async (req: Requ
 // Endpoint to update signature placeholder position
 router.put('/signatures/:placeholderId', upload.none(), async (req: Request, res: Response) => {
   try {
-    const { placeholderId } = req.params;
+    const placeholderId = getParamString(req.params.placeholderId);
     const { page_number, x_position, y_position, width, height } = req.body;
 
     const updatedPlaceholder = await prisma.signaturePlaceholder.update({
@@ -248,7 +254,7 @@ router.put('/signatures/:placeholderId', upload.none(), async (req: Request, res
 // Endpoint to delete signature placeholder
 router.delete('/signatures/:placeholderId', async (req: Request, res: Response) => {
   try {
-    const { placeholderId } = req.params;
+    const placeholderId = getParamString(req.params.placeholderId);
 
     await prisma.signaturePlaceholder.delete({
       where: { placeholder_id: placeholderId }
@@ -264,7 +270,7 @@ router.delete('/signatures/:placeholderId', async (req: Request, res: Response) 
 // Endpoint to place signature on document (create signed document record)
 router.post('/documents/:documentId/sign', upload.single('signature_image'), async (req: Request, res: Response) => {
   try {
-    const { documentId } = req.params;
+    const documentId = getParamString(req.params.documentId);
     const { signee_id, x_position, y_position, width, height, page_number, document_file_id } = req.body;
 
     // Get user to ensure they exist
@@ -311,7 +317,7 @@ router.post('/documents/:documentId/sign', upload.single('signature_image'), asy
     // Create the signed document record
     const signedDocument = await prisma.signedDocument.create({
       data: {
-        document_id: documentId,
+        document_id: documentId!,
         signee_id: signee_id,
         x_position: parseFloat(x_position),
         y_position: parseFloat(y_position),
@@ -324,7 +330,7 @@ router.post('/documents/:documentId/sign', upload.single('signature_image'), asy
     });
 
     // Log signature to document trail
-    await auditService.logDocumentSigned(signee_id, documentId, {
+    await auditService.logDocumentSigned(signee_id, documentId!, {
       description: `Document signed by ${user.first_name} ${user.last_name}`
     });
 
@@ -346,7 +352,7 @@ router.post('/documents/:documentId/sign', upload.single('signature_image'), asy
 // Endpoint to get all signed documents for a document
 router.get('/documents/:documentId/signed', async (req: Request, res: Response) => {
   try {
-    const { documentId } = req.params;
+    const documentId = getParamString(req.params.documentId);
 
     const signedDocuments = await prisma.signedDocument.findMany({
       where: { document_id: documentId },

@@ -13,13 +13,15 @@ export class AccessHistoryController {
 
   // Helper method to extract string value from potentially array parameter
   private getStringValue = (
-    param: string | string[] | ParsedQs | ParsedQs[] | undefined
+    param: string | ParsedQs | string[] | ParsedQs[] | (string | ParsedQs)[] | undefined
   ): string | undefined => {
+    if (param === undefined) return undefined;
+    if (typeof param === 'string') return param;
     if (Array.isArray(param)) {
       const first = param[0];
       return typeof first === 'string' ? first : undefined;
     }
-    return typeof param === 'string' ? param : undefined;
+    return undefined;
   };
 
   /**
@@ -134,7 +136,7 @@ export class AccessHistoryController {
         return res.status(401).json({ success: false, error: 'Unauthorized' });
       }
 
-      const { documentId } = req.params;
+      const documentId = req.params.documentId as string;
 
       if (!documentId) {
         return res.status(400).json({
@@ -169,7 +171,7 @@ export class AccessHistoryController {
         return res.status(401).json({ success: false, error: 'Unauthorized' });
       }
 
-      const { userId } = req.params;
+      const userId = req.params.userId as string;
 
       if (!userId) {
         return res.status(400).json({

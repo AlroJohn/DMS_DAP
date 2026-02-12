@@ -503,7 +503,7 @@ export class DashboardService {
             const recentActivityCount = await this.getUserRecentActivityCount(userId);
 
             // Get additional counts: Completed (User vs Dept), Shared to Dept, Shared to User
-            const additionalCounts = await this.getAdditionalDocumentCounts(userId, departmentId, accountId);
+            const additionalCounts = await this.getAdditionalDocumentCounts(userId, departmentId || '', accountId);
 
             return {
                 pendingSignatures: pendingSignaturesCount,
