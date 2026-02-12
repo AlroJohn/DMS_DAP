@@ -162,10 +162,10 @@ const data = {
       url: "/reports",
       icon: LineChart,
       items: [
-        {
-          title: "Audit Trail",
-          url: "/reports/audit-trail",
-        },
+        // {
+        //   title: "Audit Trail",
+        //   url: "/reports/audit-trail",
+        // },
         {
           title: "Document Trail",
           url: "/reports/document-trailing",
