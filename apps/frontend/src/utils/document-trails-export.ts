@@ -25,6 +25,7 @@ export interface DocumentTrailDetail {
   toDepartment: string;
   status: string;
   remarks: string;
+  durationMs?: number | null;
 }
 
 export interface DocumentInfo {
@@ -35,6 +36,47 @@ export interface DocumentInfo {
   classification: string;
   status: string;
   createdAt: string;
+  processType?: {
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    durationValue: number | null;
+    durationUnit: string | null;
+  } | null;
+}
+
+/**
+ * Format duration in milliseconds to a readable string
+ */
+function formatDuration(durationMs: number | null | undefined): string {
+  if (!durationMs || durationMs <= 0) return "-";
+  
+  const durationInSeconds = Math.floor(durationMs / 1000);
+  const days = Math.floor(durationInSeconds / (24 * 60 * 60));
+  const hours = Math.floor((durationInSeconds % (24 * 60 * 60)) / (60 * 60));
+  const minutes = Math.floor((durationInSeconds % (60 * 60)) / 60);
+  
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days} ${days === 1 ? 'day' : 'days'}`);
+  if (hours > 0) parts.push(`${hours} ${hours === 1 ? 'hour' : 'hours'}`);
+  if (minutes > 0 || parts.length === 0) parts.push(`${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`);
+  
+  return parts.join(', ');
+}
+
+/**
+ * Calculate total duration from document creation to now
+ */
+function calculateTotalDuration(createdAt: string): string {
+  try {
+    const created = new Date(createdAt);
+    const now = new Date();
+    const durationMs = now.getTime() - created.getTime();
+    return formatDuration(durationMs);
+  } catch {
+    return "-";
+  }
 }
 
 export function getStatusText(status: string) {
@@ -142,52 +184,95 @@ export async function exportDocumentTrailsPDF(
   doc.setFont("helvetica", "bold");
   doc.setTextColor(0, 0, 0);
   let yPos = titleY + 8;
-  const labelWidth = 40;
+  const labelWidth = 56;
+  const labelX = 14;
+  const valueX = labelX + labelWidth + 4;
 
-  doc.text("Document Title:", 14, yPos);
+  // Document Title (allow wrapping)
+  doc.text("Document Title:", labelX, yPos);
   doc.setFont("helvetica", "normal");
-  doc.text(documentInfo.title || "-", 14 + labelWidth, yPos);
+  const titleLines = doc.splitTextToSize(documentInfo.title || "-", pageWidth - valueX - 14);
+  doc.text(titleLines, valueX, yPos);
+  yPos += Math.max(6, titleLines.length * 5);
 
-  yPos += 7;
-  doc.setFont("helvetica", "bold");
-  doc.text("Document Code:", 14, yPos);
-  doc.setFont("helvetica", "normal");
-  doc.text(documentInfo.code || "-", 14 + labelWidth, yPos);
+  // Other metadata pairs
+  const metaPairs: Array<[string, string]> = [
+    ["Document Code:", documentInfo.code || "-"],
+    ["Document Type:", documentInfo.type || "-"],
+    ["Classification:", documentInfo.classification || "-"],
+    ["Status:", getStatusText(documentInfo.status || "-")],
+  ];
 
-  yPos += 7;
-  doc.setFont("helvetica", "bold");
-  doc.text("Document Type:", 14, yPos);
-  doc.setFont("helvetica", "normal");
-  doc.text(documentInfo.type || "-", 14 + labelWidth, yPos);
+  for (const [label, value] of metaPairs) {
+    doc.setFont("helvetica", "bold");
+    doc.text(label, labelX, yPos);
+    doc.setFont("helvetica", "normal");
+    const valLines = doc.splitTextToSize(value, pageWidth - valueX - 14);
+    doc.text(valLines, valueX, yPos);
+    yPos += Math.max(6, valLines.length * 5);
+  }
 
-  yPos += 7;
+  // Created
   doc.setFont("helvetica", "bold");
-  doc.text("Classification:", 14, yPos);
-  doc.setFont("helvetica", "normal");
-  doc.text(documentInfo.classification || "-", 14 + labelWidth, yPos);
-
-  yPos += 7;
-  doc.setFont("helvetica", "bold");
-  doc.text("Status:", 14, yPos);
-  doc.setFont("helvetica", "normal");
-  doc.text(getStatusText(documentInfo.status || "-"), 14 + labelWidth, yPos);
-
-  yPos += 7;
-  doc.setFont("helvetica", "bold");
-  doc.text("Created:", 14, yPos);
+  doc.text("Created:", labelX, yPos);
   doc.setFont("helvetica", "normal");
   try {
-    doc.text(
-      format(new Date(documentInfo.createdAt), "MMM d, yyyy h:mm a"),
-      14 + labelWidth,
-      yPos
-    );
+    const createdStr = format(new Date(documentInfo.createdAt), "MMM d, yyyy h:mm a");
+    doc.text(createdStr, valueX, yPos);
   } catch {
-    doc.text("-", 14 + labelWidth, yPos);
+    doc.text("-", valueX, yPos);
+  }
+  yPos += 7;
+
+  // Total Duration
+  doc.setFont("helvetica", "bold");
+  doc.text("Total Duration:", labelX, yPos);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(29, 78, 216); // Blue color
+  doc.text(calculateTotalDuration(documentInfo.createdAt), valueX, yPos);
+  doc.setTextColor(0, 0, 0); // Reset to black
+  yPos += 9;
+
+  // Process Type Information (boxed spacing)
+  if (documentInfo.processType) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("Process Information:", labelX, yPos);
+    yPos += 6;
+    doc.setFontSize(9);
+
+    const proc = documentInfo.processType;
+    const procPairs: Array<[string, string]> = [
+      ["Name:", proc.name || "-"],
+    ];
+    if (proc.code) procPairs.push(["Code:", proc.code]);
+    if (proc.durationValue && proc.durationUnit) procPairs.push(["Duration:", `${proc.durationValue} ${proc.durationUnit}`]);
+
+    // Use same label/value columns as the main document metadata for visual consistency
+    for (const [label, value] of procPairs) {
+      doc.setFont("helvetica", "bold");
+      doc.text(label, labelX, yPos);
+      doc.setFont("helvetica", "normal");
+      const valLines = doc.splitTextToSize(value, pageWidth - valueX - 14);
+      doc.text(valLines, valueX, yPos);
+      yPos += Math.max(6, valLines.length * 5);
+    }
+
+    if (proc.description) {
+      doc.setFont("helvetica", "bold");
+      doc.text("Description:", labelX, yPos);
+      doc.setFont("helvetica", "normal");
+      const descLines = doc.splitTextToSize(proc.description, pageWidth - valueX - 14);
+      doc.text(descLines, valueX, yPos);
+      yPos += Math.max(6, descLines.length * 5);
+    }
+
+    yPos += 1; // reduced breathing room after process info
+    doc.setFontSize(9);
   }
 
   // Separator
-  yPos += 8;
+  yPos += 2;
   doc.setDrawColor(218, 165, 32);
   doc.setLineWidth(1);
   doc.line(14, yPos, pageWidth - 14, yPos);
@@ -195,10 +280,13 @@ export async function exportDocumentTrailsPDF(
   // Table
   const tableColumn = [
     "Action Date",
+    "Created At",
+    "Updated At",
     "User",
-    "From\nDepartment",
-    "To\nDepartment",
+    "From\nDept.",
+    "To\nDept.",
     "Status",
+    "Duration\nHeld",
     "Remarks",
   ];
 
@@ -210,17 +298,37 @@ export async function exportDocumentTrailsPDF(
         return trail.actionDate || "-";
       }
     })(),
+    (() => {
+      try {
+        return trail.createdAt ? format(new Date(trail.createdAt), "MMM d, yyyy\nh:mm a") : "-";
+      } catch {
+        return "-";
+      }
+    })(),
+    (() => {
+      try {
+        return trail.updatedAt ? format(new Date(trail.updatedAt), "MMM d, yyyy\nh:mm a") : "-";
+      } catch {
+        return "-";
+      }
+    })(),
     trail.user || "-",
     trail.fromDepartment || "-",
     trail.toDepartment || "-",
     getStatusText(trail.status || "-"),
+    formatDuration(trail.durationMs),
     trail.remarks || "",
   ]);
 
-  (doc as any).autoTable({
+  // Render table in chunks so each page shows up to N rows (here N = 5)
+  const rowsPerPage = 5;
+  const chunks: any[][] = [];
+  for (let i = 0; i < tableRows.length; i += rowsPerPage) {
+    chunks.push(tableRows.slice(i, i + rowsPerPage));
+  }
+
+  const commonAutoTableOptions = {
     head: [tableColumn],
-    body: tableRows,
-    startY: yPos + 3,
     margin: { left: 14, right: 14 },
     styles: {
       fontSize: 7,
@@ -228,6 +336,7 @@ export async function exportDocumentTrailsPDF(
       lineColor: [180, 180, 180],
       lineWidth: 0.1,
       textColor: [0, 0, 0],
+      overflow: 'linebreak',
     },
     headStyles: {
       fillColor: [255, 235, 156],
@@ -239,12 +348,15 @@ export async function exportDocumentTrailsPDF(
       lineWidth: 0.1,
     },
     columnStyles: {
-      0: { cellWidth: 25, halign: "center", valign: "top" },
-      1: { cellWidth: 22, valign: "top" },
-      2: { cellWidth: 28, valign: "top" },
-      3: { cellWidth: 28, valign: "top" },
-      4: { cellWidth: 25, halign: "center", valign: "top" },
-      5: { cellWidth: "auto", valign: "top" },
+      0: { cellWidth: 16, halign: "center", valign: "top" }, // Action Date
+      1: { cellWidth: 16, halign: "center", valign: "top" }, // Created At
+      2: { cellWidth: 16, halign: "center", valign: "top" }, // Updated At
+      3: { cellWidth: 16, valign: "top" }, // User
+      4: { cellWidth: 18, valign: "top" }, // From Dept
+      5: { cellWidth: 18, valign: "top" }, // To Dept
+      6: { cellWidth: 14, halign: "center", valign: "top" }, // Status
+      7: { cellWidth: 12, halign: "center", valign: "top" }, // Duration Held
+      8: { cellWidth: 56, valign: "top", cellPadding: 3, overflow: 'linebreak' }, // Remarks (wider) - same font/padding as others
     },
     didParseCell: function(data: AutoTableHookData) {
       // Footer settings
@@ -279,7 +391,26 @@ export async function exportDocumentTrailsPDF(
       const pageNumber = `${data.pageNumber}/${doc.getNumberOfPages()}`;
       doc.text(pageNumber, pageWidth - 14, footerY + 13, { align: "right" });
     },
-  });
+  } as any;
+
+  // Render each chunk as its own table; start first at current yPos, subsequent ones on new pages
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    if (i === 0) {
+      (doc as any).autoTable({
+        ...commonAutoTableOptions,
+        body: chunk,
+        startY: yPos + 2,
+      });
+    } else {
+      doc.addPage();
+      (doc as any).autoTable({
+        ...commonAutoTableOptions,
+        body: chunk,
+        startY: 18, // near top on subsequent pages
+      });
+    }
+  }
 
   const outName = filename || `document-trail-${documentInfo.code || documentInfo.id}.pdf`;
   doc.save(outName);
@@ -298,19 +429,46 @@ export async function exportDocumentTrailsCSV(
   csvContent += `Classification: ${documentInfo.classification}\n`;
   csvContent += `Status: ${getStatusText(documentInfo.status)}\n`;
   try {
-    csvContent += `Created: ${format(new Date(documentInfo.createdAt), "MMM d, yyyy h:mm a")}\n\n`;
+    csvContent += `Created: ${format(new Date(documentInfo.createdAt), "MMM d, yyyy h:mm a")}\n`;
   } catch {
-    csvContent += `Created: -\n\n`;
+    csvContent += `Created: -\n`;
   }
+  csvContent += `Total Duration: ${calculateTotalDuration(documentInfo.createdAt)}\n`;
+  
+  if (documentInfo.processType) {
+    csvContent += `\nProcess Information:\n`;
+    csvContent += `Process Name: ${documentInfo.processType.name || "-"}\n`;
+    csvContent += `Process Code: ${documentInfo.processType.code || "-"}\n`;
+    if (documentInfo.processType.durationValue && documentInfo.processType.durationUnit) {
+      csvContent += `Process Duration: ${documentInfo.processType.durationValue} ${documentInfo.processType.durationUnit}\n`;
+    }
+    if (documentInfo.processType.description) {
+      csvContent += `Process Description: ${documentInfo.processType.description}\n`;
+    }
+  }
+  csvContent += `\n`;
 
-  csvContent += `Action Date,User,From Department,To Department,Status,Remarks\n`;
+  csvContent += `Action Date,Created At,Updated At,User,From Department,To Department,Status,Duration Held,Remarks\n`;
   trails.forEach((trail) => {
     let actionDate = trail.actionDate || "-";
+    let createdAt = "-";
+    let updatedAt = "-";
     try {
       actionDate = format(new Date(trail.actionDate), "MMM d, yyyy h:mm a");
     } catch {}
+    try {
+      if (trail.createdAt) {
+        createdAt = format(new Date(trail.createdAt), "MMM d, yyyy h:mm a");
+      }
+    } catch {}
+    try {
+      if (trail.updatedAt) {
+        updatedAt = format(new Date(trail.updatedAt), "MMM d, yyyy h:mm a");
+      }
+    } catch {}
     const remarks = (trail.remarks || "").replace(/"/g, '""').replace(/\n/g, " ");
-    csvContent += `"${actionDate}","${trail.user || "-"}","${trail.fromDepartment || "-"}","${trail.toDepartment || "-"}","${getStatusText(trail.status || "-")}","${remarks}"\n`;
+    const durationHeld = formatDuration(trail.durationMs);
+    csvContent += `"${actionDate}","${createdAt}","${updatedAt}","${trail.user || "-"}","${trail.fromDepartment || "-"}","${trail.toDepartment || "-"}","${getStatusText(trail.status || "-")}","${durationHeld}","${remarks}"\n`;
   });
 
   const outName = filename || `document-trail-${documentInfo.code || documentInfo.id}-${new Date().toISOString().split("T")[0]}.csv`;
@@ -346,21 +504,51 @@ export async function exportDocumentTrailsExcel(
   } catch {
     infoData.push(["Created", "-"]);
   }
+  infoData.push(["Total Duration", calculateTotalDuration(documentInfo.createdAt)]);
+  
+  if (documentInfo.processType) {
+    infoData.push([""]);
+    infoData.push(["Process Information"]);
+    infoData.push(["Process Name", documentInfo.processType.name || "-"]);
+    infoData.push(["Process Code", documentInfo.processType.code || "-"]);
+    if (documentInfo.processType.durationValue && documentInfo.processType.durationUnit) {
+      infoData.push(["Process Duration", `${documentInfo.processType.durationValue} ${documentInfo.processType.durationUnit}`]);
+    }
+    if (documentInfo.processType.description) {
+      infoData.push(["Process Description", documentInfo.processType.description]);
+    }
+  }
+  
   infoData.push([""]); // spacer
   infoData.push(["Trail History"]);
-  infoData.push(["Action Date", "User", "From Department", "To Department", "Status", "Remarks"]);
+  infoData.push(["Action Date", "Created At", "Updated At", "User", "From Department", "To Department", "Status", "Duration Held", "Remarks"]);
 
   trails.forEach((trail) => {
     let actionDate = trail.actionDate || "-";
+    let createdAt = "-";
+    let updatedAt = "-";
     try {
       actionDate = format(new Date(trail.actionDate), "MMM d, yyyy h:mm a");
     } catch {}
+    try {
+      if (trail.createdAt) {
+        createdAt = format(new Date(trail.createdAt), "MMM d, yyyy h:mm a");
+      }
+    } catch {}
+    try {
+      if (trail.updatedAt) {
+        updatedAt = format(new Date(trail.updatedAt), "MMM d, yyyy h:mm a");
+      }
+    } catch {}
     infoData.push([
       actionDate,
+      createdAt,
+      updatedAt,
       trail.user || "",
       trail.fromDepartment || "",
       trail.toDepartment || "",
       getStatusText(trail.status || ""),
+      formatDuration(trail.durationMs),
       trail.remarks || "",
     ]);
   });
