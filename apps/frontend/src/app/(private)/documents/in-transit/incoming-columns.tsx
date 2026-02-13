@@ -43,6 +43,7 @@ export type IncomingDocument = {
   type: string;
   classification: string;
   status: string;
+  origin: string;
   activity: string;
   activityTime: string;
   created_at?: string;
@@ -389,7 +390,7 @@ export const createIncomingColumns = (
       return (
         <Badge
           variant={origin === "internal" ? "default" : "outline"}
-          className="font-medium text-xs px-1.5 py-0.5"
+          className="font-medium bg-primary text-xs px-1.5 py-0.5"
         >
           {formatText(origin)}
         </Badge>

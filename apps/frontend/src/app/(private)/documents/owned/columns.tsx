@@ -293,7 +293,7 @@ export const createOwnedDocumentColumns = (
         return (
           <Badge
             variant={origin === "internal" ? "default" : "outline"}
-            className="font-medium text-xs px-1.5 py-0.5"
+            className="font-medium bg-primary text-xs px-1.5 py-0.5"
           >
             {formatText(origin)}
           </Badge>
@@ -390,18 +390,17 @@ export const createOwnedDocumentColumns = (
         );
       },
     },
-    {
-      id: "actions",
-      cell: ({ row, table }) => (
-        <DataTableRowActions
-          row={row}
-          viewType="owned"
-          onActionSuccess={table.options.meta?.onRefetch}
-        />
-      ),
-      enableSorting: false,
-      enableHiding: false,
-    },
+  {
+    id: "actions",
+    cell: ({ row }) => (
+      <DataTableRowActions
+        row={row}
+        viewType="owned"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
   ];
 };
 

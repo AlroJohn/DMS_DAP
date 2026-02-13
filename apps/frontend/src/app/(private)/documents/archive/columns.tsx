@@ -25,6 +25,7 @@ export type ArchiveDocument = {
   classification: string;
   currentLocation: string;
   status: string;
+  origin: string;
   activity: string;
   activityTime: string;
   created_at?: string;
@@ -51,6 +52,7 @@ const formatText = (text: string | null | undefined): string => {
 export const createArchiveColumns = ({
   documentTypeMap,
   processTypeMap = {},
+  onRefetch,
 }: {
   documentTypeMap: Record<string, string>;
   processTypeMap?: Record<
@@ -62,6 +64,7 @@ export const createArchiveColumns = ({
       duration_unit?: string | null;
     }
   >;
+  onRefetch?: () => void;
 }): ColumnDef<ArchiveDocument>[] => [
   {
     id: "select",
@@ -278,7 +281,7 @@ export const createArchiveColumns = ({
       return (
         <Badge
           variant={origin === "internal" ? "default" : "outline"}
-          className="font-medium text-xs px-1.5 py-0.5"
+          className="font-medium bg-primary text-xs px-1.5 py-0.5"
         >
           {formatText(origin)}
         </Badge>
@@ -392,7 +395,7 @@ export const createArchiveColumns = ({
   },
   {
     id: "actions",
-    cell: ({ row, table }) => {
+    cell: ({ row }) => {
       const status = row.original.status?.toLowerCase();
       // Hide actions for completed documents
       if (status === "completed") {
@@ -403,7 +406,7 @@ export const createArchiveColumns = ({
           <DataTableRowActions
             row={row}
             viewType="archive"
-            onActionSuccess={table.options.meta?.onRefetch}
+            onActionSuccess={onRefetch}
           />
         </div>
       );

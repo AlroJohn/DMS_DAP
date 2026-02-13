@@ -287,11 +287,12 @@ export const createDocumentColumns = (
       ),
       cell: ({ row }) => {
         const origin = row.original.origin;
-        if (!origin) return <span className="text-xs text-muted-foreground">-</span>;
+        if (!origin)
+          return <span className="text-xs text-muted-foreground">-</span>;
         return (
           <Badge
             variant={origin === "internal" ? "default" : "outline"}
-            className="font-medium text-xs px-1.5 py-0.5"
+            className="font-medium bg-primary text-xs px-1.5 py-0.5"
           >
             {formatText(origin)}
           </Badge>
@@ -303,9 +304,7 @@ export const createDocumentColumns = (
         if (!value || (Array.isArray(value) && value.length === 0)) return true;
         const origin = String(row.getValue(id) ?? "").toLowerCase();
         return Array.isArray(value)
-          ? (value as string[]).some(
-              (v) => String(v).toLowerCase() === origin,
-            )
+          ? (value as string[]).some((v) => String(v).toLowerCase() === origin)
           : false;
       },
     },

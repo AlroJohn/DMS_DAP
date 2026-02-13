@@ -58,7 +58,7 @@ export const createRecycleBinColumns = (
       duration_value?: number | null;
       duration_unit?: string | null;
     }
-  > = {}
+  > = {},
 ): ColumnDef<RecycleBinDocument, unknown>[] => [
   {
     id: "select",
@@ -260,7 +260,7 @@ export const createRecycleBinColumns = (
       const processType = String(row.getValue(id) ?? "").toLowerCase();
       return Array.isArray(value)
         ? (value as string[]).some(
-            (v) => String(v).toLowerCase() === processType
+            (v) => String(v).toLowerCase() === processType,
           )
         : false;
     },
@@ -275,7 +275,7 @@ export const createRecycleBinColumns = (
       return (
         <Badge
           variant={origin === "internal" ? "default" : "outline"}
-          className="font-medium text-xs px-1.5 py-0.5"
+          className="font-medium bg-primary text-xs px-1.5 py-0.5"
         >
           {formatText(origin)}
         </Badge>
@@ -287,9 +287,7 @@ export const createRecycleBinColumns = (
       if (!value || (Array.isArray(value) && value.length === 0)) return true;
       const origin = String(row.getValue(id) ?? "").toLowerCase();
       return Array.isArray(value)
-        ? (value as string[]).some(
-            (v) => String(v).toLowerCase() === origin
-          )
+        ? (value as string[]).some((v) => String(v).toLowerCase() === origin)
         : false;
     },
   },
@@ -318,7 +316,7 @@ export const createRecycleBinColumns = (
       const classification = String(row.getValue(id) ?? "").toLowerCase();
       return Array.isArray(value)
         ? (value as string[]).some(
-            (v) => String(v).toLowerCase() === classification
+            (v) => String(v).toLowerCase() === classification,
           )
         : false;
     },
