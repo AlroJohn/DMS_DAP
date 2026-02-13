@@ -39,7 +39,7 @@ import { hasPermission, hasAnyPermission } from "@/lib/document-permissions";
 const data = {
   teams: [
     {
-      name: "Department Academy of the Philippines",
+      name: "Development Academy of the Philippines",
       logo: GalleryVerticalEnd,
       plan: "",
     },

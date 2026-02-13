@@ -529,14 +529,14 @@ const Homepage = () => {
         <div className="lg:col-span-2">
           {data?.video_url ? (
             <Card className="py-0 shadow-md border overflow-hidden hover:shadow-lg transition-all animate-in fade-in-50 duration-700 delay-100">
-              <CardHeader className="bg-linear-to-r from-primary/10 via-primary/5 to-transparent border-b py-3">
-                <CardTitle className="py-2 text-base font-semibold flex items-center gap-2">
+              <div className="py-6">
+                <div className="py-2 pl-4 text-base font-bold flex items-center gap-2">
                   <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center">
                     <FileText className="h-4 w-4 text-primary" />
                   </div>
                   Introduction Video
-                </CardTitle>
-              </CardHeader>
+                </div>
+              </div>
               <CardContent className="p-0">
                 <div className="aspect-video bg-linear-to-br from-black to-gray-900">
                   {data.video_url.includes("youtube.com") ||
