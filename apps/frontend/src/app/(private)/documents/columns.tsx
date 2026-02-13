@@ -259,6 +259,28 @@ export const createDocumentColumns = (
       },
     },
     {
+      id: "processType",
+      accessorFn: (row) => resolveProcessTypeName(row),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Process Type" />
+      ),
+      cell: ({ row }) => {
+        const { name, code } = resolveProcessType(row.original);
+        return <ProcessTypeCell name={name} code={code} minClampLength={20} />;
+      },
+      enableSorting: true,
+      enableHiding: true,
+      filterFn: (row, id, value) => {
+        if (!value || (Array.isArray(value) && value.length === 0)) return true;
+        const processType = String(row.getValue(id) ?? "").toLowerCase();
+        return Array.isArray(value)
+          ? (value as string[]).some(
+              (v) => String(v).toLowerCase() === processType,
+            )
+          : false;
+      },
+    },
+    {
       accessorKey: "origin",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Origin" />
@@ -283,28 +305,6 @@ export const createDocumentColumns = (
         return Array.isArray(value)
           ? (value as string[]).some(
               (v) => String(v).toLowerCase() === origin,
-            )
-          : false;
-      },
-    },
-    {
-      id: "processType",
-      accessorFn: (row) => resolveProcessTypeName(row),
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Process Type" />
-      ),
-      cell: ({ row }) => {
-        const { name, code } = resolveProcessType(row.original);
-        return <ProcessTypeCell name={name} code={code} minClampLength={20} />;
-      },
-      enableSorting: true,
-      enableHiding: true,
-      filterFn: (row, id, value) => {
-        if (!value || (Array.isArray(value) && value.length === 0)) return true;
-        const processType = String(row.getValue(id) ?? "").toLowerCase();
-        return Array.isArray(value)
-          ? (value as string[]).some(
-              (v) => String(v).toLowerCase() === processType,
             )
           : false;
       },

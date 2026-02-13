@@ -235,6 +235,39 @@ export const createArchiveColumns = ({
     },
   },
   {
+    id: "processType",
+    accessorFn: (row) => {
+      const processTypeId =
+        (row as any).process_type_id || (row as any).processTypeId || "";
+      const record = processTypeId ? processTypeMap[processTypeId] : undefined;
+      return record?.name || "N/A";
+    },
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Process Type" />
+    ),
+    cell: ({ row }) => {
+      const processTypeId =
+        (row.original as any).process_type_id ||
+        (row.original as any).processTypeId ||
+        "";
+      const record = processTypeId ? processTypeMap[processTypeId] : undefined;
+      const name = record?.name || "N/A";
+      const code = record?.code || "";
+      return <ProcessTypeCell name={name} code={code} minClampLength={20} />;
+    },
+    enableSorting: true,
+    enableHiding: true,
+    filterFn: (row, id, value) => {
+      if (!value || (Array.isArray(value) && value.length === 0)) return true;
+      const processType = String(row.getValue(id) ?? "").toLowerCase();
+      return Array.isArray(value)
+        ? (value as string[]).some(
+            (v) => String(v).toLowerCase() === processType
+          )
+        : false;
+    },
+  },
+  {
     accessorKey: "origin",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Origin" />
@@ -356,39 +389,6 @@ export const createArchiveColumns = ({
       );
     },
     enableHiding: true,
-  },
-  {
-    id: "processType",
-    accessorFn: (row) => {
-      const processTypeId =
-        (row as any).process_type_id || (row as any).processTypeId || "";
-      const record = processTypeId ? processTypeMap[processTypeId] : undefined;
-      return record?.name || "N/A";
-    },
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Process Type" />
-    ),
-    cell: ({ row }) => {
-      const processTypeId =
-        (row.original as any).process_type_id ||
-        (row.original as any).processTypeId ||
-        "";
-      const record = processTypeId ? processTypeMap[processTypeId] : undefined;
-      const name = record?.name || "N/A";
-      const code = record?.code || "";
-      return <ProcessTypeCell name={name} code={code} minClampLength={20} />;
-    },
-    enableSorting: true,
-    enableHiding: true,
-    filterFn: (row, id, value) => {
-      if (!value || (Array.isArray(value) && value.length === 0)) return true;
-      const processType = String(row.getValue(id) ?? "").toLowerCase();
-      return Array.isArray(value)
-        ? (value as string[]).some(
-            (v) => String(v).toLowerCase() === processType
-          )
-        : false;
-    },
   },
   {
     id: "actions",

@@ -166,6 +166,7 @@ export default function OwnedDocumentsPage() {
             "currentLocation",
             "type",
             "processType",
+            "origin",
             "classification",
             "status",
             "dates",

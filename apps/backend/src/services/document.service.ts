@@ -1733,7 +1733,10 @@ export class DocumentService {
       title: document.title,
       document_code: document.document_code,
       classification: document.classification,
-      description: document.description
+      description: document.description,
+      // Include document type and process type for editing
+      document_type: document.document_type,
+      process_type_id: document.process_type_id
     };
   }
 
@@ -3010,6 +3013,8 @@ export class DocumentService {
       uploadDate: file.uploaded_at,
       downloadUrl: `/api/documents/${documentId}/files/${file.file_id}/download`,
       versionGroupId: file.version_group_id,
+      documentGroupId: file.document_group_id,
+      documentGroupName: file.document_group_name,
     }));
   }
 
