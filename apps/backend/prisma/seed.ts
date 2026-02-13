@@ -390,6 +390,11 @@ async function main() {
         name: 'Secretary',
         code: 'SECRETARY',
         description: 'Standard user with access to own transactions'
+      },
+      {
+        name: 'Viewer',
+        code: 'VIEWER',
+        description: 'Read-only access to view documents and data without any actions'
       }
     ];
 
@@ -558,6 +563,25 @@ async function main() {
     await assignPermissionsToRole('SECRETARY', userPermissions);
     await assignPermissionsToRole('PRESIDENT', departmentHeadPermissions);
     await assignPermissionsToRole('ADMINISTRATOR', administratorPermissions);
+
+    // VIEWER Role: Document viewing only - can only view documents, no actions allowed
+    const viewerPermissions = uniquePermissionIds(
+      allPermissions.filter(permission => {
+        const permStr = normalizePermission(permission.permission);
+        // Only document-related read/view permissions - no user, role, department, or system reads
+        return permStr === 'document_read' ||
+               permStr === 'document_metadata_read' ||
+               permStr === 'document_routing_read' ||
+               permStr === 'document_audit_read' ||
+               permStr === 'document_recycle_view' ||
+               permStr === 'document_custody_view' ||
+               permStr === 'document_type_read' ||
+               permStr === 'document_action_read' ||
+               permStr === 'process_type_read';
+      })
+    );
+
+    await assignPermissionsToRole('VIEWER', viewerPermissions);
 
     // Step 8: Get Super Admin user and assign role
     const superAdminUser = await prisma.user.findFirst({

@@ -25,6 +25,7 @@ export type ArchiveDocument = {
   classification: string;
   currentLocation: string;
   status: string;
+  origin: string;
   activity: string;
   activityTime: string;
   created_at?: string;
@@ -51,6 +52,7 @@ const formatText = (text: string | null | undefined): string => {
 export const createArchiveColumns = ({
   documentTypeMap,
   processTypeMap = {},
+  onRefetch,
 }: {
   documentTypeMap: Record<string, string>;
   processTypeMap?: Record<
@@ -62,6 +64,7 @@ export const createArchiveColumns = ({
       duration_unit?: string | null;
     }
   >;
+  onRefetch?: () => void;
 }): ColumnDef<ArchiveDocument>[] => [
   {
     id: "select",
@@ -146,7 +149,7 @@ export const createArchiveColumns = ({
       // Handle array filter values (for faceted filters)
       if (Array.isArray(filterValue) && filterValue.length > 0) {
         const document = row.original as ArchiveDocument;
-        return filterValue.includes('archived');
+        return filterValue.includes("archived");
       }
 
       // Handle string filter values (for search)
@@ -163,7 +166,7 @@ export const createArchiveColumns = ({
           document.contactPerson?.toLowerCase().includes(searchTerm) ||
           document.contactOrganization?.toLowerCase().includes(searchTerm) ||
           document.status?.toLowerCase().includes(searchTerm) ||
-          'archived'.includes(searchTerm)
+          "archived".includes(searchTerm)
         );
       }
 
@@ -262,7 +265,7 @@ export const createArchiveColumns = ({
       const processType = String(row.getValue(id) ?? "").toLowerCase();
       return Array.isArray(value)
         ? (value as string[]).some(
-            (v) => String(v).toLowerCase() === processType
+            (v) => String(v).toLowerCase() === processType,
           )
         : false;
     },
@@ -274,11 +277,12 @@ export const createArchiveColumns = ({
     ),
     cell: ({ row }) => {
       const origin = (row.original as any).origin;
-      if (!origin) return <span className="text-xs text-muted-foreground">-</span>;
+      if (!origin)
+        return <span className="text-xs text-muted-foreground">-</span>;
       return (
         <Badge
           variant={origin === "internal" ? "default" : "outline"}
-          className="font-medium text-xs px-1.5 py-0.5"
+          className="font-medium bg-primary text-background text-xs px-1.5 py-0.5"
         >
           {formatText(origin)}
         </Badge>
@@ -290,9 +294,7 @@ export const createArchiveColumns = ({
       if (!value || (Array.isArray(value) && value.length === 0)) return true;
       const origin = String(row.getValue(id) ?? "").toLowerCase();
       return Array.isArray(value)
-        ? (value as string[]).some(
-            (v) => String(v).toLowerCase() === origin,
-          )
+        ? (value as string[]).some((v) => String(v).toLowerCase() === origin)
         : false;
     },
   },
@@ -319,7 +321,7 @@ export const createArchiveColumns = ({
       const classification = String(row.getValue(id) ?? "").toLowerCase();
       return Array.isArray(value)
         ? (value as string[]).some(
-            (v) => String(v).toLowerCase() === classification
+            (v) => String(v).toLowerCase() === classification,
           )
         : false;
     },
@@ -337,17 +339,17 @@ export const createArchiveColumns = ({
       const statusConfig: {
         [key: string]: { color: string; bgColor: string; label: string };
       } = {
-        'deleted': {
+        deleted: {
           color: "text-red-600",
           bgColor: "bg-red-500",
           label: "Deleted",
         },
-        'completed': {
+        completed: {
           color: "text-emerald-600",
           bgColor: "bg-emerald-500",
           label: "Completed",
         },
-        'archive': {
+        archive: {
           color: "text-blue-600",
           bgColor: "bg-blue-500",
           label: "Archived",
@@ -384,15 +386,13 @@ export const createArchiveColumns = ({
       <DataTableColumnHeader column={column} title="Activity" />
     ),
     cell: ({ row }) => {
-      return (
-        <ActivityCell document={row.original} />
-      );
+      return <ActivityCell document={row.original} />;
     },
     enableHiding: true,
   },
   {
     id: "actions",
-    cell: ({ row, table }) => {
+    cell: ({ row }) => {
       const status = row.original.status?.toLowerCase();
       // Hide actions for completed documents
       if (status === "completed") {
@@ -403,7 +403,7 @@ export const createArchiveColumns = ({
           <DataTableRowActions
             row={row}
             viewType="archive"
-            onActionSuccess={table.options.meta?.onRefetch}
+            onActionSuccess={onRefetch}
           />
         </div>
       );
