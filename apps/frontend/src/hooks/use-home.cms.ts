@@ -25,7 +25,15 @@ export const useHomeCMS = () => {
       setLoading(true);
       setError(null);
 
-      const response = await fetch("/api/home");
+      // Add timestamp to prevent browser caching
+      const timestamp = new Date().getTime();
+      const response = await fetch(`/api/home?t=${timestamp}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+        },
+      });
       const result = await response.json();
 
       if (result.success) {
