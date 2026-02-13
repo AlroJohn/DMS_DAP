@@ -7,15 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { DocumentPreviewModal } from "@/components/modals/document-preview-modal";
 import { useDocumentDetail } from "@/hooks/use-document-detail";
-import { useDocumentFiles } from "@/hooks/use-document-files";
+import { useDocumentFiles, DocumentFileMetadata } from "@/hooks/use-document-files";
 import { useBreadcrumb } from "@/context/breadcrumb-context";
 import { useDocumentSidebarCounts } from "@/hooks/use-document-sidebar-counts";
 import { FullPageLoader } from "@/components/reuseable/full-page-loader";
@@ -26,6 +29,7 @@ import {
   Eye,
   FileText,
   ChevronsUpDown,
+  Folder,
 } from "lucide-react";
 
 export default function ViewDocumentPage() {
@@ -81,6 +85,31 @@ export default function ViewDocumentPage() {
     };
   }, [document, documentId]);
    
+
+  // Group files by document group name
+  const groupedFiles = useMemo(() => {
+    if (!files || files.length === 0) return [];
+
+    const groups = new Map<string, DocumentFileMetadata[]>();
+    
+    files.forEach((file) => {
+      const groupName = file.documentGroupName?.trim() || "Ungrouped";
+      if (!groups.has(groupName)) {
+        groups.set(groupName, []);
+      }
+      groups.get(groupName)!.push(file);
+    });
+
+    // Sort groups: Primary groups first, then alphabetically
+    const sortedGroups = Array.from(groups.entries()).sort((a, b) => {
+      // "Ungrouped" should be last
+      if (a[0] === "Ungrouped") return 1;
+      if (b[0] === "Ungrouped") return -1;
+      return a[0].localeCompare(b[0]);
+    });
+
+    return sortedGroups;
+  }, [files]);
 
   const previewFile = useMemo(() => {
     if (!files || files.length === 0) return null;
@@ -212,35 +241,69 @@ export default function ViewDocumentPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-9 min-w-45 max-w-62.5"
+                    className="h-9 min-w-[12rem] max-w-[20rem] justify-between"
                   >
-                    <span className="truncate flex-1 text-left">
-                      {previewFile?.name || `File ${files.findIndex((f) => f.id === previewFile?.id) + 1}`}
-                    </span>
+                    <div className="flex items-center gap-2 truncate">
+                      <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="truncate">
+                        {previewFile?.documentGroupName || "Ungrouped"}
+                      </span>
+                      <span className="text-muted-foreground">/</span>
+                      <span className="truncate font-normal">
+                        {previewFile?.name || "Select file"}
+                      </span>
+                    </div>
                     <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50 shrink-0" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-64 max-h-80 overflow-y-auto">
-                  {files.map((file, index) => (
-                    <DropdownMenuItem
-                      key={file.id}
-                      onSelect={() => setActiveFileId(file.id)}
-                      className="cursor-pointer"
-                    >
-                      <div className="flex flex-col gap-1 w-full">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm truncate flex-1">
-                            {file.name || `File ${index + 1}`}
-                          </span>
-                          {file.isPrimary && (
-                            <Badge variant="default" className="h-5 text-xs text-green-600">Primary</Badge>
-                          )}
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {file.type || "Unknown"} • {formatFileSize(file.size)}
-                        </span>
-                      </div>
-                    </DropdownMenuItem>
+                <DropdownMenuContent align="start" className="w-80 max-h-96 overflow-y-auto p-0">
+                  {groupedFiles.map(([groupName, groupFiles], groupIndex) => (
+                    <div key={groupName}>
+                      {groupIndex > 0 && <DropdownMenuSeparator />}
+                      <DropdownMenuLabel className="px-3 py-2 text-xs font-semibold text-muted-foreground bg-muted/50 flex items-center gap-2">
+                        <Folder className="h-3.5 w-3.5" />
+                        {groupName}
+                        <Badge variant="secondary" className="ml-auto text-xs h-5">
+                          {groupFiles.length}
+                        </Badge>
+                      </DropdownMenuLabel>
+                      {groupFiles.map((file) => (
+                        <DropdownMenuItem
+                          key={file.id}
+                          onSelect={() => setActiveFileId(file.id)}
+                          className={`cursor-pointer px-3 py-2.5 mx-1 rounded-sm ${
+                            file.id === previewFile?.id ? "bg-accent" : ""
+                          }`}
+                        >
+                          <div className="flex flex-col gap-1 w-full min-w-0">
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <span className="font-medium text-sm truncate flex-1">
+                                {file.name}
+                              </span>
+                              {file.isPrimary && (
+                                <Badge variant="default" className="h-5 text-xs shrink-0 bg-green-600 hover:bg-green-600">
+                                  Primary
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground pl-6">
+                              <span className="truncate">{file.type || "Unknown"}</span>
+                              <span>•</span>
+                              <span>{formatFileSize(file.size)}</span>
+                              {file.version && (
+                                <>
+                                  <span>•</span>
+                                  <Badge variant="outline" className="text-xs h-4 px-1">
+                                    v{file.version}
+                                  </Badge>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -356,7 +419,14 @@ export default function ViewDocumentPage() {
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Attached Files</CardTitle>
+              <CardTitle className="text-base flex items-center justify-between">
+                <span>Attached Files</span>
+                {files && files.length > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {files.length} file{files.length !== 1 ? "s" : ""}
+                  </Badge>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {filesLoading ? (
@@ -365,51 +435,64 @@ export default function ViewDocumentPage() {
                   <Skeleton className="h-20 w-full" />
                 </div>
               ) : files && files.length > 0 ? (
-                <div className="space-y-3 max-h-150 overflow-y-auto pr-1">
-                  {files.map((file) => {
-                    const isPlaceholder = /placeholder/i.test(file.name);
-                    const isActive = file.id === previewFile?.id;
-                    return (
-                      <div
-                        key={file.id}
-                        className={`flex flex-col gap-2 rounded-lg border p-3 transition-colors cursor-pointer hover:bg-muted/50 ${
-                          isActive ? "bg-muted border-primary" : ""
-                        }`}
-                        onClick={() => setActiveFileId(file.id)}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm font-medium line-clamp-2 flex-1">
-                            {file.name}
-                          </p>
-                          {file.isPrimary && (
-                            <Badge variant="default" className="shrink-0 h-5 text-green-600">
-                              Primary
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {file.type || "Unknown type"}
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">
-                            {formatFileSize(file.size)}
-                          </span>
-                          <div className="flex gap-1">
-                            {isPlaceholder && (
-                              <Badge variant="secondary" className="h-5 text-xs">
-                                Placeholder
-                              </Badge>
-                            )}
-                            {file.version && (
-                              <Badge variant="outline" className="h-5 text-xs">
-                                v{file.version}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
+                <div className="space-y-4 max-h-150 overflow-y-auto pr-1">
+                  {groupedFiles.map(([groupName, groupFiles]) => (
+                    <div key={groupName} className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground px-1">
+                        <Folder className="h-4 w-4" />
+                        <span>{groupName}</span>
+                        <Badge variant="outline" className="text-xs h-5 ml-auto">
+                          {groupFiles.length}
+                        </Badge>
                       </div>
-                    );
-                  })}
+                      <div className="space-y-2">
+                        {groupFiles.map((file) => {
+                          const isPlaceholder = /placeholder/i.test(file.name);
+                          const isActive = file.id === previewFile?.id;
+                          return (
+                            <div
+                              key={file.id}
+                              className={`flex flex-col gap-2 rounded-lg border p-3 transition-all cursor-pointer hover:bg-muted/50 hover:shadow-sm ${
+                                isActive ? "bg-muted border-primary ring-1 ring-primary/20" : ""
+                              }`}
+                              onClick={() => setActiveFileId(file.id)}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-start gap-2 flex-1 min-w-0">
+                                  <FileText className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                                  <p className="text-sm font-medium line-clamp-2">
+                                    {file.name}
+                                  </p>
+                                </div>
+                                {file.isPrimary && (
+                                  <Badge variant="default" className="shrink-0 h-5 text-xs bg-green-600 hover:bg-green-600">
+                                    Primary
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center justify-between pl-6">
+                                <span className="text-xs text-muted-foreground">
+                                  {formatFileSize(file.size)}
+                                </span>
+                                <div className="flex gap-1">
+                                  {isPlaceholder && (
+                                    <Badge variant="secondary" className="h-5 text-xs">
+                                      Placeholder
+                                    </Badge>
+                                  )}
+                                  {file.version && (
+                                    <Badge variant="outline" className="h-5 text-xs">
+                                      v{file.version}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-8 text-center">

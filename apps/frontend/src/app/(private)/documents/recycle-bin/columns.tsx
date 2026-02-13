@@ -233,34 +233,6 @@ export const createRecycleBinColumns = (
     },
   },
   {
-    accessorKey: "origin",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Origin" />
-    ),
-    cell: ({ row }) => {
-      const origin = row.original.origin;
-      return (
-        <Badge
-          variant={origin === "internal" ? "default" : "outline"}
-          className="font-medium text-xs px-1.5 py-0.5"
-        >
-          {formatText(origin)}
-        </Badge>
-      );
-    },
-    enableSorting: true,
-    enableHiding: true,
-    filterFn: (row, id, value) => {
-      if (!value || (Array.isArray(value) && value.length === 0)) return true;
-      const origin = String(row.getValue(id) ?? "").toLowerCase();
-      return Array.isArray(value)
-        ? (value as string[]).some(
-            (v) => String(v).toLowerCase() === origin
-          )
-        : false;
-    },
-  },
-  {
     id: "processType",
     accessorFn: (row) => {
       const processTypeId =
@@ -289,6 +261,34 @@ export const createRecycleBinColumns = (
       return Array.isArray(value)
         ? (value as string[]).some(
             (v) => String(v).toLowerCase() === processType
+          )
+        : false;
+    },
+  },
+  {
+    accessorKey: "origin",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Origin" />
+    ),
+    cell: ({ row }) => {
+      const origin = row.original.origin;
+      return (
+        <Badge
+          variant={origin === "internal" ? "default" : "outline"}
+          className="font-medium text-xs px-1.5 py-0.5"
+        >
+          {formatText(origin)}
+        </Badge>
+      );
+    },
+    enableSorting: true,
+    enableHiding: true,
+    filterFn: (row, id, value) => {
+      if (!value || (Array.isArray(value) && value.length === 0)) return true;
+      const origin = String(row.getValue(id) ?? "").toLowerCase();
+      return Array.isArray(value)
+        ? (value as string[]).some(
+            (v) => String(v).toLowerCase() === origin
           )
         : false;
     },

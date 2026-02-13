@@ -21,7 +21,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { Save, Loader2, X, Recycle } from "lucide-react";
+import { Save, Loader2, X, Recycle, AlertTriangle } from "lucide-react";
 import { useSocket } from "@/components/providers/providers";
 import {
   Dialog,
@@ -31,6 +31,16 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Document {
   document_id: string;
@@ -167,6 +177,9 @@ export function EditDocumentModal({
     document_type: "",
     process_type_id: "",
   });
+
+  // Confirmation dialog state
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   // Filter states for process type selection
   const [groupFilter, setGroupFilter] = useState("");
@@ -500,11 +513,16 @@ export function EditDocumentModal({
     }
   };
 
-  const handleSave = async () => {
+  const handleSaveClick = () => {
+    setShowConfirmDialog(true);
+  };
+
+  const handleConfirmSave = async () => {
     if (!documentId) return;
 
     try {
       setIsSaving(true);
+      setShowConfirmDialog(false);
 
       const response = await fetch(`/api/documents/${documentId}`, {
         method: "PUT",
@@ -546,7 +564,7 @@ export function EditDocumentModal({
         <DialogHeader>
           <DialogTitle>Edit Document</DialogTitle>
           <DialogDescription>
-            Make changes to your document here. Click save when you're done.
+            Make changes to your document here. Click save when you&apos;re done.
           </DialogDescription>
         </DialogHeader>
         <div className="grow overflow-y-auto p-6">
@@ -867,12 +885,39 @@ export function EditDocumentModal({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={isSaving}>
+          <Button onClick={handleSaveClick} disabled={isSaving}>
             <Save className="h-4 w-4 mr-2" />
             {isSaving ? "Saving..." : "Save Changes"}
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Save Confirmation Dialog */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              Save Changes?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to save these changes to the document?
+              This will update the document details.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSaving}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmSave}
+              disabled={isSaving}
+            >
+              {isSaving ? "Saving..." : "Yes, Save Changes"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
