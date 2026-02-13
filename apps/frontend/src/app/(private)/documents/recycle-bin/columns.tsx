@@ -275,7 +275,7 @@ export const createRecycleBinColumns = (
       return (
         <Badge
           variant={origin === "internal" ? "default" : "outline"}
-          className="font-medium bg-primary text-xs px-1.5 py-0.5"
+          className="font-medium bg-primary text-background text-xs px-1.5 py-0.5"
         >
           {formatText(origin)}
         </Badge>
@@ -469,10 +469,7 @@ export const createRecycleBinColumns = (
     id: "actions",
     cell: ({ row }) => (
       <div className="flex justify-center">
-        <DataTableRowActions
-          row={row}
-          viewType="recycle-bin"
-        />
+        <DataTableRowActions row={row} viewType="recycle-bin" />
       </div>
     ),
     enableSorting: false,

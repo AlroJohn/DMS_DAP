@@ -22,6 +22,7 @@ import ShinyText from "@/components/react-bits/ShinyText";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
 
 import { useAuth } from "@/hooks/use-auth";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -105,11 +106,48 @@ export function LoginFormClient({
         setIsLoading(false);
         // Clear password field
         setPassword("");
+        
+        // Parse error response and show toast notification
+        try {
+          const errorData = await response.json();
+          const errorMessage = errorData.message || errorData.error || "Login failed";
+          
+          // Show specific toast messages based on error type
+          if (errorMessage.includes("Invalid email or password")) {
+            toast.error("Invalid credentials", {
+              description: "The email or password you entered is incorrect. Please try again.",
+            });
+          } else if (errorMessage.includes("social login")) {
+            toast.error("Social login required", {
+              description: "This account uses Google sign-in. Please click 'Login with Google' button.",
+            });
+          } else if (errorMessage.includes("User profile not found")) {
+            toast.error("Account error", {
+              description: "User profile not found. Please contact your administrator.",
+            });
+          } else if (errorMessage.includes("already in use") || errorMessage.includes("another device")) {
+            toast.error("Account in use", {
+              description: "This account is already logged in on another device or browser. Please log out from other devices first.",
+            });
+          } else {
+            toast.error("Login failed", {
+              description: errorMessage,
+            });
+          }
+        } catch {
+          // If we can't parse the error response, show a generic message
+          toast.error("Login failed", {
+            description: "An unexpected error occurred. Please try again.",
+          });
+        }
       }
     } catch (error) {
       console.error("Login error:", error);
       setIsLoading(false);
       setPassword("");
+      toast.error("Network error", {
+        description: "Unable to connect to the server. Please check your connection and try again.",
+      });
     }
   };
 

@@ -40,7 +40,7 @@ type CreateColumnOptions = {
 };
 
 export const createOwnedDocumentColumns = (
-  options: CreateColumnOptions = {}
+  options: CreateColumnOptions = {},
 ): ColumnDef<Document, unknown>[] => {
   const { documentTypeMap = {}, processTypeMap = {} } = options;
   const uuidRegex =
@@ -265,7 +265,7 @@ export const createOwnedDocumentColumns = (
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Process Type" />
       ),
-    cell: ({ row }) => {
+      cell: ({ row }) => {
         const { code } = resolveProcessType(row.original);
         const name = resolveProcessTypeName(row.original);
         return <ProcessTypeCell name={name} code={code} minClampLength={20} />;
@@ -277,7 +277,7 @@ export const createOwnedDocumentColumns = (
         const processType = String(row.getValue(id) ?? "").toLowerCase();
         return Array.isArray(value)
           ? (value as string[]).some(
-              (v) => String(v).toLowerCase() === processType
+              (v) => String(v).toLowerCase() === processType,
             )
           : false;
       },
@@ -289,11 +289,12 @@ export const createOwnedDocumentColumns = (
       ),
       cell: ({ row }) => {
         const origin = (row.original as any).origin;
-        if (!origin) return <span className="text-xs text-muted-foreground">-</span>;
+        if (!origin)
+          return <span className="text-xs text-muted-foreground">-</span>;
         return (
           <Badge
             variant={origin === "internal" ? "default" : "outline"}
-            className="font-medium bg-primary text-xs px-1.5 py-0.5"
+            className="font-medium bg-primary text-background text-xs px-1.5 py-0.5"
           >
             {formatText(origin)}
           </Badge>
@@ -305,9 +306,7 @@ export const createOwnedDocumentColumns = (
         if (!value || (Array.isArray(value) && value.length === 0)) return true;
         const origin = String(row.getValue(id) ?? "").toLowerCase();
         return Array.isArray(value)
-          ? (value as string[]).some(
-              (v) => String(v).toLowerCase() === origin,
-            )
+          ? (value as string[]).some((v) => String(v).toLowerCase() === origin)
           : false;
       },
     },
@@ -338,7 +337,7 @@ export const createOwnedDocumentColumns = (
         const classification = String(row.getValue(id) ?? "").toLowerCase();
         return Array.isArray(value)
           ? (value as string[]).some(
-              (v) => String(v).toLowerCase() === classification
+              (v) => String(v).toLowerCase() === classification,
             )
           : false;
       },
@@ -386,21 +385,19 @@ export const createOwnedDocumentColumns = (
       ),
       cell: ({ row }) => {
         return (
-          <ActivityCell document={row.original} processTypeMap={processTypeMap} />
+          <ActivityCell
+            document={row.original}
+            processTypeMap={processTypeMap}
+          />
         );
       },
     },
-  {
-    id: "actions",
-    cell: ({ row }) => (
-      <DataTableRowActions
-        row={row}
-        viewType="owned"
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
+    {
+      id: "actions",
+      cell: ({ row }) => <DataTableRowActions row={row} viewType="owned" />,
+      enableSorting: false,
+      enableHiding: false,
+    },
   ];
 };
 
