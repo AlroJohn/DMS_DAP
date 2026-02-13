@@ -467,12 +467,11 @@ export const createRecycleBinColumns = (
   },
   {
     id: "actions",
-    cell: ({ row, table }) => (
+    cell: ({ row }) => (
       <div className="flex justify-center">
         <DataTableRowActions
           row={row}
           viewType="recycle-bin"
-          onActionSuccess={table.options.meta?.onRefetch}
         />
       </div>
     ),
