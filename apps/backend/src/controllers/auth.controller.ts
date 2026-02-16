@@ -95,16 +95,20 @@ export class AuthController {
       const refreshTokenMaxAge = parseExpiresIn(config.jwt.refreshExpiresIn);
 
       // Session cookies: expire after configured duration (default 8 hours)
-      res.cookie('accessToken', token, {
+      const isProduction = process.env.NODE_ENV === 'production';
+      const cookieOptions = {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: isProduction,
+        sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
+        domain: isProduction ? '.dap.edu.ph' : undefined,
+      };
+      
+      res.cookie('accessToken', token, {
+        ...cookieOptions,
         maxAge: accessTokenMaxAge,
       });
       res.cookie('refreshToken', refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        ...cookieOptions,
         maxAge: refreshTokenMaxAge,
       });
 
@@ -133,16 +137,20 @@ export class AuthController {
       const refreshTokenMaxAge = parseExpiresIn(config.jwt.refreshExpiresIn);
 
       // Session cookies: expire after configured duration (default 8 hours)
-      res.cookie('accessToken', token, {
+      const isProduction = process.env.NODE_ENV === 'production';
+      const cookieOptions = {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: isProduction,
+        sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
+        domain: isProduction ? '.dap.edu.ph' : undefined,
+      };
+      
+      res.cookie('accessToken', token, {
+        ...cookieOptions,
         maxAge: accessTokenMaxAge,
       });
       res.cookie('refreshToken', refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        ...cookieOptions,
         maxAge: refreshTokenMaxAge,
       });
 
@@ -168,18 +176,17 @@ export class AuthController {
     await this.authService.logout(refreshToken, accessToken);
 
     // Clear HttpOnly cookies
-    res.cookie('accessToken', '', {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: isProduction,
+      sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
+      domain: isProduction ? '.dap.edu.ph' : undefined,
       expires: new Date(0),
-    });
-    res.cookie('refreshToken', '', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      expires: new Date(0),
-    });
+    };
+    
+    res.cookie('accessToken', '', cookieOptions);
+    res.cookie('refreshToken', '', cookieOptions);
 
     return sendSuccess(res, { message: 'Logged out successfully' });
   });
@@ -725,16 +732,20 @@ export class AuthController {
       const refreshTokenMaxAge = parseExpiresIn(config.jwt.refreshExpiresIn);
 
       // Set session cookies
-      res.cookie('accessToken', result.token, {
+      const isProduction = process.env.NODE_ENV === 'production';
+      const cookieOptions = {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: isProduction,
+        sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
+        domain: isProduction ? '.dap.edu.ph' : undefined,
+      };
+      
+      res.cookie('accessToken', result.token, {
+        ...cookieOptions,
         maxAge: accessTokenMaxAge,
       });
       res.cookie('refreshToken', result.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        ...cookieOptions,
         maxAge: refreshTokenMaxAge,
       });
 
