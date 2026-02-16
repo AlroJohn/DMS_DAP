@@ -82,7 +82,7 @@ export async function exportDocumentTrailsPDF(
   let ribbonDataUrl: string | null = null;
   try {
     const [logoRes] = await Promise.all([
-      fetch("/image/LOGO_BLUE.png"),
+      fetch("/image/qby.png"),
     ]);
 
     if (logoRes.ok) {

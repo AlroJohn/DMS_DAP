@@ -171,7 +171,7 @@ export default function HomeCMSEditor() {
                       name="logo_url"
                       value={formData.logo_url}
                       onChange={handleChange}
-                      placeholder="https://example.com/logo.png"
+                      placeholder="https://example.com/qby.png"
                       type="url"
                     />
                     <p className="text-xs text-muted-foreground">

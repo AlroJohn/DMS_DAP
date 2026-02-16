@@ -59,7 +59,7 @@ export const generateFullReportPDF = async (document: any, trails: any[]) => {
     // Load logo
     let logoDataUrl: string | null = null;
     try {
-      const logoRes = await fetch('/image/LOGO_BLUE.png');
+      const logoRes = await fetch('/image/qby.png');
       if (logoRes.ok) {
         const blob = await logoRes.blob();
         logoDataUrl = await new Promise((resolve, reject) => {
@@ -315,7 +315,7 @@ export const generateDocumentPDF = async (document: any) => {
     // Load logo
     let logoDataUrl: string | null = null;
     try {
-      const logoRes = await fetch('/image/LOGO_BLUE.png');
+      const logoRes = await fetch('/image/qby.png');
       if (logoRes.ok) {
         const blob = await logoRes.blob();
         logoDataUrl = await new Promise((resolve, reject) => {
@@ -676,7 +676,7 @@ export const exportRoutingHistoryPDF = async (document: any, trails: any[]) => {
     // Load logo
     let logoDataUrl: string | null = null;
     try {
-      const logoRes = await fetch('/image/LOGO_BLUE.png');
+      const logoRes = await fetch('/image/qby.png');
       if (logoRes.ok) {
         const blob = await logoRes.blob();
         logoDataUrl = await new Promise((resolve, reject) => {
@@ -864,7 +864,7 @@ export const generateVersionHistoryPDF = async (document: any) => {
     // Load logo
     let logoDataUrl: string | null = null;
     try {
-      const logoRes = await fetch('/image/LOGO_BLUE.png');
+      const logoRes = await fetch('/image/qby.png');
       if (logoRes.ok) {
         const blob = await logoRes.blob();
         logoDataUrl = await new Promise((resolve, reject) => {

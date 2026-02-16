@@ -37,7 +37,7 @@ export const metadata: Metadata = {
   description:
     "A document management system integrated with Qsign for seamless digital signatures.",
   icons: {
-    icon: "/image/DAP_LOGO.png",
+    icon: "/image/qby.png",
   },
 };
 

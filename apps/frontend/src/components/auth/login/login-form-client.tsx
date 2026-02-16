@@ -204,7 +204,7 @@ export function LoginFormClient({
           <div className="relative h-full">
             <div className="px-10 flex flex-col justify-center h-full md:w-1/2 z-10">
               <CardHeader className="text-center">
-                <img src="/image/LOGO_BLUE.png" alt="Logo" className="mx-auto w-48 md:w-72 -mt-4 md:-mt-6" />
+                <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Quanby Solution Inc.</h1>
                 <CardDescription className="p-2">Login with your Google account or email</CardDescription>
               </CardHeader>
               <form onSubmit={handleManualLogin}>
@@ -288,17 +288,13 @@ export function LoginFormClient({
                 </FieldGroup>
               </form>
             </div>
-            <div className="hidden md:block p-0 w-1/2 absolute top-0 bottom-0 right-0 overflow-hidden">
+            <div className="hidden md:block p-0 w-1/2 absolute top-0 bottom-0 right-0 overflow-hidden flex items-center justify-center bg-gray-100">
               <img
-                src="/image/dap_bg.png"
+                src="/image/qby.png"
                 alt="Login image"
-                className="absolute w-full h-full object-cover"
+                className="max-w-full max-h-full w-full h-full object-contain"
                 style={{ 
-                  objectPosition: "-360px center", 
-                  transform: "scale(1.5)", 
-                  transformOrigin: "center",
-                  minHeight: "100%",
-                  minWidth: "100%"
+                  imageRendering: "-webkit-optimize-contrast"
                 }}
               />
             </div>
