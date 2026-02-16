@@ -149,7 +149,11 @@ export function NavMain({
                               className="flex w-full items-center justify-between"
                             >
                               <span>{subItem.title}</span>
-                              {/* {renderBadge(subItem.badgeCount, subItem.outgoingCount, subItem.incomingCount)} */}
+                              {renderBadge(
+                                subItem.badgeCount,
+                                subItem.outgoingCount,
+                                subItem.incomingCount,
+                              )}
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>

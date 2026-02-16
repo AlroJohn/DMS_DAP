@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import * as React from "react"
+import * as React from "react";
 import {
   BadgeCheck,
   Bell,
@@ -8,13 +8,9 @@ import {
   CreditCard,
   LogOut,
   Sparkles,
-} from "lucide-react"
+} from "lucide-react";
 
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,46 +19,46 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/components/ui/sidebar"
-import { NotificationSheet } from "@/components/shared/notification/notification"
-import { useAuth } from "@/hooks/use-auth"
-import { useRouter } from "next/navigation"
-import { Loading } from "@/components/ui/loading"
+} from "@/components/ui/sidebar";
+import { NotificationSheet } from "@/components/shared/notification/notification";
+import { useAuth } from "@/hooks/use-auth";
+import { useRouter } from "next/navigation";
+import { Loading } from "@/components/ui/loading";
 
 export function NavUser({
   user,
 }: {
   user: {
-    name: string
-    email: string
-    avatar: string
-  }
+    name: string;
+    email: string;
+    avatar: string;
+  };
 }) {
-  const { isMobile } = useSidebar()
-  const { logout } = useAuth()
-  const router = useRouter()
-  const [notificationOpen, setNotificationOpen] = React.useState(false)
-  const [isLoggingOut, setIsLoggingOut] = React.useState(false)
+  const { isMobile } = useSidebar();
+  const { logout } = useAuth();
+  const router = useRouter();
+  const [notificationOpen, setNotificationOpen] = React.useState(false);
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false);
 
   // Generate initials from user name
   const getInitials = () => {
     if (!user.name || user.name === "Guest User") {
-      return "GU"
+      return "GU";
     }
-    const nameParts = user.name.trim().split(" ")
+    const nameParts = user.name.trim().split(" ");
     if (nameParts.length >= 2) {
-      return `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
+      return `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase();
     }
-    return user.name.substring(0, 2).toUpperCase()
-  }
+    return user.name.substring(0, 2).toUpperCase();
+  };
 
-  const initials = getInitials()
+  const initials = getInitials();
 
   return (
     <SidebarMenu>
@@ -74,8 +70,12 @@ export function NavUser({
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar className="h-8 w-8 rounded-lg">
-                {user.avatar && <AvatarImage src={user.avatar} alt={user.name} />}
-                <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
+                {user.avatar && (
+                  <AvatarImage src={user.avatar} alt={user.name} />
+                )}
+                <AvatarFallback className="rounded-lg">
+                  {initials}
+                </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{user.name}</span>
@@ -93,8 +93,12 @@ export function NavUser({
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  {user.avatar && <AvatarImage src={user.avatar} alt={user.name} />}
-                  <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
+                  {user.avatar && (
+                    <AvatarImage src={user.avatar} alt={user.name} />
+                  )}
+                  <AvatarFallback className="rounded-lg">
+                    {initials}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{user.name}</span>
@@ -143,5 +147,5 @@ export function NavUser({
       {/* Loading Overlay */}
       {isLoggingOut && <Loading />}
     </SidebarMenu>
-  )
+  );
 }
