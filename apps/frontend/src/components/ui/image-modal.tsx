@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +30,7 @@ export function ImageModal({
     ? (alt || title || "").toString()
     : (title || alt || "").toString();
   const [isPrinting, setIsPrinting] = useState(false);
+  const printingLockRef = useRef(false); // Prevent rapid multiple prints
   const { socket } = useSocket();
 
   const bytesToBase64 = (bytes: Uint8Array) => {
