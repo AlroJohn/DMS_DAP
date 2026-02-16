@@ -27,9 +27,98 @@ import { useHomeCMS } from "@/hooks/use-home.cms";
 import { useQuickAccess } from "@/hooks/useQuickAccess";
 import TiptapEditor from "@/components/tiptap-editor";
 import Image from "next/image";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+
+// Restricted Video Component - cannot pause, cannot skip, muted by default
+const RestrictedVideo = ({ src }: { src: string }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isMuted, setIsMuted] = useState(true);
+  const lastTimeRef = useRef(0);
+
+  // Prevent pausing - always play
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handlePause = () => {
+      video.play().catch(() => {
+        // Ignore autoplay policy errors
+      });
+    };
+
+    video.addEventListener('pause', handlePause);
+    return () => video.removeEventListener('pause', handlePause);
+  }, []);
+
+  // Prevent seeking/skipping
+  const handleTimeUpdate = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Only allow forward progress, never backward
+    if (video.currentTime < lastTimeRef.current) {
+      video.currentTime = lastTimeRef.current;
+    } else {
+      lastTimeRef.current = video.currentTime;
+    }
+  }, []);
+
+  // Prevent seeking via click on progress bar
+  const handleSeeking = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.currentTime > lastTimeRef.current + 0.5) {
+      video.currentTime = lastTimeRef.current;
+    }
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    
+    video.muted = !video.muted;
+    setIsMuted(video.muted);
+  }, []);
+
+  return (
+    <div className="relative w-full h-full group">
+      <video
+        ref={videoRef}
+        src={src}
+        autoPlay
+        muted={isMuted}
+        loop
+        className="w-full h-full"
+        playsInline
+        onTimeUpdate={handleTimeUpdate}
+        onSeeking={handleSeeking}
+      >
+        Your browser does not support the video tag.
+      </video>
+      
+      {/* Custom mute/unmute button */}
+      <button
+        onClick={toggleMute}
+        className="absolute bottom-4 right-4 z-10 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+        aria-label={isMuted ? "Unmute video" : "Mute video"}
+      >
+        {isMuted ? (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+          </svg>
+        ) : (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+          </svg>
+        )}
+      </button>
+    </div>
+  );
+};
 
 const Homepage = () => {
   const { user } = useAuth();
@@ -551,24 +640,14 @@ const Homepage = () => {
                         } else if (data.video_url.includes("embed/")) {
                           videoId = data.video_url.split("embed/")[1].split("?")[0];
                         }
-                        return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=1&enablejsapi=1&rel=0`;
+                        return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0`;
                       })()}
-                      className="w-full h-full"
+                      className="w-full h-full pointer-events-none"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
+                      allowFullScreen={false}
                     ></iframe>
                   ) : (
-                    <video
-                      src={data.video_url}
-                      controls
-                      autoPlay
-                      muted
-                      loop
-                      className="w-full h-full"
-                      playsInline
-                    >
-                      Your browser does not support the video tag.
-                    </video>
+                    <RestrictedVideo src={data.video_url} />
                   )}
                 </div>
               </CardContent>
