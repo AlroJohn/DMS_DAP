@@ -217,7 +217,7 @@ export async function exportDocumentTrailsPDF(
   doc.text("Created:", labelX, yPos);
   doc.setFont("helvetica", "normal");
   try {
-    const createdStr = format(new Date(documentInfo.createdAt), "MMM d, yyyy h:mm a");
+    const createdStr = format(new Date(documentInfo.createdAt), "MMMM d, yyyy h:mm a");
     doc.text(createdStr, valueX, yPos);
   } catch {
     doc.text("-", valueX, yPos);
@@ -293,21 +293,21 @@ export async function exportDocumentTrailsPDF(
   const tableRows = (trails || []).map((trail) => [
     (() => {
       try {
-        return format(new Date(trail.actionDate), "MMM d, yyyy\nh:mm a");
+        return format(new Date(trail.actionDate), "MMMM d, yyyy\nh:mm a");
       } catch {
         return trail.actionDate || "-";
       }
     })(),
     (() => {
       try {
-        return trail.createdAt ? format(new Date(trail.createdAt), "MMM d, yyyy\nh:mm a") : "-";
+        return trail.createdAt ? format(new Date(trail.createdAt), "MMMM d, yyyy\nh:mm a") : "-";
       } catch {
         return "-";
       }
     })(),
     (() => {
       try {
-        return trail.updatedAt ? format(new Date(trail.updatedAt), "MMM d, yyyy\nh:mm a") : "-";
+        return trail.updatedAt ? format(new Date(trail.updatedAt), "MMMM d, yyyy\nh:mm a") : "-";
       } catch {
         return "-";
       }
@@ -382,7 +382,9 @@ export async function exportDocumentTrailsPDF(
       doc.setFontSize(8);
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "normal");
-      const generatedText = `Generated on: ${format(new Date(), "M/d/yyyy, h:mm:ss a")}`;
+      const generatedDate = format(new Date(), "MMMM d, yyyy");
+      const generatedTime = format(new Date(), "h:mm:ss a");
+      const generatedText = `Generated on: ${generatedDate}, ${generatedTime}`;
       const systemText = "Document Tracking Management System";
       doc.text(generatedText, pageWidth / 2, footerY + 8, { align: "center" });
       doc.text(systemText, pageWidth / 2, footerY + 13, { align: "center" });
@@ -429,7 +431,7 @@ export async function exportDocumentTrailsCSV(
   csvContent += `Classification: ${documentInfo.classification}\n`;
   csvContent += `Status: ${getStatusText(documentInfo.status)}\n`;
   try {
-    csvContent += `Created: ${format(new Date(documentInfo.createdAt), "MMM d, yyyy h:mm a")}\n`;
+    csvContent += `Created: ${format(new Date(documentInfo.createdAt), "MMMM d, yyyy h:mm a")}\n`;
   } catch {
     csvContent += `Created: -\n`;
   }
@@ -454,16 +456,16 @@ export async function exportDocumentTrailsCSV(
     let createdAt = "-";
     let updatedAt = "-";
     try {
-      actionDate = format(new Date(trail.actionDate), "MMM d, yyyy h:mm a");
+      actionDate = format(new Date(trail.actionDate), "MMMM d, yyyy h:mm a");
     } catch {}
     try {
       if (trail.createdAt) {
-        createdAt = format(new Date(trail.createdAt), "MMM d, yyyy h:mm a");
+        createdAt = format(new Date(trail.createdAt), "MMMM d, yyyy h:mm a");
       }
     } catch {}
     try {
       if (trail.updatedAt) {
-        updatedAt = format(new Date(trail.updatedAt), "MMM d, yyyy h:mm a");
+        updatedAt = format(new Date(trail.updatedAt), "MMMM d, yyyy h:mm a");
       }
     } catch {}
     const remarks = (trail.remarks || "").replace(/"/g, '""').replace(/\n/g, " ");
@@ -500,7 +502,7 @@ export async function exportDocumentTrailsExcel(
     ["Status", getStatusText(documentInfo.status)],
   ];
   try {
-    infoData.push(["Created", format(new Date(documentInfo.createdAt), "MMM d, yyyy h:mm a")]);
+    infoData.push(["Created", format(new Date(documentInfo.createdAt), "MMMM d, yyyy h:mm a")]);
   } catch {
     infoData.push(["Created", "-"]);
   }
@@ -528,16 +530,16 @@ export async function exportDocumentTrailsExcel(
     let createdAt = "-";
     let updatedAt = "-";
     try {
-      actionDate = format(new Date(trail.actionDate), "MMM d, yyyy h:mm a");
+      actionDate = format(new Date(trail.actionDate), "MMMM d, yyyy h:mm a");
     } catch {}
     try {
       if (trail.createdAt) {
-        createdAt = format(new Date(trail.createdAt), "MMM d, yyyy h:mm a");
+        createdAt = format(new Date(trail.createdAt), "MMMM d, yyyy h:mm a");
       }
     } catch {}
     try {
       if (trail.updatedAt) {
-        updatedAt = format(new Date(trail.updatedAt), "MMM d, yyyy h:mm a");
+        updatedAt = format(new Date(trail.updatedAt), "MMMM d, yyyy h:mm a");
       }
     } catch {}
     infoData.push([

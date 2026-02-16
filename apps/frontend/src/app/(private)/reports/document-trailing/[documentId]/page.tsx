@@ -488,30 +488,30 @@ export default function DocumentTrailsDetailPage() {
 
                     {/* Duration in this stage - Only shown when user held document */}
                     {trail.durationMs && trail.durationMs > 0 && (
-                      <div className="mt-3 p-4 bg-linear-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20 border-l-4 border-blue-500 dark:border-blue-400 rounded-r-md shadow-sm">
-                        <div>
-                          <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 uppercase tracking-wider mb-2">
-                            DURATION HELD BY USER
-                          </p>
-                          <div className="space-y-1">
-                            <p className="text-xl font-bold text-blue-700 dark:text-blue-300">
-                              {(() => {
-                                const durationInSeconds = Math.floor(trail.durationMs / 1000);
-                                const days = Math.floor(durationInSeconds / (24 * 60 * 60));
-                                const hours = Math.floor((durationInSeconds % (24 * 60 * 60)) / (60 * 60));
-                                const minutes = Math.floor((durationInSeconds % (60 * 60)) / 60);
-                                
-                                const longParts: string[] = [];
-                                if (days > 0) longParts.push(`${days} ${days === 1 ? 'day' : 'days'}`);
-                                if (hours > 0) longParts.push(`${hours} ${hours === 1 ? 'hour' : 'hours'}`);
-                                if (minutes > 0 || longParts.length === 0) longParts.push(`${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`);
-                                
-                                return longParts.join(', ');
-                              })()}
+                      <div className="mt-4 pt-4 border-t border-dashed border-border/50">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div>
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                              Duration held by user
                             </p>
-                            <p className="text-sm text-blue-700 dark:text-blue-300">
+                            <p className="text-sm text-muted-foreground/80">
                               {trail.user} held this document {index === trails.length - 1 ? "and is currently in this stage" : "before releasing to next user"}
                             </p>
+                          </div>
+                          <div className="text-xl font-bold text-foreground">
+                            {(() => {
+                              const durationInSeconds = Math.floor(trail.durationMs / 1000);
+                              const days = Math.floor(durationInSeconds / (24 * 60 * 60));
+                              const hours = Math.floor((durationInSeconds % (24 * 60 * 60)) / (60 * 60));
+                              const minutes = Math.floor((durationInSeconds % (60 * 60)) / 60);
+                              
+                              const parts: string[] = [];
+                              if (days > 0) parts.push(`${days}d`);
+                              if (hours > 0) parts.push(`${hours}h`);
+                              if (minutes > 0 || parts.length === 0) parts.push(`${minutes}m`);
+                              
+                              return parts.join(' ');
+                            })()}
                           </div>
                         </div>
                       </div>
