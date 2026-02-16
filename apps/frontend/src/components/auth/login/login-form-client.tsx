@@ -99,6 +99,11 @@ export function LoginFormClient({
         // Trigger the login function from useAuth to re-fetch user data and update state
         await login();
 
+        // Show success toast
+        toast.success("Login successful", {
+          description: "Welcome back! Redirecting to home...",
+        });
+
         // Redirect to home after auth state is refreshed
         router.push("/home");
       } else {
@@ -157,6 +162,11 @@ export function LoginFormClient({
     
     // Trigger the login function from useAuth to re-fetch user data and update state
     await login();
+
+    // Show success toast
+    toast.success("Login successful", {
+      description: "Welcome back! Redirecting to home...",
+    });
 
     // Redirect to home after auth state is refreshed
     router.push("/home");
