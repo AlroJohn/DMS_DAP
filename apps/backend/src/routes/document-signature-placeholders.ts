@@ -3,9 +3,17 @@ import { DocumentSignatureWorkflowService } from '../services/DocumentSignatureW
 import { auditService } from '../services/audit.service';
 import { NotificationService } from '../services/notification.service';
 import { prisma } from '../lib/prisma';
+import multer from 'multer';
 
 const router = express.Router();
 const notificationService = new NotificationService();
+const upload = multer();
+
+// Helper to safely extract string from req.params
+const getParamString = (param: string | string[] | undefined): string | undefined => {
+  if (Array.isArray(param)) return param[0];
+  return param;
+};
 
 // Endpoint to batch create signature placeholders (for adding multiple at once)
 router.post('/documents/:documentId/signature-placeholders/batch', async (req: Request, res: Response) => {
@@ -16,12 +24,16 @@ router.post('/documents/:documentId/signature-placeholders/batch', async (req: R
   console.log('========================================\n');
   
   try {
-    const { documentId } = req.params;
+    const documentId = getParamString(req.params.documentId);
     const { placeholders, user_id } = req.body;
 
     console.log(`📍 [Batch Placeholder] Request received for document ${documentId}`);
     console.log(`📍 [Batch Placeholder] Placeholders:`, placeholders);
     console.log(`📍 [Batch Placeholder] User ID:`, user_id);
+
+    if (!documentId) {
+      return res.status(400).json({ error: 'Document ID is required' });
+    }
 
     if (!Array.isArray(placeholders) || placeholders.length === 0) {
       console.log(`❌ [Batch Placeholder] Invalid placeholders array`);
@@ -294,7 +306,7 @@ router.post('/documents/:documentId/signature-placeholders/batch', async (req: R
 // Endpoint to get signature placeholders for a document
 router.get('/documents/:documentId/signature-placeholders', async (req: Request, res: Response) => {
   try {
-    const { documentId } = req.params;
+    const documentId = getParamString(req.params.documentId);
 
     const placeholders = await prisma.signaturePlaceholder.findMany({
       where: { document_id: documentId },
@@ -313,7 +325,7 @@ router.get('/documents/:documentId/signature-placeholders', async (req: Request,
 // Endpoint to create signature placeholders
 router.post('/documents/:documentId/signature-placeholders', async (req: Request, res: Response) => {
   try {
-    const { documentId } = req.params;
+    const documentId = getParamString(req.params.documentId);
     const {
       document_file_id,
       page_number,
@@ -372,7 +384,7 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
 
     const placeholder = await prisma.signaturePlaceholder.create({
       data: {
-        document_id: documentId,
+        document_id: documentId!,
         document_file_id,
         page_number,
         x_position,
@@ -455,7 +467,7 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
         }
       }
 
-      await auditService.logSignaturePlaceholderAdded(user_id, documentId, {
+      await auditService.logSignaturePlaceholderAdded(user_id, documentId!, {
         description: placeholderDesc,
         fromDepartmentId: creatingUser?.department_id,
         toDepartmentId: creatingUser?.department_id
@@ -566,7 +578,7 @@ router.post('/documents/:documentId/signature-placeholders', async (req: Request
 // Endpoint to place a signature on a document
 router.post('/documents/:documentId/place-signature', async (req: Request, res: Response) => {
   try {
-    const { documentId } = req.params;
+    const documentId = getParamString(req.params.documentId);
     const { signee_id, document_file_id, page_number, x_position, y_position, width, height, signature_data } = req.body;
 
     // Verify document, file, and user exist
@@ -599,7 +611,7 @@ router.post('/documents/:documentId/place-signature', async (req: Request, res: 
 
     const signedDocument = await prisma.signedDocument.create({
       data: {
-        document_id: documentId,
+        document_id: documentId!,
         signee_id,
         documentFileFile_id: document_file_id,
         page_number,
@@ -611,8 +623,46 @@ router.post('/documents/:documentId/place-signature', async (req: Request, res: 
       }
     });
 
+    // Update the corresponding signature placeholder's status to true
+    // Find the signature placeholder that matches the position and document file
+    const EPSILON = 0.5; // Small tolerance for floating point comparisons
+    const signaturePlaceholder = await prisma.signaturePlaceholder.findFirst({
+      where: {
+        document_file_id: document_file_id,
+        page_number: page_number,
+        // Using approximate matching for positions due to potential floating point precision differences
+        x_position: {
+          gte: x_position - EPSILON,
+          lte: x_position + EPSILON
+        },
+        y_position: {
+          gte: y_position - EPSILON,
+          lte: y_position + EPSILON
+        },
+        width: {
+          gte: width - EPSILON,
+          lte: width + EPSILON
+        },
+        height: {
+          gte: height - EPSILON,
+          lte: height + EPSILON
+        }
+      }
+    });
+
+    if (signaturePlaceholder) {
+      await prisma.signaturePlaceholder.update({
+        where: {
+          placeholder_id: signaturePlaceholder.placeholder_id
+        },
+        data: {
+          signature_status: true
+        }
+      });
+    }
+
     // Log signature to document trail
-    await auditService.logDocumentSigned(signee_id, documentId, {
+    await auditService.logDocumentSigned(signee_id, documentId!, {
       description: `Document signed by ${user.first_name} ${user.last_name}`
     });
 
@@ -634,7 +684,7 @@ router.post('/documents/:documentId/place-signature', async (req: Request, res: 
 // Endpoint to process document with all signatures
 router.post('/documents/:documentId/process-signed-document', async (req: Request, res: Response) => {
   try {
-    const { documentId } = req.params;
+    const documentId = getParamString(req.params.documentId)!;
     const { document_file_id } = req.body;
 
     // Process document with signatures using the service
@@ -656,7 +706,7 @@ router.post('/documents/:documentId/process-signed-document', async (req: Reques
 // Endpoint to get all signatures for a document
 router.get('/documents/:documentId/signatures', async (req: Request, res: Response) => {
   try {
-    const { documentId } = req.params;
+    const documentId = getParamString(req.params.documentId);
 
     const signatures = await prisma.signedDocument.findMany({
       where: { document_id: documentId },
@@ -682,7 +732,7 @@ router.get('/documents/:documentId/signatures', async (req: Request, res: Respon
 // Endpoint to delete a signature placeholder
 router.delete('/documents/:documentId/delete-signature-placeholder', async (req: Request, res: Response) => {
   try {
-    const { documentId } = req.params;
+    const documentId = getParamString(req.params.documentId);
     const { placeholder_id } = req.body;
 
     // Verify the placeholder belongs to the document

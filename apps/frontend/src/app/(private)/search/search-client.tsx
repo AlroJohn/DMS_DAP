@@ -481,7 +481,7 @@ export default function SearchPageClient() {
                     <SelectItem value="pending">Dispatch</SelectItem>
                     <SelectItem value="intransit">In Transit</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="canceled">Canceled</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
                     <SelectItem value="deleted">Deleted</SelectItem>
                   </SelectContent>
                 </Select>

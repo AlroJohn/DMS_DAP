@@ -9,6 +9,7 @@ export interface InTransitDocument {
   contactPerson: string;
   contactOrganization: string;
   type: string;
+  process_type_id?: string | null;
   classification: string;
   status: string;
   activity: string;

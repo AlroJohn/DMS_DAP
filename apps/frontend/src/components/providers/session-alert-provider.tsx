@@ -58,6 +58,7 @@ export function SessionAlertProvider({ children }: SessionAlertProviderProps) {
             : input.url;
 
       if (AUTH_PATH_HINTS.some((path) => url.includes(path))) {
+        console.log("[SessionAlert] Auth path matched:", url, "Status:", response.status);
         return true;
       }
 
@@ -71,7 +72,11 @@ export function SessionAlertProvider({ children }: SessionAlertProviderProps) {
         )
           .toString()
           .toLowerCase();
-        return AUTH_ERROR_HINTS.some((hint) => message.includes(hint));
+        const matched = AUTH_ERROR_HINTS.some((hint) => message.includes(hint));
+        if (matched) {
+          console.log("[SessionAlert] Auth error hint matched:", message, "URL:", url);
+        }
+        return matched;
       } catch {
         return false;
       }
@@ -90,6 +95,7 @@ export function SessionAlertProvider({ children }: SessionAlertProviderProps) {
         ? "refresh"
         : "expired";
 
+      console.log("[SessionAlert] Triggering session expired modal. URL:", url, "Reason:", nextReason);
       hasTriggeredRef.current = true;
       setReason(nextReason);
       setOpen(true);
@@ -98,6 +104,8 @@ export function SessionAlertProvider({ children }: SessionAlertProviderProps) {
     window.fetch = async (...args) => {
       const response = await originalFetch(...args);
       if (response.status === 401 || response.status === 403) {
+        const url = typeof args[0] === "string" ? args[0] : args[0] instanceof URL ? args[0].toString() : (args[0] as Request).url;
+        console.log("[SessionAlert] Got", response.status, "from:", url);
         const shouldAlert = await shouldTriggerSessionAlert(args[0], response);
         if (shouldAlert) {
           handleUnauthorized(args[0]);
@@ -109,6 +117,7 @@ export function SessionAlertProvider({ children }: SessionAlertProviderProps) {
     const onSessionExpired = (event: Event) => {
       if (hasTriggeredRef.current) return;
       const custom = event as CustomEvent<{ reason?: SessionAlertReason }>;
+      console.log("[SessionAlert] session-expired event received:", custom.detail);
       hasTriggeredRef.current = true;
       setReason(custom.detail?.reason ?? "expired");
       setOpen(true);

@@ -13,6 +13,8 @@ export interface DocumentFileMetadata {
   uploadDate?: string | Date | null;
   downloadUrl?: string | null;
   versionGroupId?: string | null;
+  documentGroupId?: string | null;
+  documentGroupName?: string | null;
 }
 
 interface UseDocumentFilesResult {

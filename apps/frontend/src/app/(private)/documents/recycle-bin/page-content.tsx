@@ -1,22 +1,51 @@
 "use client";
 
 import { DataTable } from "@/components/reuseable/tables/data-table";
-import { columns, type RecycleBinDocument } from "./columns";
+import { createRecycleBinColumns, type RecycleBinDocument } from "./columns";
 import { useRecycleBinDocuments } from "@/hooks/use-recycle-bin-documents";
 import { useSocket } from "@/components/providers/providers";
 import { AlertCircle, AlertTriangle, Badge, Clock, Trash2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useRecycleBin } from "@/context/recycle-bin-context";
+import { useProcessType } from "@/hooks/use-process.type";
 
 export default function RecycleBinPage() {
   const { documents, isLoading, error, refetch } = useRecycleBinDocuments(
     1,
-    100
+    100,
   ); // Use page 1 with high limit
   const { socket } = useSocket();
   const mountedRef = useRef(false);
   const { showWarning } = useRecycleBin(); // Get showWarning from context
+  const { processTypes } = useProcessType();
+
+  const columns = useMemo(
+    () =>
+      createRecycleBinColumns(
+        processTypes.reduce(
+          (map, type) => {
+            map[type.process_type_id] = {
+              code: type.code || "",
+              name: type.name,
+              duration_value: type.duration_value ?? null,
+              duration_unit: type.duration_unit ?? null,
+            };
+            return map;
+          },
+          {} as Record<
+            string,
+            {
+              code?: string;
+              name?: string;
+              duration_value?: number | null;
+              duration_unit?: string | null;
+            }
+          >,
+        ),
+      ),
+    [processTypes],
+  );
 
   // Mark component as mounted and clean up on unmount
   useEffect(() => {
@@ -76,7 +105,7 @@ export default function RecycleBinPage() {
             Auto-deletion Notice
           </AlertTitle>
           <AlertDescription className="text-orange-700">
-            Documents in the recycle bin will be permanently deleted after 30
+            Documents in the recycle bin will be permanently deleted after 5
             days.
           </AlertDescription>
         </Alert>
@@ -117,8 +146,24 @@ export default function RecycleBinPage() {
             dates: false,
             status: false,
           },
+          columnOrder: [
+            "select",
+            "scan",
+            "document",
+            "contact",
+            "type",
+            "origin",
+            "processType",
+            "classification",
+            "status",
+            "dates",
+            "deletedBy",
+            "deletedAt",
+            "actions",
+          ],
         }}
         isLoading={isLoading}
+        meta={{ onRefetch: refetch }}
       />
     </div>
   );

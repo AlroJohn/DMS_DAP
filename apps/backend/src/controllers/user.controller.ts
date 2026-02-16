@@ -14,6 +14,13 @@ export class UserController {
     this.permissionService = new PermissionService();
   }
 
+  private getStringValue = (param: string | string[] | undefined): string | undefined => {
+    if (Array.isArray(param)) {
+      return param[0];
+    }
+    return param;
+  };
+
   /**
    * GET /api/admin/users - Get all users (admin only)
    */
@@ -45,7 +52,7 @@ export class UserController {
    */
   getUserById = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
 
     // Check if user has user read permissions
     const canReadUsers = await this.permissionService.hasPermission(
@@ -55,6 +62,10 @@ export class UserController {
 
     if (!canReadUsers) {
       return sendError(res, 'Insufficient permissions to read users', 403);
+    }
+
+    if (!id) {
+      return sendError(res, 'User ID is required', 400);
     }
 
     try {
@@ -166,7 +177,7 @@ export class UserController {
    */
   updateUser = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
 
     // Check if user has user edit permissions
     const canEditUsers = await this.permissionService.hasPermission(
@@ -176,6 +187,9 @@ export class UserController {
 
     if (!canEditUsers) {
       return sendError(res, 'Insufficient permissions to edit users', 403);
+    }
+    if (!id) {
+      return sendError(res, 'User ID is required', 400);
     }
 
     const {
@@ -252,7 +266,7 @@ export class UserController {
    */
   toggleUserStatus = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
 
     // Check if user has user activation/deactivation permissions
     const canActivateUsers = await this.permissionService.hasPermission(
@@ -262,6 +276,9 @@ export class UserController {
 
     if (!canActivateUsers) {
       return sendError(res, 'Insufficient permissions to activate/deactivate users', 403);
+    }
+    if (!id) {
+      return sendError(res, 'User ID is required', 400);
     }
 
     try {
@@ -315,7 +332,7 @@ export class UserController {
    */
   deleteUser = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
 
     // Check if user has user deletion permissions
     const canDeleteUsers = await this.permissionService.hasPermission(
@@ -325,6 +342,9 @@ export class UserController {
 
     if (!canDeleteUsers) {
       return sendError(res, 'Insufficient permissions to delete users', 403);
+    }
+    if (!id) {
+      return sendError(res, 'User ID is required', 400);
     }
 
     try {

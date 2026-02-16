@@ -4,6 +4,13 @@ import { PermissionService } from "../services/permission.service";
 
 const permissionService = new PermissionService();
 
+const getStringValue = (param: string | string[] | undefined): string | undefined => {
+  if (Array.isArray(param)) {
+    return param[0];
+  }
+  return param;
+};
+
 /**
  * Get all sidebar settings
  */
@@ -88,7 +95,7 @@ export const getSidebarSettings = async (req: Request, res: Response) => {
 export const updateSidebarSetting = async (req: Request, res: Response) => {
   console.log('[Sidebar Settings] PUT /:setting_id - Updating sidebar setting');
   try {
-    const { setting_id } = req.params;
+    const setting_id = getStringValue(req.params.setting_id);
     const { is_enabled } = req.body;
     const user = (req as any).user;
 
@@ -108,6 +115,13 @@ export const updateSidebarSetting = async (req: Request, res: Response) => {
       return res.status(403).json({
         success: false,
         message: "Only superadmins can modify sidebar settings",
+      });
+    }
+
+    if (!setting_id) {
+      return res.status(400).json({
+        success: false,
+        message: "setting_id is required",
       });
     }
 

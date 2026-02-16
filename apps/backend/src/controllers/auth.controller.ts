@@ -79,20 +79,33 @@ export class AuthController {
     const credentials: LoginCredentials = { email, password }; // Define credentials
 
     try {
-      const { user, token, refreshToken } = await this.authService.login(credentials);
+      const { user, token, refreshToken, requires2FA, tempToken } = await this.authService.login(credentials);
+      
+      // Check if 2FA is required
+      if (requires2FA && tempToken) {
+        return sendSuccess(res, { 
+          requires2FA: true, 
+          tempToken,
+          email,
+          message: 'Two-factor authentication required. Please check your email for the verification code.'
+        });
+      }
+      
+      const accessTokenMaxAge = parseExpiresIn(config.jwt.expiresIn);
+      const refreshTokenMaxAge = parseExpiresIn(config.jwt.refreshExpiresIn);
 
-      // Set HttpOnly cookies only after successful login
+      // Session cookies: expire after configured duration (default 8 hours)
       res.cookie('accessToken', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: parseExpiresIn(config.jwt.expiresIn), // Use helper function
+        maxAge: accessTokenMaxAge,
       });
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: parseExpiresIn(config.jwt.refreshExpiresIn),
+        maxAge: refreshTokenMaxAge,
       });
 
       return sendSuccess(res, { user });
@@ -116,19 +129,21 @@ export class AuthController {
 
     try {
       const { token, refreshToken } = await this.authService.refreshToken(currentRefreshToken);
+      const accessTokenMaxAge = parseExpiresIn(config.jwt.expiresIn);
+      const refreshTokenMaxAge = parseExpiresIn(config.jwt.refreshExpiresIn);
 
-      // Set new HttpOnly cookies
+      // Session cookies: expire after configured duration (default 8 hours)
       res.cookie('accessToken', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: parseExpiresIn(config.jwt.expiresIn), // Use helper function
+        maxAge: accessTokenMaxAge,
       });
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: parseExpiresIn(config.jwt.refreshExpiresIn),
+        maxAge: refreshTokenMaxAge,
       });
 
       return sendSuccess(res, { message: 'Tokens refreshed successfully' });
@@ -423,7 +438,20 @@ export class AuthController {
    */
   getUserRoles = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
+    
+    // Helper function to extract string value from potentially array parameter
+    const getStringValue = (param: string | string[] | undefined): string | undefined => {
+      if (Array.isArray(param)) {
+        return param[0]; // Take the first value if it's an array
+      }
+      return param;
+    };
+    
     const { userId } = req.params;
+    const userIdStr = getStringValue(userId);
+    if (!userIdStr) {
+      return sendError(res, 'userId is required', 400);
+    }
 
     // Check if user has role read permissions
     const canReadRoles = await this.permissionService.hasPermission(
@@ -436,7 +464,7 @@ export class AuthController {
     }
 
     try {
-      const roles = await this.permissionService.getUserRoles(userId);
+      const roles = await this.permissionService.getUserRoles(userIdStr);
       return sendSuccess(res, roles);
     } catch (error: any) {
       return sendError(res, error.message, 500);
@@ -448,7 +476,20 @@ export class AuthController {
    */
   assignRoleToUser = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
+    
+    // Helper function to extract string value from potentially array parameter
+    const getStringValue = (param: string | string[] | undefined): string | undefined => {
+      if (Array.isArray(param)) {
+        return param[0]; // Take the first value if it's an array
+      }
+      return param;
+    };
+    
     const { userId } = req.params;
+    const userIdStr = getStringValue(userId);
+    if (!userIdStr) {
+      return sendError(res, 'userId is required', 400);
+    }
     const { roleId, expiresAt } = req.body;
 
     // Check if user has role assignment permissions
@@ -467,7 +508,7 @@ export class AuthController {
 
     try {
       const success = await this.permissionService.assignRoleToUser(
-        userId,
+        userIdStr,
         roleId,
         authReq.user.id,
         expiresAt ? new Date(expiresAt) : undefined
@@ -488,7 +529,24 @@ export class AuthController {
    */
   removeRoleFromUser = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
+    
+    // Helper function to extract string value from potentially array parameter
+    const getStringValue = (param: string | string[] | undefined): string | undefined => {
+      if (Array.isArray(param)) {
+        return param[0]; // Take the first value if it's an array
+      }
+      return param;
+    };
+    
     const { userId, roleId } = req.params;
+    const userIdStr = getStringValue(userId);
+    const roleIdStr = getStringValue(roleId);
+    if (!userIdStr) {
+      return sendError(res, 'userId is required', 400);
+    }
+    if (!roleIdStr) {
+      return sendError(res, 'roleId is required', 400);
+    }
 
     // Check if user has role assignment permissions
     const canAssignRoles = await this.permissionService.hasPermission(
@@ -501,7 +559,7 @@ export class AuthController {
     }
 
     try {
-      const success = await this.permissionService.removeRoleFromUser(userId, roleId);
+      const success = await this.permissionService.removeRoleFromUser(userIdStr, roleIdStr);
 
       if (success) {
         return sendSuccess(res, { message: 'Role removed successfully' });
@@ -565,5 +623,124 @@ export class AuthController {
 
     // Return the token for Socket.IO authentication
     return sendSuccess(res, { token });
+  });
+
+  /**
+   * POST /api/auth/2fa/enable - Enable two-factor authentication
+   */
+  enable2FA = asyncHandler(async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
+
+    if (!authReq.user) {
+      return sendError(res, 'User not authenticated', 401);
+    }
+
+    try {
+      const result = await this.authService.enable2FA(authReq.user.id);
+      return sendSuccess(res, { 
+        message: 'Two-factor authentication enabled successfully',
+        two_factor_enabled: result.two_factor_enabled 
+      });
+    } catch (error: any) {
+      return sendError(res, error.message, 500);
+    }
+  });
+
+  /**
+   * POST /api/auth/2fa/disable - Disable two-factor authentication
+   */
+  disable2FA = asyncHandler(async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
+
+    if (!authReq.user) {
+      return sendError(res, 'User not authenticated', 401);
+    }
+
+    const { password } = req.body;
+
+    if (!password) {
+      return sendError(res, 'Password is required to disable 2FA', 400);
+    }
+
+    try {
+      const result = await this.authService.disable2FA(authReq.user.id, password);
+      return sendSuccess(res, { 
+        message: 'Two-factor authentication disabled successfully',
+        two_factor_enabled: result.two_factor_enabled 
+      });
+    } catch (error: any) {
+      return sendError(res, error.message, 400);
+    }
+  });
+
+  /**
+   * GET /api/auth/2fa/status - Get 2FA status for current user
+   */
+  get2FAStatus = asyncHandler(async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
+
+    if (!authReq.user) {
+      return sendError(res, 'User not authenticated', 401);
+    }
+
+    try {
+      const status = await this.authService.get2FAStatus(authReq.user.id);
+      return sendSuccess(res, { two_factor_enabled: status });
+    } catch (error: any) {
+      return sendError(res, error.message, 500);
+    }
+  });
+
+  /**
+   * POST /api/auth/2fa/send-code - Send 2FA verification code
+   */
+  send2FACode = asyncHandler(async (req: Request, res: Response) => {
+    const { email, tempToken } = req.body;
+
+    if (!email || !tempToken) {
+      return sendError(res, 'Email and tempToken are required', 400);
+    }
+
+    try {
+      await this.authService.send2FACode(email, tempToken);
+      return sendSuccess(res, { message: 'Verification code sent successfully' });
+    } catch (error: any) {
+      return sendError(res, error.message, 400);
+    }
+  });
+
+  /**
+   * POST /api/auth/2fa/verify - Verify 2FA code and complete login
+   */
+  verify2FACode = asyncHandler(async (req: Request, res: Response) => {
+    const { email, code, tempToken } = req.body;
+
+    if (!email || !code || !tempToken) {
+      return sendError(res, 'Email, code, and tempToken are required', 400);
+    }
+
+    try {
+      const result = await this.authService.verify2FACodeAndLogin(email, code, tempToken);
+      const accessTokenMaxAge = parseExpiresIn(config.jwt.expiresIn);
+      const refreshTokenMaxAge = parseExpiresIn(config.jwt.refreshExpiresIn);
+
+      // Set session cookies
+      res.cookie('accessToken', result.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: accessTokenMaxAge,
+      });
+      res.cookie('refreshToken', result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: refreshTokenMaxAge,
+      });
+
+      return sendSuccess(res, { user: result.user });
+    } catch (error: any) {
+      return sendError(res, error.message, 401);
+    }
   });
 }

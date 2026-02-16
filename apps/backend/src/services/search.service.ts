@@ -91,6 +91,29 @@ export class SearchService {
       deleted_at: null // Only include documents that are not deleted
     };
 
+    // Precompute OCR matches in memory because JSON string filters are not supported reliably
+    let ocrDocumentIds: string[] | null = null;
+    if (query && query.trim() !== '' && searchType === 'ocr') {
+      const queryLower = query.toLowerCase();
+      const ocrRecords = await prisma.oCR_Json.findMany({
+        select: {
+          documentDocument_id: true,
+          ocr_json: true
+        }
+      });
+
+      const matchedIds = new Set<string>();
+      for (const record of ocrRecords) {
+        if (!record.documentDocument_id || !record.ocr_json) continue;
+        const haystack = JSON.stringify(record.ocr_json).toLowerCase();
+        if (haystack.includes(queryLower)) {
+          matchedIds.add(record.documentDocument_id);
+        }
+      }
+
+      ocrDocumentIds = Array.from(matchedIds);
+    }
+
     // Role-based filtering: If user is not ADMIN/SUPERADMIN, filter by their department
     // This overrides any department filter they might have specified
     if (!isAdmin && userDepartmentId) {
@@ -113,22 +136,7 @@ export class SearchService {
     
     // Add search query condition based on search type
     if (query && query.trim() !== '') {
-      if (searchType === 'ocr') {
-        // Search in OCR JSON content
-        whereClause.AND = [
-          ...(whereClause.AND || []),
-          {
-            ocr_json: {
-              some: {
-                ocr_json: {
-                  path: ['$'],
-                  string_contains: query
-                }
-              }
-            }
-          }
-        ];
-      } else {
+      if (searchType !== 'ocr') {
         // Default document search (title, description, code)
         whereClause.AND = [
           ...(whereClause.AND || []),
@@ -141,6 +149,17 @@ export class SearchService {
           }
         ];
       }
+    }
+
+    if (ocrDocumentIds) {
+      whereClause.AND = [
+        ...(whereClause.AND || []),
+        {
+          document_id: {
+            in: ocrDocumentIds
+          }
+        }
+      ];
     }
 
     // Add document type filter

@@ -32,7 +32,7 @@ export class PDFSignatureService {
       const existingPdfBytes = await fs.readFile(inputFile);
       
       // Load the PDFDocument
-      const pdfDoc = await PDFDocument.load(existingPdfBytes);
+      const pdfDoc = await PDFDocument.load(existingPdfBytes, { ignoreEncryption: true });
       
       // Process each signature
       for (const signature of signatures) {
@@ -61,7 +61,7 @@ export class PDFSignatureService {
       signatureData: string;
     }>
   ): Promise<Buffer> {
-    const pdfDoc = await PDFDocument.load(inputBuffer);
+    const pdfDoc = await PDFDocument.load(inputBuffer, { ignoreEncryption: true });
 
     for (const signature of signatures) {
       await this.addSingleSignature(pdfDoc, signature);

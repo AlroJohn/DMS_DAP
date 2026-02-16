@@ -11,6 +11,13 @@ export class SharedDocumentController {
     this.sharedDocumentService = new SharedDocumentService();
   }
 
+  private getStringValue = (param: string | string[] | undefined): string | undefined => {
+    if (Array.isArray(param)) {
+      return param[0];
+    }
+    return param;
+  };
+
   async getSharedDocuments(req: Request, res: Response) {
     try {
       const authReq = req as AuthRequest;
@@ -23,7 +30,10 @@ export class SharedDocumentController {
 
       const result = await this.sharedDocumentService.getSharedDocuments(userId, page, limit);
 
-      res.json(result);
+      // Return in the format expected by the frontend
+      return sendSuccess(res, result.data, 200, {
+        pagination: result.pagination
+      });
     } catch (error) {
       console.error('Error in getSharedDocuments:', error);
       res.status(500).json({ error: 'Failed to fetch shared documents' });
@@ -34,7 +44,7 @@ export class SharedDocumentController {
     try {
       const authReq = req as AuthRequest;
       const userId = authReq.user?.id as string;
-      const { id } = req.params;
+      const id = this.getStringValue(req.params.id);
       const { userIds } = req.body;
 
       // Validate required fields
@@ -49,7 +59,7 @@ export class SharedDocumentController {
 
       // Validate UUID format
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!uuidRegex.test(id)) {
+      if (!id || !uuidRegex.test(id)) {
         console.log('📍 [ShareDocumentController.shareDocument] Invalid document ID format:', id);
         return sendError(res, 'Invalid document ID format', 400);
       }

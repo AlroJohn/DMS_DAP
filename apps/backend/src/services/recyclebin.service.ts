@@ -311,6 +311,7 @@ export class RecycleBinService {
             contactOrganization,
             currentLocation: 'Recycle Bin',
             type: documentTypeMap.get(doc.document_type) || (doc as any).document_type || 'General',
+            process_type_id: doc.process_type_id,
             classification: doc.classification,
             status: 'deleted',
             activity: 'deleted',
@@ -390,10 +391,12 @@ export class RecycleBinService {
       await prisma.$transaction(async (tx) => {
         // Update document status back to 'pending' (default) or the original status before deletion
         // For now we'll set it back to 'pending' which is the default status
+        // Also clear the deleted_at field to properly restore the document
         await tx.document.update({
           where: { document_id: id },
           data: {
             status: 'pending', // Restore to initial status
+            deleted_at: null, // Clear the deleted_at field to properly restore
             updated_at: new Date(),
           },
         });
@@ -443,7 +446,7 @@ export class RecycleBinService {
   }
 
   /**
-   * Cancel a document workflow - marks document as canceled
+   * Cancel a document workflow - marks document as cancelled
    */
   async cancelDocument(documentId: string, userId: string) {
     // Validate UUID format
@@ -475,11 +478,11 @@ export class RecycleBinService {
         throw new Error('Document not found');
       }
 
-      // Update document status to pending (canceled workflow)
+      // Update document status to cancelled
       await prisma.document.update({
         where: { document_id: documentId },
         data: {
-          status: 'pending',
+          status: 'cancelled',
           updated_at: new Date()
         }
       });
@@ -545,6 +548,7 @@ export class RecycleBinService {
         where: { document_id: documentId },
         data: {
           status: 'deleted',
+          deleted_at: new Date(), // Set deleted_at on the main document
           updated_at: new Date()
         }
       });
@@ -889,6 +893,7 @@ export class RecycleBinService {
           },
           data: {
             status: 'pending', // Restore to initial status as per single restore method
+            deleted_at: null, // Clear the deleted_at field to properly restore
             updated_at: new Date(),
           },
         });

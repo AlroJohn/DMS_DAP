@@ -6,15 +6,17 @@ import { DataTableRowActions } from "@/components/reuseable/tables/data-table-ro
 import { DataTableColumnHeader } from "@/components/reuseable/tables/data-table-column-header";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Calendar, Copy, User, Building2 } from "lucide-react";
+import { Copy, User, Building2 } from "lucide-react";
 
 import { Document } from "@/hooks/use-documents-owned";
 import { ScanCodes } from "@/components/ui/scan-codes";
-import { convertDateTime } from "@/lib/convertDateTime";
+import { ActivityCell } from "@/components/reuseable/tables/activity-cell";
+import { ProcessTypeCell } from "@/components/reuseable/tables/process-type-cell";
 
 export type { Document };
 
-const formatText = (text: string): string => {
+const formatText = (text: string | null | undefined): string => {
+  if (!text) return "N/A";
   return text
     .replace(/_/g, " ")
     .toLowerCase()
@@ -22,15 +24,25 @@ const formatText = (text: string): string => {
 };
 
 type DocumentTypeMap = Record<string, string>;
+type ProcessTypeMap = Record<
+  string,
+  {
+    code?: string;
+    name?: string;
+    duration_value?: number | null;
+    duration_unit?: string | null;
+  }
+>;
 
 type CreateColumnOptions = {
   documentTypeMap?: DocumentTypeMap;
+  processTypeMap?: ProcessTypeMap;
 };
 
 export const createOwnedDocumentColumns = (
-  options: CreateColumnOptions = {}
+  options: CreateColumnOptions = {},
 ): ColumnDef<Document, unknown>[] => {
-  const { documentTypeMap = {} } = options;
+  const { documentTypeMap = {}, processTypeMap = {} } = options;
   const uuidRegex =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -50,6 +62,25 @@ export const createOwnedDocumentColumns = (
     return formatText(trimmedValue);
   };
 
+  const resolveProcessType = (document: Document) => {
+    const processTypeId =
+      document.process_type_id || (document as any).processTypeId || "";
+    const record = processTypeId ? processTypeMap[processTypeId] : undefined;
+    return {
+      id: processTypeId,
+      code: record?.code || "",
+      durationValue: record?.duration_value ?? null,
+      durationUnit: record?.duration_unit ?? null,
+    };
+  };
+
+  const resolveProcessTypeName = (document: Document) => {
+    const processTypeId =
+      document.process_type_id || (document as any).processTypeId || "";
+    const record = processTypeId ? processTypeMap[processTypeId] : undefined;
+    return record?.name || "N/A";
+  };
+
   return [
     {
       id: "select",
@@ -61,7 +92,7 @@ export const createOwnedDocumentColumns = (
           }
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label="Select all"
-          className="translate-y-[2px] data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+          className="translate-y-0.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
         />
       ),
       cell: ({ row }) => {
@@ -70,7 +101,7 @@ export const createOwnedDocumentColumns = (
             checked={row.getIsSelected()}
             onCheckedChange={(value) => row.toggleSelected(!!value)}
             aria-label="Select row"
-            className="translate-y-[2px] data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+            className="translate-y-0.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
           />
         );
       },
@@ -229,6 +260,57 @@ export const createOwnedDocumentColumns = (
       },
     },
     {
+      id: "processType",
+      accessorFn: (row) => resolveProcessTypeName(row),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Process Type" />
+      ),
+      cell: ({ row }) => {
+        const { code } = resolveProcessType(row.original);
+        const name = resolveProcessTypeName(row.original);
+        return <ProcessTypeCell name={name} code={code} minClampLength={20} />;
+      },
+      enableSorting: true,
+      enableHiding: true,
+      filterFn: (row, id, value) => {
+        if (!value || (Array.isArray(value) && value.length === 0)) return true;
+        const processType = String(row.getValue(id) ?? "").toLowerCase();
+        return Array.isArray(value)
+          ? (value as string[]).some(
+              (v) => String(v).toLowerCase() === processType,
+            )
+          : false;
+      },
+    },
+    {
+      accessorKey: "origin",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Origin" />
+      ),
+      cell: ({ row }) => {
+        const origin = (row.original as any).origin;
+        if (!origin)
+          return <span className="text-xs text-muted-foreground">-</span>;
+        return (
+          <Badge
+            variant={origin === "internal" ? "default" : "outline"}
+            className="font-medium bg-primary text-background text-xs px-1.5 py-0.5"
+          >
+            {formatText(origin)}
+          </Badge>
+        );
+      },
+      enableSorting: true,
+      enableHiding: true,
+      filterFn: (row, id, value) => {
+        if (!value || (Array.isArray(value) && value.length === 0)) return true;
+        const origin = String(row.getValue(id) ?? "").toLowerCase();
+        return Array.isArray(value)
+          ? (value as string[]).some((v) => String(v).toLowerCase() === origin)
+          : false;
+      },
+    },
+    {
       accessorKey: "classification",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Classification" />
@@ -255,7 +337,7 @@ export const createOwnedDocumentColumns = (
         const classification = String(row.getValue(id) ?? "").toLowerCase();
         return Array.isArray(value)
           ? (value as string[]).some(
-              (v) => String(v).toLowerCase() === classification
+              (v) => String(v).toLowerCase() === classification,
             )
           : false;
       },
@@ -302,25 +384,11 @@ export const createOwnedDocumentColumns = (
         <DataTableColumnHeader column={column} title="Activity" />
       ),
       cell: ({ row }) => {
-        const data = row.original;
-        const formattedActivityDate = data.activityTime
-          ? convertDateTime(data.activityTime, { dateOnly: true })
-          : "";
         return (
-          <div className="flex flex-col gap-1.5 text-xs">
-            <div className="flex items-center gap-1.5">
-              <Calendar className="w-3 h-3 text-orange-500" />
-              <span className="text-muted-foreground">{data.activity}</span>
-            </div>
-            {formattedActivityDate && (
-              <div className="flex items-center gap-1.5">
-                <Calendar className="w-3 h-3 text-blue-500" />
-                <span className="text-muted-foreground">
-                  {formattedActivityDate}
-                </span>
-              </div>
-            )}
-          </div>
+          <ActivityCell
+            document={row.original}
+            processTypeMap={processTypeMap}
+          />
         );
       },
     },

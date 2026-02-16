@@ -15,6 +15,7 @@ export interface PendingSignatureDocument {
     file_name: string;
     file_path: string;
   }>;
+  is_signed: boolean;
   pending_signatures: number;
 }
 

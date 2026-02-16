@@ -69,6 +69,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { CreateDocumentModal } from "@/components/modals/create-document-modal";
 import { UploadDocumentModal } from "@/app/(private)/documents/[id]/components/upload-document-modal";
 import { DocumentFiltersModal } from "@/components/modals/document-filters-modal";
@@ -169,7 +170,7 @@ export function DataTableFacetedFilter<TData, TValue>({
                 ) : (
                   options
                     .filter((option) =>
-                      internalSelectedValues.has(option.value)
+                      internalSelectedValues.has(option.value),
                     )
                     .map((option) => (
                       <Badge
@@ -211,7 +212,7 @@ export function DataTableFacetedFilter<TData, TValue>({
                         "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
                         isSelected
                           ? "bg-primary text-primary-foreground"
-                          : "opacity-50 [&_svg]:invisible"
+                          : "opacity-50 [&_svg]:invisible",
                       )}
                     >
                       <Check className={cn("h-4 w-4")} />
@@ -292,7 +293,7 @@ export function DataTableViewOptions<TData>({
           .filter(
             (column) =>
               column.id.toLowerCase() !== "security" &&
-              column.id.toLowerCase() !== "blockchain"
+              column.id.toLowerCase() !== "blockchain",
           )
           .map((column) => {
             return (
@@ -481,6 +482,7 @@ export function DataTableToolbar<TData>({
   const [isFiltersModalOpen, setFiltersModalOpen] = React.useState(false);
   const [selectedDocuments, setSelectedDocuments] = React.useState<any[]>([]);
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = React.useState(false);
+  const [bulkDeleteConfirmInput, setBulkDeleteConfirmInput] = React.useState("");
   const [isBulkArchiveOpen, setIsBulkArchiveOpen] = React.useState(false);
   const [isBulkCompleteOpen, setIsBulkCompleteOpen] = React.useState(false);
   const [isBulkCancelOpen, setIsBulkCancelOpen] = React.useState(false);
@@ -531,17 +533,8 @@ export function DataTableToolbar<TData>({
       const toggleValue = !newShowWarning;
       localStorage.setItem("recycleBinWarningHidden", String(!toggleValue));
 
-      // Dispatch a storage event to trigger updates in other tabs
-      window.pendingEvent(
-        new StorageEvent("storage", {
-          key: "recycleBinWarningHidden",
-          oldValue: hidden,
-          newValue: String(!toggleValue),
-        })
-      );
-
       // Dispatch a custom event to trigger updates in the same tab
-      window.pendingEvent(new CustomEvent("recycleBinWarningChange"));
+      window.dispatchEvent(new CustomEvent("recycleBinWarningChange"));
     } else {
       // For non-recycle-bin views, just update local state
       const newShowWarning = !showWarning;
@@ -594,18 +587,18 @@ export function DataTableToolbar<TData>({
               "Content-Type": "application/json",
             },
             credentials: "include",
-          })
-        )
+          }),
+        ),
       );
 
       // Count successful operations
       const successfulCount = results.filter(
-        (result) => result.status === "fulfilled" && result.value.ok
+        (result) => result.status === "fulfilled" && result.value.ok,
       ).length;
 
       if (successfulCount > 0) {
         toast.success(
-          `${successfulCount} document(s) moved to recycle bin successfully.`
+          `${successfulCount} document(s) moved to recycle bin successfully.`,
         );
       }
 
@@ -613,16 +606,17 @@ export function DataTableToolbar<TData>({
       const failedCount = results.length - successfulCount;
       if (failedCount > 0) {
         toast.error(
-          `${failedCount} document(s) failed to move to recycle bin.`
+          `${failedCount} document(s) failed to move to recycle bin.`,
         );
       }
 
       table.toggleAllRowsSelected(false); // Clear selection
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error moving documents to recycle bin:", error);
       toast.error("Failed to move documents to recycle bin");
     } finally {
       setIsBulkDeleteOpen(false);
+      setBulkDeleteConfirmInput("");
     }
   };
 
@@ -645,20 +639,29 @@ export function DataTableToolbar<TData>({
 
       // Process each document individually using the same endpoint as single cancel
       const results = await Promise.allSettled(
-        documentIds.map((id) =>
-          fetch(`/api/documents/${id}/cancel`, {
+        selectedRows.map((row) => {
+          const item = row.original as Record<string, unknown>;
+          const id = typeof item.id === "string" ? item.id : "";
+          const status =
+            typeof item.status === "string" ? item.status.toLowerCase() : "";
+          const isInTransit =
+            status === "intransit" || status === "intransit_signature";
+          const endpoint = isInTransit
+            ? `/api/intransit/${id}/cancel`
+            : `/api/documents/${id}/cancel`;
+          return fetch(endpoint, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
             credentials: "include",
-          })
-        )
+          });
+        }),
       );
 
       // Count successful operations
       const successfulCount = results.filter(
-        (result) => result.status === "fulfilled" && result.value.ok
+        (result) => result.status === "fulfilled" && result.value.ok,
       ).length;
 
       if (successfulCount > 0) {
@@ -706,13 +709,13 @@ export function DataTableToolbar<TData>({
               "Content-Type": "application/json",
             },
             credentials: "include",
-          })
-        )
+          }),
+        ),
       );
 
       // Count successful operations
       const successfulCount = results.filter(
-        (result) => result.status === "fulfilled" && result.value.ok
+        (result) => result.status === "fulfilled" && result.value.ok,
       ).length;
 
       if (successfulCount > 0) {
@@ -760,13 +763,13 @@ export function DataTableToolbar<TData>({
               "Content-Type": "application/json",
             },
             credentials: "include",
-          })
-        )
+          }),
+        ),
       );
 
       // Count successful operations
       const successfulCount = results.filter(
-        (result) => result.status === "fulfilled" && result.value.ok
+        (result) => result.status === "fulfilled" && result.value.ok,
       ).length;
 
       if (successfulCount > 0) {
@@ -801,8 +804,8 @@ export function DataTableToolbar<TData>({
             typeof item.id === "string"
               ? item.id
               : typeof item.document_id === "string"
-              ? item.document_id
-              : undefined;
+                ? item.document_id
+                : undefined;
           return id;
         })
         .filter((id): id is string => id !== undefined && id.length > 0);
@@ -823,7 +826,7 @@ export function DataTableToolbar<TData>({
             },
             credentials: "include",
             body: JSON.stringify({ documentIds }),
-          }
+          },
         );
 
         if (!response.ok) {
@@ -849,7 +852,7 @@ export function DataTableToolbar<TData>({
           throw new Error(
             errorData.error?.message ||
               errorData.message ||
-              `Failed to restore documents from recycle bin (Status: ${response.status})`
+              `Failed to restore documents from recycle bin (Status: ${response.status})`,
           );
         }
 
@@ -867,17 +870,17 @@ export function DataTableToolbar<TData>({
               },
               credentials: "include",
             });
-          })
+          }),
         );
 
         // Count successful operations
         const successfulCount = results.filter(
-          (result) => result.status === "fulfilled" && result.value.ok
+          (result) => result.status === "fulfilled" && result.value.ok,
         ).length;
 
         if (successfulCount > 0) {
           toast.success(
-            `${successfulCount} document(s) restored successfully.`
+            `${successfulCount} document(s) restored successfully.`,
           );
         }
 
@@ -912,7 +915,7 @@ export function DataTableToolbar<TData>({
         const errorData: { error?: { message?: string }; message?: string } =
           await response.json();
         throw new Error(
-          errorData.error?.message || "Failed to empty recycle bin"
+          errorData.error?.message || "Failed to empty recycle bin",
         );
       }
 
@@ -920,7 +923,7 @@ export function DataTableToolbar<TData>({
       toast.success(
         `Recycle bin emptied successfully. ${
           data.count || 0
-        } document(s) permanently deleted.`
+        } document(s) permanently deleted.`,
       );
       // Refresh the table after emptying
       window.location.reload(); // Simple refresh for now
@@ -989,23 +992,48 @@ export function DataTableToolbar<TData>({
         onClose={() => setIsTransmitByCodeOpen(false)}
       />
       {/* Bulk Delete Confirmation Dialog */}
-      <Dialog open={isBulkDeleteOpen} onOpenChange={setIsBulkDeleteOpen}>
+      <Dialog 
+        open={isBulkDeleteOpen} 
+        onOpenChange={(open) => {
+          setIsBulkDeleteOpen(open);
+          if (!open) setBulkDeleteConfirmInput("");
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Confirm Bulk Delete</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete {selectedRows.length} document(s)?
-              This action cannot be undone.
+              This action cannot be undone. To confirm, please type YES below.
             </DialogDescription>
           </DialogHeader>
+          <div className="py-4 space-y-2">
+            <Label htmlFor="bulk-delete-confirm" className="text-sm text-muted-foreground">
+              Type <span className="font-mono font-semibold text-foreground">YES</span> to confirm
+            </Label>
+            <Input
+              id="bulk-delete-confirm"
+              value={bulkDeleteConfirmInput}
+              onChange={(e) => setBulkDeleteConfirmInput(e.target.value)}
+              placeholder="Type YES to confirm"
+              autoComplete="off"
+            />
+          </div>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsBulkDeleteOpen(false)}
+              onClick={() => {
+                setIsBulkDeleteOpen(false);
+                setBulkDeleteConfirmInput("");
+              }}
             >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleBulkDelete}>
+            <Button 
+              variant="destructive" 
+              onClick={handleBulkDelete}
+              disabled={bulkDeleteConfirmInput !== "YES"}
+            >
               Delete
             </Button>
           </DialogFooter>
@@ -1261,7 +1289,7 @@ export function DataTableToolbar<TData>({
                 }
                 if (!canRelease) {
                   toast.error(
-                    "You don't have permission to release documents."
+                    "You don't have permission to release documents.",
                   );
                   setIsTransmitByCodeOpen(true);
                   return;
@@ -1270,7 +1298,7 @@ export function DataTableToolbar<TData>({
                 toast.info(
                   `Preparing to transmit ${selectedRows.length} document${
                     selectedRows.length !== 1 ? "s" : ""
-                  }`
+                  }`,
                 );
                 setBulkTransmitOpen(true);
               }}

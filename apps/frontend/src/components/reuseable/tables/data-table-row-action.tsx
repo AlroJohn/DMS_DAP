@@ -5,6 +5,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Row } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   MoreHorizontal,
   Eye,
@@ -39,13 +41,13 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { ReleaseDocumentModal } from "@/components/modals/release-document-modal";
 import { EditDocumentModal } from "@/app/(private)/documents/[id]/components/edit-document-modal";
 import { CheckoutFileModal } from "@/components/modals/checkout-file-modal";
 import { Document } from "@/hooks/use-documents-owned";
 import { useAuth } from "@/hooks/use-auth";
+import { FullPageLoader } from "@/components/reuseable/full-page-loader";
 // import { useSignDocument } from "@/hooks/use-sign-document";
 import {
   canViewDocuments,
@@ -72,6 +74,7 @@ interface DataTableRowActionsProps<TData> {
     | "archive"
     | "recycle-bin";
   onSign?: (document: TData) => void;
+  onActionSuccess?: () => void; // Add callback to refresh data after actions
 }
 
 const getReturnPathForView = (
@@ -97,6 +100,7 @@ const getReturnPathForView = (
 export function DataTableRowActions<TData>({
   row,
   viewType = "document",
+  onActionSuccess,
 }: DataTableRowActionsProps<TData>) {
   const router = useRouter();
   const { user: currentUser } = useAuth();
@@ -122,6 +126,13 @@ export function DataTableRowActions<TData>({
   );
   const [viewDocumentModalOpen, setViewDocumentModalOpen] = useState(false);
   const [viewOcrModalOpen, setViewOcrModalOpen] = useState(false);
+  const [showCompleteAlert, setShowCompleteAlert] = useState(false);
+  const [completeConfirmInput, setCompleteConfirmInput] = useState("");
+  const [showDeleteAlert, setShowDeleteAlert] = useState(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+  const [showUncompleteAlert, setShowUncompleteAlert] = useState(false);
+  const [showCancelAlert, setShowCancelAlert] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
   const document = row.original as Document;
 
   // Event handlers
@@ -153,11 +164,13 @@ export function DataTableRowActions<TData>({
   };
 
   const handleViewDocument = () => {
+    setIsNavigating(true);
     router.push(`/documents/${document.id}/view-documents`);
   };
 
   const handleOpenEditor = () => {
     const returnPath = getReturnPathForView(viewType);
+    setIsNavigating(true);
     router.push(
       `/documents/${document.id}?mode=edit&returnTo=${encodeURIComponent(
         returnPath,
@@ -174,6 +187,7 @@ export function DataTableRowActions<TData>({
     const returnPath = getReturnPathForView(viewType);
 
     // Redirect to the document page in signature mode with return path
+    setIsNavigating(true);
     router.push(
       `/documents/${document.id}?mode=sign&returnTo=${encodeURIComponent(
         returnPath,
@@ -204,7 +218,7 @@ export function DataTableRowActions<TData>({
     toggleModal("release", true);
   };
 
-  const handleComplete = async () => {
+  const handleCompleteConfirm = async () => {
     try {
       setIsLoading(true);
 
@@ -224,6 +238,12 @@ export function DataTableRowActions<TData>({
       }
 
       toast.success("Document completed successfully.");
+      setShowCompleteAlert(false);
+      
+      // Refresh data to maintain assigned action buttons
+      if (onActionSuccess) {
+        onActionSuccess();
+      }
     } catch (error: any) {
       console.error("Error completing document:", error);
       toast.error(error.message || "Failed to complete document.");
@@ -232,13 +252,60 @@ export function DataTableRowActions<TData>({
     }
   };
 
-  const handleCancel = async () => {
+  const handleComplete = () => {
+    setShowCompleteAlert(true);
+  };
+
+  const handleUncompleteConfirm = async () => {
+    try {
+      setIsLoading(true);
+
+      const response = await fetch(`/api/documents/${document.id}/uncomplete`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error?.message || "Failed to uncomplete document",
+        );
+      }
+
+      toast.success("Document status reverted successfully.");
+      setShowUncompleteAlert(false);
+      
+      // Refresh data to maintain assigned action buttons
+      if (onActionSuccess) {
+        onActionSuccess();
+      }
+    } catch (error: any) {
+      console.error("Error uncompleting document:", error);
+      toast.error(error.message || "Failed to uncomplete document.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUncomplete = () => {
+    setShowUncompleteAlert(true);
+  };
+
+  const handleCancel = () => {
+    setShowCancelAlert(true);
+  };
+
+  const handleCancelConfirm = async () => {
     try {
       setIsLoading(true);
 
       // Check if document is in 'intransit' status to use the appropriate endpoint
+      const statusValue = document.status?.toLowerCase();
       const isDocumentInTransit =
-        document.status?.toLowerCase() === "intransit";
+        statusValue === "intransit" || statusValue === "intransit_signature";
 
       let response;
       if (isDocumentInTransit) {
@@ -270,6 +337,12 @@ export function DataTableRowActions<TData>({
 
       const result = await response.json();
       toast.success(result.message || "Document cancelled successfully.");
+      setShowCancelAlert(false);
+      
+      // Refresh data to maintain assigned action buttons
+      if (onActionSuccess) {
+        onActionSuccess();
+      }
     } catch (error: any) {
       console.error("Error cancelling document:", error);
       toast.error(error.message || "Failed to cancel document.");
@@ -334,6 +407,11 @@ export function DataTableRowActions<TData>({
 
         toast.success("Document successfully deleted.");
       }
+      
+      // Refresh data to maintain assigned action buttons
+      if (onActionSuccess) {
+        onActionSuccess();
+      }
     } catch (error: any) {
       console.error("Error deleting document:", error);
       toast.error(error.message || "Failed to delete document.");
@@ -360,13 +438,21 @@ export function DataTableRowActions<TData>({
           const errorData = await response.json();
           errorMessage =
             errorData.error?.message || errorData.message || errorMessage;
+          console.error("Archive error response:", errorData);
         } catch (parseError) {
+          const responseText = await response.text().catch(() => "Unable to read response");
           errorMessage = `Server error: ${response.status} ${response.statusText}`;
+          console.error("Archive error status:", response.status, "Response:", responseText);
         }
         throw new Error(errorMessage);
       }
 
       toast.success("Document successfully archived.");
+      
+      // Refresh data to maintain assigned action buttons
+      if (onActionSuccess) {
+        onActionSuccess();
+      }
     } catch (error: any) {
       console.error("Error archiving document:", error);
       toast.error(error.message || "Failed to archive document.");
@@ -412,6 +498,11 @@ export function DataTableRowActions<TData>({
       }
 
       toast.success("Document successfully restored.");
+      
+      // Refresh data to maintain assigned action buttons
+      if (onActionSuccess) {
+        onActionSuccess();
+      }
     } catch (error: any) {
       console.error("Error restoring document:", error);
       toast.error(error.message || "Failed to restore document.");
@@ -440,25 +531,140 @@ export function DataTableRowActions<TData>({
   // Status-based checks
   const isDispatch = document.status?.toLowerCase().includes("pending");
   const isInTransit = document.status?.toLowerCase() === "intransit";
+  const isCompleted = document.status?.toLowerCase() === "completed";
 
   // Check if document is already in transit (released) - in which case release should be disabled
   const isAlreadyReleased = isInTransit;
+
+  // Check if user has signature placeholders assigned (for shared documents)
+  const hasAssignedSignature = (document as any).hasAssignedSignature || false;
+  
+  // Check if user has an assigned action type (for shared documents)
+  const assignedActionType = (document as any).assignedActionType || null;
+  
+  // Debug logging for shared documents
+  if (viewType === "shared") {
+    console.log('🔍 [DataTableRowActions] Document:', document.documentId, {
+      hasAssignedSignature,
+      assignedActionType,
+      assignedActionTypeUpper: assignedActionType?.toUpperCase(),
+      canSignDoc,
+      canEditDoc,
+      canRelease,
+      fullDocument: document
+    });
+  }
 
   // Determine which actions to show based on view type
   const showCopyCode = viewType === "document" ? "copy_code" : "copy";
   const showViewDetails = canViewDetails;
   const showViewDocument = canViewDoc;
-  const showSignDocument = canSignDoc;
-  const showEditDetails = canEditDetails;
-  const showEditDocument = canEditDoc;
-  const showSignaturePlaceholder = canEditDoc;
-  const showRelease = canRelease && !isAlreadyReleased; // Release is hidden when document is already in-transit
-  const showComplete = canComplete && !isDispatch; // Complete shows when not pending status
-  const showCancel = canCancel && isInTransit; // Cancel only shows for in-transit status
-  const showArchive = canArchive;
-  const showDelete = canDelete;
+  
+  // Helper function to check if action type includes a specific action
+  // Handles both single strings and arrays of actions
+  const hasActionType = (action: string): boolean => {
+    if (!assignedActionType) return false;
+    
+    // If it's an array, check if any item includes the action
+    if (Array.isArray(assignedActionType)) {
+      return assignedActionType.some(type => 
+        String(type).toUpperCase().includes(action.toUpperCase())
+      );
+    }
+    
+    // If it's a string, check if it includes the action (handles comma-separated too)
+    return String(assignedActionType).toUpperCase().includes(action.toUpperCase());
+  };
+  
+  // For shared documents with "FOR APPROVAL" action, show specific buttons
+  const isForApproval = viewType === "shared" && hasActionType("APPROVAL");
+  
+  // For shared documents with "FOR REVIEW" action, show specific buttons
+  const isForReview = viewType === "shared" && hasActionType("REVIEW");
+  
+  // For shared documents with "FOR CANCELLATION" action, show specific buttons
+  const isForCancellation = viewType === "shared" && hasActionType("CANCELLATION");
+  
+  // For shared documents with "FOR SIGNATURE" action, show specific buttons
+  const isForSignature = viewType === "shared" && hasActionType("SIGNATURE");
+  
+  // For shared documents with "FOR COMPLETE" action, show specific buttons
+  const isForComplete = viewType === "shared" && hasActionType("COMPLETE");
+  
+  // For shared documents with "FOR EDIT" action, show specific buttons
+  const isForEdit = viewType === "shared" && hasActionType("EDIT");
+  
+  // For shared documents with "APPROVED" action, show all buttons except archive
+  const isApproved = viewType === "shared" && hasActionType("APPROVED");
+  
+  // For shared documents with "REVIEWED" action, show all buttons except archive (same as APPROVED)
+  const isReviewed = viewType === "shared" && hasActionType("REVIEWED");
+  
+  console.log('🔍 [DataTableRowActions] Action type checks:', {
+    viewType,
+    assignedActionType,
+    isForApproval,
+    isForReview,
+    isForCancellation,
+    isForSignature,
+    isForComplete,
+    isForEdit,
+    isApproved,
+    isReviewed
+  });
+  
+  // For shared documents, adjust permissions based on assigned action
+  // When multiple actions are assigned, combine the permissions
+  const showSignDocument = viewType === "shared" 
+    ? (isForApproval || isForSignature || isApproved || isReviewed ? true : (canSignDoc && hasAssignedSignature))
+    : canSignDoc;
+  
+  // Edit Details: FOR APPROVAL OR APPROVED OR REVIEWED
+  const showEditDetails = viewType === "shared" ? (isForApproval || isApproved || isReviewed) : canEditDetails;
+  
+  // Edit Document: ONLY FOR EDIT
+  const showEditDocument = viewType === "shared" 
+    ? isForEdit
+    : canEditDoc;
+  
+  // Debug log for showEditDocument
+  if (viewType === "shared") {
+    console.log('🔍 [DataTableRowActions] showEditDocument debug:', document.documentId, {
+      showEditDocument,
+      isForEdit,
+      viewType,
+      assignedActionType,
+      hasActionTypeEdit: hasActionType("EDIT")
+    });
+  }
+  
+  // Signature Placeholder: FOR APPROVAL OR FOR REVIEW OR FOR SIGNATURE OR APPROVED OR REVIEWED or if user has signature placeholders assigned
+  const showSignaturePlaceholder = viewType === "shared" 
+    ? (isForApproval || isForReview || isForSignature || isApproved || isReviewed ? true : (canEditDoc && hasAssignedSignature))
+    : canEditDoc;
+  
+  // Release: FOR APPROVAL OR FOR REVIEW OR FOR CANCELLATION OR FOR SIGNATURE OR FOR COMPLETE OR APPROVED OR REVIEWED (but not for completed documents)
+  const showRelease = ((isForApproval || isForReview || isForCancellation || isForSignature || isForComplete || isApproved || isReviewed) && !isCompleted)
+    ? true 
+    : (canRelease && !isAlreadyReleased && !isCompleted); // Release is hidden when document is already in-transit or completed
+  
+  // Complete/Uncomplete: FOR APPROVAL OR FOR COMPLETE OR APPROVED OR REVIEWED
+  const showComplete = viewType === "shared"
+    ? (isForApproval || isForComplete || isApproved || isReviewed) && !isCompleted  // Show Complete for FOR APPROVAL or FOR COMPLETE or APPROVED or REVIEWED in shared view, but not if already completed
+    : (canComplete && !isDispatch && !isCompleted); // Normal logic for other views
+  
+  const showUncomplete = viewType === "shared"
+    ? (isForApproval || isForComplete || isApproved || isReviewed) && isCompleted  // Show Uncomplete if document is completed
+    : (canComplete && isCompleted); // Show Uncomplete for completed documents
+  
+  const showCancel = viewType === "shared" 
+    ? false // No cancel button for shared documents
+    : (canCancel && isInTransit); // Cancel only shows for in-transit status in other views
+  const showArchive = viewType === "shared" ? ((isApproved || isReviewed) ? false : canArchive) : canArchive; // Hide archive for APPROVED or REVIEWED
+  const showDelete = viewType === "shared" ? ((isApproved || isReviewed) ? true : canDelete) : canDelete; // Show delete for APPROVED or REVIEWED
   return (
     <>
+      {isNavigating && <FullPageLoader message="Opening document" />}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -474,7 +680,7 @@ export function DataTableRowActions<TData>({
 
         <DropdownMenuContent
           align="end"
-          className="min-w-[240px] max-w-[350px] max-h-[3f00px] overflow-y-auto"
+          className="min-w-60 max-w-87.5 max-h-[3f00px] overflow-y-auto"
         >
           {/* Document View Actions */}
           {viewType === "document" && (
@@ -575,6 +781,16 @@ export function DataTableRowActions<TData>({
                 </DropdownMenuItem>
               )}
 
+              {/* Uncomplete - for completed documents */}
+              {showUncomplete && (
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleUncomplete)}
+                >
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Uncomplete
+                </DropdownMenuItem>
+              )}
+
               {/* Cancel - for users with transfer reject permissions and in-transit status */}
               {showCancel && (
                 <DropdownMenuItem
@@ -601,39 +817,17 @@ export function DataTableRowActions<TData>({
 
               {/* Delete - for users with delete permissions */}
               {showDelete && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <DropdownMenuItem
-                      onSelect={(e) => e.preventDefault()}
-                      disabled={isLoading}
-                      className="text-red-600 focus:text-red-600"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete
-                    </DropdownMenuItem>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>
-                        Are you sure you want to delete this document?
-                      </AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action cannot be undone. This will permanently
-                        delete the document and remove its data from our
-                        servers.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={handleDelete}
-                        disabled={isLoading}
-                      >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setShowDeleteAlert(true);
+                  }}
+                  disabled={isLoading}
+                  className="text-red-600 focus:text-red-600"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
               )}
             </>
           )}
@@ -729,39 +923,17 @@ export function DataTableRowActions<TData>({
 
               {/* Delete - for users with delete permissions */}
               {showDelete && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <DropdownMenuItem
-                      onSelect={(e) => e.preventDefault()}
-                      disabled={isLoading}
-                      className="text-red-600 focus:text-red-600"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete
-                    </DropdownMenuItem>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>
-                        Are you sure you want to delete this document?
-                      </AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action cannot be undone. This will permanently
-                        delete the document and remove its data from our
-                        servers.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={handleDelete}
-                        disabled={isLoading}
-                      >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setShowDeleteAlert(true);
+                  }}
+                  disabled={isLoading}
+                  className="text-red-600 focus:text-red-600"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
               )}
             </>
           )}
@@ -778,47 +950,60 @@ export function DataTableRowActions<TData>({
               </DropdownMenuItem>
 
               {/* View Details - always available in shared view */}
-              <DropdownMenuItem onClick={(e) => handleAction(e, handleView)}>
-                <Eye className="mr-2 h-4 w-4" />
-                View Details
-              </DropdownMenuItem>
+              {showViewDetails && (
+                <DropdownMenuItem onClick={(e) => handleAction(e, handleView)}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  View Details
+                </DropdownMenuItem>
+              )}
 
               {/* View Documents - always available in shared view */}
-              <DropdownMenuItem
-                onClick={(e) => handleAction(e, handleViewDocument)}
-              >
-                <Eye className="mr-2 h-4 w-4" />
-                View Documents
-              </DropdownMenuItem>
+              {showViewDocument && (
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleViewDocument)}
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  View Documents
+                </DropdownMenuItem>
+              )}
 
               {/* View Document OCR - always available in shared view */}
-              <DropdownMenuItem
-                onClick={(e) => handleAction(e, handleViewOcrData)}
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                View Document OCR
-              </DropdownMenuItem>
+              {showViewDocument && (
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleViewOcrData)}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  View Document OCR
+                </DropdownMenuItem>
+              )}
 
-              {/* Sign Document - always available in shared view */}
-              <DropdownMenuItem onClick={(e) => handleAction(e, handleSign)}>
-                <Shield className="mr-2 h-4 w-4" />
-                Sign Document
-              </DropdownMenuItem>
+              {/* Sign Document - show based on FOR APPROVAL or signature placeholders */}
+              {showSignDocument && (
+                <DropdownMenuItem onClick={(e) => handleAction(e, handleSign)}>
+                  <Shield className="mr-2 h-4 w-4" />
+                  Sign Document
+                </DropdownMenuItem>
+              )}
 
-              {/* Edit Details - always available in shared view */}
-              <DropdownMenuItem onClick={(e) => handleAction(e, handleEdit)}>
-                <Edit className="mr-2 h-4 w-4" />
-                Edit Details
-              </DropdownMenuItem>
+              {/* Edit Details - show when FOR APPROVAL */}
+              {showEditDetails && (
+                <DropdownMenuItem onClick={(e) => handleAction(e, handleEdit)}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit Details
+                </DropdownMenuItem>
+              )}
 
-              {/* Edit Documents - always available in shared view */}
-              <DropdownMenuItem
-                onClick={(e) => handleAction(e, handleCheckoutFile)}
-              >
-                <Edit className="mr-2 h-4 w-4" />
-                Edit Documents
-              </DropdownMenuItem>
+              {/* Edit Documents - show ONLY for FOR EDIT action */}
+              {showEditDocument && (
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleCheckoutFile)}
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit Documents
+                </DropdownMenuItem>
+              )}
 
+              {/* Signature Placeholder - show based on FOR APPROVAL or signature placeholders */}
               {showSignaturePlaceholder && (
                 <DropdownMenuItem
                   onClick={(e) => handleAction(e, handleSignaturePlaceholder)}
@@ -828,7 +1013,15 @@ export function DataTableRowActions<TData>({
                 </DropdownMenuItem>
               )}
 
-              {/* Complete - for users with document receive permissions */}
+              {/* Release - show based on FOR APPROVAL or existing permissions */}
+              {showRelease && (
+                <DropdownMenuItem onClick={(e) => handleAction(e, handleRelease)}>
+                  <Send className="mr-2 h-4 w-4" />
+                  Release
+                </DropdownMenuItem>
+              )}
+
+              {/* Complete - show for FOR APPROVAL documents */}
               {showComplete && (
                 <DropdownMenuItem
                   onClick={(e) => handleAction(e, handleComplete)}
@@ -838,11 +1031,13 @@ export function DataTableRowActions<TData>({
                 </DropdownMenuItem>
               )}
 
-              {/* Release - shared view */}
-              {showRelease && (
-                <DropdownMenuItem onClick={(e) => handleAction(e, handleRelease)}>
-                  <Send className="mr-2 h-4 w-4" />
-                  Release
+              {/* Uncomplete - for completed documents */}
+              {showUncomplete && (
+                <DropdownMenuItem
+                  onClick={(e) => handleAction(e, handleUncomplete)}
+                >
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Uncomplete
                 </DropdownMenuItem>
               )}
             </>
@@ -882,38 +1077,17 @@ export function DataTableRowActions<TData>({
               </DropdownMenuItem>
 
               {/* Delete - for users with delete permissions */}
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem
-                    onSelect={(e) => e.preventDefault()}
-                    disabled={isLoading}
-                    className="text-red-600 focus:text-red-600"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                  </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      Are you sure you want to delete this document permanently?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete
-                      the document and remove its data from our servers.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDelete}
-                      disabled={isLoading}
-                    >
-                      Delete Permanently
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setShowDeleteAlert(true);
+                }}
+                disabled={isLoading}
+                className="text-red-600 focus:text-red-600"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
             </>
           )}
 
@@ -927,38 +1101,17 @@ export function DataTableRowActions<TData>({
               </DropdownMenuItem>
 
               {/* Delete - for users with delete permissions - permanent delete in recycle bin */}
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem
-                    onSelect={(e) => e.preventDefault()}
-                    disabled={isLoading}
-                    className="text-red-600 focus:text-red-600"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Permanently
-                  </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      Are you sure you want to permanently delete this document?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete
-                      the document and remove its data from our servers.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDelete}
-                      disabled={isLoading}
-                    >
-                      Delete Permanently
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setShowDeleteAlert(true);
+                }}
+                disabled={isLoading}
+                className="text-red-600 focus:text-red-600"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Permanently
+              </DropdownMenuItem>
             </>
           )}
         </DropdownMenuContent>
@@ -1030,6 +1183,12 @@ export function DataTableRowActions<TData>({
         isOpen={modalState.release}
         onClose={() => toggleModal("release", false)}
         document={selectedDocument}
+        onSuccess={() => {
+          // Refresh data to maintain assigned action buttons
+          if (onActionSuccess) {
+            onActionSuccess();
+          }
+        }}
       />
 
       {/* Edit Modal */}
@@ -1039,7 +1198,10 @@ export function DataTableRowActions<TData>({
           onOpenChange={(open) => toggleModal("edit", open)}
           documentId={selectedDocument.id}
           onSuccess={() => {
-            // The real-time update will handle the UI update
+            // Refresh data to maintain assigned action buttons
+            if (onActionSuccess) {
+              onActionSuccess();
+            }
           }}
         />
       )}
@@ -1051,6 +1213,12 @@ export function DataTableRowActions<TData>({
           onOpenChange={(open) => toggleModal("checkoutFile", open)}
           documentId={selectedDocument.id}
           action={checkoutAction}
+          onSuccess={() => {
+            // Refresh data to maintain assigned action buttons
+            if (onActionSuccess) {
+              onActionSuccess();
+            }
+          }}
         />
       )}
 
@@ -1060,6 +1228,149 @@ export function DataTableRowActions<TData>({
         onOpenChange={setViewOcrModalOpen}
         documentId={document.id}
       />
+
+      {/* Complete Confirmation Alert Dialog */}
+      <AlertDialog 
+        open={showCompleteAlert} 
+        onOpenChange={(open) => {
+          setShowCompleteAlert(open);
+          if (!open) setCompleteConfirmInput("");
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Complete Document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action will permanently mark this document as completed. To confirm, please type the document code below.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4 space-y-2">
+            <Label htmlFor="confirm-code" className="text-sm text-muted-foreground">
+              Type{" "}
+              <span 
+                className="font-mono font-semibold text-foreground cursor-pointer hover:bg-muted px-1 py-0.5 rounded select-all"
+                onClick={() => {
+                  navigator.clipboard.writeText(document.documentId);
+                  toast.success("Document code copied!");
+                }}
+                title="Click to copy"
+              >
+                {document.documentId}
+              </span>{" "}
+              to confirm
+            </Label>
+            <Input
+              id="confirm-code"
+              value={completeConfirmInput}
+              onChange={(e) => setCompleteConfirmInput(e.target.value)}
+              placeholder="Enter document code"
+              disabled={isLoading}
+              autoComplete="off"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading} onClick={() => setCompleteConfirmInput("")}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleCompleteConfirm}
+              disabled={isLoading || completeConfirmInput !== document.documentId}
+            >
+              {isLoading ? "Completing..." : "Complete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Uncomplete Confirmation Alert Dialog */}
+      <AlertDialog open={showUncompleteAlert} onOpenChange={setShowUncompleteAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revert Completed Status?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to revert this document from completed status? This action will change the document status back to pending.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleUncompleteConfirm} disabled={isLoading}>
+              {isLoading ? "Reverting..." : "Revert"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cancel Confirmation Alert Dialog */}
+      <AlertDialog open={showCancelAlert} onOpenChange={setShowCancelAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel this document? This action will revert the document status back to pending.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading}>No, Keep It</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancelConfirm} disabled={isLoading}>
+              {isLoading ? "Cancelling..." : "Yes, Cancel Document"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation Alert Dialog */}
+      <AlertDialog 
+        open={showDeleteAlert} 
+        onOpenChange={(open) => {
+          setShowDeleteAlert(open);
+          if (!open) setDeleteConfirmInput("");
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the document and remove its data from our servers. To confirm, please type the document code below.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4 space-y-2">
+            <Label htmlFor="delete-confirm-code" className="text-sm text-muted-foreground">
+              Type{" "}
+              <span 
+                className="font-mono font-semibold text-foreground cursor-pointer hover:bg-muted px-1 py-0.5 rounded select-all"
+                onClick={() => {
+                  navigator.clipboard.writeText(document.documentId);
+                  toast.success("Document code copied!");
+                }}
+                title="Click to copy"
+              >
+                {document.documentId}
+              </span>{" "}
+              to confirm
+            </Label>
+            <Input
+              id="delete-confirm-code"
+              value={deleteConfirmInput}
+              onChange={(e) => setDeleteConfirmInput(e.target.value)}
+              placeholder="Enter document code"
+              disabled={isLoading}
+              autoComplete="off"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading} onClick={() => setDeleteConfirmInput("")}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDelete} 
+              disabled={isLoading || deleteConfirmInput !== document.documentId}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isLoading ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Signature Capture Modal */}
     </>

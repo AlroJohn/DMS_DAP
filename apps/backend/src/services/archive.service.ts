@@ -18,16 +18,29 @@ export class ArchiveService {
   async archiveDocument(documentId: string, archivedBy: string) {
     try {
       // Check if the document exists and is not already archived
+      // Allow archiving documents with status 'completed' or any other status except 'archive'
       const document = await prisma.document.findUnique({
         where: {
-          document_id: documentId,
-          deleted_at: null // Only archive documents that are not already archived
+          document_id: documentId
         }
       });
 
       if (!document) {
-        throw new Error('Document not found or already archived');
+        throw new Error('Document not found');
       }
+
+      // Don't allow re-archiving if already archived
+      if (document.status === 'archive') {
+        throw new Error('Document is already archived');
+      }
+
+      // Store the original status so it can be restored later
+      const originalStatus = document.status;
+      const originalDescription = document.description || '';
+      const statusMarker = `[ORIGINAL_STATUS:${originalStatus}]`;
+      const newDescription = originalDescription.includes('[ORIGINAL_STATUS:') 
+        ? originalDescription 
+        : `${originalDescription}${originalDescription ? ' ' : ''}${statusMarker}`;
 
       // Update the document to mark it as archived
       const archivedDoc = await prisma.document.update({
@@ -35,7 +48,8 @@ export class ArchiveService {
         data: {
           deleted_at: new Date(), // Mark when it was archived
           restored_at: null,
-          status: 'archive' // Using 'archive' status to represent archived (distinct from other statuses)
+          status: 'archive', // Using 'archive' status to represent archived (distinct from other statuses)
+          description: newDescription // Store the original status in description
         }
       });
 
@@ -114,6 +128,17 @@ export class ArchiveService {
         throw new Error('User not found');
       }
 
+      // Extract the original status from the description if it exists
+      let restoredStatus: any = 'pending'; // Default to pending if no original status found
+      let cleanedDescription = document.description || '';
+      
+      const statusMatch = document.description?.match(/\[ORIGINAL_STATUS:(\w+)\]/);
+      if (statusMatch && statusMatch[1]) {
+        restoredStatus = statusMatch[1] as any; // Cast to any to allow dynamic status values
+        // Remove the status marker from description
+        cleanedDescription = document.description?.replace(/\s*\[ORIGINAL_STATUS:\w+\]/, '') || '';
+      }
+
       // Update the document to mark it as restored
       const restoredDoc = await prisma.document.update({
         where: { document_id: documentId },
@@ -121,7 +146,8 @@ export class ArchiveService {
           deleted_at: null,
           restored_at: new Date(),
           restored_by: user.account_id, // Use account_id instead of user_id
-          status: 'pending' // Reset to initial status after restoration
+          status: restoredStatus, // Restore to original status instead of hardcoding to pending
+          description: cleanedDescription // Clean up the description
         }
       });
 
@@ -134,7 +160,7 @@ export class ArchiveService {
           from_department: user?.department_id || undefined, // Use the department of the user performing the restoration
           to_department: user?.department_id || undefined, // Restoration happens in same department as the user
           user_id: restoredByUserId, // Use the userId who performed the restoration
-          status: 'pending', // Status is reset to pending after restoration
+          status: restoredStatus, // Use the restored status instead of hardcoded pending
           remarks: `Document restored from archive: ${document.title}`
         });
       } catch (error) {
@@ -174,26 +200,78 @@ export class ArchiveService {
    */
   async getArchivedDocuments(userId?: string) {
     try {
-      // Build where clause to include both archived and completed documents
+      // Verify prisma is available
+      if (!prisma) {
+        console.error('❌ Prisma client is undefined in getArchivedDocuments');
+        throw new Error('Database connection not available');
+      }
+
+      console.log('📍 [getArchivedDocuments] Starting with userId:', userId);
+
+      // Build where clause to include:
+      // 1. Documents with 'archive' status (explicitly archived)
+      // 2. Documents with 'completed' status that were owned/created by the user
       const whereClause: any = {
         OR: [
           { status: 'archive' }, // Explicitly archived documents
-          { status: 'completed' }, // Completed documents also go to archive
         ]
       };
 
-      // If userId is provided, filter documents where user is involved
-      // User is involved if they created it, uploaded files, or are in document trails
+      // If userId is provided, we need to determine:
+      // - Show 'archive' status documents that the user was involved in
+      // - Show 'completed' status documents that the user OWNS (created/uploaded)
       if (userId) {
+        // Get documents where user was involved in trails (for archive status)
+        console.log('📍 [getArchivedDocuments] Fetching user trails...');
         const userTrails = await prisma.documentTrail.findMany({
           where: { user_id: userId },
           select: { document_id: true }
         });
         const userDocumentIds = userTrails.map(trail => trail.document_id);
 
-        whereClause.OR.push(
-          { document_id: { in: userDocumentIds } }
-        );
+        // Get the user's account_id first
+        const userAccount = await prisma.user.findUnique({
+          where: { user_id: userId },
+          select: { account_id: true }
+        });
+
+        let ownedDocumentIds: string[] = [];
+        
+        if (userAccount?.account_id) {
+          // Get documents where user uploaded files (documents they own)
+          const userUploadedFiles = await prisma.documentFile.findMany({
+            where: {
+              uploaded_by: userAccount.account_id
+            },
+            select: { document_id: true }
+          });
+          ownedDocumentIds = userUploadedFiles
+            .map(file => file.document_id)
+            .filter((id): id is string => id !== null);
+        }
+
+        // For completed documents, only show ones the user owns
+        if (ownedDocumentIds.length > 0) {
+          whereClause.OR.push({
+            AND: [
+              { status: 'completed' },
+              { document_id: { in: ownedDocumentIds } }
+            ]
+          });
+        }
+        
+        // Also include archive status docs where user was involved
+        if (userDocumentIds.length > 0) {
+          whereClause.OR.push({
+            AND: [
+              { status: 'archive' },
+              { document_id: { in: userDocumentIds } }
+            ]
+          });
+        }
+      } else {
+        // If no userId, include all completed documents
+        whereClause.OR.push({ status: 'completed' });
       }
 
       // Get the archived documents
@@ -313,6 +391,7 @@ export class ArchiveService {
           document_code: doc.document_code,
           document_type: doc.document_type,
           type: typeName, // Changed to use typeName from the map
+          process_type_id: doc.process_type_id,
           classification: classification,
           origin: doc.origin || 'external',
           status: status,
@@ -355,7 +434,9 @@ export class ArchiveService {
 
       return processedDocs;
     } catch (error) {
-      console.error('Error fetching archived documents:', error);
+      console.error('❌ [getArchivedDocuments] Error:', error);
+      console.error('❌ [getArchivedDocuments] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      console.error('❌ [getArchivedDocuments] Prisma available:', !!prisma);
       throw error;
     }
   }
@@ -490,6 +571,7 @@ export class ArchiveService {
         document_code: document.document_code,
         document_type: document.document_type,
         type: typeName, // Changed to use typeName
+        process_type_id: document.process_type_id,
         classification: classification,
         origin: document.origin || 'external',
         status: status,

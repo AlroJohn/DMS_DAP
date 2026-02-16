@@ -3,7 +3,8 @@
 
 // --- Enum literal union types (match Prisma enum values) ---
 export type DocClassification = 'simple' | 'complex' | 'highly_technical'
-export type DocStatus = 'pending' | 'intransit' | 'completed' | 'canceled' | 'deleted'
+export type DocStatus = 'pending' | 'intransit' | 'completed' | 'cancelled' | 'deleted'
+export type DocOrigin = 'internal' | 'external'
 
 // --- Generic typed option shape used by faceted filters ---
 export interface EnumOption<T extends string = string> {
@@ -23,12 +24,18 @@ export const DOC_STATUS_OPTIONS: EnumOption<DocStatus>[] = [
   { label: 'Dispatch', value: 'pending' },
   { label: 'In Transit', value: 'intransit' },
   { label: 'Completed', value: 'completed' },
-  { label: 'Canceled', value: 'canceled' },
+  { label: 'Cancelled', value: 'cancelled' },
   { label: 'Deleted', value: 'deleted' },
+]
+
+export const DOC_ORIGIN_OPTIONS: EnumOption<DocOrigin>[] = [
+  { label: 'Internal', value: 'internal' },
+  { label: 'External', value: 'external' },
 ]
 
 // Export a combined object for convenience
 export const DOC_ENUMS = {
   classification: DOC_CLASSIFICATION_OPTIONS,
   status: DOC_STATUS_OPTIONS,
+  origin: DOC_ORIGIN_OPTIONS,
 }

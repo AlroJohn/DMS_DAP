@@ -1,15 +1,14 @@
 import dotenv from 'dotenv';
-import path from 'path';
+
+import { resolveEnvPath } from './env';
 
 // Load environment variables from root directory
-// Go up from apps/backend to root: apps/backend -> apps -> root
-const envPath = path.resolve(process.cwd(), '../../.env');
-console.log('Loading .env from:', envPath);
+const envPath = resolveEnvPath();
 const result = dotenv.config({ path: envPath });
 if (result.error) {
   console.error('Error loading .env:', result.error);
 } else {
-  console.log('Environment variables loaded successfully');
+  console.log(`Environment variables loaded successfully from ${envPath}`);
 }
 
 export const config = {
@@ -25,11 +24,11 @@ export const config = {
   // JWT configuration
   jwt: {
     secret: process.env.JWT_SECRET || 'your-secret-key',
-    expiresIn: process.env.JWT_EXPIRES_IN || '12h', // Extended to 12 hours for better UX
+    expiresIn: process.env.JWT_EXPIRES_IN || '8h',
     // Refresh token configuration (long-lived for session persistence)
     refreshSecret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'your-secret-key',
-    // 7-day lifetime for the refresh token
-    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+    // Match access token lifetime by default
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '8h',
   },
   
   // CORS configuration

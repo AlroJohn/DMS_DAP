@@ -14,12 +14,19 @@ const PRINTER_TOKEN = process.env.PRINTER_SOCKET_TOKEN;
 
 // 24mm tape height ~ 68 points (1mm = 2.835 points)
 // Minimal length for MAXIMUM QR code size
-const LABEL_HEIGHT_MM = 24; // Exact 24mm
-const LABEL_WIDTH_MM = 30; // Minimal 30mm for maximum QR size
+const LABEL_HEIGHT_MM = 24; // Exact 24mm (tape width)
+const LABEL_WIDTH_MM = 30; // 30mm for QR codes with margins
+const BARCODE_WIDTH_MM = 100; // 100mm for barcodes (longer)
 const PRO_MM_TO_PT = 2.83465;
 
 const PAGE_WIDTH = LABEL_WIDTH_MM * PRO_MM_TO_PT; // 30mm
 const PAGE_HEIGHT = LABEL_HEIGHT_MM * PRO_MM_TO_PT; // 24mm
+
+// IMPORTANT: Enable Auto-Cut in Brother P-touch Editor or Printer Properties:
+// 1. Open "Devices and Printers" → Right-click "Brother PT-P710BT" → "Printing Preferences"
+// 2. Go to "Advanced" tab → Enable "Auto Cut"
+// 3. Set "Cut Option" to "Cut at end"
+// 4. This ensures labels are cut precisely at the end of each print job
 
 // Setup Socket
 const socket = io(SOCKET_URL, {
@@ -83,26 +90,41 @@ socket.on("disconnect", () => {
 
 // TRACK: Prevent duplicate print job processing
 const processedJobs = new Set();
+const jobTimestamps = new Map();
 
 socket.on("printJob", async (job) => {
-  const jobId = job.jobId || 'unknown';
+  const jobId = job.jobId || `job_${Date.now()}_${Math.random()}`;
+  const now = Date.now();
   
-  // Check if this job was already processed
-  if (processedJobs.has(jobId)) {
-    console.log(`⚠️  DUPLICATE DETECTED - Ignoring already processed job: ${jobId}`);
+  // Check if this exact job was already processed recently (within 5 seconds)
+  const lastProcessed = jobTimestamps.get(jobId);
+  if (lastProcessed && (now - lastProcessed) < 5000) {
+    console.log(`⚠️  DUPLICATE DETECTED - Ignoring job ${jobId} (processed ${now - lastProcessed}ms ago)`);
     return;
   }
   
-  // Mark as processing
-  processedJobs.add(jobId);
+  // Check if this job is already being processed
+  if (processedJobs.has(jobId)) {
+    console.log(`⚠️  DUPLICATE DETECTED - Job ${jobId} is currently being processed`);
+    return;
+  }
   
-  // Clean up old jobs after 1 minute to prevent memory leak
-  setTimeout(() => {
-    processedJobs.delete(jobId);
-  }, 60000);
+  // Mark as processing IMMEDIATELY
+  processedJobs.add(jobId);
+  jobTimestamps.set(jobId, now);
   
   console.log(`\n📨 Received Print Job: ${jobId}`);
   console.log("Job data:", JSON.stringify(job.data, null, 2));
+  
+  // Clean up old jobs after 10 seconds to prevent memory leak
+  setTimeout(() => {
+    processedJobs.delete(jobId);
+  }, 10000);
+  
+  // Clean up timestamps after 1 minute
+  setTimeout(() => {
+    jobTimestamps.delete(jobId);
+  }, 60000);
   
   try {
     // Determine content to print
@@ -150,14 +172,31 @@ socket.on("printJob", async (job) => {
 
     console.log(`🖨️  Printing to "${printerName}"...`);
     
-    // Print with Brother-specific settings for 24mm tape
+    // Calculate precise paper size based on content type (in inches for Brother driver)
+    // 24mm width = 0.94", 30mm = 1.18", 100mm = 3.94"
+    let paperSize, length;
+    if (printType === 'qrcode') {
+      // QR Code: 0.94" width x 1.18" length (24mm x 30mm) + minimal feed
+      paperSize = "0.94\"";
+      length = "1.26";  // 1.18" + 0.08" feed
+      console.log(`📏 Using QR Code paper size: 0.94" x 1.26" (24mm x 32mm)`);
+    } else {
+      // Barcode: 0.94" width x 3.94" length (24mm x 100mm)
+      paperSize = "0.94\"";
+      length = "4.02";  // 3.94" + 0.08" feed
+      console.log(`📏 Using Barcode paper size: 0.94" x 4.02" (24mm x 102mm)`);
+    }
+    
+    // Print with Brother-specific settings for 24mm tape with auto-cut
+    // Use ONE print command only to prevent duplicates
     await pdfPrinter.print(pdfPath, {
         printer: printerName,
-        paperSize: "Custom.68x425",  // 24mm x 150mm in points
-        scale: "fit",  // Fit to paper size
-        monochrome: true,  // Black and white for label printer
-        silent: true,  // Suppress printer dialog
-        win32: ['-print-settings "fit"']  // Additional Windows settings
+        paperSize: paperSize,
+        scale: "fit",  // Shrink to fit the paper
+        monochrome: true,
+        silent: true,
+        copies: 1,  // Force single copy
+        duplex: "none"  // No duplex printing
     });
 
     console.log("✅ Print command sent successfully!");
@@ -204,8 +243,7 @@ async function generateLabelPDF(filepath, title, barcodeText) {
   console.log('🔧 [BARCODE GENERATOR] Data:', { filepath, title, barcodeText });
   
   return new Promise((resolve, reject) => {
-    // Barcode label length - 4 inches (100mm) for long barcode
-    const BARCODE_WIDTH_MM = 100; // Long label for barcode
+    // Use the defined BARCODE_WIDTH_MM constant
     const pdfWidth = LABEL_HEIGHT_MM * PRO_MM_TO_PT;  // 24mm width
     const pdfHeight = BARCODE_WIDTH_MM * PRO_MM_TO_PT; // 100mm length
 
@@ -324,7 +362,7 @@ async function generateQRCodeLabelPDF(filepath, title, qrCodeData) {
         type: 'png',
         quality: 1,
         margin: 0,
-        width: 800,
+        width: 400,  // Reduced from 800 for smaller output
         color: {
           dark: '#000000',
           light: '#FFFFFF'
@@ -335,15 +373,19 @@ async function generateQRCodeLabelPDF(filepath, title, qrCodeData) {
       
       console.log('🟦 [QR CODE GENERATOR] ✅ QR code image generated, placing on PDF...');
       
-      // Place QR code - MAXIMUM SIZE
-      const qrSize = DRAW_HEIGHT - 1;
-      const qrX = (DRAW_WIDTH - qrSize) / 2;
-      const qrY = 0.5;
+      // Place QR code with minimal margins to maximize QR size
+      // Leave 2mm margins (top/bottom) = 20mm usable height
+      const margin = 2 * PRO_MM_TO_PT;  // 2mm margin (minimal whitespace)
+      const qrSize = DRAW_HEIGHT - (2 * margin);  // 20mm QR code (larger)
+      const qrX = (DRAW_WIDTH - qrSize) / 2;  // Center horizontally
+      const qrY = margin;  // Top margin
       
       doc.image(qrCodeBuffer, qrX, qrY, {
         width: qrSize,
         height: qrSize
       });
+      
+      console.log(`🟦 [QR CODE GENERATOR] 📐 QR Code size: ${qrSize.toFixed(1)}pts (~${(qrSize / PRO_MM_TO_PT).toFixed(1)}mm square) with ${(margin / PRO_MM_TO_PT).toFixed(1)}mm margins`);
       
       console.log('🟦 [QR CODE GENERATOR] ✅ QR code placed, finalizing PDF...');
       doc.restore();

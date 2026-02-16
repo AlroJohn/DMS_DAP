@@ -10,6 +10,17 @@ export class AccessHistoryController {
     this.accessHistoryService = new AccessHistoryService();
   }
 
+  // Helper method to extract string value from potentially array parameter
+  private getStringValue = (param: any): string | undefined => {
+    if (param === undefined || param === null) return undefined;
+    if (typeof param === 'string') return param;
+    if (Array.isArray(param)) {
+      const first = param[0];
+      return typeof first === 'string' ? first : undefined;
+    }
+    return undefined;
+  };
+
   /**
    * Get access history logs with optional filters
    */
@@ -44,12 +55,12 @@ export class AccessHistoryController {
 
       const filters: any = {};
 
-      if (startDate) filters.startDate = new Date(startDate as string);
-      if (endDate) filters.endDate = new Date(endDate as string);
-      if (userId) filters.userId = userId as string;
-      if (documentId) filters.documentId = documentId as string;
-      if (limit) filters.limit = parseInt(limit as string, 10);
-      if (offset) filters.offset = parseInt(offset as string, 10);
+      if (startDate) filters.startDate = new Date(this.getStringValue(startDate) || '');
+      if (endDate) filters.endDate = new Date(this.getStringValue(endDate) || '');
+      if (userId) filters.userId = this.getStringValue(userId);
+      if (documentId) filters.documentId = this.getStringValue(documentId);
+      if (limit) filters.limit = parseInt(this.getStringValue(limit) || '0', 10);
+      if (offset) filters.offset = parseInt(this.getStringValue(offset) || '0', 10);
 
       const result = await this.accessHistoryService.getAccessHistory(
         user.department_id,
@@ -122,7 +133,7 @@ export class AccessHistoryController {
         return res.status(401).json({ success: false, error: 'Unauthorized' });
       }
 
-      const { documentId } = req.params;
+      const documentId = req.params.documentId as string;
 
       if (!documentId) {
         return res.status(400).json({
@@ -157,7 +168,7 @@ export class AccessHistoryController {
         return res.status(401).json({ success: false, error: 'Unauthorized' });
       }
 
-      const { userId } = req.params;
+      const userId = req.params.userId as string;
 
       if (!userId) {
         return res.status(400).json({
@@ -171,10 +182,10 @@ export class AccessHistoryController {
 
       const filters: any = {};
 
-      if (startDate) filters.startDate = new Date(startDate as string);
-      if (endDate) filters.endDate = new Date(endDate as string);
-      if (limit) filters.limit = parseInt(limit as string, 10);
-      if (offset) filters.offset = parseInt(offset as string, 10);
+      if (startDate) filters.startDate = new Date(this.getStringValue(startDate) || '');
+      if (endDate) filters.endDate = new Date(this.getStringValue(endDate) || '');
+      if (limit) filters.limit = parseInt(this.getStringValue(limit) || '0', 10);
+      if (offset) filters.offset = parseInt(this.getStringValue(offset) || '0', 10);
 
       const result = await this.accessHistoryService.getAccessHistoryByUser(
         userId,

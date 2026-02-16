@@ -38,6 +38,15 @@ class CounterController {
       sendError(res, error.message);
     }
   }
+
+  async getProcessTypeCount(req: Request, res: Response) {
+    try {
+      const count = await counterService.getProcessTypeCount();
+      sendSuccess(res, { count });
+    } catch (error: any) {
+      sendError(res, error.message);
+    }
+  }
 }
 
 export default new CounterController();

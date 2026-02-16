@@ -2,14 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Rnd } from "react-rnd";
-import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf";
+import {
+  GlobalWorkerOptions,
+  getDocument,
+  version as pdfjsVersion,
+} from "pdfjs-dist/legacy/build/pdf";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,10 +33,11 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { getAccessToken } from "@/lib/token-utils";
+import { FullPageLoader } from "@/components/reuseable/full-page-loader";
 
 const PDFJS_WORKER_CDN =
   process.env.NEXT_PUBLIC_PDFJS_WORKER_URL ||
-  "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.394/legacy/build/pdf.worker.min.mjs";
+  `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsVersion}/legacy/build/pdf.worker.min.mjs`;
 
 if (typeof window !== "undefined") {
   GlobalWorkerOptions.workerSrc = PDFJS_WORKER_CDN;
@@ -273,11 +278,12 @@ export function SignaturePdfViewer({
     setSelectedDepartmentIds((prev) => {
       if (allowedDepartmentIds.length) {
         const allowedSet = new Set(allowedDepartmentIds);
-        const next = allDepartmentIds.filter((id) => allowedSet.has(id));
-        return next.length ? next : prev;
+        const next = allDepartmentIds.find((id) => allowedSet.has(id));
+        return next ? [next] : prev;
       }
       if (prev.length) {
-        return prev.filter((id) => allDepartmentIds.includes(id));
+        const next = prev.find((id) => allDepartmentIds.includes(id));
+        return next ? [next] : [];
       }
       if (
         currentDepartmentId &&
@@ -309,27 +315,8 @@ export function SignaturePdfViewer({
     return map;
   }, [filteredGroups]);
 
-  const getGroupDepartmentIds = (group: Group) => {
-    const groupDepartments = [
-      ...(group.departments || []),
-      ...group.centers.flatMap((center) => center.departments || []),
-    ];
-    return groupDepartments.map((dept) => dept.department_id);
-  };
-
-  const getCenterDepartmentIds = (center: Center) =>
-    (center.departments || []).map((dept) => dept.department_id);
-
-  const toggleSelection = (ids: string[], checked: boolean) => {
-    setSelectedDepartmentIds((prev) => {
-      const current = new Set(prev);
-      if (checked) {
-        ids.forEach((id) => current.add(id));
-      } else {
-        ids.forEach((id) => current.delete(id));
-      }
-      return Array.from(current);
-    });
+  const handleDepartmentSelect = (departmentId: string) => {
+    setSelectedDepartmentIds(departmentId ? [departmentId] : []);
   };
   const pdfFiles = useMemo(
     () => files.filter((file) => isPdfLikeFile(file)),
@@ -734,7 +721,7 @@ export function SignaturePdfViewer({
         // ignore
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [documentId, selectedFile?.id]);
 
   useEffect(() => {
@@ -1292,16 +1279,7 @@ export function SignaturePdfViewer({
   };
 
   if (isLoadingFiles) {
-    return (
-      <Card className="h-full w-full min-h-[600px] flex flex-col">
-        <CardHeader>
-          <CardTitle>Prepare Signature Positions</CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
-    );
+    return <FullPageLoader message="Loading document files" />;
   }
 
   if (!pdfFiles.length) {
@@ -1330,9 +1308,10 @@ export function SignaturePdfViewer({
     allowedDepartmentIds.length > 0 &&
     (isLoadingFiles || isRendering || pages.length === 0);
 
-  return (
-    <Card className="h-full w-full min-h-[600px] flex flex-col border-primary/40">
-      <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+    return (
+      <Card className="h-full w-full min-h-[600px] flex flex-col border-primary/40">
+        {isRendering && <FullPageLoader message="Loading signature workspace" />}
+        <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
           <CardTitle className="flex items-center gap-2">
             Prepare Signature Positions
@@ -1528,7 +1507,7 @@ export function SignaturePdfViewer({
                         style={{ zIndex: 1000 }}
                       >
                         <div
-                          className="relative h-full w-full"
+                          className="absolute inset-0"
                           style={{
                             transform: `rotate(${box.rotation ?? 0}deg)`,
                             transformOrigin: "center",
@@ -1542,41 +1521,41 @@ export function SignaturePdfViewer({
                                 : "border-primary/70 bg-primary/10",
                             )}
                           />
-                          {!box.isExisting && (
-                            <div className="signature-box-drag-handle !z-[1000] absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
-                              <Move className="h-3 w-3" />
-                              Drag to position
-                              <button
-                                type="button"
-                                className="rounded-full border border-muted/50 bg-white/90 p-1 text-muted-foreground hover:text-foreground"
-                                onMouseDown={(event) => {
-                                  event.stopPropagation();
-                                  startMouseRotation(box.id, false, event);
-                                }}
-                                aria-label="Drag to rotate signature placeholder"
-                              >
-                                <RotateCw className="h-3 w-3" />
-                              </button>
-                            </div>
-                          )}
                           <div className="flex h-full w-full items-center justify-center text-[11px] font-medium text-primary">
                             {box.isExisting
                               ? `Existing Signature #${index}`
                               : "Signature"}
                           </div>
-                          {!box.isExisting && (
+                        </div>
+                        {!box.isExisting && (
+                          <div className="signature-box-drag-handle !z-[1000] absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
+                            <Move className="h-3 w-3" />
+                            Drag to position
                             <button
                               type="button"
-                              className="absolute -right-2 -top-2 z-[1001] rounded-full bg-white p-1 text-destructive shadow"
-                              onClick={(event) => {
+                              className="rounded-full border border-muted/50 bg-white/90 p-1 text-muted-foreground hover:text-foreground"
+                              onMouseDown={(event) => {
                                 event.stopPropagation();
-                                handleRemove(box.id);
+                                startMouseRotation(box.id, false, event);
                               }}
+                              aria-label="Drag to rotate signature placeholder"
                             >
-                              <X className="h-3 w-3" />
+                              <RotateCw className="h-3 w-3" />
                             </button>
-                          )}
-                        </div>
+                          </div>
+                        )}
+                        {!box.isExisting && (
+                          <button
+                            type="button"
+                            className="absolute -right-2 -top-2 z-[1001] rounded-full bg-white p-1 text-destructive shadow"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleRemove(box.id);
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
                       </Rnd>
                     ))}
 
@@ -1623,38 +1602,24 @@ export function SignaturePdfViewer({
                         onClick={(event: { stopPropagation: () => any }) =>
                           event.stopPropagation()
                         }
-                        className={cn(
-                          "absolute rounded-md border-2 border-dashed shadow-sm bg-transparent overflow-visible",
-                          box.isExisting
-                            ? "border-amber-500/70"
-                            : "border-amber-500/80",
-                        )}
+                        className="absolute overflow-visible"
                         style={{ zIndex: 1000 }}
                       >
                         <div
-                          className="relative h-full w-full"
+                          className="absolute inset-0"
                           style={{
                             transform: `rotate(${box.rotation ?? 0}deg)`,
                             transformOrigin: "center",
                           }}
                         >
-                          {!box.isExisting && (
-                            <div className="text-box-drag-handle absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
-                              <Move className="h-3 w-3" />
-                              Drag text
-                              <button
-                                type="button"
-                                className="rounded-full border border-muted/50 bg-white/90 p-1 text-muted-foreground hover:text-foreground"
-                                onMouseDown={(event) => {
-                                  event.stopPropagation();
-                                  startMouseRotation(box.id, true, event);
-                                }}
-                                aria-label="Drag to rotate text placeholder"
-                              >
-                                <RotateCw className="h-3 w-3" />
-                              </button>
-                            </div>
-                          )}
+                          <div
+                            className={cn(
+                              "absolute inset-0 rounded-md border-2 border-dashed shadow-sm bg-transparent",
+                              box.isExisting
+                                ? "border-amber-500/70"
+                                : "border-amber-500/80",
+                            )}
+                          />
                           <div
                             className="flex h-full w-full items-center justify-center text-center px-1"
                             style={{
@@ -1667,19 +1632,36 @@ export function SignaturePdfViewer({
                               ? `Text Placeholder #${index}`
                               : box.text?.trim() || "Text"}
                           </div>
-                          {!box.isExisting && (
+                        </div>
+                        {!box.isExisting && (
+                          <div className="text-box-drag-handle absolute -left-1 -top-8 cursor-pointer flex items-center gap-1 rounded-full border border-muted/50 bg-white/90 px-2 py-0.5 text-[10px] text-muted-foreground">
+                            <Move className="h-3 w-3" />
+                            Drag text
                             <button
                               type="button"
-                              className="absolute -right-2 -top-2 z-[1001] rounded-full bg-white p-1 text-destructive shadow"
-                              onClick={(event) => {
+                              className="rounded-full border border-muted/50 bg-white/90 p-1 text-muted-foreground hover:text-foreground"
+                              onMouseDown={(event) => {
                                 event.stopPropagation();
-                                handleRemoveText(box.id);
+                                startMouseRotation(box.id, true, event);
                               }}
+                              aria-label="Drag to rotate text placeholder"
                             >
-                              <X className="h-3 w-3" />
+                              <RotateCw className="h-3 w-3" />
                             </button>
-                          )}
-                        </div>
+                          </div>
+                        )}
+                        {!box.isExisting && (
+                          <button
+                            type="button"
+                            className="absolute -right-2 -top-2 z-[1001] rounded-full bg-white p-1 text-destructive shadow"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleRemoveText(box.id);
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
                       </Rnd>
                     ))}
                 </div>
@@ -1702,37 +1684,14 @@ export function SignaturePdfViewer({
                       Loading options...
                     </div>
                   ) : filteredGroups.length > 0 ? (
-                    filteredGroups.map((group) => {
-                      const groupDepartmentIds = getGroupDepartmentIds(group);
-                      const groupChecked =
-                        groupDepartmentIds.length > 0 &&
-                        groupDepartmentIds.every((id) =>
-                          selectedDepartmentIds.includes(id),
-                        );
-                      const groupIndeterminate =
-                        !groupChecked &&
-                        groupDepartmentIds.some((id) =>
-                          selectedDepartmentIds.includes(id),
-                        );
-
-                      return (
+                    <RadioGroup
+                      value={selectedDepartmentIds[0] ?? ""}
+                      onValueChange={handleDepartmentSelect}
+                      className="space-y-3"
+                    >
+                      {filteredGroups.map((group) => (
                         <div key={group.group_id} className="space-y-2">
                           <div className="flex items-center gap-2">
-                            <Checkbox
-                              checked={
-                                groupChecked
-                                  ? true
-                                  : groupIndeterminate
-                                    ? "indeterminate"
-                                    : false
-                              }
-                              onCheckedChange={(checked) =>
-                                toggleSelection(
-                                  groupDepartmentIds,
-                                  checked === true,
-                                )
-                              }
-                            />
                             <span className="text-sm font-semibold">
                               Group: {group.name}
                             </span>
@@ -1743,71 +1702,32 @@ export function SignaturePdfViewer({
                               <div className="text-[11px] uppercase text-muted-foreground">
                                 Center:
                               </div>
-                              {group.centers.map((center) => {
-                                const centerDepartmentIds =
-                                  getCenterDepartmentIds(center);
-                                const centerChecked =
-                                  centerDepartmentIds.length > 0 &&
-                                  centerDepartmentIds.every((id) =>
-                                    selectedDepartmentIds.includes(id),
-                                  );
-                                const centerIndeterminate =
-                                  !centerChecked &&
-                                  centerDepartmentIds.some((id) =>
-                                    selectedDepartmentIds.includes(id),
-                                  );
-                                return (
-                                  <div
-                                    key={center.center_id}
-                                    className="space-y-2"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <Checkbox
-                                        checked={
-                                          centerChecked
-                                            ? true
-                                            : centerIndeterminate
-                                              ? "indeterminate"
-                                              : false
-                                        }
-                                        onCheckedChange={(checked) =>
-                                          toggleSelection(
-                                            centerDepartmentIds,
-                                            checked === true,
-                                          )
-                                        }
-                                      />
-                                      <span className="text-sm font-medium">
-                                        {center.name}
-                                      </span>
-                                    </div>
-                                    <div className="grid grid-cols-1 gap-2 pl-6">
-                                      <div className="text-[11px] uppercase text-muted-foreground">
-                                        Offices/Department:
-                                      </div>
-                                      {center.departments.map((dept) => (
-                                        <label
-                                          key={dept.department_id}
-                                          className="flex items-center gap-2 text-sm"
-                                        >
-                                          <Checkbox
-                                            checked={selectedDepartmentIds.includes(
-                                              dept.department_id,
-                                            )}
-                                            onCheckedChange={(checked) =>
-                                              toggleSelection(
-                                                [dept.department_id],
-                                                checked === true,
-                                              )
-                                            }
-                                          />
-                                          {dept.name}
-                                        </label>
-                                      ))}
-                                    </div>
+                              {group.centers.map((center) => (
+                                <div
+                                  key={center.center_id}
+                                  className="space-y-2"
+                                >
+                                  <div className="text-sm font-medium">
+                                    {center.name}
                                   </div>
-                                );
-                              })}
+                                  <div className="grid grid-cols-1 gap-2 pl-6">
+                                    <div className="text-[11px] uppercase text-muted-foreground">
+                                      Offices/Department:
+                                    </div>
+                                    {center.departments.map((dept) => (
+                                      <label
+                                        key={dept.department_id}
+                                        className="flex items-center gap-2 text-sm"
+                                      >
+                                        <RadioGroupItem
+                                          value={dept.department_id}
+                                        />
+                                        {dept.name}
+                                      </label>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           )}
 
@@ -1821,25 +1741,15 @@ export function SignaturePdfViewer({
                                   key={dept.department_id}
                                   className="flex items-center gap-2 text-sm"
                                 >
-                                  <Checkbox
-                                    checked={selectedDepartmentIds.includes(
-                                      dept.department_id,
-                                    )}
-                                    onCheckedChange={(checked) =>
-                                      toggleSelection(
-                                        [dept.department_id],
-                                        checked === true,
-                                      )
-                                    }
-                                  />
+                                  <RadioGroupItem value={dept.department_id} />
                                   {dept.name}
                                 </label>
                               ))}
                             </div>
                           )}
                         </div>
-                      );
-                    })
+                      ))}
+                    </RadioGroup>
                   ) : (
                     <div className="text-xs text-muted-foreground">
                       No groups available
@@ -1849,10 +1759,8 @@ export function SignaturePdfViewer({
               </div>
               <p className="text-xs text-muted-foreground">
                 {selectedDepartmentCount > 0
-                  ? `Selected ${selectedDepartmentCount} department${
-                      selectedDepartmentCount === 1 ? "" : "s"
-                    }. New placeholders will be assigned to these departments.`
-                  : "Select departments to assign new placeholders."}
+                  ? "Selected 1 department. New placeholders will be assigned to this department."
+                  : "Select a department to assign new placeholders."}
               </p>
             </div>
 

@@ -10,16 +10,14 @@ import {
   Building,
   User,
   ArrowRight,
-  Clock,
   Download,
   ChevronLeft,
-  MessageSquare,
-  FileDown,
 } from "lucide-react";
 import { format as formatDate } from "date-fns";
 import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import exportDocumentTrailsPDF, { exportDocumentTrailsCSV, exportDocumentTrailsExcel } from "@/utils/document-trails-export";
+import { calculateDuration, getExpectedDuration, compareDurations } from "@/utils/duration";
 
 interface DocumentTrailDetail {
   id: string;
@@ -32,6 +30,7 @@ interface DocumentTrailDetail {
   toDepartment: string;
   status: string;
   remarks: string;
+  durationMs?: number | null; // Duration to next trail in milliseconds
 }
 
 interface DocumentInfo {
@@ -42,6 +41,14 @@ interface DocumentInfo {
   classification: string;
   status: string;
   createdAt: string;
+  processType?: {
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    durationValue: number | null;
+    durationUnit: string | null;
+  } | null;
 }
 
 export default function DocumentTrailsDetailPage() {
@@ -179,43 +186,38 @@ export default function DocumentTrailsDetailPage() {
     <div className="container mx-auto px-4 py-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Document Trail Details</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl font-bold">Document Trail Details</h1>
+          <p className="text-muted-foreground text-sm">
             Complete history for{" "}
             {documentInfo?.title || `document ${documentId}`}
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => router.back()}>
-            <ChevronLeft className="h-4 w-4 mr-2" />
+          <Button variant="outline" size="sm" onClick={() => router.back()}>
             Back
           </Button>
           <div className="relative group inline-block">
-            <Button>
-              <Download className="h-4 w-4 mr-2" />
+            <Button size="sm">
               Export
             </Button>
             <div className="absolute right-0 mt-2 w-40 rounded-md shadow-lg bg-background border border-border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
               <div className="py-1">
                 <button
                   onClick={() => handleExport("pdf")}
-                  className="flex items-center w-full px-4 py-2 text-sm hover:bg-accent transition-colors"
+                  className="w-full px-4 py-2 text-sm hover:bg-accent transition-colors"
                 >
-                  <FileDown className="h-4 w-4 mr-2 text-red-500" />
                   Export as PDF
                 </button>
                 <button
                   onClick={() => handleExport("excel")}
-                  className="flex items-center w-full px-4 py-2 text-sm hover:bg-accent transition-colors"
+                  className="w-full px-4 py-2 text-sm hover:bg-accent transition-colors"
                 >
-                  <FileDown className="h-4 w-4 mr-2 text-green-600" />
                   Export as Excel
                 </button>
                 <button
                   onClick={() => handleExport("csv")}
-                  className="flex items-center w-full px-4 py-2 text-sm hover:bg-accent transition-colors"
+                  className="w-full px-4 py-2 text-sm hover:bg-accent transition-colors"
                 >
-                  <FileDown className="h-4 w-4 mr-2 text-blue-500" />
                   Export as CSV
                 </button>
               </div>
@@ -227,10 +229,12 @@ export default function DocumentTrailsDetailPage() {
       {documentInfo && (
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Document Information</CardTitle>
+            <CardTitle className="text-lg">
+              Document Information
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <CardContent className="pt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Title</p>
                 <p className="font-medium">{documentInfo.title}</p>
@@ -264,19 +268,92 @@ export default function DocumentTrailsDetailPage() {
                   )}
                 </p>
               </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">
+                  {documentInfo.status === "completed" ? "Completed At" : "Total Duration"}
+                </p>
+                {documentInfo.status === "completed" ? (
+                  <>
+                    <p className="font-medium text-green-700 dark:text-green-300">
+                      {(() => {
+                        const completedTrail = trails.find(t => t.status === "completed");
+                        if (completedTrail) {
+                          return formatDate(new Date(completedTrail.actionDate), "MMM d, yyyy h:mm a");
+                        }
+                        return "N/A";
+                      })()}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {(() => {
+                        const completedTrail = trails.find(t => t.status === "completed");
+                        if (completedTrail) {
+                          const duration = calculateDuration(documentInfo.createdAt, completedTrail.actionDate);
+                          return `Completed in ${duration.shortFormat}`;
+                        }
+                        return "";
+                      })()}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium text-blue-700 dark:text-blue-300">
+                      {(() => {
+                        const duration = calculateDuration(documentInfo.createdAt, new Date().toISOString());
+                        return duration.shortFormat;
+                      })()}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Since {formatDate(new Date(documentInfo.createdAt), "MMM d, yyyy")}
+                    </p>
+                  </>
+                )}
+              </div>
+              {documentInfo.processType && (
+                <div className="sm:col-span-2 lg:col-span-3 space-y-2">
+                  <p className="text-sm font-semibold text-muted-foreground">
+                    Process Information
+                  </p>
+                  <div className="p-3 bg-muted rounded-md space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge className="text-xs bg-blue-600 hover:bg-blue-700">
+                        {documentInfo.processType.name}
+                      </Badge>
+                      {documentInfo.processType.code && (
+                        <Badge variant="outline" className="text-xs">
+                          Code: {documentInfo.processType.code}
+                        </Badge>
+                      )}
+                      {documentInfo.processType.durationValue && documentInfo.processType.durationUnit && (
+                        <Badge variant="secondary" className="text-xs">
+                          Duration: {documentInfo.processType.durationValue} {documentInfo.processType.durationUnit}
+                        </Badge>
+                      )}
+                    </div>
+                    {documentInfo.processType.description && (
+                      <div>
+                        <p className="text-sm text-foreground leading-relaxed">
+                          {documentInfo.processType.description}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
       )}
 
-      <h2 className="text-xl font-bold mb-4">Trail History</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-bold">Trail History</h2>
+        <Badge variant="secondary">{trails.length} {trails.length === 1 ? 'Entry' : 'Entries'}</Badge>
+      </div>
 
       <Card>
-        <CardContent className="pt-6">
-          <div className="space-y-8">
+        <CardContent className="pt-4">
+          <div className="space-y-6">
             {trails.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <FileText className="h-12 w-12 mx-auto text-muted mb-4" />
+              <div className="text-center py-8 text-muted-foreground">
                 <p className="text-lg font-medium">No trail history found</p>
                 <p className="text-sm">
                   This document has no recorded trail history
@@ -284,140 +361,161 @@ export default function DocumentTrailsDetailPage() {
               </div>
             ) : (
               trails.map((trail, index) => (
-                <div key={trail.id} className="flex gap-6">
-                  {/* Timeline connector */}
-                  <div className="flex flex-col items-center flex-shrink-0">
-                    <div className="rounded-full bg-primary p-2">
-                      <FileText className="h-4 w-4 text-primary-foreground" />
-                    </div>
-                    {index < trails.length - 1 && (
-                      <div className="h-full w-0.5 bg-muted-foreground/30 mt-2"></div>
-                    )}
-                  </div>
-
-                  <div className="flex-1 pb-6">
-                    <div className="bg-card rounded-lg p-6 border shadow-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                        <Badge className={getStatusColor(trail.status)}>
-                          {getStatusText(trail.status)}
+                <div key={trail.id} className="border rounded-lg p-4 hover:bg-accent/20 transition-colors">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge className={getStatusColor(trail.status)}>
+                        {getStatusText(trail.status)}
+                      </Badge>
+                      {documentInfo && documentInfo.processType && documentInfo.processType.durationValue && documentInfo.processType.durationUnit && (
+                        <Badge variant="secondary" className="text-xs">
+                          {documentInfo.processType.durationValue} {documentInfo.processType.durationUnit}
                         </Badge>
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Clock className="h-4 w-4" />
-                            <span className="font-medium">Action Date:</span>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-1 text-xs">
+                      <div className="flex items-center gap-1">
+                        <span className="font-semibold text-foreground">Action:</span>
+                        <span
+                          className="text-muted-foreground"
+                          title={formatDate(new Date(trail.actionDate), "PPpp")}
+                        >
+                          {formatDate(
+                            new Date(trail.actionDate),
+                            "MMM d, yyyy h:mm a"
+                          )}
+                        </span>
+                      </div>
+                      {trail.createdAt && (
+                        <div className="flex items-center gap-1">
+                          <span className="font-semibold text-foreground">Created:</span>
+                          <span
+                            className="text-muted-foreground"
+                            title={formatDate(
+                              new Date(trail.createdAt),
+                              "PPpp"
+                            )}
+                          >
+                            {formatDate(
+                              new Date(trail.createdAt),
+                              "MMM d, yyyy h:mm a"
+                            )}
+                          </span>
+                        </div>
+                      )}
+                      {trail.updatedAt &&
+                        trail.updatedAt !== trail.createdAt && (
+                          <div className="flex items-center gap-1">
+                            <span className="font-semibold text-foreground">
+                              Updated:
+                            </span>
                             <span
-                              title={formatDate(new Date(trail.actionDate), "PPpp")}
+                              className="text-muted-foreground"
+                              title={formatDate(
+                                new Date(trail.updatedAt),
+                                "PPpp"
+                              )}
                             >
                               {formatDate(
-                                new Date(trail.actionDate),
+                                new Date(trail.updatedAt),
                                 "MMM d, yyyy h:mm a"
                               )}
                             </span>
                           </div>
-                          {trail.createdAt && (
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <Calendar className="h-3 w-3" />
-                              <span>Created:</span>
-                              <span
-                                title={formatDate(
-                                  new Date(trail.createdAt),
-                                  "PPpp"
-                                )}
-                              >
-                                {formatDate(
-                                  new Date(trail.createdAt),
-                                  "MMM d, yyyy h:mm a"
-                                )}
-                              </span>
-                            </div>
-                          )}
-                          {trail.updatedAt &&
-                            trail.updatedAt !== trail.createdAt && (
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <Clock className="h-3 w-3" />
-                                <span>Updated:</span>
-                                <span
-                                  title={formatDate(
-                                    new Date(trail.updatedAt),
-                                    "PPpp"
-                                  )}
-                                >
-                                  {formatDate(
-                                    new Date(trail.updatedAt),
-                                    "MMM d, yyyy h:mm a"
-                                  )}
-                                </span>
-                              </div>
-                            )}
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-3">
-                          <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <span className="text-sm">
-                            {trail.status === "signed" && (
-                              <>
-                                <span className="font-medium text-emerald-700 dark:text-emerald-400">
-                                  {trail.user}
-                                </span>{" "}
-                                signed this document
-                              </>
-                            )}
-                            {trail.status === "placeholder_added" && (
-                              <>
-                                <span className="font-medium text-violet-700 dark:text-violet-400">
-                                  {trail.user}
-                                </span>{" "}
-                                added signature placeholder(s)
-                              </>
-                            )}
-                            {trail.status !== "signed" &&
-                              trail.status !== "placeholder_added" && (
-                                <>
-                                  <span className="font-medium">
-                                    {trail.user}
-                                  </span>{" "}
-                                  performed this action
-                                </>
-                              )}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <span className="text-sm">
-                            <span className="font-medium">
-                              {trail.fromDepartment}
-                            </span>
-                            <ArrowRight className="h-3 w-3 mx-2 inline" />
-                            <span className="font-medium">
-                              {trail.toDepartment}
-                            </span>
-                          </span>
-                        </div>
-
-                        {trail.remarks && (
-                          <div className="mt-4 p-4 bg-muted/30 rounded-md border">
-                            <div className="flex items-start gap-3">
-                              <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                              <div className="flex-1">
-                                <p className="text-xs font-semibold text-muted-foreground mb-2">
-                                  {trail.status === "signed"
-                                    ? "Signature Details"
-                                    : trail.status === "placeholder_added"
-                                    ? "Placeholder Details"
-                                    : "Remarks"}
-                                </p>
-                                <div className="text-sm whitespace-pre-line font-mono leading-relaxed bg-muted/30 p-3 rounded border">
-                                  {trail.remarks}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
                         )}
-                      </div>
                     </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 p-2 rounded-md bg-muted/20">
+                      <span className="text-sm">
+                        {trail.status === "signed" && (
+                          <>
+                            <span className="font-semibold text-emerald-700">
+                              {trail.user}
+                            </span>{" "}
+                            signed this document
+                          </>
+                        )}
+                        {trail.status === "placeholder_added" && (
+                          <>
+                            <span className="font-semibold text-violet-700">
+                              {trail.user}
+                            </span>{" "}
+                            added signature placeholder(s)
+                          </>
+                        )}
+                        {trail.status !== "signed" &&
+                          trail.status !== "placeholder_added" && (
+                            <>
+                              <span className="font-semibold">
+                                {trail.user}
+                              </span>{" "}
+                              performed this action
+                            </>
+                          )}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 p-2 rounded-md bg-muted/20">
+                      <span className="text-sm">
+                        <span className="font-medium">
+                          {trail.fromDepartment}
+                        </span>
+                        <span className="mx-1">→</span>
+                        <span className="font-medium">
+                          {trail.toDepartment}
+                        </span>
+                      </span>
+                    </div>
+
+                    {trail.remarks && (
+                      <div className="mt-3 p-3 bg-muted/20 rounded-md">
+                        <div>
+                          <p className="text-xs font-semibold text-foreground mb-1 uppercase tracking-wider">
+                            {trail.status === "signed"
+                              ? "Signature Details"
+                              : trail.status === "placeholder_added"
+                              ? "Placeholder Details"
+                              : "Remarks"}
+                          </p>
+                          <div className="text-sm whitespace-pre-line leading-relaxed">
+                            {trail.remarks}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Duration in this stage - Only shown when user held document */}
+                    {trail.durationMs && trail.durationMs > 0 && (
+                      <div className="mt-4 pt-4 border-t border-dashed border-border/50">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div>
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                              Handling Duration (Processing Time)
+                            </p>
+                            <p className="text-sm text-muted-foreground/80">
+                              {trail.user} held this document {index === trails.length - 1 ? "and is currently in this stage" : "before releasing to next user"}
+                            </p>
+                          </div>
+                          <div className="text-xl font-bold text-foreground">
+                            {(() => {
+                              const durationInSeconds = Math.floor(trail.durationMs / 1000);
+                              const days = Math.floor(durationInSeconds / (24 * 60 * 60));
+                              const hours = Math.floor((durationInSeconds % (24 * 60 * 60)) / (60 * 60));
+                              const minutes = Math.floor((durationInSeconds % (60 * 60)) / 60);
+                              
+                              const parts: string[] = [];
+                              if (days > 0) parts.push(`${days}d`);
+                              if (hours > 0) parts.push(`${hours}h`);
+                              if (minutes > 0 || parts.length === 0) parts.push(`${minutes}m`);
+                              
+                              return parts.join(' ');
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))

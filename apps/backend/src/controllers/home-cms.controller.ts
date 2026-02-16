@@ -3,6 +3,14 @@ import { homeCMSService } from "../services/home-cms.service";
 import { fileUploadService } from "../services/file-upload.service";
 
 export class HomeCMSController {
+  // Helper method to extract string value from potentially array parameter
+  private getStringValue = (param: string | string[] | undefined): string | undefined => {
+    if (Array.isArray(param)) {
+      return param[0];
+    }
+    return param;
+  };
+
   /**
    * Upload file for home CMS (logo or video)
    */
@@ -39,6 +47,17 @@ export class HomeCMSController {
       // Get current CMS to get cms_id for tracking
       const currentCMS = await homeCMSService.getActiveCMS();
 
+      // Delete old file of the same type if it exists
+      if (currentCMS) {
+        if (fileType === "logo" && currentCMS.logo_url) {
+          console.log(`🗑️ Deleting old logo before uploading new one: ${currentCMS.logo_url}`);
+          await homeCMSService.deleteFileByUrl(currentCMS.logo_url);
+        } else if (fileType === "video" && currentCMS.video_url) {
+          console.log(`🗑️ Deleting old video before uploading new one: ${currentCMS.video_url}`);
+          await homeCMSService.deleteFileByUrl(currentCMS.video_url);
+        }
+      }
+
       // Upload file with home_cms relation
       const result = await fileUploadService.uploadFile({
         buffer: file.buffer,
@@ -71,6 +90,11 @@ export class HomeCMSController {
    */
   async getActiveCMS(req: Request, res: Response) {
     try {
+      // Set no-cache headers to ensure fresh data on all devices
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+
       const cms = await homeCMSService.getActiveCMS();
       
       if (!cms) {
@@ -161,7 +185,7 @@ export class HomeCMSController {
    */
   async deleteCMS(req: Request, res: Response) {
     try {
-      const { cmsId } = req.params;
+      const cmsId = this.getStringValue(req.params.cmsId);
 
       if (!cmsId) {
         return res.status(400).json({

@@ -1,7 +1,9 @@
 import { prisma } from '../lib/prisma';
 import { NotificationService } from './notification.service';
+import { ProcessStatusService } from './process-status.service';
 
 const notificationService = new NotificationService();
+const processStatusService = new ProcessStatusService();
 
 export class DocumentTrailsService {
   /**
@@ -181,8 +183,10 @@ export class DocumentTrailsService {
     from_department?: string;
     to_department?: string;
     user_id?: string;
+    assigned_to_user_id?: string | null;
     status: string;
     remarks?: string;
+    action_date?: Date;
   }) {
     try {
       // Resolve UUIDs in remarks to human-readable names
@@ -200,9 +204,10 @@ export class DocumentTrailsService {
           from_department: data.from_department,
           to_department: data.to_department,
           user_id: data.user_id,
+          assigned_to_user_id: data.assigned_to_user_id,
           status: data.status,
           remarks: processedRemarks,
-          action_date: new Date(), // Explicitly set action date to current time
+          action_date: data.action_date ?? new Date(), // Explicitly set action date to current time
         },
         select: {
           trail_id: true,
@@ -241,6 +246,14 @@ export class DocumentTrailsService {
 
       // Send notification based on the action and status
       await this.handleDocumentTrailNotification(trail);
+
+      if (trail.status === 'received' || trail.status === 'completed') {
+        try {
+          await processStatusService.syncForDocument(trail.document_id);
+        } catch (syncError) {
+          console.error('Error syncing ProcessStatus:', syncError);
+        }
+      }
 
       return trail;
     } catch (error) {

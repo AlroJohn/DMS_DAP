@@ -509,7 +509,10 @@ export function ViewDocumentsModal({
             </TabsList>
 
             {/* Document Routing Tab - using document_trails for historical data */}
-            <TabsContent value="routing" className="space-y-4 mt-6">
+            <TabsContent
+              value="routing"
+              className="space-y-4 mt-6 bg-background"
+            >
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">
                   Document Routing History
@@ -572,7 +575,7 @@ export function ViewDocumentsModal({
               ) : documentTrails && documentTrails.length > 0 ? (
                 <div className="relative space-y-6 pl-8">
                   {/* Timeline line */}
-                  <div className="absolute left-[19px] top-[30px] bottom-[30px] w-[2px] bg-border" />
+                  <div className="absolute left-[19px] top-[30px] bottom-[30px] w-[2px] bg-background" />
 
                   {documentTrails.map((trail: DocumentTrail, index) => {
                     const isFirst = index === 0;
@@ -585,7 +588,7 @@ export function ViewDocumentsModal({
                         {/* Timeline node */}
                         <div
                           className={cn(
-                            "absolute left-[-32px] w-10 h-10 rounded-full flex items-center justify-center border-2 border-border bg-background"
+                            "absolute left-[-32px] w-10 h-10 rounded-full flex items-center justify-center border-2 border-border bg-background",
                           )}
                         >
                           <span className="text-muted-foreground text-xl">
@@ -609,7 +612,7 @@ export function ViewDocumentsModal({
                         </div>
 
                         {/* Trail card */}
-                        <div className="bg-white border rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow ml-6">
+                        <div className="bg-background border rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow ml-6">
                           <div className="flex justify-between items-start mb-4">
                             <div className="text-sm text-muted-foreground">
                               {datetime.full}
@@ -699,7 +702,10 @@ export function ViewDocumentsModal({
             </TabsContent>
 
             {/* Version History Tab */}
-            <TabsContent value="versions" className="space-y-4 mt-6">
+            <TabsContent
+              value="versions"
+              className="space-y-4 mt-6 bg-background"
+            >
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Version History</h3>
                 <Button
@@ -726,7 +732,7 @@ export function ViewDocumentsModal({
               ) : document && document.files && document.files.length > 0 ? (
                 <div className="relative space-y-6 pl-8">
                   {/* Timeline line */}
-                  <div className="absolute left-[19px] top-[30px] bottom-[30px] w-[2px] bg-border" />
+                  <div className="absolute left-[19px] top-[30px] bottom-[30px] w-[2px]" />
 
                   {(document.files as DocumentFile[])
                     .slice()
@@ -757,7 +763,7 @@ export function ViewDocumentsModal({
                           {/* Timeline node */}
                           <div
                             className={cn(
-                              "absolute left-[-32px] w-10 h-10 rounded-full flex items-center justify-center border-2 border-border bg-background"
+                              "absolute left-[-32px] w-10 h-10 rounded-full flex items-center justify-center border-2 border-border bg-background",
                             )}
                           >
                             <span className="text-muted-foreground text-xl">
@@ -782,7 +788,7 @@ export function ViewDocumentsModal({
 
                           {/* Version card */}
                           <div
-                            className={`bg-white border rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow ml-6 ${
+                            className={`bg-background border rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow ml-6 ${
                               isCurrent ? "border-primary bg-primary/5" : ""
                             }`}
                           >
@@ -899,7 +905,7 @@ export function ViewDocumentsModal({
                                       <span className="font-medium">
                                         {
                                           formatDateTime(
-                                            file.DocumentMetadata.creation_date
+                                            file.DocumentMetadata.creation_date,
                                           ).date
                                         }
                                       </span>
@@ -1053,14 +1059,14 @@ export function ViewDocumentsModal({
                             variant={getClassificationVariant(
                               safeDetail?.classification ||
                                 (document as any)?.classification ||
-                                "simple"
+                                "simple",
                             )}
                             className="font-semibold text-sm px-3 py-1"
                           >
                             {formatText(
                               safeDetail?.classification ||
                                 (document as any)?.classification ||
-                                "simple"
+                                "simple",
                             )}
                           </Badge>
                         </div>
@@ -1078,13 +1084,13 @@ export function ViewDocumentsModal({
                             className={cn(
                               "inline-flex items-center gap-2 px-3 py-1 rounded-full font-medium text-sm",
                               getStatusColor(document.status).bg,
-                              getStatusColor(document.status).text
+                              getStatusColor(document.status).text,
                             )}
                           >
                             <div
                               className={cn(
                                 "h-2 w-2 rounded-full",
-                                getStatusColor(document.status).dot
+                                getStatusColor(document.status).dot,
                               )}
                             />
                             {formatText(document.status)}
@@ -1145,7 +1151,7 @@ export function ViewDocumentsModal({
                               safeDetail?.origin ||
                                 document?.detail?.origin ||
                                 (document as any)?.origin ||
-                                "N/A"
+                                "N/A",
                             )}
                           </p>
                         </div>
@@ -1178,7 +1184,7 @@ export function ViewDocumentsModal({
                                     const hasMetadata =
                                       metadata &&
                                       Object.values(metadata).some(
-                                        (v) => v != null && v !== ""
+                                        (v) => v != null && v !== "",
                                       );
 
                                     if (hasMetadata) {
@@ -1206,7 +1212,7 @@ export function ViewDocumentsModal({
                                                 key === "modification_date"
                                               ) {
                                                 displayValue = formatDateTime(
-                                                  value as string
+                                                  value as string,
                                                 ).full;
                                               } else if (
                                                 key === "is_encrypted"
@@ -1248,7 +1254,7 @@ export function ViewDocumentsModal({
                                                   </div>
                                                 </div>
                                               );
-                                            }
+                                            },
                                           )}
                                         </div>
                                       );
@@ -1263,55 +1269,35 @@ export function ViewDocumentsModal({
                                   })()}
                                 </CardContent>
                               </Card>
-                            )
+                            ),
                           )}
                         </div>
                       </div>
                     )}
 
-                    {/* QR Code and Barcode */}
-                    <div className="bg-gray-50 rounded-lg p-6 border">
+                    {/* QR Code */}
+                    <div className="bg-background rounded-lg p-6 border">
                       <h4 className="font-semibold text-center mb-6">
-                        QR Code and Barcode
+                        QR Code
                       </h4>
-                      <div className="flex items-center justify-around gap-8">
+                      <div className="flex items-center justify-center">
                         <div className="text-center">
                           <label className="text-sm text-muted-foreground block mb-3">
                             QR Code
                           </label>
                           {document.qrCode ? (
-                            <img
-                              src={document.qrCode}
-                              alt="QR Code"
-                              className="w-48 h-48 mx-auto border-2 border-gray-200 rounded-lg p-2 bg-white"
-                            />
-                          ) : (
-                            <div className="w-48 h-48 mx-auto border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-white">
-                              <FileText className="h-12 w-12 text-gray-400" />
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="text-center flex-1 max-w-lg">
-                          <label className="text-sm text-muted-foreground block mb-3">
-                            Barcode
-                          </label>
-                          {document.barcode ? (
-                            <div className="bg-white border-2 border-gray-200 rounded-lg p-4">
+                            <div className="rounded-md bg-gray-50">
                               <img
-                                src={document.barcode}
-                                alt="Barcode"
-                                className="w-full h-32 object-contain"
+                                src={document.qrCode}
+                                alt="QR Code"
+                                className="w-48 h-48 mx-auto border-2 border-gray-200 rounded-lg p-2 bg-background"
                               />
                             </div>
                           ) : (
-                            <div className="h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-white">
+                            <div className="w-48 h-48 mx-auto border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-background">
                               <FileText className="h-12 w-12 text-gray-400" />
                             </div>
                           )}
-                          <p className="text-xs text-muted-foreground mt-2 font-mono">
-                            {document.tracking_code || document.document_id}
-                          </p>
                         </div>
                       </div>
                     </div>

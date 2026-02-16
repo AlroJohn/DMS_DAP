@@ -14,6 +14,13 @@ export class RoleController {
     this.permissionService = new PermissionService();
   }
 
+  private getStringValue = (param: string | string[] | undefined): string | undefined => {
+    if (Array.isArray(param)) {
+      return param[0];
+    }
+    return param;
+  };
+
   /**
    * POST /api/admin/roles - Create new role (admin only)
    */
@@ -101,7 +108,7 @@ export class RoleController {
    */
   getRoleById = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
     
     // Check if user has role read permissions
     const canReadRoles = await this.permissionService.hasPermission(
@@ -135,7 +142,7 @@ export class RoleController {
    */
   updateRole = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
     
     // Check if user has role edit permissions
     const canEditRoles = await this.permissionService.hasPermission(
@@ -197,7 +204,7 @@ export class RoleController {
    */
   deleteRole = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
     
     // Check if user has role delete permissions
     const canDeleteRoles = await this.permissionService.hasPermission(
@@ -255,7 +262,7 @@ export class RoleController {
    */
   assignPermissionsToRole = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
     const { permissions } = req.body;
     
     // Check if user has permission assign permissions
@@ -295,7 +302,7 @@ export class RoleController {
    */
   getUsersWithRole = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
     
     // Check if user has role read permissions
     const canReadRoles = await this.permissionService.hasPermission(
@@ -324,7 +331,7 @@ export class RoleController {
    */
   checkRoleCodeAvailability = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { code } = req.params;
+    const code = this.getStringValue(req.params.code);
     const { excludeRoleId } = req.query;
     
     // Check if user has role read permissions
@@ -362,7 +369,7 @@ export class RoleController {
    */
   checkRoleNameAvailability = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { name } = req.params;
+    const name = this.getStringValue(req.params.name);
     const { excludeRoleId } = req.query;
     
     // Check if user has role read permissions

@@ -125,7 +125,9 @@ export function TransmitByCodeModal({
     }
 
     let lastDetectionTime = 0;
-    const detectionInterval = 100; // Run detection every 100ms for faster response
+    const detectionInterval = 50; // Run detection every 50ms for faster response
+    let consecutiveDetections = 0;
+    let lastProcessedCode: string | null = null;
 
     const detectQRCode = (timestamp: number) => {
       const webcam = webcamRef.current;
@@ -150,31 +152,36 @@ export function TransmitByCodeModal({
 
       lastDetectionTime = timestamp;
 
-      const context = canvas.getContext("2d", { willReadFrequently: true });
+      // Create context once and reuse it
+      let context = canvas.getContext("2d", { willReadFrequently: true });
       if (!context) {
         animationFrameRef.current = requestAnimationFrame(detectQRCode);
         return;
       }
 
       // Use higher resolution for better detection
-      const scale = 0.8; // Increased from 0.75 for better accuracy
+      const scale = 0.6; // Lower scale for faster processing
       const width = Math.floor(video.videoWidth * scale);
       const height = Math.floor(video.videoHeight * scale);
 
-      canvas.width = width;
-      canvas.height = height;
+      // Only resize if dimensions changed
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
 
       context.drawImage(video, 0, 0, width, height);
       const imageData = context.getImageData(0, 0, width, height);
 
       try {
+        // Try to detect QR code with both normal and inverted attempts
         const code = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: "dontInvert",
+          inversionAttempts: "attemptBoth",
         });
 
-        if (code && code.data) {
-          setQrDetected(true);
-          setDetectedCode(code.data);
+        if (code && code.data && code.data.trim()) {
+          // Validate QR code data - must be non-empty and look like a document code
+          const qrData = code.data.trim();
           
           // Calculate QR code position relative to video dimensions
           const videoWidth = video.videoWidth;
@@ -189,46 +196,50 @@ export function TransmitByCodeModal({
           const qrHeight = Math.abs(code.location.bottomRightCorner.y - code.location.topLeftCorner.y);
           const qrSize = (qrWidth + qrHeight) / 2;
           
-          // Scale to actual video display size (since we downscaled for processing)
+          // Scale to actual video display size
           const displayCenterX = (centerX / width) * videoWidth;
           const displayCenterY = (centerY / height) * videoHeight;
           const displaySize = (qrSize / width) * videoWidth;
-          setQrLocation(null);
           
+          setQrDetected(true);
+          setDetectedCode(qrData);
           setQrLocation({
             x: displayCenterX,
             y: displayCenterY,
             size: displaySize
           });
           
-        setQrLocation(null);
-          // 
-          // Auto-scan logic: detect same code 2 consecutive times for faster response
-          if (lastDetectedCodeRef.current === code.data) {
-            detectionCountRef.current += 1;
+          // Auto-scan logic: require 3 consecutive detections of the same code
+          if (lastDetectedCodeRef.current === qrData) {
+            consecutiveDetections++;
             
-            // Auto-trigger scan after 2 consistent detections (~200ms)
-            if (detectionCountRef.current >= 2 && !autoScanTriggered) {
+            // Auto-trigger scan after 3 consistent detections (~150ms total)
+            if (consecutiveDetections >= 3 && !autoScanTriggered && lastProcessedCode !== qrData) {
+              lastProcessedCode = qrData;
               setAutoScanTriggered(true);
-              handleAutoCapture(code.data);
+              // Small delay to let the UI update before processing
+              setTimeout(() => {
+                handleAutoCapture(qrData);
+              }, 50);
             }
           } else {
             // New code detected, reset counter
-            lastDetectedCodeRef.current = code.data;
-            detectionCountRef.current = 1;
+            lastDetectedCodeRef.current = qrData;
+            consecutiveDetections = 1;
           }
         } else {
-          setQrDetected(false);
-          setDetectedCode(null);
-          detectionCountRef.current = 0;
-          lastDetectedCodeRef.current = null;
+          // Gradual reset - don't clear immediately to avoid flickering
+          if (consecutiveDetections > 0) {
+            consecutiveDetections = Math.max(0, consecutiveDetections - 1);
+          }
+          if (consecutiveDetections === 0) {
+            setQrDetected(false);
+            setDetectedCode(null);
+            lastDetectedCodeRef.current = null;
+          }
         }
       } catch (error) {
         console.error("QR detection error:", error);
-        setQrDetected(false);
-        setDetectedCode(null);
-        detectionCountRef.current = 0;
-        lastDetectedCodeRef.current = null;
       }
 
       // Continue the loop
@@ -246,11 +257,30 @@ export function TransmitByCodeModal({
     };
   }, [scanMode, autoScanTriggered]);
 
-  const handleScanImage = async (imageFile: File) => {
+  const handleScanImage = async (imageFile: File | Blob) => {
+    // Validate file parameter
+    if (!imageFile) {
+      toast.error("No image file provided");
+      return;
+    }
+    
+    // Check if it's a File or Blob with size
+    const fileSize = (imageFile as File).size || (imageFile as Blob).size || 0;
+    if (fileSize === 0) {
+      toast.error("Image file is empty");
+      return;
+    }
+    
     setIsScanning(true);
     try {
       const formData = new FormData();
-      formData.append("image", imageFile);
+      // Append as File if it's a File, otherwise create a File from Blob
+      if (imageFile instanceof File) {
+        formData.append("image", imageFile);
+      } else {
+        const fileFromBlob = new File([imageFile], "camera-capture.png", { type: "image/png" });
+        formData.append("image", fileFromBlob);
+      }
 
       const token = getAccessToken();
       const headers: HeadersInit = {};
@@ -284,8 +314,20 @@ export function TransmitByCodeModal({
       if (result.success && result.data) {
         const scannedCode = result.data;
         setDocumentCode(scannedCode);
+        
+        // Close camera mode first
         setScanMode(null);
+        
+        // Reset detection state
+        setQrDetected(false);
+        setDetectedCode(null);
+        setQrLocation(null);
+        setAutoScanTriggered(false);
+        
         toast.success(`QR Code scanned: ${scannedCode}`);
+        
+        // Small delay to ensure camera cleanup completes
+        await new Promise(resolve => setTimeout(resolve, 100));
         
         // Automatically search for the document
         setIsScanning(false);
@@ -305,44 +347,117 @@ export function TransmitByCodeModal({
   };
 
   const handleAutoCapture = async (code: string) => {
-    if (isScanning) return;
+    if (isScanning || !code) return;
     
-    // Directly use the detected code without backend processing
-    setDocumentCode(code);
-    setScanMode(null);
-    toast.success(`QR Code detected: ${code}`);
+    // Prevent duplicate processing
+    if (documentCode === code) {
+      return;
+    }
     
-    // Automatically search for the document
-    await searchDocument(code);
+    setIsScanning(true);
+    
+    try {
+      // Update the input field with detected code
+      setDocumentCode(code);
+      
+      // Show success feedback
+      toast.success(`QR Code detected: ${code.length > 30 ? code.substring(0, 30) + "..." : code}`);
+      
+      // Close camera mode first - this will trigger useEffect cleanup
+      setScanMode(null);
+      
+      // Reset detection state for next scan
+      setQrDetected(false);
+      setDetectedCode(null);
+      setQrLocation(null);
+      setAutoScanTriggered(false);
+      detectionCountRef.current = 0;
+      lastDetectedCodeRef.current = null;
+      
+      // Small delay to ensure camera cleanup completes before search
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Automatically search for the document
+      await searchDocument(code);
+    } catch (error) {
+      console.error("Auto capture error:", error);
+      toast.error("Failed to process QR code");
+    } finally {
+      setIsScanning(false);
+    }
   };
 
   const handleCameraCapture = async () => {
-    if (!webcamRef.current) return;
-
-    const imageSrc = webcamRef.current.getScreenshot();
-    if (!imageSrc) {
-      toast.error("Failed to capture image");
+    if (!webcamRef.current) {
+      toast.error("Camera not available");
       return;
     }
 
-    // Convert base64 to blob
-    const res = await fetch(imageSrc);
-    const blob = await res.blob();
-    const file = new File([blob], "camera-capture.png", { type: "image/png" });
-    
-    await handleScanImage(file);
+    try {
+      const imageSrc = webcamRef.current.getScreenshot();
+      if (!imageSrc) {
+        toast.error("Failed to capture image from camera");
+        return;
+      }
+
+      // Convert base64 to blob using a more reliable method
+      let blob: Blob;
+      try {
+        const base64Data = imageSrc.split(',')[1];
+        if (!base64Data) {
+          throw new Error("Invalid image data");
+        }
+        
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        blob = new Blob([byteArray], { type: "image/png" });
+      } catch (conversionError) {
+        console.error("Image conversion error:", conversionError);
+        toast.error("Failed to process camera image");
+        return;
+      }
+      
+      if (!blob || blob.size === 0) {
+        toast.error("Captured image is empty");
+        return;
+      }
+      
+      await handleScanImage(blob);
+    } catch (error: any) {
+      console.error("Camera capture error:", error);
+      toast.error(error.message || "Failed to capture image from camera");
+    }
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file");
+    if (!file) {
+      toast.error("No file selected");
       return;
     }
 
-    handleScanImage(file);
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file");
+      // Reset input to allow selecting the same file again
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size === 0) {
+      toast.error("Selected file is empty");
+      event.target.value = "";
+      return;
+    }
+
+    // Process the file
+    handleScanImage(file).finally(() => {
+      // Reset input to allow selecting the same file again
+      event.target.value = "";
+    });
   };
 
   const searchDocument = async (code: string) => {
@@ -663,10 +778,10 @@ export function TransmitByCodeModal({
                     {qrDetected && detectedCode ? (
                       <div className="space-y-1">
                         <div className="text-green-400 font-semibold">
-                          ✓ QR Detected: {detectedCode}
+                          ✓ QR Detected: {detectedCode.length > 20 ? detectedCode.substring(0, 20) + "..." : detectedCode}
                         </div>
                         <div className="text-green-300 text-[10px]">
-                          {detectionCountRef.current >= 2 ? "Processing..." : `Hold steady... (${detectionCountRef.current}/2)`}
+                          Hold steady for auto-capture...
                         </div>
                       </div>
                     ) : (

@@ -48,6 +48,7 @@ const ManagementCards: React.FC = () => {
     documentTypeCount,
     documentActionCount,
     userCount,
+    processTypeCount,
     isLoading: overviewIsLoading
   } = useManagementOverview();
 
@@ -76,10 +77,16 @@ const ManagementCards: React.FC = () => {
       isLoading: overviewIsLoading,
       href: '/management/user-management',
     },
+    {
+      title: 'Process Types',
+      count: processTypeCount?.count,
+      isLoading: overviewIsLoading,
+      href: '/management/process-type',
+    },
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 mb-6">
       {cards.map((card) => (
         <ManagementCard
           key={card.title}

@@ -6,8 +6,10 @@ import { DataTableRowActions } from "@/components/reuseable/tables/data-table-ro
 import { DataTableColumnHeader } from "@/components/reuseable/tables/data-table-column-header";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Calendar, Copy, User, Building2 } from "lucide-react";
+import { Copy, User, Building2 } from "lucide-react";
 import { ScanCodes } from "@/components/ui/scan-codes";
+import { ActivityCell } from "@/components/reuseable/tables/activity-cell";
+import { ProcessTypeCell } from "@/components/reuseable/tables/process-type-cell";
 
 // Define the ArchiveDocument type based on the actual API response
 // This is adapted from RecycleBinDocument structure which should be similar to what we need
@@ -23,15 +25,24 @@ export type ArchiveDocument = {
   classification: string;
   currentLocation: string;
   status: string;
+  origin: string;
   activity: string;
   activityTime: string;
+  created_at?: string;
+  process_type_id?: string | null;
+  process_timer_start_at?: string | null;
+  process_timer_complete_at?: string | null;
+  process_status?: "ongoing" | "delayed" | "completed" | null;
+  process_delayed_at?: string | null;
+  process_delay_seconds?: number | null;
   deletedBy: string;
   deletedAt: string;
   restoredBy?: string;
   restoredAt?: string;
 };
 
-const formatText = (text: string): string => {
+const formatText = (text: string | null | undefined): string => {
+  if (!text) return "N/A";
   return text
     .replace(/_/g, " ")
     .toLowerCase()
@@ -40,8 +51,20 @@ const formatText = (text: string): string => {
 
 export const createArchiveColumns = ({
   documentTypeMap,
+  processTypeMap = {},
+  onRefetch,
 }: {
   documentTypeMap: Record<string, string>;
+  processTypeMap?: Record<
+    string,
+    {
+      code?: string;
+      name?: string;
+      duration_value?: number | null;
+      duration_unit?: string | null;
+    }
+  >;
+  onRefetch?: () => void;
 }): ColumnDef<ArchiveDocument>[] => [
   {
     id: "select",
@@ -54,7 +77,7 @@ export const createArchiveColumns = ({
           }
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label="Select all"
-          className="translate-y-[2px] data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+          className="translate-y-0.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
         />
       </div>
     ),
@@ -64,7 +87,7 @@ export const createArchiveColumns = ({
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
           aria-label="Select row"
-          className="translate-y-[2px] data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+          className="translate-y-0.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
         />
       </div>
     ),
@@ -100,7 +123,7 @@ export const createArchiveColumns = ({
       const data = row.original;
 
       return (
-        <div className="flex flex-col gap-1.5 py-1 min-w-[180px] max-w-[240px]">
+        <div className="flex flex-col gap-1.5 py-1 min-w-45 max-w-60">
           <div className="font-medium" title={data.document}>
             {data.document}
           </div>
@@ -112,7 +135,7 @@ export const createArchiveColumns = ({
               {data.documentId}
             </span>
             <Copy
-              className="h-3.5 w-3.5 cursor-pointer text-muted-foreground hover:text-primary transition-colors flex-shrink-0"
+              className="h-3.5 w-3.5 cursor-pointer text-muted-foreground hover:text-primary transition-colors shrink-0"
               onClick={() => {
                 navigator.clipboard.writeText(data.documentId);
                 toast.success("Document ID copied to clipboard!");
@@ -126,7 +149,7 @@ export const createArchiveColumns = ({
       // Handle array filter values (for faceted filters)
       if (Array.isArray(filterValue) && filterValue.length > 0) {
         const document = row.original as ArchiveDocument;
-        return filterValue.includes('archived');
+        return filterValue.includes("archived");
       }
 
       // Handle string filter values (for search)
@@ -143,7 +166,7 @@ export const createArchiveColumns = ({
           document.contactPerson?.toLowerCase().includes(searchTerm) ||
           document.contactOrganization?.toLowerCase().includes(searchTerm) ||
           document.status?.toLowerCase().includes(searchTerm) ||
-          'archived'.includes(searchTerm)
+          "archived".includes(searchTerm)
         );
       }
 
@@ -159,15 +182,15 @@ export const createArchiveColumns = ({
     cell: ({ row }) => {
       const data = row.original;
       return (
-        <div className="flex flex-col gap-1.5 py-1 min-w-[160px] max-w-[200px]">
+        <div className="flex flex-col gap-1.5 py-1 min-w-40 max-w-50">
           <div className="flex items-center gap-1.5">
-            <User className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" />
+            <User className="h-3.5 w-3.5 text-orange-500 shrink-0" />
             <span className="text-xs font-medium" title={data.contactPerson}>
               {data.contactPerson}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Building2 className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+            <Building2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />
             <span
               className="text-xs text-muted-foreground"
               title={data.contactOrganization}
@@ -215,6 +238,67 @@ export const createArchiveColumns = ({
     },
   },
   {
+    id: "processType",
+    accessorFn: (row) => {
+      const processTypeId =
+        (row as any).process_type_id || (row as any).processTypeId || "";
+      const record = processTypeId ? processTypeMap[processTypeId] : undefined;
+      return record?.name || "N/A";
+    },
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Process Type" />
+    ),
+    cell: ({ row }) => {
+      const processTypeId =
+        (row.original as any).process_type_id ||
+        (row.original as any).processTypeId ||
+        "";
+      const record = processTypeId ? processTypeMap[processTypeId] : undefined;
+      const name = record?.name || "N/A";
+      const code = record?.code || "";
+      return <ProcessTypeCell name={name} code={code} minClampLength={20} />;
+    },
+    enableSorting: true,
+    enableHiding: true,
+    filterFn: (row, id, value) => {
+      if (!value || (Array.isArray(value) && value.length === 0)) return true;
+      const processType = String(row.getValue(id) ?? "").toLowerCase();
+      return Array.isArray(value)
+        ? (value as string[]).some(
+            (v) => String(v).toLowerCase() === processType,
+          )
+        : false;
+    },
+  },
+  {
+    accessorKey: "origin",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Origin" />
+    ),
+    cell: ({ row }) => {
+      const origin = (row.original as any).origin;
+      if (!origin)
+        return <span className="text-xs text-muted-foreground">-</span>;
+      return (
+        <Badge
+          variant={origin === "internal" ? "default" : "outline"}
+          className="font-medium bg-primary text-background text-xs px-1.5 py-0.5"
+        >
+          {formatText(origin)}
+        </Badge>
+      );
+    },
+    enableSorting: true,
+    enableHiding: true,
+    filterFn: (row, id, value) => {
+      if (!value || (Array.isArray(value) && value.length === 0)) return true;
+      const origin = String(row.getValue(id) ?? "").toLowerCase();
+      return Array.isArray(value)
+        ? (value as string[]).some((v) => String(v).toLowerCase() === origin)
+        : false;
+    },
+  },
+  {
     accessorKey: "classification",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Classification" />
@@ -237,7 +321,7 @@ export const createArchiveColumns = ({
       const classification = String(row.getValue(id) ?? "").toLowerCase();
       return Array.isArray(value)
         ? (value as string[]).some(
-            (v) => String(v).toLowerCase() === classification
+            (v) => String(v).toLowerCase() === classification,
           )
         : false;
     },
@@ -255,17 +339,17 @@ export const createArchiveColumns = ({
       const statusConfig: {
         [key: string]: { color: string; bgColor: string; label: string };
       } = {
-        'deleted': {
+        deleted: {
           color: "text-red-600",
           bgColor: "bg-red-500",
           label: "Deleted",
         },
-        'completed': {
+        completed: {
           color: "text-emerald-600",
           bgColor: "bg-emerald-500",
           label: "Completed",
         },
-        'archive': {
+        archive: {
           color: "text-blue-600",
           bgColor: "bg-blue-500",
           label: "Archived",
@@ -302,44 +386,28 @@ export const createArchiveColumns = ({
       <DataTableColumnHeader column={column} title="Activity" />
     ),
     cell: ({ row }) => {
-      const data = row.original;
-      // show date only (no time)
-      const formattedDate = data.activityTime
-        ? new Date(data.activityTime).toLocaleDateString("en-US", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          })
-        : "";
-
-      return (
-        <div className="flex flex-col gap-1 text-xs">
-          <div className="flex items-center gap-1">
-            <Calendar className="w-2.5 h-2.5 text-emerald-500 flex-shrink-0" />
-            <span className="text-muted-foreground" title="Received">
-              Delete Date
-            </span>
-          </div>
-          {formattedDate && (
-            <div className="flex items-center gap-1">
-              <Calendar className="w-2.5 h-2.5 text-blue-500 flex-shrink-0" />
-              <span className="text-muted-foreground" title={formattedDate}>
-                {formattedDate}
-              </span>
-            </div>
-          )}
-        </div>
-      );
+      return <ActivityCell document={row.original} />;
     },
     enableHiding: true,
   },
   {
     id: "actions",
-    cell: ({ row }) => (
-      <div className="flex justify-center">
-        <DataTableRowActions row={row} viewType="archive" />
-      </div>
-    ),
+    cell: ({ row }) => {
+      const status = row.original.status?.toLowerCase();
+      // Hide actions for completed documents
+      if (status === "completed") {
+        return null;
+      }
+      return (
+        <div className="flex justify-center">
+          <DataTableRowActions
+            row={row}
+            viewType="archive"
+            onActionSuccess={onRefetch}
+          />
+        </div>
+      );
+    },
     enableSorting: false,
     enableHiding: false,
   },

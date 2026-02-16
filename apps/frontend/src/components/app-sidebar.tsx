@@ -30,6 +30,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/use-auth";
+import { useDocumentSidebarCounts } from "@/hooks/use-document-sidebar-counts";
 import { title } from "process";
 import { TeamSwitcher } from "./team-switcher";
 import { hasPermission, hasAnyPermission } from "@/lib/document-permissions";
@@ -145,7 +146,7 @@ const data = {
         },
       ],
     },
-   
+
     {
       title: "Notifications",
       url: "/notifications",
@@ -161,10 +162,10 @@ const data = {
       url: "/reports",
       icon: LineChart,
       items: [
-        {
-          title: "Audit Trail",
-          url: "/reports/audit-trail",
-        },
+        // {
+        //   title: "Audit Trail",
+        //   url: "/reports/audit-trail",
+        // },
         {
           title: "Document Trail",
           url: "/reports/document-trailing",
@@ -203,7 +204,6 @@ const data = {
         },
       ],
     },
-    
   ],
   projects: [
     {
@@ -226,6 +226,7 @@ const data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user, isLoading } = useAuth();
+  const { counts } = useDocumentSidebarCounts();
   const [enabledSections, setEnabledSections] = React.useState<Set<string>>(
     new Set(),
   );
@@ -318,172 +319,284 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     avatar: user?.avatar || "",
   };
 
+  const pendingDocumentsCount = counts.pendingDocuments ?? 0;
+  const ownedPendingCount = counts.ownedPendingDocuments ?? 0;
+  const incomingCount = counts.incomingInTransitDocuments ?? 0;
+  const sharedCount = counts.sharedDocuments ?? 0;
+  const receivedCount = counts.received ?? 0;
+  const intransitCount = counts.intransit ?? 0;
+  const intransitSignatureCount = counts.intransit_signature ?? 0;
+  const signedCount = counts.signed ?? 0;
+  const completedCount = counts.completed ?? 0;
+  const cancelledCount = counts.cancelled ?? 0;
+  const deletedCount = counts.deleted ?? 0;
+  const archiveCount = counts.archive ?? 0;
+  const checkoutCount = counts.checkout ?? 0;
+  const checkinCount = counts.checkin ?? 0;
+  const totalOwnedDocumentsCount = counts.totalOwnedDocuments ?? 0;
+  const outgoingInTransitCount = counts.outgoingInTransitDocuments ?? 0;
+
+  const navMainItems = React.useMemo(() => {
+    return data.navMain.map((item) => {
+      if (item.title !== "Documents") {
+        return {
+          ...item,
+          items: item.items?.map((subItem) => ({ ...subItem })),
+        };
+      }
+
+      const subItems = item.items?.map((subItem) => {
+        if (subItem.url?.includes("/owned")) {
+          // For owned documents, show the total count of documents owned by the user across all statuses
+          return { ...subItem, badgeCount: totalOwnedDocumentsCount };
+        }
+        if (subItem.url?.includes("/in-transit")) {
+          // For in-transit documents, show separate incoming and outgoing counts
+          // incoming first, outgoing second
+          return { 
+            ...subItem, 
+            badgeCount: outgoingInTransitCount + incomingCount, // Total for backward compatibility
+            incomingCount: incomingCount,  // Incoming count first
+            outgoingCount: outgoingInTransitCount  // Outgoing count second
+          };
+        }
+        if (subItem.url?.includes("/shared")) {
+          // For shared documents, show shared count
+          return { ...subItem, badgeCount: sharedCount };
+        }
+        if (subItem.url?.includes("/archive")) {
+          // For archive, show archived documents count
+          return { ...subItem, badgeCount: archiveCount };
+        }
+        if (subItem.url?.includes("/recycle-bin")) {
+          // For recycle bin, show deleted count
+          return { ...subItem, badgeCount: deletedCount };
+        }
+        // Add more status mappings as needed
+        return { ...subItem };
+      });
+
+      return {
+        ...item,
+        badgeCount: pendingDocumentsCount,
+        items: subItems,
+      };
+    });
+  }, [
+    incomingCount, 
+    ownedPendingCount, 
+    pendingDocumentsCount, 
+    sharedCount,
+    receivedCount,
+    intransitCount,
+    intransitSignatureCount,
+    signedCount,
+    completedCount,
+    cancelledCount,
+    deletedCount,
+    archiveCount,
+    checkoutCount,
+    checkinCount,
+    totalOwnedDocumentsCount,
+    outgoingInTransitCount
+  ]);
+
   // Filter navigation items based on user permissions
   const getFilteredNavItems = () => {
     if (!user || isLoading) return [];
 
-    return data.navMain.filter((item) => {
-      // If still loading settings, show all items (will be filtered once loaded)
-      // Otherwise, check if section is globally enabled
-      if (!loadingSettings) {
-        const sectionKey = item.title.toLowerCase();
-        if (!enabledSections.has(sectionKey)) {
-          return false;
+    return navMainItems
+      .map((item) => ({
+        ...item,
+        items: item.items ? [...item.items] : undefined,
+      }))
+      .filter((item) => {
+        // If still loading settings, show all items (will be filtered once loaded)
+        // Otherwise, check if section is globally enabled
+        if (!loadingSettings) {
+          const sectionKey = item.title.toLowerCase();
+          if (!enabledSections.has(sectionKey)) {
+            return false;
+          }
         }
-      }
 
-      // Check permissions for each navigation item
-      switch (item.title) {
-        case "Home":
-          // Home is accessible to everyone
-          return true;
+        // Check permissions for each navigation item
+        switch (item.title) {
+          case "Home":
+            // Home is accessible to everyone
+            return true;
 
-        case "Dashboard":
-          // Dashboard requires dashboard_read permission
-          return (
-            hasPermission(user, "dashboard_read") ||
-            hasPermission(user, "dashboard_view")
-          );
+          case "Dashboard":
+            // Dashboard requires dashboard_read permission
+            return (
+              hasPermission(user, "dashboard_read") ||
+              hasPermission(user, "dashboard_view")
+            );
 
-        case "Documents":
-          // Documents requires document_read permission
-          if (!hasPermission(user, "document_read")) return false;
+          case "Documents":
+            // Documents requires document_read permission
+            if (!hasPermission(user, "document_read")) return false;
 
-          // Filter sub-items based on permissions
-          if (item.items) {
-            item.items = item.items.filter((subItem) => {
-              if (subItem.url?.includes("/owned")) {
-                return hasPermission(user, "document_read");
-              }
-              if (subItem.url?.includes("/in-transit")) {
-                return hasAnyPermission(user, [
-                  "document_read",
-                  "document_transfer_receive",
-                ]);
-              }
-              if (subItem.url?.includes("/shared")) {
-                return hasPermission(user, "document_read");
-              }
-              if (subItem.url?.includes("/archive")) {
-                return hasAnyPermission(user, [
-                  "document_archive",
-                  "document_read",
-                ]);
-              }
-              if (subItem.url?.includes("/recycle-bin")) {
-                return hasAnyPermission(user, [
-                  "document_delete",
-                  "document_restore",
-                ]);
-              }
-              return true;
-            });
-          }
-          return item.items && item.items.length > 0;
+            // Filter sub-items based on permissions
+            if (item.items) {
+              item.items = item.items.filter((subItem) => {
+                if (subItem.url?.includes("/owned")) {
+                  return hasPermission(user, "document_read");
+                }
+                if (subItem.url?.includes("/in-transit")) {
+                  return hasAnyPermission(user, [
+                    "document_read",
+                    "document_transfer_receive",
+                  ]);
+                }
+                if (subItem.url?.includes("/shared")) {
+                  return hasPermission(user, "document_read");
+                }
+                if (subItem.url?.includes("/archive")) {
+                  return hasAnyPermission(user, [
+                    "document_archive",
+                    "document_read",
+                  ]);
+                }
+                if (subItem.url?.includes("/recycle-bin")) {
+                  return hasAnyPermission(user, [
+                    "document_delete",
+                    "document_restore",
+                  ]);
+                }
+                return true;
+              });
+            }
+            return item.items && item.items.length > 0;
 
-        case "Management":
-          // Management requires any management permission
-          const managementPermissions = [
-            "document_type_read",
-            "document_action_read",
-            "process_type_read",
-            "department_read",
-            "user_read",
-            "role_read",
-          ];
-          if (!hasAnyPermission(user, managementPermissions)) return false;
+          case "Management":
+            // Management requires any management permission
+            const managementPermissions = [
+              "document_type_read",
+              "document_action_read",
+              "process_type_read",
+              "department_read",
+              "user_read",
+              "role_read",
+            ];
+            if (!hasAnyPermission(user, managementPermissions)) return false;
 
-          // Filter sub-items based on permissions
-          if (item.items) {
-            item.items = item.items.filter((subItem) => {
-              if (subItem.url?.includes("/document-type")) {
-                return hasPermission(user, "document_type_read");
-              }
-              if (subItem.url?.includes("/document-action")) {
-                return hasPermission(user, "document_action_read");
-              }
-              if (subItem.url?.includes("/process-type")) {
-                return hasPermission(user, "process_type_read");
-              }
-              if (subItem.url?.includes("/department")) {
-                // Hide Departments for SECRETARY role (they have permission for API access but not sidebar access)
-                const isUserRole = user?.roles?.some((role: any) => role.code === "SECRETARY");
-                return hasPermission(user, "department_read") && !isUserRole;
-              }
-              if (subItem.url?.includes("/user-management")) {
-                return hasPermission(user, "user_read");
-              }
-              if (subItem.url?.includes("/role-management")) {
-                return hasPermission(user, "role_read");
-              }
-              return true;
-            });
-          }
-          return item.items && item.items.length > 0;
+            // Filter sub-items based on permissions
+            if (item.items) {
+              item.items = item.items.filter((subItem) => {
+                if (subItem.url?.includes("/document-type")) {
+                  return hasPermission(user, "document_type_read");
+                }
+                if (subItem.url?.includes("/document-action")) {
+                  return hasPermission(user, "document_action_read");
+                }
+                if (subItem.url?.includes("/process-type")) {
+                  return hasPermission(user, "process_type_read");
+                }
+                if (subItem.url?.includes("/department")) {
+                  // Hide Departments for SECRETARY role (they have permission for API access but not sidebar access)
+                  const isUserRole = user?.roles?.some(
+                    (role: any) => role.code === "SECRETARY",
+                  );
+                  return hasPermission(user, "department_read") && !isUserRole;
+                }
+                if (subItem.url?.includes("/user-management")) {
+                  return hasPermission(user, "user_read");
+                }
+                if (subItem.url?.includes("/role-management")) {
+                  return hasPermission(user, "role_read");
+                }
+                return true;
+              });
+            }
+            return item.items && item.items.length > 0;
 
-        case "Search":
-          // Search requires document_read permission
-          return hasPermission(user, "document_read");
+          case "Search":
+            // Search requires document_read permission
+            return hasPermission(user, "document_read");
 
-        case "Notifications":
-          // Notifications are accessible to everyone authenticated
-          return true;
+          case "Notifications":
+            // Notifications are accessible to everyone authenticated
+            return true;
 
-        case "Sidebar Settings":
-          // Sidebar Settings is only visible to SUPER_ADMIN role
-          return user?.roles?.some((role: any) => role.code === "SUPER_ADMIN");
+          case "Sidebar Settings":
+            // Sidebar Settings is only visible to SUPER_ADMIN role
+            return user?.roles?.some(
+              (role: any) => role.code === "SUPER_ADMIN",
+            );
 
-        case "Reports":
-          // Reports require any report permission
-          const reportPermissions = [
-            "report_read",
-            "report_audit",
-            "report_usage",
-            "report_compliance",
-            "document_read",
-          ];
-          if (!hasAnyPermission(user, reportPermissions)) return false;
+          case "Reports":
+            // Reports require any report permission
+            const reportPermissions = [
+              "report_read",
+              "report_audit",
+              "report_usage",
+              "report_compliance",
+              "document_read",
+            ];
+            if (!hasAnyPermission(user, reportPermissions)) return false;
 
-          // Filter sub-items based on permissions
-          if (item.items) {
-            item.items = item.items.filter((subItem) => {
-              if (subItem.url?.includes("/audit-trail")) {
-                return hasAnyPermission(user, ["report_audit", "report_read"]);
-              }
-              if (subItem.url?.includes("/document-trailing")) {
-                return hasAnyPermission(user, ["report_read", "document_read"]);
-              }
-              if (subItem.url?.includes("/usage")) {
-                return hasAnyPermission(user, ["report_usage", "report_read"]);
-              }
-              if (subItem.url?.includes("/compliance")) {
-                return hasAnyPermission(user, [
-                  "report_compliance",
-                  "report_read",
-                ]);
-              }
-              if (subItem.url?.includes("/signing-history")) {
-                return hasAnyPermission(user, ["report_read", "document_read"]);
-              }
-              if (subItem.url?.includes("/activity")) {
-                return hasAnyPermission(user, ["report_read", "report_audit"]);
-              }
-              if (subItem.url?.includes("/access-history")) {
-                return hasAnyPermission(user, ["report_read", "report_audit"]);
-              }
-              if (subItem.url?.includes("/versions")) {
-                return hasAnyPermission(user, ["report_read", "document_read"]);
-              }
-              return true;
-            });
-          }
-          return item.items && item.items.length > 0;
+            // Filter sub-items based on permissions
+            if (item.items) {
+              item.items = item.items.filter((subItem) => {
+                if (subItem.url?.includes("/audit-trail")) {
+                  return hasAnyPermission(user, [
+                    "report_audit",
+                    "report_read",
+                  ]);
+                }
+                if (subItem.url?.includes("/document-trailing")) {
+                  return hasAnyPermission(user, [
+                    "report_read",
+                    "document_read",
+                  ]);
+                }
+                if (subItem.url?.includes("/usage")) {
+                  return hasAnyPermission(user, [
+                    "report_usage",
+                    "report_read",
+                  ]);
+                }
+                if (subItem.url?.includes("/compliance")) {
+                  return hasAnyPermission(user, [
+                    "report_compliance",
+                    "report_read",
+                  ]);
+                }
+                if (subItem.url?.includes("/signing-history")) {
+                  return hasAnyPermission(user, [
+                    "report_read",
+                    "document_read",
+                  ]);
+                }
+                if (subItem.url?.includes("/activity")) {
+                  return hasAnyPermission(user, [
+                    "report_read",
+                    "report_audit",
+                  ]);
+                }
+                if (subItem.url?.includes("/access-history")) {
+                  return hasAnyPermission(user, [
+                    "report_read",
+                    "report_audit",
+                  ]);
+                }
+                if (subItem.url?.includes("/versions")) {
+                  return hasAnyPermission(user, [
+                    "report_read",
+                    "document_read",
+                  ]);
+                }
+                return true;
+              });
+            }
+            return item.items && item.items.length > 0;
 
-        default:
-          // By default, hide items that don't have explicit permission checks
-          return false;
-      }
-    });
+          default:
+            // By default, hide items that don't have explicit permission checks
+            return false;
+        }
+      });
   };
 
   const filteredNavItems = getFilteredNavItems();

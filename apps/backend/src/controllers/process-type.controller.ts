@@ -1,75 +1,135 @@
 import { Request, Response } from 'express';
 import { createProcessType, updateProcessType, getAllProcessTypes, getProcessTypeById, deleteProcessType } from '../services/process-type.service';
 
+const getStringValue = (param: string | string[] | undefined): string | undefined => {
+  if (Array.isArray(param)) {
+    return param[0];
+  }
+  return param;
+};
+
 export const createProcessTypeHandler = async (req: Request, res: Response) => {
   try {
-    const { code, name, description, duration_value, duration_unit, is_active } = req.body;
-    
+    const { code, name, description, duration_value, duration_unit, origin_department_id, is_active } = req.body;
+
     const processType = await createProcessType({
       code,
       name,
       description,
       duration_value: duration_value ? parseInt(duration_value) : undefined,
       duration_unit,
+      origin_department_id: origin_department_id || null,
       is_active,
     });
-    
-    res.status(201).json(processType);
+
+    res.status(201).json({
+      success: true,
+      data: processType
+    });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to create process type' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to create process type' 
+    });
   }
 };
 
 export const getAllProcessTypesHandler = async (req: Request, res: Response) => {
   try {
     const processTypes = await getAllProcessTypes();
-    res.json(processTypes);
+    res.json({
+      success: true,
+      data: processTypes
+    });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch process types' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch process types' 
+    });
   }
 };
 
 export const getProcessTypeByIdHandler = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const processType = await getProcessTypeById(id);
-    
-    if (!processType) {
-      return res.status(404).json({ error: 'Process type not found' });
+    const id = getStringValue(req.params.id);
+    if (!id) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Process type ID is required' 
+      });
     }
-    
-    res.json(processType);
+    const processType = await getProcessTypeById(id);
+
+    if (!processType) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Process type not found' 
+      });
+    }
+
+    res.json({
+      success: true,
+      data: processType
+    });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch process type' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch process type' 
+    });
   }
 };
 
 export const updateProcessTypeHandler = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const { code, name, description, duration_value, duration_unit, is_active } = req.body;
-    
+    const id = getStringValue(req.params.id);
+    if (!id) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Process type ID is required' 
+      });
+    }
+    const { code, name, description, duration_value, duration_unit, origin_department_id, is_active } = req.body;
+
     const processType = await updateProcessType(id, {
       code,
       name,
       description,
       duration_value: duration_value ? parseInt(duration_value) : undefined,
       duration_unit,
+      origin_department_id: origin_department_id || null,
       is_active,
     });
-    
-    res.json(processType);
+
+    res.json({
+      success: true,
+      data: processType
+    });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to update process type' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to update process type' 
+    });
   }
 };
 
 export const deleteProcessTypeHandler = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = getStringValue(req.params.id);
+    if (!id) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Process type ID is required' 
+      });
+    }
     await deleteProcessType(id);
-    res.json({ message: 'Process type deleted successfully' });
+    res.json({ 
+      success: true,
+      message: 'Process type deleted successfully' 
+    });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to delete process type' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to delete process type' 
+    });
   }
 };

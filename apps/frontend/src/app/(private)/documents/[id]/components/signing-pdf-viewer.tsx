@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf";
+import {
+  GlobalWorkerOptions,
+  getDocument,
+  version as pdfjsVersion,
+} from "pdfjs-dist/legacy/build/pdf";
 import { useQuery } from "@tanstack/react-query";
 import {
   PDFDocument,
@@ -24,10 +28,11 @@ import { SignatureModal } from "@/components/modals/signature-modal";
 import { TextPlaceholderModal } from "@/components/modals/text-placeholder-modal";
 import { useAuth } from "@/hooks/use-auth";
 import { useSocket } from "@/components/providers/providers";
+import { FullPageLoader } from "@/components/reuseable/full-page-loader";
 
 const PDFJS_WORKER_CDN =
   process.env.NEXT_PUBLIC_PDFJS_WORKER_URL ||
-  "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.394/legacy/build/pdf.worker.min.mjs";
+  `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsVersion}/legacy/build/pdf.worker.min.mjs`;
 
 if (typeof window !== "undefined") {
   GlobalWorkerOptions.workerSrc = PDFJS_WORKER_CDN;
@@ -935,7 +940,6 @@ export function SigningPdfViewer({
         // ignore
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId, selectedFile?.id]);
 
   // Auto-navigate to first page with pending signature
@@ -1246,7 +1250,7 @@ export function SigningPdfViewer({
         }
 
         const buffer = await pdfResponse.arrayBuffer();
-        const pdfDoc = await PDFDocument.load(buffer);
+        const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
         const fontCache = new Map<StandardFonts, PDFFont>();
         const getFont = async (fontName: StandardFonts) => {
           if (fontCache.has(fontName)) {
@@ -1264,6 +1268,7 @@ export function SigningPdfViewer({
           const renderWidth = signature.width;
           const renderHeight = signature.height;
           const rotation = signature.rotation ?? 0;
+          const pdfRotation = -rotation;
 
           // Convert from top-left coordinates (UI) to bottom-left (PDF)
           // For unrotated: x stays same, y inverts
@@ -1294,7 +1299,7 @@ export function SigningPdfViewer({
           // pdf-lib rotates around bottom-left corner
           // To match CSS rotation around center, we need to adjust position
           if (rotation !== 0) {
-            const radians = (rotation * Math.PI) / 180;
+            const radians = (pdfRotation * Math.PI) / 180;
             const cos = Math.cos(radians);
             const sin = Math.sin(radians);
 
@@ -1318,7 +1323,7 @@ export function SigningPdfViewer({
               y: pdfY,
               width: renderWidth,
               height: renderHeight,
-              rotate: degrees(rotation),
+              rotate: degrees(pdfRotation),
             });
           } else {
             // No rotation - use simple coordinates
@@ -1337,6 +1342,7 @@ export function SigningPdfViewer({
           const boxWidth = entry.placeholder.width;
           const boxHeight = entry.placeholder.height;
           const rotation = entry.placeholder.rotation ?? 0;
+          const pdfRotation = -rotation;
           const fontName = resolvePdfFont(entry.placeholder.font_family);
           const font = await getFont(fontName);
           const baseSize = Math.max(6, entry.placeholder.font_size || 12);
@@ -1362,7 +1368,7 @@ export function SigningPdfViewer({
 
           if (rotation !== 0) {
             // For rotated text, calculate position similar to images
-            const radians = (rotation * Math.PI) / 180;
+            const radians = (pdfRotation * Math.PI) / 180;
             const cos = Math.cos(radians);
             const sin = Math.sin(radians);
 
@@ -1385,7 +1391,7 @@ export function SigningPdfViewer({
               size,
               font,
               color: rgb(r / 255, g / 255, b / 255),
-              rotate: degrees(rotation),
+              rotate: degrees(pdfRotation),
             });
           } else {
             // No rotation - use standard coordinates
@@ -1552,21 +1558,12 @@ export function SigningPdfViewer({
   };
 
   if (isLoadingFiles || isLoadingPlaceholders || isLoadingTextPlaceholders) {
-    return (
-      <Card className="h-full w-full min-h-[600px] flex flex-col">
-        <CardHeader>
-          <CardTitle>Sign Document</CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
-    );
+    return <FullPageLoader message="Loading signing workspace" />;
   }
 
   if (!sortedPdfFiles.length) {
     return (
-      <Card className="h-full w-full min-h-[300px] flex flex-col">
+      <Card className="h-full w-full min-h-75 flex flex-col">
         <CardHeader>
           <CardTitle>Sign Document</CardTitle>
         </CardHeader>
@@ -1598,7 +1595,8 @@ export function SigningPdfViewer({
     : false;
 
   return (
-    <Card className="h-full w-full min-h-[600px] flex flex-col border-primary/40">
+    <Card className="h-full w-full min-h-150 flex flex-col border-primary/40">
+      {isRendering && <FullPageLoader message="Loading signing workspace" />}
       <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-col gap-1">
           <CardTitle className="text-base">
@@ -1685,7 +1683,7 @@ export function SigningPdfViewer({
                               setSelectedFileId(group.files[0].id);
                             }}
                             className={cn(
-                              "max-w-[160px] truncate text-left font-semibold",
+                              "max-w-40 truncate text-left font-semibold",
                               group.files.some((f) => f.id === selectedFileId)
                                 ? "text-primary"
                                 : "",
@@ -1780,7 +1778,7 @@ export function SigningPdfViewer({
                                 type="button"
                                 onClick={() => setSelectedFileId(file.id)}
                                 className={cn(
-                                  "max-w-[160px] truncate text-left",
+                                  "max-w-40 truncate text-left",
                                   file.id === selectedFileId
                                     ? "font-semibold"
                                     : "",
@@ -1996,7 +1994,7 @@ export function SigningPdfViewer({
             </div>
           </div>
 
-          <div className="flex-1 overflow-auto rounded-md bg-muted/20 min-h-[300px]">
+          <div className="flex-1 overflow-auto rounded-md bg-muted/20 min-h-75">
             {isRendering || !activePageData ? (
               <div className="flex flex-col items-center gap-2 p-6 text-sm text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin" />

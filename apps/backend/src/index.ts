@@ -1,3 +1,6 @@
+import config from './config';
+import securityConfig from './config/security.config';
+
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -18,6 +21,7 @@ import cookieParser from 'cookie-parser'; // Import cookie-parser
 import { AuthService } from './services/auth.service';
 import { UserService } from './services/user.service';
 import { ScheduledReportsProcessor } from './services/scheduled-reports.processor';
+import { recycleBinCleanupProcessor } from './services/recycle-bin-cleanup.processor';
 
 // Import routes
 import authRoutes from './routes/auth.routes';
@@ -33,7 +37,6 @@ import documentTypeRoutes from './routes/document-type.route';
 import documentActionRoutes from './routes/document-action.route';
 import processTypeRoutes from './routes/process-type.routes';
 import userRoutes from './routes/user.routes';
-import doconChainRoutes from './routes/doconchain.routes';
 import searchRoutes from './routes/search.routes';
 import intransitRoutes from './routes/intransit.routes';
 import recycleBinRoutes from './routes/recyclebin.routes';
@@ -57,6 +60,7 @@ import sidebarSettingsRoutes from './routes/sidebar-settings.routes'; // Import 
 import printerRoutes from './routes/printer.routes';
 import pendingSignaturesRoutes from './routes/pending-signatures.routes'; // Import pending signatures routes
 import scannerRoutes from './routes/scanner.routes'; // Import scanner routes
+import sseRoutes from './routes/sse.routes';
 
 // Import middleware
 import { requestLogger, errorLogger } from './middleware/logging';
@@ -64,8 +68,6 @@ import { errorHandler, notFoundHandler } from './middleware/error-handler';
 import { securityHeaders, rateLimiter } from './middleware/security';
 
 // Import configuration
-import config from './config';
-import securityConfig from './config/security.config';
 
 // Import Prisma disconnect function and instance for health check
 import { disconnectPrisma, prisma } from './lib/prisma';
@@ -193,7 +195,9 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     secure: config.nodeEnv === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    httpOnly: securityConfig.session.httpOnly,
+    sameSite: securityConfig.session.sameSite,
+    maxAge: securityConfig.session.maxAge // 8 hours
   }
 }));
 
@@ -255,7 +259,6 @@ import userSearchRoutes from './routes/user-search.routes';
 
 app.use('/api/admin/users', userRoutes);
 app.use('/api/users', userSearchRoutes);
-app.use('/api/doconchain', doconChainRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/intransit', intransitRoutes);
 app.use('/api/recycle-bin', recycleBinRoutes);
@@ -279,6 +282,7 @@ app.use('/api/home-cms', homeCMSRoutes); // Add home CMS routes
 app.use('/api/sidebar-settings', sidebarSettingsRoutes); // Add sidebar settings routes
 app.use('/api/printer', printerRoutes);
 app.use('/api/scanner', scannerRoutes); // Add scanner routes
+app.use('/api', sseRoutes);
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
@@ -546,6 +550,9 @@ dbMonitor.startMonitoring(30000); // Monitor every 30 seconds
 const scheduledReportsProcessor = new ScheduledReportsProcessor();
 scheduledReportsProcessor.start();
 
+// Start recycle bin cleanup processor (auto-delete after 5 days)
+recycleBinCleanupProcessor.start();
+
 // Start server
 server.listen(config.port, () => {
   console.log(`🚀 Server is running on port ${config.port}`);
@@ -553,6 +560,7 @@ server.listen(config.port, () => {
   console.log(`🔗 Health check: http://localhost:${config.port}/health`);
   console.log(`📡 Socket.IO enabled`);
   console.log(`🔐 Security: ${securityConfig.audit.enableAuditLog ? 'Enabled' : 'Disabled'}`);
+  console.log(`🗑️ Recycle bin auto-cleanup: Documents deleted after ${recycleBinCleanupProcessor.getRetentionDays()} days`);
 });
 
 // Graceful shutdown
@@ -560,6 +568,7 @@ process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully');
   dbMonitor.stopMonitoring();
   scheduledReportsProcessor.stop();
+  recycleBinCleanupProcessor.stop();
   await disconnectPrisma();
   server.close(() => {
     console.log('Process terminated');
@@ -571,6 +580,7 @@ process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully');
   dbMonitor.stopMonitoring();
   scheduledReportsProcessor.stop();
+  recycleBinCleanupProcessor.stop();
   await disconnectPrisma();
   server.close(() => {
     console.log('Process terminated');

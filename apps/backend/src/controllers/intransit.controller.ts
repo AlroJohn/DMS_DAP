@@ -53,7 +53,7 @@ export class IntransitController {
     try {
       const authReq = req as AuthRequest;
       const userId = authReq.user?.id as string;
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       if (!userId) {
         return res.status(401).json({ error: 'User ID not found in token' });
@@ -66,9 +66,15 @@ export class IntransitController {
       const result = await this.intransitService.cancelIntransitDocument(id, userId);
 
       res.json(result);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in cancelIntransitDocument:', error);
-      res.status(500).json({ error: 'Failed to cancel in-transit document' });
+      const message =
+        error?.message || 'Failed to cancel in-transit document';
+      const statusCode =
+        message.includes('not currently in in-transit') ? 400
+        : message.includes('Only the department') ? 403
+        : 500;
+      res.status(statusCode).json({ error: message });
     }
   }
 }

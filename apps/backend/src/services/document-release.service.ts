@@ -18,6 +18,7 @@ export class DocumentReleaseService {
         requestAction: string | string[], // Can be a single action or an array of actions
         remarks: string | undefined,
         userId: string,
+        assignedUserIds?: string[], // Optional array of user IDs who can receive the document
         signatures?: {
             document_file_id: string;
             page_number: number;
@@ -393,17 +394,66 @@ export class DocumentReleaseService {
                 }
             });
 
-            // Create a document trail entry for the release
+            // Create document trail entries - one for each assigned user, or one for the department if no specific users
             const documentTrailsService = new DocumentTrailsService();
             try {
-                await documentTrailsService.createDocumentTrail({
-                    document_id: documentId,
-                    from_department: releasingUser?.department_id,
-                    to_department: departmentId,
-                    user_id: userId,
-                    status: 'intransit',
-                    remarks: remarks || `Document released from ${releasingUser?.department_id} to ${departmentId}`
-                });
+                const releaseTimestamp = new Date();
+                
+                // Look up the action_id from DocumentAction table based on action name
+                // Use the first action in releaseActionsSummary as the primary action
+                let actionId: string | undefined = undefined;
+                if (releaseActionsSummary && releaseActionsSummary.length > 0) {
+                    const primaryActionName = releaseActionsSummary[0];
+                    const documentAction = await prisma.documentAction.findFirst({
+                        where: {
+                            action_name: {
+                                equals: primaryActionName,
+                                mode: 'insensitive' // Case-insensitive match
+                            },
+                            status: true // Only active actions
+                        },
+                        select: {
+                            document_action_id: true
+                        }
+                    });
+                    
+                    if (documentAction) {
+                        actionId = documentAction.document_action_id;
+                        console.log(`📍 [DocumentReleaseService] Found action_id for "${primaryActionName}": ${actionId}`);
+                    } else {
+                        console.warn(`⚠️ [DocumentReleaseService] No DocumentAction found for "${primaryActionName}"`);
+                    }
+                }
+                
+                if (assignedUserIds && assignedUserIds.length > 0) {
+                    // Create a trail entry for each assigned user
+                    for (const assignedUserId of assignedUserIds) {
+                        await documentTrailsService.createDocumentTrail({
+                            document_id: documentId,
+                            action_id: actionId, // Set the action_id
+                            from_department: releasingUser?.department_id,
+                            to_department: departmentId,
+                            user_id: userId,
+                            assigned_to_user_id: assignedUserId,
+                            status: 'intransit',
+                            remarks: remarks || `Document released to specific user`,
+                            action_date: releaseTimestamp
+                        });
+                    }
+                } else {
+                    // No specific users assigned - release to entire department
+                    await documentTrailsService.createDocumentTrail({
+                        document_id: documentId,
+                        action_id: actionId, // Set the action_id
+                        from_department: releasingUser?.department_id,
+                        to_department: departmentId,
+                        user_id: userId,
+                        assigned_to_user_id: null,
+                        status: 'intransit',
+                        remarks: remarks || `Document released to department`,
+                        action_date: releaseTimestamp
+                    });
+                }
             } catch (error) {
                 console.error('Error creating document trail for document release:', error);
             }
@@ -446,13 +496,13 @@ export class DocumentReleaseService {
                     await prisma.documentAdditionalDetails.create({
                         data: {
                             document_id: documentId,
-                            work_flow_id: newWorkflow as any,
-                            remarks: remarks || null,
-                            release_action: releaseActionsSummary,
-                            ...(releaseActionByDepartment
-                                ? { release_action_by_department: releaseActionByDepartment as any }
-                                : {}),
-                            account_id: user.account.account_id // Store the releasing user's account ID
+                        work_flow_id: newWorkflow as any,
+                        remarks: remarks || null,
+                        release_action: releaseActionsSummary,
+                        ...(releaseActionByDepartment
+                            ? { release_action_by_department: releaseActionByDepartment as any }
+                            : {}),
+                        account_id: user.account.account_id // Store the releasing user's account ID
                         }
                     });
                 } else {
@@ -464,13 +514,13 @@ export class DocumentReleaseService {
                     await prisma.documentAdditionalDetails.create({
                         data: {
                             document_id: documentId,
-                            work_flow_id: newWorkflow as any,
-                            remarks: remarks || null,
-                            release_action: releaseActionsSummary,
-                            ...(releaseActionByDepartment
-                                ? { release_action_by_department: releaseActionByDepartment as any }
-                                : {}),
-                            account_id: user?.account?.account_id || null // Try to store account_id if available
+                        work_flow_id: newWorkflow as any,
+                        remarks: remarks || null,
+                        release_action: releaseActionsSummary,
+                        ...(releaseActionByDepartment
+                            ? { release_action_by_department: releaseActionByDepartment as any }
+                            : {}),
+                        account_id: user?.account?.account_id || null // Try to store account_id if available
                         }
                     });
                 }
@@ -613,7 +663,12 @@ export class DocumentReleaseService {
       // Get user's department
       const user = await prisma.user.findUnique({
         where: { user_id: userId },
-        select: { department_id: true, account: { select: { account_id: true } } }
+        select: { 
+          department_id: true, 
+          first_name: true, 
+          last_name: true, 
+          account: { select: { account_id: true } } 
+        }
       });
 
       if (!user || !user.account?.account_id) {
@@ -659,26 +714,7 @@ export class DocumentReleaseService {
         return { success: false, error: 'Document is not assigned to your department' };
       }
 
-      // Check if this document has already been received by this department IN THE CURRENT TRANSIT CYCLE
-      // We check the latest trail - if it's already 'received', then we can't receive it again
-      const latestTrailToThisDept = await prisma.documentTrail.findFirst({
-        where: {
-          document_id: documentId,
-          to_department: user.department_id,
-        },
-        orderBy: {
-          created_at: 'desc'
-        },
-        select: {
-          status: true,
-          trail_id: true
-        }
-      });
-
-      if (latestTrailToThisDept && latestTrailToThisDept.status === 'received') {
-        console.warn('[DocumentReleaseService.receiveDocument] Warning: Document already received in current transit cycle.');
-        return { success: false, error: 'Document has already been received by your department in the current transit cycle' };
-      }
+      // Per-user receive checks happen below to allow multiple users to receive in the same department.
 
       const currentDetail = document.DocumentAdditionalDetails?.[0];
       if (!currentDetail) {
@@ -784,29 +820,34 @@ export class DocumentReleaseService {
         receivedByUsers.push(userId);
       }
 
-      // Update the existing 'intransit' trail to 'received' status
-      if (latestTransitTrail) {
-        await prisma.documentTrail.updateMany({
-          where: {
-            document_id: documentId,
-            status: 'intransit',
-            to_department: user.department_id
-          },
-          data: {
-            status: 'received',
-            user_id: userId,
-            updated_at: new Date()
-          }
-        });
-      }
-
-      // Update the document status to 'received'
-      await prisma.document.update({
-        where: { document_id: documentId },
-        data: {
-          status: 'received',
-          updated_at: new Date()
+      // Get the latest intransit trail to extract from_department for the new received trail
+      const latestIntransitTrailDetails = await prisma.documentTrail.findFirst({
+        where: {
+          document_id: documentId,
+          status: 'intransit',
+          to_department: user.department_id
+        },
+        orderBy: {
+          created_at: 'desc'
+        },
+        select: {
+          from_department: true,
+          to_department: true,
+          action_id: true
         }
+      });
+
+      // Create a NEW trail entry for the receive action instead of updating the existing one
+      const documentTrailsService = new DocumentTrailsService();
+      await documentTrailsService.createDocumentTrail({
+        document_id: documentId,
+        action_id: latestIntransitTrailDetails?.action_id || undefined,
+        from_department: latestIntransitTrailDetails?.from_department || undefined,
+        to_department: user.department_id,
+        user_id: userId,
+        assigned_to_user_id: null,
+        status: 'received',
+        remarks: `Document received by ${user.first_name} ${user.last_name}`
       });
 
       // Update DocumentAdditionalDetails
@@ -819,10 +860,87 @@ export class DocumentReleaseService {
         data: updateData
       });
 
-      await recordReceiveStatus(documentId, {
-        departmentId: user.department_id,
-        userId
+      const intransitTrails = await prisma.documentTrail.findMany({
+        where: {
+          document_id: documentId,
+          status: 'intransit'
+        },
+        select: {
+          to_department: true,
+          created_at: true,
+          action_date: true,
+          assigned_to_user_id: true
+        }
       });
+
+      const latestIntransitByDept = new Map<string, Date>();
+      for (const trail of intransitTrails) {
+        if (!trail.to_department) continue;
+        const currentLatest = latestIntransitByDept.get(trail.to_department);
+        if (!currentLatest || trail.action_date > currentLatest) {
+          latestIntransitByDept.set(trail.to_department, trail.action_date);
+        }
+      }
+
+      let allReceived = latestIntransitByDept.size > 0;
+      for (const [departmentId, intransitSince] of latestIntransitByDept.entries()) {
+        const assignedRecipients = intransitTrails
+          .filter(
+            (trail) =>
+              trail.to_department === departmentId &&
+              trail.assigned_to_user_id &&
+              trail.action_date.getTime() === intransitSince.getTime()
+          )
+          .map((trail) => trail.assigned_to_user_id as string);
+
+        let targetRecipientIds = Array.from(new Set(assignedRecipients));
+        if (targetRecipientIds.length === 0) {
+          const departmentUsers = await prisma.user.findMany({
+            where: { department_id: departmentId, active: true },
+            select: { user_id: true }
+          });
+          targetRecipientIds = departmentUsers.map((deptUser) => deptUser.user_id);
+        }
+
+        const receivedTrails = await prisma.documentTrail.findMany({
+          where: {
+            document_id: documentId,
+            status: 'received',
+            to_department: departmentId,
+            created_at: { gte: intransitSince }
+          },
+          select: { user_id: true }
+        });
+        const receivedUserIds = new Set(
+          receivedTrails
+            .map((trail) => trail.user_id)
+            .filter((id): id is string => Boolean(id))
+        );
+
+        const deptAllReceived =
+          targetRecipientIds.length > 0 &&
+          targetRecipientIds.every((id) => receivedUserIds.has(id));
+
+        if (!deptAllReceived) {
+          allReceived = false;
+          break;
+        }
+      }
+
+      if (allReceived) {
+        await prisma.document.update({
+          where: { document_id: documentId },
+          data: {
+            status: 'received',
+            updated_at: new Date()
+          }
+        });
+
+        await recordReceiveStatus(documentId, {
+          departmentId: user.department_id,
+          userId
+        });
+      }
 
 
       // Send notification to users in the receiving department
@@ -852,6 +970,17 @@ export class DocumentReleaseService {
         }
       } catch (notificationError) {
         console.error('Error creating notifications for document received:', notificationError);
+      }
+
+      const io = getSocketInstance();
+      if (io) {
+        io.emit('documentUpdated', {
+          documentId,
+          status: 'received',
+          updatedBy: userId,
+          timestamp: new Date().toISOString()
+        });
+        io.to(`user-${userId}`).emit('documentAddedToUser', { documentId });
       }
 
       return {

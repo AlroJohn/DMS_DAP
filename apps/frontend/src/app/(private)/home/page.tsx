@@ -19,7 +19,6 @@ import {
   Calendar as CalendarIcon,
   FileSignature,
   FileInput,
-  Send,
   Activity,
   ArrowRight,
 } from "lucide-react";
@@ -28,9 +27,98 @@ import { useHomeCMS } from "@/hooks/use-home.cms";
 import { useQuickAccess } from "@/hooks/useQuickAccess";
 import TiptapEditor from "@/components/tiptap-editor";
 import Image from "next/image";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+
+// Restricted Video Component - cannot pause, cannot skip, muted by default
+const RestrictedVideo = ({ src }: { src: string }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isMuted, setIsMuted] = useState(true);
+  const lastTimeRef = useRef(0);
+
+  // Prevent pausing - always play
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handlePause = () => {
+      video.play().catch(() => {
+        // Ignore autoplay policy errors
+      });
+    };
+
+    video.addEventListener('pause', handlePause);
+    return () => video.removeEventListener('pause', handlePause);
+  }, []);
+
+  // Prevent seeking/skipping
+  const handleTimeUpdate = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Only allow forward progress, never backward
+    if (video.currentTime < lastTimeRef.current) {
+      video.currentTime = lastTimeRef.current;
+    } else {
+      lastTimeRef.current = video.currentTime;
+    }
+  }, []);
+
+  // Prevent seeking via click on progress bar
+  const handleSeeking = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.currentTime > lastTimeRef.current + 0.5) {
+      video.currentTime = lastTimeRef.current;
+    }
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    
+    video.muted = !video.muted;
+    setIsMuted(video.muted);
+  }, []);
+
+  return (
+    <div className="relative w-full h-full group">
+      <video
+        ref={videoRef}
+        src={src}
+        autoPlay
+        muted={isMuted}
+        loop
+        className="w-full h-full"
+        playsInline
+        onTimeUpdate={handleTimeUpdate}
+        onSeeking={handleSeeking}
+      >
+        Your browser does not support the video tag.
+      </video>
+      
+      {/* Custom mute/unmute button */}
+      <button
+        onClick={toggleMute}
+        className="absolute bottom-4 right-4 z-10 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+        aria-label={isMuted ? "Unmute video" : "Mute video"}
+      >
+        {isMuted ? (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+          </svg>
+        ) : (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+          </svg>
+        )}
+      </button>
+    </div>
+  );
+};
 
 const Homepage = () => {
   const { user } = useAuth();
@@ -52,7 +140,7 @@ const Homepage = () => {
 
   // Check if user is superadmin
   const isSuperAdmin = user?.roles?.some(
-    (role: any) => role.code === "SUPER_ADMIN",
+    (role: { code: string }) => role.code === "SUPER_ADMIN",
   );
 
   // Debug logging
@@ -210,7 +298,7 @@ const Homepage = () => {
   const PreviewContent = ({ data }: { data: typeof cmsData }) => {
     if (cmsLoading) {
       return (
-        <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex items-center justify-center min-h-100">
           <div className="text-center space-y-4">
             <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
             <p className="text-muted-foreground">Loading home page content...</p>
@@ -223,27 +311,27 @@ const Homepage = () => {
     <div className="space-y-4 p-4">
       {/* Quick Access Section */}
       {!quickAccessLoading && quickAccessData && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mb-3">
           {/* Pending Signatures */}
           <Card 
             className="shadow-sm border hover:shadow-md transition-all cursor-pointer group hover:border-primary/50"
             onClick={() => router.push("/workflows/pending-signatures")}
           >
-            <CardContent className="p-3">
+            <CardContent className="p-2">
               <div className="flex items-center justify-between">
                 <div className="space-y-0">
                   <p className="text-xs text-muted-foreground">Pending Signatures</p>
-                  <p className="text-xl font-bold text-primary">
+                  <p className="text-lg font-bold text-primary">
                     {quickAccessData.pendingSignatures}
                   </p>
                 </div>
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                  <FileSignature className="h-4 w-4 text-primary" />
+                <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                  <FileSignature className="h-3 w-3 text-primary" />
                 </div>
               </div>
-              <div className="flex items-center justify-end gap-1 mt-1.5">
-                <span className="text-[10px] text-muted-foreground group-hover:text-primary transition-colors">Click to proceed</span>
-                <ArrowRight className="h-3 w-3 text-muted-foreground group-hover:text-primary transition-colors" />
+              <div className="flex items-center justify-end gap-1 mt-1">
+                <span className="text-[9px] text-muted-foreground group-hover:text-primary transition-colors">Click to proceed</span>
+                <ArrowRight className="h-2.5 w-2.5 text-muted-foreground group-hover:text-primary transition-colors" />
               </div>
             </CardContent>
           </Card>
@@ -253,21 +341,21 @@ const Homepage = () => {
             className="shadow-sm border hover:shadow-md transition-all cursor-pointer group hover:border-blue-500/50"
             onClick={() => router.push("/documents/in-transit")}
           >
-            <CardContent className="p-3">
+            <CardContent className="p-2">
               <div className="flex items-center justify-between">
                 <div className="space-y-0">
                   <p className="text-xs text-muted-foreground">Incoming Documents</p>
-                  <p className="text-xl font-bold text-blue-600">
+                  <p className="text-lg font-bold text-blue-600">
                     {quickAccessData.incomingDocuments}
                   </p>
                 </div>
-                <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
-                  <FileInput className="h-4 w-4 text-blue-600" />
+                <div className="h-6 w-6 rounded-full bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                  <FileInput className="h-3 w-3 text-blue-600" />
                 </div>
               </div>
-              <div className="flex items-center justify-end gap-1 mt-1.5">
-                <span className="text-[10px] text-muted-foreground group-hover:text-blue-600 transition-colors">Click to proceed</span>
-                <ArrowRight className="h-3 w-3 text-muted-foreground group-hover:text-blue-600 transition-colors" />
+              <div className="flex items-center justify-end gap-1 mt-1">
+                <span className="text-[9px] text-muted-foreground group-hover:text-blue-600 transition-colors">Click to proceed</span>
+                <ArrowRight className="h-2.5 w-2.5 text-muted-foreground group-hover:text-blue-600 transition-colors" />
               </div>
             </CardContent>
           </Card>
@@ -277,21 +365,117 @@ const Homepage = () => {
             className="shadow-sm border hover:shadow-md transition-all cursor-pointer group hover:border-orange-500/50"
             onClick={() => router.push("reports/document-trailing")}
           >
-            <CardContent className="p-3">
+            <CardContent className="p-2">
               <div className="flex items-center justify-between">
                 <div className="space-y-0">
                   <p className="text-xs text-muted-foreground">Recent Activity</p>
-                  <p className="text-xl font-bold text-orange-600">
+                  <p className="text-lg font-bold text-orange-600">
                     {quickAccessData.recentActivity}
                   </p>
                 </div>
-                <div className="h-8 w-8 rounded-full bg-orange-500/10 flex items-center justify-center group-hover:bg-orange-500/20 transition-colors">
-                  <Activity className="h-4 w-4 text-orange-600" />
+                <div className="h-6 w-6 rounded-full bg-orange-500/10 flex items-center justify-center group-hover:bg-orange-500/20 transition-colors">
+                  <Activity className="h-3 w-3 text-orange-600" />
                 </div>
               </div>
-              <div className="flex items-center justify-end gap-1 mt-1.5">
-                <span className="text-[10px] text-muted-foreground group-hover:text-orange-600 transition-colors">Click to proceed</span>
-                <ArrowRight className="h-3 w-3 text-muted-foreground group-hover:text-orange-600 transition-colors" />
+              <div className="flex items-center justify-end gap-1 mt-1">
+                <span className="text-[9px] text-muted-foreground group-hover:text-orange-600 transition-colors">Click to proceed</span>
+                <ArrowRight className="h-2.5 w-2.5 text-muted-foreground group-hover:text-orange-600 transition-colors" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Completed (Department) */}
+          <Card 
+            className="shadow-sm border hover:shadow-md transition-all cursor-pointer group hover:border-green-500/50"
+            onClick={() => router.push("/documents?filter=completed-dept")}
+          >
+            <CardContent className="p-2">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0">
+                  <p className="text-xs text-muted-foreground">Completed (Dept)</p>
+                  <p className="text-lg font-bold text-green-600">
+                    {quickAccessData.completedSharedToDepartment}
+                  </p>
+                </div>
+                <div className="h-6 w-6 rounded-full bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
+                  <CheckCircle className="h-3 w-3 text-green-600" />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-1 mt-1">
+                <span className="text-[9px] text-muted-foreground group-hover:text-green-600 transition-colors">Click to proceed</span>
+                <ArrowRight className="h-2.5 w-2.5 text-muted-foreground group-hover:text-green-600 transition-colors" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Completed (User) */}
+          <Card 
+            className="shadow-sm border hover:shadow-md transition-all cursor-pointer group hover:border-emerald-500/50"
+            onClick={() => router.push("/documents?filter=completed-user")}
+          >
+            <CardContent className="p-2">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0">
+                  <p className="text-xs text-muted-foreground">Completed (User)</p>
+                  <p className="text-lg font-bold text-emerald-600">
+                    {quickAccessData.completedSharedToUser}
+                  </p>
+                </div>
+                <div className="h-6 w-6 rounded-full bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
+                  <CheckCircle className="h-3 w-3 text-emerald-600" />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-1 mt-1">
+                <span className="text-[9px] text-muted-foreground group-hover:text-emerald-600 transition-colors">Click to proceed</span>
+                <ArrowRight className="h-2.5 w-2.5 text-muted-foreground group-hover:text-emerald-600 transition-colors" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Shared to Department */}
+          <Card 
+            className="shadow-sm border hover:shadow-md transition-all cursor-pointer group hover:border-purple-500/50"
+            onClick={() => router.push("/documents/shared?tab=completed")}
+          >
+            <CardContent className="p-2">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0">
+                  <p className="text-xs text-muted-foreground">Shared to Department</p>
+                  <p className="text-lg font-bold text-purple-600">
+                    {quickAccessData.completedSharedToDepartment}
+                  </p>
+                </div>
+                <div className="h-6 w-6 rounded-full bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
+                  <FileText className="h-3 w-3 text-purple-600" />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-1 mt-1">
+                <span className="text-[9px] text-muted-foreground group-hover:text-purple-600 transition-colors">Click to proceed</span>
+                <ArrowRight className="h-2.5 w-2.5 text-muted-foreground group-hover:text-purple-600 transition-colors" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Shared to User */}
+          <Card 
+            className="shadow-sm border hover:shadow-md transition-all cursor-pointer group hover:border-indigo-500/50"
+            onClick={() => router.push("/documents/shared?tab=completed")}
+          >
+            <CardContent className="p-2">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0">
+                  <p className="text-xs text-muted-foreground">Shared to User Only</p>
+                  <p className="text-lg font-bold text-indigo-600">
+                    {quickAccessData.sharedToUser}
+                  </p>
+                </div>
+                <div className="h-6 w-6 rounded-full bg-indigo-500/10 flex items-center justify-center group-hover:bg-indigo-500/20 transition-colors">
+                  <Eye className="h-3 w-3 text-indigo-600" />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-1 mt-1">
+                <span className="text-[9px] text-muted-foreground group-hover:text-indigo-600 transition-colors">Click to proceed</span>
+                <ArrowRight className="h-2.5 w-2.5 text-muted-foreground group-hover:text-indigo-600 transition-colors" />
               </div>
             </CardContent>
           </Card>
@@ -304,7 +488,7 @@ const Homepage = () => {
         <div className="w-full col-span-2 flex items-center justify-center shadow-md rounded-lg">
           <div className=" flex flex-col items-center justify-center  md:flex-row md:items-center md:justify-start gap-4 animate-in fade-in duration-700">
             {/* Logo */}
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               {data?.logo_url ? (
                 <div className="w-24 h-24 md:w-32 md:h-32 relative hover:scale-105 transition-transform duration-300">
                   <Image
@@ -316,7 +500,7 @@ const Homepage = () => {
                   />
                 </div>
               ) : (
-                <div className="w-24 h-24 md:w-32 md:h-32 bg-gradient-to-br from-primary via-primary/90 to-primary/80 rounded-2xl flex items-center justify-center shadow-xl hover:shadow-primary/50 transition-all duration-300 hover:scale-105">
+                <div className="w-24 h-24 md:w-32 md:h-32 bg-linear-to-br from-primary via-primary/90 to-primary/80 rounded-2xl flex items-center justify-center shadow-xl hover:shadow-primary/50 transition-all duration-300 hover:scale-105">
                   <FileText className="h-12 w-12 md:h-16 md:w-16 text-primary-foreground" />
                 </div>
               )}
@@ -324,7 +508,7 @@ const Homepage = () => {
 
             {/* Welcome Content */}
             <div className="space-y-2 text-center md:text-left">
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-r from-primary via-blue-600 to-primary/70 bg-clip-text text-transparent drop-shadow-sm">
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight bg-linear-to-r from-primary via-blue-600 to-primary/70 bg-clip-text text-transparent drop-shadow-sm">
                 {data?.welcome_title || "Document Management System"}
               </h1>
               <p className="text-sm md:text-base text-muted-foreground/90 text-justify px-4 md:px-0 md:max-w-xl">
@@ -353,7 +537,7 @@ const Homepage = () => {
         {/* Calendar Column */}
         <div className="w-full">
           <Card className="shadow-md h-full border hover:shadow-lg transition-shadow animate-in py-0 fade-in-50 duration-700 delay-150">
-            <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b py-3">
+            <CardHeader className="bg-linear-to-r from-primary/10 via-primary/5 to-transparent border-b py-3">
               <CardTitle className="py-2 text-base font-semibold flex items-center gap-2">
                 <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center">
                   <CalendarIcon className="h-4 w-4 text-primary" />
@@ -434,16 +618,16 @@ const Homepage = () => {
         <div className="lg:col-span-2">
           {data?.video_url ? (
             <Card className="py-0 shadow-md border overflow-hidden hover:shadow-lg transition-all animate-in fade-in-50 duration-700 delay-100">
-              <CardHeader className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b py-3">
-                <CardTitle className="py-2 text-base font-semibold flex items-center gap-2">
+              <div className="py-6">
+                <div className="py-2 pl-4 text-base font-bold flex items-center gap-2">
                   <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center">
                     <FileText className="h-4 w-4 text-primary" />
                   </div>
                   Introduction Video
-                </CardTitle>
-              </CardHeader>
+                </div>
+              </div>
               <CardContent className="p-0">
-                <div className="aspect-video bg-gradient-to-br from-black to-gray-900">
+                <div className="aspect-video bg-linear-to-br from-black to-gray-900">
                   {data.video_url.includes("youtube.com") ||
                   data.video_url.includes("youtu.be") ? (
                     <iframe
@@ -456,24 +640,14 @@ const Homepage = () => {
                         } else if (data.video_url.includes("embed/")) {
                           videoId = data.video_url.split("embed/")[1].split("?")[0];
                         }
-                        return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=1&enablejsapi=1&rel=0`;
+                        return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0`;
                       })()}
-                      className="w-full h-full"
+                      className="w-full h-full pointer-events-none"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
+                      allowFullScreen={false}
                     ></iframe>
                   ) : (
-                    <video
-                      src={data.video_url}
-                      controls
-                      autoPlay
-                      muted
-                      loop
-                      className="w-full h-full"
-                      playsInline
-                    >
-                      Your browser does not support the video tag.
-                    </video>
+                    <RestrictedVideo src={data.video_url} />
                   )}
                 </div>
               </CardContent>
@@ -504,7 +678,7 @@ const Homepage = () => {
           {/* Vision */}
           {data?.vision ? (
             <Card className="py-0 shadow-md border hover:shadow-lg transition-all group hover:-translate-y-0.5 animate-in fade-in-50 duration-700 delay-200">
-              <CardHeader className="bg-gradient-to-br from-primary/8 via-primary/4 to-transparent border-b py-3">
+              <CardHeader className="bg-linear-to-br from-primary/8 via-primary/4 to-transparent border-b py-3">
                 <CardTitle className="py-2 flex items-center gap-2 text-base">
                   <div className="w-8 h-8 bg-primary/15 rounded-lg flex items-center justify-center group-hover:bg-primary/25 transition-colors">
                     <Shield className="h-4 w-4 text-primary" />
@@ -542,7 +716,7 @@ const Homepage = () => {
           {/* Mission */}
           {data?.mission ? (
             <Card className="py-0 shadow-md border hover:shadow-lg transition-all group hover:-translate-y-0.5 animate-in fade-in-50 duration-700 delay-300">
-              <CardHeader className="bg-gradient-to-br from-blue-500/8 via-blue-500/4 to-transparent border-b py-3">
+              <CardHeader className="bg-linear-to-br from-blue-500/8 via-blue-500/4 to-transparent border-b py-3">
                 <CardTitle className="py-2 flex items-center gap-2 text-base">
                   <div className="w-8 h-8 bg-blue-500/15 rounded-lg flex items-center justify-center group-hover:bg-blue-500/25 transition-colors">
                     <BarChart3 className="h-4 w-4 text-blue-600" />
@@ -585,7 +759,7 @@ const Homepage = () => {
   // If not superadmin, show only preview
   if (!isSuperAdmin) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
+      <div className="min-h-screen bg-linear-to-br from-background via-background to-accent/5">
         <div className="max-w-8xl mx-auto p-2">
           <div className="space-y-0">
             <PreviewContent data={cmsData} />
@@ -597,7 +771,7 @@ const Homepage = () => {
 
   // Superadmin view with tabs
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
+    <div className="min-h-screen bg-linear-to-br from-background via-background to-accent/5">
       <div className="max-w-8xl mx-auto p-2">
         <Tabs
           value={activeTab}

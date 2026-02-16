@@ -29,12 +29,17 @@ import {
 import type { DocumentFileMetadata } from "@/hooks/use-document-files";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { FullPageLoader } from "@/components/reuseable/full-page-loader";
 
-import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf";
+import {
+  GlobalWorkerOptions,
+  getDocument,
+  version as pdfjsVersion,
+} from "pdfjs-dist/legacy/build/pdf";
 
 const PDFJS_WORKER_CDN =
   process.env.NEXT_PUBLIC_PDFJS_WORKER_URL ||
-  "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.394/legacy/build/pdf.worker.min.mjs";
+  `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsVersion}/legacy/build/pdf.worker.min.mjs`;
 
 if (typeof window !== "undefined") {
   GlobalWorkerOptions.workerSrc = PDFJS_WORKER_CDN;
@@ -605,6 +610,8 @@ export function EditablePdfViewer({
     any[]
   >([]);
   const [isLoadingPlaceholders, setIsLoadingPlaceholders] = useState(false);
+  const showFullPageLoader =
+    isLoadingFiles || isRendering || isLoadingPlaceholders;
 
   const getSafeFontSize = (value?: number | null) => {
     if (typeof value !== "number" || Number.isNaN(value)) return 12;
@@ -1082,7 +1089,7 @@ export function EditablePdfViewer({
       }
 
       const buffer = await response.arrayBuffer();
-      const pdfDoc = await PDFDocument.load(buffer);
+      const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
       const fontCache = new Map<StandardFonts, PDFFont>();
       const getFont = async (fontName: StandardFonts) => {
         if (fontCache.has(fontName)) return fontCache.get(fontName)!;
@@ -1121,8 +1128,7 @@ export function EditablePdfViewer({
           }
 
           try {
-            const isPng =
-              signature.signature_data.startsWith("data:image/png");
+            const isPng = signature.signature_data.startsWith("data:image/png");
             const isJpg =
               signature.signature_data.startsWith("data:image/jpeg") ||
               signature.signature_data.startsWith("data:image/jpg");
@@ -1858,6 +1864,7 @@ export function EditablePdfViewer({
 
   return (
     <Card className="border h-fit border-primary/40 bg-muted/30">
+      {showFullPageLoader && <FullPageLoader message="Loading editor" />}
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <FileText className="h-5 w-5" />
@@ -2141,7 +2148,7 @@ export function EditablePdfViewer({
                                 isEditing ? (
                                   <textarea
                                     rows={1}
-                                    className="annotation-input min-w-[24px] w-full resize-none outline-none pb-2 leading-none overflow-hidden"
+                                    className="annotation-input min-w-6 w-full resize-none outline-none pb-2 leading-none overflow-hidden"
                                     value={annotation.text}
                                     style={{
                                       fontSize: displayFontSize,

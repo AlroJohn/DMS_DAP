@@ -9,22 +9,42 @@ export class ArchiveController {
     this.archiveService = new ArchiveService();
   }
 
+  // Helper method to extract string value from potentially array parameter
+  private getStringValue = (param: string | string[] | undefined): string | undefined => {
+    if (Array.isArray(param)) {
+      return param[0]; // Take the first value if it's an array
+    }
+    return param;
+  };
+
   /**
    * Archive a document
    */
   archiveDocument = async (req: Request, res: Response): Promise<void> => {
     try {
       const authReq = req as AuthRequest; // Cast to AuthRequest to access user info
-      const { documentId } = req.params;
+      const documentId = this.getStringValue(req.params.documentId);
       const userId = authReq.user?.id; // Use authReq.user.id
 
+      console.log('📍 [ArchiveController.archiveDocument] Request params:', req.params);
+      console.log('📍 [ArchiveController.archiveDocument] Document ID:', documentId);
+      console.log('📍 [ArchiveController.archiveDocument] User ID:', userId);
+
       if (!userId) {
-        res.status(401).json({ error: 'User not authenticated' });
+        console.error('❌ [ArchiveController.archiveDocument] User not authenticated');
+        res.status(401).json({ 
+          success: false,
+          error: 'User not authenticated' 
+        });
         return;
       }
 
       if (!documentId) {
-        res.status(400).json({ error: 'Document ID is required' });
+        console.error('❌ [ArchiveController.archiveDocument] Document ID is required');
+        res.status(400).json({ 
+          success: false,
+          error: 'Document ID is required' 
+        });
         return;
       }
 
@@ -36,7 +56,8 @@ export class ArchiveController {
         data: archivedDoc
       });
     } catch (error) {
-      console.error('Error archiving document:', error);
+      console.error('❌ [ArchiveController.archiveDocument] Error:', error);
+      console.error('❌ [ArchiveController.archiveDocument] Error message:', error instanceof Error ? error.message : 'Unknown error');
       res.status(500).json({
         success: false,
         message: 'Failed to archive document',
@@ -51,7 +72,7 @@ export class ArchiveController {
   restoreDocument = async (req: Request, res: Response): Promise<void> => {
     try {
       const authReq = req as AuthRequest; // Cast to AuthRequest to access user info
-      const { documentId } = req.params;
+      const documentId = this.getStringValue(req.params.documentId);
       const userId = authReq.user?.id; // Use authReq.user.id
 
       if (!userId) {
@@ -89,6 +110,9 @@ export class ArchiveController {
       const authReq = req as AuthRequest;
       const userId = authReq.user?.id; // Get the authenticated user's ID
 
+      console.log('📍 [ArchiveController] Fetching archived documents for user:', userId);
+      console.log('📍 [ArchiveController] archiveService instance:', !!this.archiveService);
+      
       const archivedDocs = await this.archiveService.getArchivedDocuments(userId);
 
       res.status(200).json({
@@ -97,7 +121,9 @@ export class ArchiveController {
         data: archivedDocs
       });
     } catch (error) {
-      console.error('Error fetching archived documents:', error);
+      console.error('❌ [ArchiveController] Error fetching archived documents:', error);
+      console.error('❌ [ArchiveController] Error message:', error instanceof Error ? error.message : 'Unknown error');
+      console.error('❌ [ArchiveController] Error stack:', error instanceof Error ? error.stack : 'No stack');
       res.status(500).json({
         success: false,
         message: 'Failed to fetch archived documents',
@@ -112,7 +138,7 @@ export class ArchiveController {
   getArchivedDocument = async (req: Request, res: Response): Promise<void> => {
     try {
       const authReq = req as AuthRequest;
-      const { documentId } = req.params;
+      const documentId = this.getStringValue(req.params.documentId);
       const userId = authReq.user?.id; // Get the authenticated user's ID
 
       if (!documentId) {

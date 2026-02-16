@@ -27,6 +27,12 @@ router.get('/received',
   documentController.getReceivedDocuments
 );
 
+// GET /api/documents/sidebar-counts - Get sidebar document counts
+router.get('/sidebar-counts',
+  requirePermission('document_read'),
+  documentController.getSidebarCounts
+);
+
 
 
 // GET /api/documents - Get all documents (requires document_read permission)
@@ -147,6 +153,12 @@ router.delete('/:id',
 router.post('/:id/complete',
   requirePermission('document_write'),
   documentController.completeDocument
+);
+
+// POST /api/documents/:id/uncomplete - Revert a completed document back to pending
+router.post('/:id/uncomplete',
+  requirePermission('document_write'),
+  documentController.uncompleteDocument
 );
 
 // POST /api/documents/:id/cancel - Cancel a document

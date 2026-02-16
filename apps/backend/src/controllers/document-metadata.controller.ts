@@ -2,9 +2,9 @@ import { Request, Response } from 'express';
 import multer from 'multer';
 import fs from 'fs/promises';
 import path from 'path';
-import pdf from 'pdf-parse';
 import JSZip from 'jszip';
 import { XMLParser } from 'fast-xml-parser';
+import { PDFDocument } from 'pdf-lib';
 
 // store uploads in memory; switch to disk if files are large
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -35,26 +35,55 @@ export const extractMetadata = async (req: Request, res: Response) => {
 /** ---------- Helpers ---------- **/
 
 async function extractPdfMeta(buffer: Buffer) {
-  const data = await (pdf as any)(buffer);
+  const metadata: any = {};
+
+  // 1) Use pdf-lib for core metadata (safe in Node)
+  try {
+    const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+    metadata.Title = pdfDoc.getTitle() ?? null;
+    metadata.Author = pdfDoc.getAuthor() ?? null;
+    metadata.Subject = pdfDoc.getSubject() ?? null;
+    metadata.Keywords = pdfDoc.getKeywords() ?? null;
+    metadata.Creator = pdfDoc.getCreator() ?? null;
+    metadata.Producer = pdfDoc.getProducer() ?? null;
+    metadata.CreationDate = normalizePdfDate(pdfDoc.getCreationDate()?.toISOString());
+    metadata.ModDate = normalizePdfDate(pdfDoc.getModificationDate()?.toISOString());
+    metadata.Pages = pdfDoc.getPageCount();
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.warn('pdf-lib failed to extract metadata:', errorMessage);
+  }
+
+  // 2) Try pdf-parse for XMP metadata (optional, may fail if DOMMatrix missing)
+  let pdfParseModule: any;
+  try {
+    const module = await import('pdf-parse');
+    pdfParseModule = module.default ?? module;
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.warn('pdf-parse not available for metadata extraction:', errorMessage);
+  }
+
+  const data = pdfParseModule ? await pdfParseModule(buffer) : null;
 
   // data.info: common PDF info dictionary
   // data.metadata: XMP metadata (if present), already parsed by pdf-parse/PDF.js
-  const info = data.info || {};
-  const xmp = data.metadata ? data.metadata.metadata : undefined; // may be undefined
+  const info = data?.info || {};
+  const xmp = data?.metadata ? data.metadata.metadata : undefined; // may be undefined
 
   return {
     // Common fields
-    Title: info.Title ?? null,
-    Author: info.Author ?? null,
-    Subject: info.Subject ?? null,
-    Keywords: info.Keywords ?? null,
-    Creator: info.Creator ?? null,   // app that created the content
-    Producer: info.Producer ?? null, // PDF generator (e.g., Acrobat, wkhtmltopdf)
-    CreationDate: normalizePdfDate(info.CreationDate),
-    ModDate: normalizePdfDate(info.ModDate),
-    Pages: data.numpages,
+    Title: info.Title ?? metadata.Title ?? null,
+    Author: info.Author ?? metadata.Author ?? null,
+    Subject: info.Subject ?? metadata.Subject ?? null,
+    Keywords: info.Keywords ?? metadata.Keywords ?? null,
+    Creator: info.Creator ?? metadata.Creator ?? null,   // app that created the content
+    Producer: info.Producer ?? metadata.Producer ?? null, // PDF generator (e.g., Acrobat, wkhtmltopdf)
+    CreationDate: normalizePdfDate(info.CreationDate) ?? metadata.CreationDate ?? null,
+    ModDate: normalizePdfDate(info.ModDate) ?? metadata.ModDate ?? null,
+    Pages: data?.numpages ?? metadata.Pages ?? null,
     // Raw objects in case you need everything
-    rawInfo: info,
+    rawInfo: data ? info : undefined,
     xmp, // may contain richer Dublin Core / XMP fields
   };
 }

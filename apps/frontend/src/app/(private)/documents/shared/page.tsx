@@ -1,19 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { DataTable } from "@/components/reuseable/tables/data-table";
 import { getColumns } from "./columns";
 import { useSharedDocuments } from "@/hooks/use-shared-documents";
-import { Loader2, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSocket } from "@/components/providers/providers";
 import { useAuth } from "@/hooks/use-auth";
 import { SignatureCaptureModal } from "@/components/modals/signature-capture-modal";
 import { toast } from "sonner";
 import { SharedDocument } from "@dms/types";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useProcessType } from "@/hooks/use-process.type";
+import { useDocumentSidebarCounts } from "@/hooks/use-document-sidebar-counts";
 
 export default function SharedDocumentsPage() {
   const { user, isLoading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
   const {
     documents = [],
     isLoading: documentsLoading,
@@ -22,15 +27,18 @@ export default function SharedDocumentsPage() {
   } = useSharedDocuments(1, 100);
   const { socket } = useSocket();
   const mountedRef = useRef(false);
+  const { processTypes } = useProcessType();
+  const { setCounts } = useDocumentSidebarCounts();
 
   const [isSignModalOpen, setIsSignModalOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] =
     useState<SharedDocument | null>(null);
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "active");
 
-  const handleSignClick = (document: SharedDocument) => {
+  const handleSignClick = useCallback((document: SharedDocument) => {
     setSelectedDocument(document);
     setIsSignModalOpen(true);
-  };
+  }, []);
 
   const handleSignConfirm = async (signatureData: string) => {
     if (!selectedDocument) return;
@@ -59,7 +67,57 @@ export default function SharedDocumentsPage() {
     }
   };
 
-  const columns = useMemo(() => getColumns({ onSign: handleSignClick }), []);
+  const processTypeMap = useMemo(
+    () =>
+      processTypes.reduce(
+        (map, type) => {
+          map[type.process_type_id] = {
+            code: type.code || "",
+            name: type.name,
+            duration_value: type.duration_value ?? null,
+            duration_unit: type.duration_unit ?? null,
+          };
+          return map;
+        },
+        {} as Record<
+          string,
+          {
+            code?: string;
+            name?: string;
+            duration_value?: number | null;
+            duration_unit?: string | null;
+          }
+        >
+      ),
+    [processTypes]
+  );
+
+  // Store refetch in a ref to avoid re-subscribing socket listeners and recreating columns
+  const refetchRef = useRef(refetch);
+  useEffect(() => {
+    refetchRef.current = refetch;
+  }, [refetch]);
+
+  // Store documents in a ref for the cancel handler without triggering re-subscriptions
+  const documentsRef = useRef(documents);
+  useEffect(() => {
+    documentsRef.current = documents;
+  }, [documents]);
+
+  // Create a stable refetch callback using ref
+  const stableRefetch = useCallback(() => {
+    refetchRef.current();
+  }, []);
+
+  const columns = useMemo(
+    () =>
+      getColumns({
+        onSign: handleSignClick,
+        onRefetch: stableRefetch,
+        processTypeMap,
+      }),
+    [handleSignClick, stableRefetch, processTypeMap]
+  );
 
   // Mark component as mounted and clean up on unmount
   useEffect(() => {
@@ -82,7 +140,7 @@ export default function SharedDocumentsPage() {
     const safeRefetch = async () => {
       if (mountedRef.current) {
         try {
-          await refetch();
+          await refetchRef.current();
         } catch (err) {
           console.error("Error refetching shared documents:", err);
         }
@@ -94,6 +152,20 @@ export default function SharedDocumentsPage() {
     const handleDocumentDeleted = safeRefetch;
     const handleDocumentShared = safeRefetch;
     const handleDocumentAddedToUser = safeRefetch;
+    const handleDocumentReceived = safeRefetch;
+    const handleDocumentReceivedAlt = safeRefetch;
+    const handleDocumentCanceled = (payload: { documentId?: string; documentTitle?: string }) => {
+      const documentId = payload?.documentId;
+      if (!documentId) return;
+
+      const isInList = documentsRef.current.some((doc) => doc.id === documentId);
+      if (isInList) {
+        toast.error(
+          `Document cancelled: ${payload?.documentTitle || "Unknown document"}`,
+        );
+      }
+      safeRefetch();
+    };
 
     // Listen for checkout-related events
     const handleCheckout = safeRefetch;
@@ -104,12 +176,15 @@ export default function SharedDocumentsPage() {
     socket.on("documentAdded", handleDocumentAdded);
     socket.on("documentUpdated", handleDocumentUpdated);
     socket.on("documentDeleted", handleDocumentDeleted);
-    socket.on("documentShared", handleDocumentShared); // Handle document sharing events
-    socket.on("documentAddedToUser", handleDocumentAddedToUser); // Handle when document is shared specifically to this user
-    socket.on("documentUploadCompleted", handleDocumentAdded); // Also refetch on upload completion
-    socket.on("checkout", handleCheckout); // Listen for checkout events
-    socket.on("checkin", handleCheckin); // Listen for checkin events
-    socket.on("checkoutOverridden", handleCheckoutOverridden); // Listen for checkout override events
+    socket.on("documentShared", handleDocumentShared);
+    socket.on("documentAddedToUser", handleDocumentAddedToUser);
+    socket.on("documentUploadCompleted", handleDocumentAdded);
+    socket.on("document_received", handleDocumentReceived);
+    socket.on("documentReceived", handleDocumentReceivedAlt);
+    socket.on("checkout", handleCheckout);
+    socket.on("checkin", handleCheckin);
+    socket.on("checkoutOverridden", handleCheckoutOverridden);
+    socket.on("documentCanceled", handleDocumentCanceled);
 
     // Cleanup listeners on unmount
     return () => {
@@ -118,11 +193,14 @@ export default function SharedDocumentsPage() {
       socket.off("documentDeleted", handleDocumentDeleted);
       socket.off("documentShared", handleDocumentShared);
       socket.off("documentUploadCompleted", handleDocumentAdded);
+      socket.off("document_received", handleDocumentReceived);
+      socket.off("documentReceived", handleDocumentReceivedAlt);
       socket.off("checkout", handleCheckout);
       socket.off("checkin", handleCheckin);
       socket.off("checkoutOverridden", handleCheckoutOverridden);
+      socket.off("documentCanceled", handleDocumentCanceled);
     };
-  }, [socket, refetch, user]);
+  }, [socket, user]);
 
   const sanitizedDocuments = useMemo(() => {
     return documents.map((doc) => {
@@ -157,10 +235,22 @@ export default function SharedDocumentsPage() {
       error.includes("401") ||
       error.includes("Unauthorized"));
 
+  // Filter documents based on active tab
+  const filteredDocuments = useMemo(() => {
+    if (activeTab === "completed") {
+      return sanitizedDocuments.filter(doc => doc.status?.toLowerCase() === "completed");
+    }
+    // Active tab shows all non-completed documents (received, pending, shared, etc.)
+    return sanitizedDocuments.filter(doc => doc.status?.toLowerCase() !== "completed");
+  }, [sanitizedDocuments, activeTab]);
+
+  useEffect(() => {
+    setCounts({ sharedDocuments: filteredDocuments.length });
+  }, [filteredDocuments.length, setCounts]);
+
   return (
     <>
       <div className="flex h-full flex-col p-4 gap-4 bg-background">
-        <div className="flex flex-col gap-1.5"></div>
         {error && !isAuthError && (
           <div className="mb-4">
             <Alert variant="destructive">
@@ -183,14 +273,69 @@ export default function SharedDocumentsPage() {
             </Alert>
           </div>
         )}
-        <DataTable
-          columns={columns}
-          data={sanitizedDocuments}
-          selection={true}
-          viewType="shared"
-          isLoading={isLoading}
-          onSign={handleSignClick}
-        />
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col h-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="active">Active</TabsTrigger>
+            <TabsTrigger value="completed">Completed</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="active" className="flex-1 mt-0">
+            <DataTable
+              columns={columns}
+              data={filteredDocuments}
+              selection={true}
+              viewType="shared"
+              isLoading={isLoading}
+              onSign={handleSignClick}
+              initialState={{
+                columnOrder: [
+                  "select",
+                  "scan",
+                  "document",
+                  "contact",
+                  "type",
+                  "origin",
+                  "processType",
+                  "classification",
+                  "status",
+                  "checkout",
+                  "activity",
+                  "actions",
+                ],
+              }}
+              meta={{ onRefetch: refetch }}
+            />
+          </TabsContent>
+
+          <TabsContent value="completed" className="flex-1 mt-0">
+            <DataTable
+              columns={columns}
+              data={filteredDocuments}
+              selection={true}
+              viewType="shared"
+              isLoading={isLoading}
+              onSign={handleSignClick}
+              initialState={{
+                columnOrder: [
+                  "select",
+                  "scan",
+                  "document",
+                  "contact",
+                  "type",
+                  "origin",
+                  "processType",
+                  "classification",
+                  "status",
+                  "checkout",
+                  "activity",
+                  "actions",
+                ],
+              }}
+              meta={{ onRefetch: refetch }}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
       {selectedDocument && (
         <SignatureCaptureModal

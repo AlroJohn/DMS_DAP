@@ -41,10 +41,15 @@ export function useSharedDocuments(page: number = 1, limit: number = 10): UseSha
 
       const data = await response.json()
 
+      console.log('🔍 [useSharedDocuments] API Response:', data);
+
       if (data.success) {
         // Ensure data is an array and pagination is properly structured
         const documentsData = Array.isArray(data.data) ? data.data : [];
         const paginationData = data.meta?.pagination || null;
+        
+        console.log('🔍 [useSharedDocuments] Documents count:', documentsData.length);
+        console.log('🔍 [useSharedDocuments] Sample document:', documentsData[0]);
 
         setDocuments(documentsData)
         setPagination(paginationData)
@@ -65,7 +70,7 @@ export function useSharedDocuments(page: number = 1, limit: number = 10): UseSha
 
   useEffect(() => {
     fetchDocuments()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [page, limit])
 
   return {
