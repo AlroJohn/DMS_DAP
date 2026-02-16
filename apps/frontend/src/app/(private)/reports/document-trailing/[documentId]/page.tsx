@@ -492,7 +492,7 @@ export default function DocumentTrailsDetailPage() {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                           <div>
                             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                              Duration held by user
+                              Handling Duration (Processing Time)
                             </p>
                             <p className="text-sm text-muted-foreground/80">
                               {trail.user} held this document {index === trails.length - 1 ? "and is currently in this stage" : "before releasing to next user"}
