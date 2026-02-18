@@ -39,3 +39,55 @@ export async function GET(
     );
   }
 }
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  try {
+    let backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    if (backendUrl.endsWith("/api")) {
+      backendUrl = backendUrl.slice(0, -4);
+    }
+
+    const cookiesHeader = request.headers.get("cookie");
+    const formData = await request.formData();
+
+    const response = await fetch(`${backendUrl}/api/documents/${id}/files`, {
+      method: "POST",
+      headers: {
+        ...(cookiesHeader && { Cookie: cookiesHeader }),
+      },
+      credentials: "include",
+      body: formData,
+    });
+
+    const data = await response.json().catch(() => ({
+      success: false,
+      error: { message: "Failed to upload document file" },
+    }));
+
+    if (!response.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: data.error || { message: "Failed to upload document file" },
+        },
+        { status: response.status }
+      );
+    }
+
+    return NextResponse.json(data, { status: response.status });
+  } catch (error: any) {
+    console.error("Error uploading document file:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: { message: error.message || "Internal server error" },
+      },
+      { status: 500 }
+    );
+  }
+}

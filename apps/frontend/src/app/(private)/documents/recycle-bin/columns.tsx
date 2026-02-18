@@ -17,6 +17,12 @@ import {
 import { ScanCodes } from "@/components/ui/scan-codes";
 import { DateTime } from "@/components/wrapper/DateTime";
 import { ProcessTypeCell } from "@/components/reuseable/tables/process-type-cell";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Define the RecycleBinDocument type based on the API response
 export type RecycleBinDocument = {
@@ -27,6 +33,7 @@ export type RecycleBinDocument = {
   documentId: string;
   contactPerson: string;
   contactOrganization: string;
+  contactOrganizationName?: string;
   type: string;
   origin: string;
   process_type_id?: string | null;
@@ -186,12 +193,18 @@ export const createRecycleBinColumns = (
           </div>
           <div className="flex items-center gap-1.5">
             <Building2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-            <span
-              className="text-xs text-muted-foreground"
-              title={data.contactOrganization}
-            >
-              {data.contactOrganization}
-            </span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-xs text-muted-foreground cursor-help">
+                    {data.contactOrganization}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{data.contactOrganizationName || data.contactOrganization}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       );

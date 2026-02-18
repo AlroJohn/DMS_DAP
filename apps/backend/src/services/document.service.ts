@@ -1059,7 +1059,8 @@ export class DocumentService {
             documentId: doc.document_code,
             process_type_id: (doc as any).process_type_id || null,
             contactPerson: `${user.first_name} ${user.last_name}`,
-            contactOrganization: department?.name || 'N/A',
+            contactOrganization: department?.code || 'N/A',
+            contactOrganizationName: department?.name || 'N/A',
             currentLocation: department?.name || 'N/A',
             type: documentTypeMap.get(doc.document_type) || (doc as any).document_type || 'General',
             classification: doc.classification,
@@ -1469,7 +1470,8 @@ export class DocumentService {
             documentId: doc.document_code || doc.document_id,
             process_type_id: (doc as any).process_type_id || null,
             contactPerson: `${user.first_name} ${user.last_name}`,
-            contactOrganization: department?.name || 'N/A',
+            contactOrganization: department?.code || 'N/A',
+            contactOrganizationName: department?.name || 'N/A',
             currentLocation: department?.name || 'N/A',
             type: documentTypeMap.get(doc.document_type) || (doc as any).document_type || 'General',
             classification: doc.classification,
@@ -4679,6 +4681,7 @@ export class DocumentService {
           const detail = documentDetailsMap.get(doc.document_id);
           let isOwned = false;
           let contactOrganization = 'N/A';
+          let contactOrganizationName = 'N/A';
 
           if (detail) {
             // Check if user's department is the first in workflow (owned) or if it's shared
@@ -4715,11 +4718,12 @@ export class DocumentService {
 
                 const originatorDept = await prisma.department.findUnique({
                   where: { department_id: originatorDeptId },
-                  select: { name: true }
+                  select: { name: true, code: true }
                 });
 
                 if (originatorDept) {
-                  contactOrganization = originatorDept.name;
+                  contactOrganization = originatorDept.code || originatorDept.name;
+                  contactOrganizationName = originatorDept.name;
                 }
               }
             }
@@ -4733,7 +4737,8 @@ export class DocumentService {
             documentId: doc.document_code,
             contactPerson: `${user.first_name} ${user.last_name}`,
             contactOrganization: contactOrganization,
-            currentLocation: contactOrganization,
+            contactOrganizationName: contactOrganizationName,
+            currentLocation: contactOrganizationName,
             type: (doc as any).document_type || 'General',
             classification: doc.classification,
             status: doc.status,

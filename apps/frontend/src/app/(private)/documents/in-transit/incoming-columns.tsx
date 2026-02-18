@@ -21,6 +21,12 @@ import { useState } from "react";
 import { ActivityCell } from "@/components/reuseable/tables/activity-cell";
 import { ProcessTypeCell } from "@/components/reuseable/tables/process-type-cell";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -40,6 +46,7 @@ export type IncomingDocument = {
   documentId: string;
   contactPerson: string;
   contactOrganization: string;
+  contactOrganizationName?: string;
   type: string;
   classification: string;
   status: string;
@@ -306,9 +313,18 @@ export const createIncomingColumns = (
           </div>
           <div className="flex items-center gap-1.5">
             <Building2 className="h-3.5 w-3.5 text-blue-500" />
-            <span className="text-xs text-muted-foreground">
-              {data.contactOrganization}
-            </span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-xs text-muted-foreground cursor-help">
+                    {data.contactOrganization}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{data.contactOrganizationName || data.contactOrganization}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       );

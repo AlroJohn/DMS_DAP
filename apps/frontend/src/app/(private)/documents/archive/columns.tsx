@@ -10,6 +10,12 @@ import { Copy, User, Building2 } from "lucide-react";
 import { ScanCodes } from "@/components/ui/scan-codes";
 import { ActivityCell } from "@/components/reuseable/tables/activity-cell";
 import { ProcessTypeCell } from "@/components/reuseable/tables/process-type-cell";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Define the ArchiveDocument type based on the actual API response
 // This is adapted from RecycleBinDocument structure which should be similar to what we need
@@ -21,6 +27,7 @@ export type ArchiveDocument = {
   documentId: string;
   contactPerson: string;
   contactOrganization: string;
+  contactOrganizationName?: string;
   type: string;
   classification: string;
   currentLocation: string;
@@ -191,12 +198,18 @@ export const createArchiveColumns = ({
           </div>
           <div className="flex items-center gap-1.5">
             <Building2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-            <span
-              className="text-xs text-muted-foreground"
-              title={data.contactOrganization}
-            >
-              {data.contactOrganization}
-            </span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-xs text-muted-foreground cursor-help">
+                    {data.contactOrganization}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{data.contactOrganizationName || data.contactOrganization}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       );

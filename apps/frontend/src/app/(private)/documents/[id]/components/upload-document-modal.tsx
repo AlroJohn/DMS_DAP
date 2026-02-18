@@ -146,18 +146,8 @@ export function UploadDocumentModal({
   open,
   onOpenChange,
 }: UploadDocumentModalProps) {
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "";
-  const normalizedApiBaseUrl = apiBaseUrl.replace(/\/$/, "");
   const ocrDefaultEnabled = false;
-  const buildApiUrl = (path: string) => {
-    if (!normalizedApiBaseUrl) {
-      return `/api${path}`;
-    }
-    if (normalizedApiBaseUrl.endsWith("/api")) {
-      return `${normalizedApiBaseUrl}${path}`;
-    }
-    return `${normalizedApiBaseUrl}/api${path}`;
-  };
+  const buildApiUrl = (path: string) => `/api${path}`;
   const [documentGroups, setDocumentGroups] = useState<DocumentGroup[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
