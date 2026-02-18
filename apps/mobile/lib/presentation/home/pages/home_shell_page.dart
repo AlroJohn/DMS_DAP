@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/constants/app_strings.dart';
+import '../../../domain/repositories/pending_signatures_repository.dart';
 import '../../auth/cubit/auth_cubit.dart';
+import '../../pending_signatures/cubit/pending_signatures_cubit.dart';
+import '../../pending_signatures/pages/pending_signatures_page.dart';
 
 class HomeShellPage extends StatefulWidget {
   const HomeShellPage({super.key});
@@ -26,14 +29,18 @@ class _HomeShellPageState extends State<HomeShellPage> {
           ),
         ],
       ),
-      body: Center(
-        child: Text(
-          _currentIndex == 0
-              ? AppStrings.tabReceiving
-              : _currentIndex == 1
-              ? AppStrings.tabPendingSignatures
-              : AppStrings.tabSignedDocuments,
-        ),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
+          Center(child: Text(AppStrings.tabReceiving)),
+          BlocProvider(
+            create: (_) => PendingSignaturesCubit(
+              context.read<PendingSignaturesRepository>(),
+            ),
+            child: const PendingSignaturesPage(),
+          ),
+          Center(child: Text(AppStrings.tabSignedDocuments)),
+        ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
