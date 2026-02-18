@@ -47,7 +47,7 @@ export function NotificationSheet({ open, onOpenChange }: NotificationSheetProps
       <SheetContent className="w-full sm:max-w-md p-0">
         <div className="flex flex-col h-screen">
           {/* Header */}
-          <div className="flex items-start justify-between p-6 border-b flex-shrink-0">
+          <div className="flex items-start justify-between p-6 border-b shrink-0">
             <div className="flex-1">
               <SheetTitle className="text-xl font-semibold">Notifications</SheetTitle>
               <SheetDescription className="mt-1">
@@ -109,7 +109,7 @@ export function NotificationSheet({ open, onOpenChange }: NotificationSheetProps
                       {/* Icon */}
                       <div
                         className={cn(
-                          "flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center",
+                          "shrink-0 h-10 w-10 rounded-full flex items-center justify-center",
                           notification.type === "document" &&
                             "bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400",
                           notification.type === "invitation" &&

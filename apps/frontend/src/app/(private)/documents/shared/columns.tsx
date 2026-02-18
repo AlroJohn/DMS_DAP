@@ -12,6 +12,12 @@ import { CheckoutStatusCell } from "./checkout-status-cell";
 import { SharedDocument } from "@dms/types/document.types";
 import { ActivityCell } from "@/components/reuseable/tables/activity-cell";
 import { ProcessTypeCell } from "@/components/reuseable/tables/process-type-cell";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Flag to prevent duplicate logging in React Strict Mode
 let hasLoggedColumns = false;
@@ -203,12 +209,18 @@ export const getColumns = ({
             </div>
             <div className="flex items-center gap-1.5">
               <Building2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-              <span
-                className="text-xs text-muted-foreground"
-                title={d.contactOrganization || ""}
-              >
-                {d.contactOrganization || "N/A"}
-              </span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-xs text-muted-foreground cursor-help">
+                      {d.contactOrganization || "N/A"}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{d.contactOrganizationName || d.contactOrganization || "N/A"}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         );

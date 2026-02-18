@@ -44,7 +44,10 @@ router.get(
 
         // Generate JWT tokens for the user
         const authController = new AuthController();
-        const tokens = await authController.generateTokensForUser(user.id);
+        const tokens = await authController.generateTokensForUser(user.id, {
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent') || undefined,
+        });
 
         // Redirect to frontend with tokens
         const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback?token=${tokens.token}&refresh=${tokens.refreshToken}&method=${user.loginMethod}`;

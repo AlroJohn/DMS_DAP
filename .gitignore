@@ -10,6 +10,7 @@ QWEN.md
 .env
 *.env
 *.env.local
+*.env.example
 *.log
 
 # This section is edited to include "hi"

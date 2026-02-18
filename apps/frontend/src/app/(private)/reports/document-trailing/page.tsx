@@ -82,6 +82,7 @@ export default function DocumentTrailingPage() {
     department: "all",
     classification: "all",
     documentType: "all",
+    documentCode: "",
   });
   const router = useRouter();
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -751,6 +752,7 @@ export default function DocumentTrailingPage() {
                               department: "all",
                               classification: "all",
                               documentType: "all",
+                              documentCode: "",
                             });
                           }}
                         >

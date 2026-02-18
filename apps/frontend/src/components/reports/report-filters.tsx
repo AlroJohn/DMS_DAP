@@ -15,7 +15,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Calendar as CalendarIcon, Filter, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Calendar as CalendarIcon, Filter, X, FileCode } from "lucide-react";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +31,7 @@ export interface ReportFilters {
   department: string;
   classification: string;
   documentType: string;
+  documentCode: string;
 }
 
 interface ReportFiltersProps {
@@ -40,6 +42,7 @@ interface ReportFiltersProps {
   showDepartmentFilter?: boolean;
   showClassificationFilter?: boolean;
   showDocumentTypeFilter?: boolean;
+  showDocumentCodeFilter?: boolean;
 }
 
 const DATE_PRESETS = [
@@ -72,6 +75,7 @@ export function ReportFilters({
   showDepartmentFilter = true,
   showClassificationFilter = true,
   showDocumentTypeFilter = true,
+  showDocumentCodeFilter = false,
 }: ReportFiltersProps) {
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
 
@@ -124,6 +128,7 @@ export function ReportFilters({
       department: "all",
       classification: "all",
       documentType: "all",
+      documentCode: "",
     });
     setShowCustomDatePicker(false);
   };
@@ -132,7 +137,8 @@ export function ReportFilters({
     filters.dateRangePreset !== "all" ||
     filters.department !== "all" ||
     filters.classification !== "all" ||
-    filters.documentType !== "all";
+    filters.documentType !== "all" ||
+    filters.documentCode !== "";
 
   return (
     <div className="space-y-3">
@@ -270,6 +276,22 @@ export function ReportFilters({
           </Select>
         )}
 
+        {/* Document Code Filter */}
+        {showDocumentCodeFilter && (
+          <div className="flex items-center gap-2">
+            <FileCode className="h-4 w-4 text-muted-foreground shrink-0" />
+            <Input
+              type="text"
+              placeholder="Document Code"
+              value={filters.documentCode}
+              onChange={(e) =>
+                onFiltersChange({ ...filters, documentCode: e.target.value })
+              }
+              className="w-48"
+            />
+          </div>
+        )}
+
         {hasActiveFilters && (
           <Button
             variant="ghost"
@@ -309,6 +331,11 @@ export function ReportFilters({
             <span className="bg-primary/10 text-primary px-2 py-1 rounded-md">
               {documentTypes.find((t) => t.id === filters.documentType)?.name ||
                 filters.documentType}
+            </span>
+          )}
+          {filters.documentCode !== "" && (
+            <span className="bg-primary/10 text-primary px-2 py-1 rounded-md">
+              Code: {filters.documentCode}
             </span>
           )}
         </div>

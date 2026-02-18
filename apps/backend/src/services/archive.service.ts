@@ -349,20 +349,22 @@ export class ArchiveService {
         // Get the first file to determine contact person
         let contactPerson = 'N/A';
         let contactOrganization = 'N/A';
+        let contactOrganizationName = 'N/A';
 
         if (doc.files && doc.files.length > 0) {
           const firstFile = doc.files[0]; // Take the first file
           if (firstFile.uploaded_by_account && firstFile.uploaded_by_account.user) {
             contactPerson = `${firstFile.uploaded_by_account.user.first_name} ${firstFile.uploaded_by_account.user.last_name}`;
 
-            // If we have department info, we can get the org name
+            // If we have department info, we can get the org code and name
             if (firstFile.uploaded_by_account.user.department_id) {
               try {
                 const department = await prisma.department.findUnique({
                   where: { department_id: firstFile.uploaded_by_account.user.department_id }
                 });
                 if (department) {
-                  contactOrganization = department.name;
+                  contactOrganization = department.code || department.name;
+                  contactOrganizationName = department.name;
                 }
               } catch (e) {
                 console.error('Error fetching department:', e);
@@ -519,6 +521,7 @@ export class ArchiveService {
       // Get contact info
       let contactPerson = 'N/A';
       let contactOrganization = 'N/A';
+      let contactOrganizationName = 'N/A';
 
       if (document.files && document.files.length > 0) {
         const firstFile = document.files[0];
@@ -531,7 +534,8 @@ export class ArchiveService {
                 where: { department_id: firstFile.uploaded_by_account.user.department_id }
               });
               if (department) {
-                contactOrganization = department.name;
+                contactOrganization = department.code || department.name;
+                contactOrganizationName = department.name;
               }
             } catch (e) {
               console.error('Error fetching department:', e);

@@ -142,7 +142,7 @@ export default function ViewDocumentPage() {
     : false;
 
   const documentIdForRoutes = document?.document_id || documentId;
-  const cacheBuster = Date.now();
+  const cacheBuster = useMemo(() => Date.now(), [previewFile?.id]);
   const previewBaseUrl = previewFile
     ? `/api/documents/${documentIdForRoutes}/files/${previewFile.id}/stream?v=${cacheBuster}`
     : null;

@@ -257,7 +257,7 @@ export default function HomeCMSEditor() {
 
           {/* Preview Tab */}
           <TabsContent value="preview" className="flex-1 overflow-y-auto mt-0">
-            <div className="bg-gradient-to-br from-background via-background to-accent/5 p-8 rounded-lg">
+            <div className="bg-linear-to-br from-background via-background to-accent/5 p-8 rounded-lg">
               <div className="max-w-5xl mx-auto space-y-8">
                 {/* Preview: Company Logo Section */}
                 <div className="text-center space-y-6 py-12">
@@ -272,14 +272,14 @@ export default function HomeCMSEditor() {
                         />
                       </div>
                     ) : (
-                      <div className="w-32 h-32 bg-gradient-to-br from-primary via-primary/90 to-primary/80 rounded-2xl flex items-center justify-center shadow-2xl">
+                      <div className="w-32 h-32 bg-linear-to-br from-primary via-primary/90 to-primary/80 rounded-2xl flex items-center justify-center shadow-2xl">
                         <FileText className="h-16 w-16 text-primary-foreground" />
                       </div>
                     )}
                   </div>
                   
                   <div className="space-y-3">
-                    <h1 className="text-5xl font-bold tracking-tight bg-gradient-to-r from-primary via-primary/90 to-primary/70 bg-clip-text text-transparent">
+                    <h1 className="text-5xl font-bold tracking-tight bg-linear-to-r from-primary via-primary/90 to-primary/70 bg-clip-text text-transparent">
                       {formData.welcome_title || "Document Management System"}
                     </h1>
                     <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
@@ -298,7 +298,7 @@ export default function HomeCMSEditor() {
                 {/* Preview: Video Section */}
                 {formData.video_url && (
                   <Card className="shadow-xl border-2 overflow-hidden">
-                    <CardHeader className="bg-gradient-to-r from-primary/5 to-secondary/5">
+                    <CardHeader className="bg-linear-to-r from-primary/5 to-secondary/5">
                       <CardTitle className="text-2xl">Introduction Video</CardTitle>
                     </CardHeader>
                     <CardContent className="p-0">
@@ -319,7 +319,7 @@ export default function HomeCMSEditor() {
                   {/* Vision Preview */}
                   {formData.vision ? (
                     <Card className="shadow-xl border-2">
-                      <CardHeader className="bg-gradient-to-br from-primary/5 to-primary/10">
+                      <CardHeader className="bg-linear-to-br from-primary/5 to-primary/10">
                         <CardTitle className="flex items-center gap-3 text-2xl">
                           <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
                             <Shield className="h-6 w-6 text-primary" />
@@ -353,7 +353,7 @@ export default function HomeCMSEditor() {
                   {/* Mission Preview */}
                   {formData.mission ? (
                     <Card className="shadow-xl border-2">
-                      <CardHeader className="bg-gradient-to-br from-secondary/5 to-secondary/10">
+                      <CardHeader className="bg-linear-to-br from-secondary/5 to-secondary/10">
                         <CardTitle className="flex items-center gap-3 text-2xl">
                           <div className="w-12 h-12 bg-secondary/10 rounded-full flex items-center justify-center">
                             <BarChart3 className="h-6 w-6 text-secondary" />

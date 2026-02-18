@@ -309,7 +309,7 @@ const DocumentTypeManagementPage = () => {
               <TableRow key={type.type_id}>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <FileType className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                    <FileType className="h-4 w-4 text-blue-500 shrink-0" />
                     <span className="font-medium">{type.name}</span>
                   </div>
                 </TableCell>

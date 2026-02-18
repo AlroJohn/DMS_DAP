@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { AuthService, LoginCredentials, RegisterData } from '../services/auth.service';
+import { AuthService, LoginCredentials, RegisterData, SessionContext } from '../services/auth.service';
 import { PermissionService } from '../services/permission.service';
 import { UserService, UpdateUserData } from '../services/user.service';
 import { asyncHandler } from '../middleware/error-handler';
@@ -79,7 +79,12 @@ export class AuthController {
     const credentials: LoginCredentials = { email, password }; // Define credentials
 
     try {
-      const { user, token, refreshToken, requires2FA, tempToken } = await this.authService.login(credentials);
+      const sessionContext: SessionContext = {
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent') || undefined,
+      };
+      const { user, token, refreshToken, requires2FA, tempToken } =
+        await this.authService.login(credentials, sessionContext);
       
       // Check if 2FA is required
       if (requires2FA && tempToken) {
@@ -319,8 +324,11 @@ export class AuthController {
   /**
    * Generate tokens for OAuth user
    */
-  async generateTokensForUser(userId: string): Promise<{ token: string; refreshToken: string }> {
-    return await this.authService.generateTokensForUser(userId);
+  async generateTokensForUser(
+    userId: string,
+    sessionContext?: SessionContext,
+  ): Promise<{ token: string; refreshToken: string }> {
+    return await this.authService.generateTokensForUser(userId, sessionContext);
   }
 
   /**

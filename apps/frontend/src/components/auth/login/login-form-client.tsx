@@ -115,14 +115,15 @@ export function LoginFormClient({
         // Parse error response and show toast notification
         try {
           const errorData = await response.json();
-          const errorMessage = errorData.message || errorData.error || "Login failed";
+          // Backend sends errors in format: { success: false, error: { message: "..." } }
+          const errorMessage = errorData.error?.message || errorData.message || errorData.error || "Login failed";
           
           // Show specific toast messages based on error type
           if (errorMessage.includes("Invalid email or password")) {
             toast.error("Invalid credentials", {
               description: "The email or password you entered is incorrect. Please try again.",
             });
-          } else if (errorMessage.includes("social login")) {
+          } else if (errorMessage.includes("social login") || errorMessage.includes("Google")) {
             toast.error("Social login required", {
               description: "This account uses Google sign-in. Please click 'Login with Google' button.",
             });
@@ -139,10 +140,10 @@ export function LoginFormClient({
               description: errorMessage,
             });
           }
-        } catch {
-          // If we can't parse the error response, show a generic message
+        } catch (parseError) {
+          // If we can't parse the error response, show the status text or a generic message
           toast.error("Login failed", {
-            description: "An unexpected error occurred. Please try again.",
+            description: response.statusText || "An unexpected error occurred. Please try again.",
           });
         }
       }
@@ -221,7 +222,7 @@ export function LoginFormClient({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Card className="p-0 overflow-hidden min-h-[570px] md:min-h-[680px] h-full border-1 border-primary">
+      <Card className="p-0 overflow-hidden min-h-142.5 md:min-h-170 h-full border border-primary">
         <CardContent className="p-0 h-full relative border-0">
           <div className="relative h-full">
             <div className="px-10 flex flex-col justify-center h-full md:w-1/2 z-10">

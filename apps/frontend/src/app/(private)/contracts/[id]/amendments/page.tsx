@@ -225,7 +225,7 @@ export default function ContractAmendmentsPage() {
         <CardContent>
           <div className="space-y-3">
             <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg">
-              <div className="flex-shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">
+              <div className="shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">
                 1
               </div>
               <div>
@@ -234,7 +234,7 @@ export default function ContractAmendmentsPage() {
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg">
-              <div className="flex-shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">
+              <div className="shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">
                 2
               </div>
               <div>
@@ -243,7 +243,7 @@ export default function ContractAmendmentsPage() {
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg">
-              <div className="flex-shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">
+              <div className="shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">
                 3
               </div>
               <div>
@@ -252,7 +252,7 @@ export default function ContractAmendmentsPage() {
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg">
-              <div className="flex-shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">
+              <div className="shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">
                 4
               </div>
               <div>

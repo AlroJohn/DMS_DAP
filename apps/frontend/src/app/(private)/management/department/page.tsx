@@ -348,7 +348,7 @@ const DepartmentManagementPage = () => {
               <TableRow key={dept.department_id}>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-orange-500 flex-shrink-0" />
+                    <Building2 className="h-4 w-4 text-orange-500 shrink-0" />
                     <span className="font-medium">{dept.name}</span>
                   </div>
                 </TableCell>

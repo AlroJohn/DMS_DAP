@@ -8,6 +8,7 @@ export interface Document {
   documentId: string;
   contactPerson: string;
   contactOrganization: string;
+  contactOrganizationName?: string;
   currentLocation: string;
   type: string;
   process_type_id?: string | null;

@@ -1243,7 +1243,7 @@ export function ViewDocumentsModal({
                                                   key={key}
                                                   className="flex items-start gap-3"
                                                 >
-                                                  <config.icon className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                                  <config.icon className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
                                                   <div>
                                                     <p className="text-xs font-medium text-muted-foreground">
                                                       {config.label}

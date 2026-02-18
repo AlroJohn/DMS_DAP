@@ -146,18 +146,8 @@ export function UploadDocumentModal({
   open,
   onOpenChange,
 }: UploadDocumentModalProps) {
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "";
-  const normalizedApiBaseUrl = apiBaseUrl.replace(/\/$/, "");
   const ocrDefaultEnabled = false;
-  const buildApiUrl = (path: string) => {
-    if (!normalizedApiBaseUrl) {
-      return `/api${path}`;
-    }
-    if (normalizedApiBaseUrl.endsWith("/api")) {
-      return `${normalizedApiBaseUrl}${path}`;
-    }
-    return `${normalizedApiBaseUrl}/api${path}`;
-  };
+  const buildApiUrl = (path: string) => `/api${path}`;
   const [documentGroups, setDocumentGroups] = useState<DocumentGroup[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -1152,7 +1142,7 @@ export function UploadDocumentModal({
                                 variant="ghost"
                                 size="sm"
                                 onClick={clearFilters}
-                                className="text-[11px] uppercase tracking-[0.15em] flex-shrink-0"
+                                className="text-[11px] uppercase tracking-[0.15em] shrink-0"
                               >
                                 <Recycle />
                               </Button>
@@ -1266,7 +1256,7 @@ export function UploadDocumentModal({
                                           {type.code || type.name}
                                         </span>
                                         {type.duration_value && (
-                                          <span className="text-xs text-muted-foreground flex-shrink-0">
+                                          <span className="text-xs text-muted-foreground shrink-0">
                                             ·{" "}
                                             {formatProcessDuration(
                                               type.duration_value,
