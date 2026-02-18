@@ -12,6 +12,12 @@ import { Document } from "@/hooks/use-documents-owned";
 import { ScanCodes } from "@/components/ui/scan-codes";
 import { ActivityCell } from "@/components/reuseable/tables/activity-cell";
 import { ProcessTypeCell } from "@/components/reuseable/tables/process-type-cell";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export type { Document };
 
@@ -191,12 +197,18 @@ export const createOwnedDocumentColumns = (
             </div>
             <div className="flex items-center gap-1.5">
               <Building2 className="h-3.5 w-3.5 text-blue-500" />
-              <span
-                className="text-xs text-muted-foreground"
-                title={data.contactOrganization}
-              >
-                {data.contactOrganization}
-              </span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-xs text-muted-foreground cursor-help">
+                      {data.contactOrganization}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{data.contactOrganizationName || data.contactOrganization}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         );

@@ -535,7 +535,7 @@ async function main() {
       })
     );
 
-    // PRESIDENT Role: Documents, Search, Reports, Notification, Management (Types, Actions, Users only - NO process_type)
+    // PRESIDENT Role: Documents, Search, Reports, Notification, Management (Types, Actions, Users only - NO process_type), role_read, role_assign
     const departmentHeadPermissions = uniquePermissionIds(
       allPermissions.filter(permission => {
         const permStr = normalizePermission(permission.permission);
@@ -545,8 +545,10 @@ async function main() {
         const isReportPerm = hasPrefix(permission.permission, permissionPrefix.report);
         const isUserPerm = hasPrefix(permission.permission, permissionPrefix.user);
         const isDepartmentReadPerm = permStr === 'department_read';
+        const isRoleReadPerm = permStr === 'role_read';
+        const isRoleAssignPerm = permStr === 'role_assign';
 
-        return isDocumentPerm || isNotificationPerm || isReportPerm || isUserPerm || isDepartmentReadPerm;
+        return isDocumentPerm || isNotificationPerm || isReportPerm || isUserPerm || isDepartmentReadPerm || isRoleReadPerm || isRoleAssignPerm;
       })
     );
 

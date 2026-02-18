@@ -30,6 +30,7 @@ interface SharedDocument {
   documentId: string;
   contactPerson: string;
   contactOrganization: string;
+  contactOrganizationName?: string;
   type: string;
   process_type_id?: string | null;
   process_timer_start_at?: string | null;
@@ -394,6 +395,7 @@ export class SharedDocumentService {
           // Get the original creator (first in workflow) to show as contact person
           const detail = documentDetailsMap.get(doc.document_id);
           let contactOrganization = 'N/A';
+          let contactOrganizationName = 'N/A';
 
           if (detail && detail.work_flow_id) {
             const workflowDepartments = this.parseWorkflowSequence(detail.work_flow_id);
@@ -402,11 +404,12 @@ export class SharedDocumentService {
               const originatorDeptId = workflowDepartments[0];  // The "first" department is the originator
               const originatorDept = await prisma.department.findUnique({
                 where: { department_id: originatorDeptId },
-                select: { name: true }
+                select: { name: true, code: true }
               });
 
               if (originatorDept) {
-                contactOrganization = originatorDept.name;
+                contactOrganization = originatorDept.code || originatorDept.name;
+                contactOrganizationName = originatorDept.name;
               }
             }
           }
@@ -586,6 +589,7 @@ export class SharedDocumentService {
             documentId: doc.document_code || doc.document_id,
             contactPerson: contactPerson, // This will now be the root owner (first uploader)
             contactOrganization: contactOrganization,
+            contactOrganizationName: contactOrganizationName,
             type: documentTypeName,
             process_type_id: doc.process_type_id,
             process_timer_start_at: processStartAt

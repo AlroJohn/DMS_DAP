@@ -132,20 +132,23 @@ export class RecycleBinService {
       const departmentNameCache = new Map<string, string>();
       const accountNameCache = new Map<string, string>();
 
-      const getDepartmentName = async (departmentId?: string | null) => {
-        if (!departmentId) return 'N/A';
+      const getDepartmentInfo = async (departmentId?: string | null): Promise<{ code: string; name: string }> => {
+        if (!departmentId) return { code: 'N/A', name: 'N/A' };
         if (departmentNameCache.has(departmentId)) {
-          return departmentNameCache.get(departmentId)!;
+          const cached = departmentNameCache.get(departmentId)!;
+          const [code, name] = cached.split('|');
+          return { code: code || name, name };
         }
 
         const department = await prisma.department.findUnique({
           where: { department_id: departmentId },
-          select: { name: true }
+          select: { name: true, code: true }
         });
 
-        const departmentName = department?.name ?? 'N/A';
-        departmentNameCache.set(departmentId, departmentName);
-        return departmentName;
+        const code = department?.code || department?.name || 'N/A';
+        const name = department?.name || 'N/A';
+        departmentNameCache.set(departmentId, `${code}|${name}`);
+        return { code, name };
       };
 
       const getAccountOwnerName = async (accountId?: string | null) => {
@@ -214,7 +217,7 @@ export class RecycleBinService {
           const detail = doc.DocumentAdditionalDetails?.[0];
           const workflowDepartments = detail ? parseWorkflowDepartments(detail.work_flow_id) : [];
           const originatorDeptId = workflowDepartments.length > 0 ? workflowDepartments[0] : null;
-          const contactOrganization = await getDepartmentName(originatorDeptId);
+          const { code: contactOrganization, name: contactOrganizationName } = await getDepartmentInfo(originatorDeptId);
 
           let contactPerson = 'N/A';
           if (doc.files && doc.files.length > 0) {
@@ -309,6 +312,7 @@ export class RecycleBinService {
             documentId: doc.document_code || doc.document_id,
             contactPerson,
             contactOrganization,
+            contactOrganizationName,
             currentLocation: 'Recycle Bin',
             type: documentTypeMap.get(doc.document_type) || (doc as any).document_type || 'General',
             process_type_id: doc.process_type_id,

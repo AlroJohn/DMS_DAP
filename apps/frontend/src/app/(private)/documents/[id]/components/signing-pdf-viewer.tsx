@@ -30,12 +30,12 @@ import { useAuth } from "@/hooks/use-auth";
 import { useSocket } from "@/components/providers/providers";
 import { FullPageLoader } from "@/components/reuseable/full-page-loader";
 
-const PDFJS_WORKER_CDN =
+const PDFJS_WORKER_SRC =
   process.env.NEXT_PUBLIC_PDFJS_WORKER_URL ||
   `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsVersion}/legacy/build/pdf.worker.min.mjs`;
 
 if (typeof window !== "undefined") {
-  GlobalWorkerOptions.workerSrc = PDFJS_WORKER_CDN;
+  GlobalWorkerOptions.workerSrc = PDFJS_WORKER_SRC;
 }
 
 interface PdfPageRender {
@@ -433,6 +433,7 @@ export function SigningPdfViewer({
   const [pages, setPages] = useState<PdfPageRender[]>([]);
   const [activePage, setActivePage] = useState(1);
   const [isRendering, setIsRendering] = useState(false);
+  const [pdfRenderError, setPdfRenderError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   // Signature state
@@ -838,6 +839,8 @@ export function SigningPdfViewer({
     if (!selectedFile) {
       setPages([]);
       setActivePage(1);
+      setPdfRenderError(null);
+      setIsRendering(false);
       return;
     }
 
@@ -847,6 +850,7 @@ export function SigningPdfViewer({
 
     const renderPdfPages = async () => {
       setIsRendering(true);
+      setPdfRenderError(null);
       try {
         const url = `/api/documents/${documentId}/files/${selectedFile.id}/stream?download=1`;
         const task = getDocument({
@@ -909,6 +913,9 @@ export function SigningPdfViewer({
           console.error("Failed to render PDF for signature placement", error);
           if (isMounted) {
             setPages([]);
+            setPdfRenderError(
+              "Unable to load PDF pages. Please refresh and try again.",
+            );
           }
         }
       } finally {
@@ -1995,10 +2002,18 @@ export function SigningPdfViewer({
           </div>
 
           <div className="flex-1 overflow-auto rounded-md bg-muted/20 min-h-75">
-            {isRendering || !activePageData ? (
+            {isRendering ? (
               <div className="flex flex-col items-center gap-2 p-6 text-sm text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin" />
                 <span>Loading PDF page...</span>
+              </div>
+            ) : pdfRenderError ? (
+              <div className="flex flex-col items-center gap-2 p-6 text-sm text-destructive">
+                <span>{pdfRenderError}</span>
+              </div>
+            ) : !activePageData ? (
+              <div className="flex flex-col items-center gap-2 p-6 text-sm text-muted-foreground">
+                <span>No PDF page is available.</span>
               </div>
             ) : (
               <div className="flex items-center justify-center min-w-full">

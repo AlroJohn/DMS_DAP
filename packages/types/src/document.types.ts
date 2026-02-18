@@ -6,7 +6,8 @@ export interface SharedDocument {
   documentTitle?: string;
   documentId?: string;
   contactPerson?: string;  // Now contains the root owner's name instead of 'N/A'
-  contactOrganization?: string;
+  contactOrganization?: string;  // Department code
+  contactOrganizationName?: string;  // Department full name (for tooltip)
   type: string;  // Now contains DocumentType name instead of UUID
   process_type_id?: string | null;
   process_timer_start_at?: string | null;
@@ -36,7 +37,8 @@ export interface Document {
   documentTitle?: string;
   documentId?: string;
   contactPerson?: string;
-  contactOrganization?: string;
+  contactOrganization?: string;  // Department code
+  contactOrganizationName?: string;  // Department full name (for tooltip)
   type: string;
   process_type_id?: string | null;
   classification?: string;

@@ -65,7 +65,7 @@ export const securityConfig = {
     maxAge: 8 * 60 * 60 * 1000, // 8 hours
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    sameSite: 'strict' as const,
+    sameSite: (process.env.NODE_ENV === 'production' ? 'none' : 'lax') as 'none' | 'lax',
   },
 
   // File upload security
