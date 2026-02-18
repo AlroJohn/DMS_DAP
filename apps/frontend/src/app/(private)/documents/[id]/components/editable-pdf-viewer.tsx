@@ -34,12 +34,21 @@ import { FullPageLoader } from "@/components/reuseable/full-page-loader";
 import {
   GlobalWorkerOptions,
   getDocument,
-  version as pdfjsVersion,
 } from "pdfjs-dist/legacy/build/pdf";
 
-const PDFJS_WORKER_CDN =
-  process.env.NEXT_PUBLIC_PDFJS_WORKER_URL ||
-  `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsVersion}/legacy/build/pdf.worker.min.mjs`;
+const resolvePdfWorkerSrc = () => {
+  const configured = process.env.NEXT_PUBLIC_PDFJS_WORKER_URL?.trim();
+  if (
+    configured &&
+    !configured.includes("<") &&
+    (configured.startsWith("/") || /^https?:\/\//i.test(configured))
+  ) {
+    return configured;
+  }
+  return "/pdf.worker.min.mjs";
+};
+
+const PDFJS_WORKER_CDN = resolvePdfWorkerSrc();
 
 if (typeof window !== "undefined") {
   GlobalWorkerOptions.workerSrc = PDFJS_WORKER_CDN;
