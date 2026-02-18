@@ -112,6 +112,11 @@ export class AuthController {
         maxAge: refreshTokenMaxAge,
       });
 
+      // Mobile client: return tokens in body (cannot use cookies)
+      const isMobile = req.headers['x-client'] === 'mobile';
+      if (isMobile) {
+        return sendSuccess(res, { user, token, refreshToken });
+      }
       return sendSuccess(res, { user });
     } catch (error: any) {
       // Make sure no cookies are set on error
@@ -125,7 +130,8 @@ export class AuthController {
    * POST /api/auth/refresh - Refresh access token
    */
   refreshToken = asyncHandler(async (req: Request, res: Response) => {
-    const currentRefreshToken = req.cookies.refreshToken; // Get refresh token from cookie
+    // Prefer cookie for web; body for mobile (no cookies)
+    const currentRefreshToken = req.cookies.refreshToken ?? req.body?.refreshToken;
 
     if (!currentRefreshToken) {
       return sendError(res, 'Refresh token is required', 400);
@@ -136,24 +142,30 @@ export class AuthController {
       const accessTokenMaxAge = parseExpiresIn(config.jwt.expiresIn);
       const refreshTokenMaxAge = parseExpiresIn(config.jwt.refreshExpiresIn);
 
-      // Session cookies: expire after configured duration (default 8 hours)
-      const isProduction = process.env.NODE_ENV === 'production';
-      const cookieOptions = {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
-        domain: isProduction ? '.dap.edu.ph' : undefined,
-      };
-      
-      res.cookie('accessToken', token, {
-        ...cookieOptions,
-        maxAge: accessTokenMaxAge,
-      });
-      res.cookie('refreshToken', refreshToken, {
-        ...cookieOptions,
-        maxAge: refreshTokenMaxAge,
-      });
+      const isMobile = req.headers['x-client'] === 'mobile';
 
+      if (!isMobile) {
+        // Session cookies for web
+        const isProduction = process.env.NODE_ENV === 'production';
+        const cookieOptions = {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
+          domain: isProduction ? '.dap.edu.ph' : undefined,
+        };
+        res.cookie('accessToken', token, {
+          ...cookieOptions,
+          maxAge: accessTokenMaxAge,
+        });
+        res.cookie('refreshToken', refreshToken, {
+          ...cookieOptions,
+          maxAge: refreshTokenMaxAge,
+        });
+      }
+
+      if (isMobile) {
+        return sendSuccess(res, { token, refreshToken });
+      }
       return sendSuccess(res, { message: 'Tokens refreshed successfully' });
     } catch (error: any) {
       return sendError(res, error.message, 401);
@@ -749,6 +761,10 @@ export class AuthController {
         maxAge: refreshTokenMaxAge,
       });
 
+      const isMobile = req.headers['x-client'] === 'mobile';
+      if (isMobile && result.token && result.refreshToken) {
+        return sendSuccess(res, { user: result.user, token: result.token, refreshToken: result.refreshToken });
+      }
       return sendSuccess(res, { user: result.user });
     } catch (error: any) {
       return sendError(res, error.message, 401);

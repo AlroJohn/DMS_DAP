@@ -5,6 +5,10 @@ import '../../presentation/home/pages/home_shell_page.dart';
 import '../constants/app_strings.dart';
 
 class AppRouter {
+  static Widget buildHome(BuildContext context) {
+    return const HomeShellPage();
+  }
+
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
       case AppStrings.routeHome:

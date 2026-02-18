@@ -1,26 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
-import 'core/constants/app_strings.dart';
-import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'data/datasources/local/secure_token_storage.dart';
+import 'data/datasources/remote/auth_api.dart';
+import 'data/repositories/auth_repository_impl.dart';
+import 'domain/repositories/auth_repository.dart';
+import 'presentation/auth/cubit/auth_cubit.dart';
+import 'presentation/auth/pages/auth_gate.dart';
+import 'core/constants/app_strings.dart';
 
 void main() {
-  runApp(const MyApp());
-}
+  final tokenStorage = SecureTokenStorage();
+  final authApi = AuthApi(tokenStorage: tokenStorage);
+  final AuthRepository authRepository = AuthRepositoryImpl(
+    authApi: authApi,
+    tokenStorage: tokenStorage,
+  );
+  final authCubit = AuthCubit(authRepository);
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    // Blocs will be added later; keep a simple MaterialApp for now.
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: AppStrings.appTitle,
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      initialRoute: AppStrings.routeLogin,
-      onGenerateRoute: AppRouter.onGenerateRoute,
-    );
-  }
+  runApp(
+    BlocProvider<AuthCubit>.value(
+      value: authCubit,
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: AppStrings.appTitle,
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        home: const AuthGate(),
+      ),
+    ),
+  );
 }
