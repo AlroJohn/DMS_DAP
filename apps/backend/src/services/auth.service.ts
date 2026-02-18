@@ -14,6 +14,11 @@ export interface LoginCredentials {
   password: string;
 }
 
+export interface SessionContext {
+  ipAddress?: string;
+  userAgent?: string;
+}
+
 export interface RegisterData {
   email: string;
   password: string;
@@ -33,6 +38,7 @@ export interface AuthResult {
 export class AuthService {
   private emailService = new EmailService();
   private permissionService = new PermissionService();
+  private static readonly DEFAULT_INACTIVITY_TIMEOUT_MINUTES = 30;
 
   // In-memory user storage for demo - replace with database
   private users: User[] = [
@@ -67,6 +73,104 @@ export class AuthService {
       updated_at: new Date('2024-01-02')
     }
   ];
+
+  private normalizeValue(value?: string): string | undefined {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : undefined;
+  }
+
+  private normalizeIpAddress(ipAddress?: string): string | undefined {
+    const normalized = this.normalizeValue(ipAddress);
+    if (!normalized) {
+      return undefined;
+    }
+    return normalized.startsWith('::ffff:') ? normalized.slice(7) : normalized;
+  }
+
+  private getSessionInactivityCutoff(now: Date): Date {
+    const configuredMinutes = Number.parseInt(
+      process.env.SESSION_INACTIVITY_TIMEOUT_MINUTES || '',
+      10,
+    );
+    const inactivityMinutes = Number.isInteger(configuredMinutes) && configuredMinutes > 0
+      ? configuredMinutes
+      : AuthService.DEFAULT_INACTIVITY_TIMEOUT_MINUTES;
+
+    return new Date(now.getTime() - inactivityMinutes * 60 * 1000);
+  }
+
+  private async enforceSingleActiveSession(
+    accountId: string,
+    sessionContext?: SessionContext,
+  ): Promise<void> {
+    const now = new Date();
+
+    // Mark expired sessions as inactive (prevents stale locks when cookies are gone)
+    await prisma.userSession.updateMany({
+      where: {
+        account_id: accountId,
+        is_active: true,
+        OR: [
+          { expires_at: { lt: now } },
+          { refresh_expires_at: { lt: now } },
+        ],
+      },
+      data: { is_active: false },
+    });
+
+    const activeSessions = await prisma.userSession.findMany({
+      where: {
+        account_id: accountId,
+        is_active: true,
+        expires_at: { gt: now },
+        refresh_expires_at: { gt: now },
+      },
+    });
+
+    if (activeSessions.length === 0) {
+      return;
+    }
+
+    const normalizedIp = this.normalizeIpAddress(sessionContext?.ipAddress);
+    const normalizedUserAgent = this.normalizeValue(sessionContext?.userAgent);
+    const inactivityCutoff = this.getSessionInactivityCutoff(now);
+
+    const reclaimableSessionIds = activeSessions
+      .filter((session) => {
+        const isInactive = session.last_activity < inactivityCutoff;
+        const sessionUserAgent = this.normalizeValue(session.user_agent || undefined);
+        const sessionIp = this.normalizeIpAddress(session.ip_address || undefined);
+        const isSameClient = Boolean(
+          normalizedUserAgent &&
+          sessionUserAgent === normalizedUserAgent &&
+          (!normalizedIp || sessionIp === normalizedIp),
+        );
+        return isInactive || isSameClient;
+      })
+      .map((session) => session.session_id);
+
+    if (reclaimableSessionIds.length > 0) {
+      await prisma.userSession.updateMany({
+        where: {
+          session_id: { in: reclaimableSessionIds },
+        },
+        data: { is_active: false },
+      });
+    }
+
+    const remainingActiveSessions = await prisma.userSession.count({
+      where: {
+        account_id: accountId,
+        is_active: true,
+        expires_at: { gt: now },
+        refresh_expires_at: { gt: now },
+      },
+    });
+
+    if (remainingActiveSessions > 0) {
+      throw new Error('Account is already in use on another device or browser');
+    }
+  }
 
   /**
    * Register a new user
@@ -169,7 +273,7 @@ export class AuthService {
   /**
    * Login user
    */
-  async login(credentials: LoginCredentials): Promise<{ 
+  async login(credentials: LoginCredentials, sessionContext?: SessionContext): Promise<{ 
     user: Omit<User, 'password'>; 
     token: string; 
     refreshToken: string;
@@ -233,36 +337,7 @@ export class AuthService {
       };
     }
 
-    const now = new Date();
-
-    // Mark expired sessions as inactive (prevents stale locks when cookies are gone)
-    await prisma.userSession.updateMany({
-      where: {
-        account_id: account.account_id,
-        is_active: true,
-        OR: [
-          { expires_at: { lt: now } },
-          { refresh_expires_at: { lt: now } }
-        ]
-      },
-      data: { is_active: false }
-    });
-
-    // Check for existing active sessions
-    const existingActiveSessions = await prisma.userSession.findMany({
-      where: {
-        account_id: account.account_id,
-        is_active: true,
-        expires_at: { gt: now },
-        refresh_expires_at: { gt: now }
-      }
-    });
-
-    const hasActiveSession = existingActiveSessions.length > 0;
-    if (hasActiveSession) {
-      console.log(`[AuthService] Active session detected for email: ${credentials.email}`);
-      throw new Error('Account is already in use on another device or browser');
-    }
+    await this.enforceSingleActiveSession(account.account_id, sessionContext);
 
     // Get user permissions and roles from the role-based system
     const permissions = await this.permissionService.getUserPermissions(account.user.user_id);
@@ -305,6 +380,8 @@ export class AuthService {
         account_id: account.account_id,
         session_token: token, // Or a unique session ID
         refresh_token: refreshToken,
+        ip_address: this.normalizeIpAddress(sessionContext?.ipAddress),
+        user_agent: this.normalizeValue(sessionContext?.userAgent),
         expires_at: accessTokenExpiresAt,
         refresh_expires_at: refreshTokenExpiresAt,
         last_activity: new Date(),
@@ -658,7 +735,10 @@ export class AuthService {
   /**
    * Generate tokens for OAuth user
    */
-  async generateTokensForUser(userId: string): Promise<{ token: string; refreshToken: string }> {
+  async generateTokensForUser(
+    userId: string,
+    sessionContext?: SessionContext,
+  ): Promise<{ token: string; refreshToken: string }> {
     try {
       // Get user from database
       const account = await prisma.account.findUnique({
@@ -670,36 +750,7 @@ export class AuthService {
         throw new Error('User not found');
       }
 
-      const now = new Date();
-
-      // Mark expired sessions as inactive (prevents stale locks when cookies are gone)
-      await prisma.userSession.updateMany({
-        where: {
-          account_id: account.account_id,
-          is_active: true,
-          OR: [
-            { expires_at: { lt: now } },
-            { refresh_expires_at: { lt: now } }
-          ]
-        },
-        data: { is_active: false }
-      });
-
-      // Check for existing active sessions
-      const existingActiveSessions = await prisma.userSession.findMany({
-        where: {
-          account_id: account.account_id,
-          is_active: true,
-          expires_at: { gt: now },
-          refresh_expires_at: { gt: now }
-        },
-      });
-
-      const hasActiveSession = existingActiveSessions.length > 0;
-      if (hasActiveSession) {
-        console.log(`[AuthService] Active session detected for account: ${account.account_id}`);
-        throw new Error('Account is already in use on another device or browser');
-      }
+      await this.enforceSingleActiveSession(account.account_id, sessionContext);
 
       // Get user permissions and roles from the role-based system
       const permissions = await this.permissionService.getUserPermissions(account.user!.user_id);
@@ -740,6 +791,8 @@ export class AuthService {
           account_id: account.account_id,
           session_token: tokens.token,
           refresh_token: tokens.refreshToken,
+          ip_address: this.normalizeIpAddress(sessionContext?.ipAddress),
+          user_agent: this.normalizeValue(sessionContext?.userAgent),
           expires_at: accessTokenExpiresAt,
           refresh_expires_at: refreshTokenExpiresAt,
           last_activity: new Date(),
