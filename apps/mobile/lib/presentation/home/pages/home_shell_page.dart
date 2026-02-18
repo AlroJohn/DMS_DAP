@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/constants/app_strings.dart';
+import '../../../data/datasources/remote/intransit_remote.dart';
 import '../../../domain/repositories/pending_signatures_repository.dart';
 import '../../auth/cubit/auth_cubit.dart';
+import '../../in_transit/in_transit_cubit.dart';
+import '../../in_transit/pages/in_transit_page.dart';
 import '../../pending_signatures/cubit/pending_signatures_cubit.dart';
 import '../../pending_signatures/pages/pending_signatures_page.dart';
 
@@ -32,7 +35,10 @@ class _HomeShellPageState extends State<HomeShellPage> {
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          Center(child: Text(AppStrings.tabReceiving)),
+          BlocProvider(
+            create: (_) => InTransitCubit(context.read<IntransitRemote>()),
+            child: const InTransitPage(),
+          ),
           BlocProvider(
             create: (_) => PendingSignaturesCubit(
               context.read<PendingSignaturesRepository>(),
@@ -47,8 +53,8 @@ class _HomeShellPageState extends State<HomeShellPage> {
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.inbox),
-            label: AppStrings.tabReceiving,
+            icon: Icon(Icons.local_shipping_outlined),
+            label: AppStrings.tabInTransit,
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.pending_actions),

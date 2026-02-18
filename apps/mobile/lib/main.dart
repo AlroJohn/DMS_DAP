@@ -8,6 +8,7 @@ import 'data/datasources/remote/auth_api.dart';
 import 'data/datasources/remote/document_files_remote.dart';
 import 'data/datasources/remote/document_signing_remote.dart';
 import 'data/datasources/remote/document_stream_remote.dart';
+import 'data/datasources/remote/intransit_remote.dart';
 import 'data/datasources/remote/pending_signatures_remote.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/repositories/pending_signatures_repository_impl.dart';
@@ -32,6 +33,7 @@ void main() {
   final documentStreamRemote = DocumentStreamRemote(authApi.dio);
   final documentFilesRemote = DocumentFilesRemote(authApi.dio);
   final documentSigningRemote = DocumentSigningRemote(authApi.dio);
+  final intransitRemote = IntransitRemote(authApi.dio);
 
   runApp(
     BlocProvider<AuthCubit>.value(
@@ -42,9 +44,11 @@ void main() {
           value: documentFilesRemote,
           child: RepositoryProvider<DocumentSigningRemote>.value(
             value: documentSigningRemote,
-            child: RepositoryProvider<PendingSignaturesRepository>.value(
-              value: pendingSignaturesRepository,
-              child: MaterialApp(
+            child: RepositoryProvider<IntransitRemote>.value(
+              value: intransitRemote,
+              child: RepositoryProvider<PendingSignaturesRepository>.value(
+                value: pendingSignaturesRepository,
+                child: MaterialApp(
                 debugShowCheckedModeBanner: false,
                 title: AppStrings.appTitle,
                 theme: AppTheme.light,
@@ -52,6 +56,7 @@ void main() {
                 home: const AuthGate(),
               ),
             ),
+          ),
           ),
         ),
       ),
