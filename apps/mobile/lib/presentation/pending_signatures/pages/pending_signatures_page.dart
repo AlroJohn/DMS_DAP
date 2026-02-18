@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../document_viewer/pages/document_viewer_page.dart';
 import '../../../domain/entities/pending_signature_document.dart';
 import '../cubit/pending_signatures_cubit.dart';
-import 'document_placeholder_page.dart';
 
 const _monthNames = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -39,9 +39,10 @@ class _PendingSignaturesPageState extends State<PendingSignaturesPage> {
   void _openDocument(PendingSignatureDocument doc) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => DocumentPlaceholderPage(
+        builder: (_) => DocumentViewerPage(
           documentId: doc.documentId,
           documentName: doc.documentName,
+          files: doc.files,
           isSignMode: !doc.isSigned,
         ),
       ),

@@ -39,6 +39,9 @@ dependencies:
   equatable: ^2.0.5
   dio: ^5.7.0
   flutter_secure_storage: ^9.2.2
+  pdfx: ^2.9.2
+  signature: ^5.4.1
+  image_picker: ^1.0.7
 
 dev_dependencies:
   flutter_test:

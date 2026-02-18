@@ -5,6 +5,9 @@ import 'core/constants/app_strings.dart';
 import 'core/theme/app_theme.dart';
 import 'data/datasources/local/secure_token_storage.dart';
 import 'data/datasources/remote/auth_api.dart';
+import 'data/datasources/remote/document_files_remote.dart';
+import 'data/datasources/remote/document_signing_remote.dart';
+import 'data/datasources/remote/document_stream_remote.dart';
 import 'data/datasources/remote/pending_signatures_remote.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/repositories/pending_signatures_repository_impl.dart';
@@ -26,17 +29,30 @@ void main() {
   final PendingSignaturesRepository pendingSignaturesRepository =
       PendingSignaturesRepositoryImpl(pendingSignaturesRemote);
 
+  final documentStreamRemote = DocumentStreamRemote(authApi.dio);
+  final documentFilesRemote = DocumentFilesRemote(authApi.dio);
+  final documentSigningRemote = DocumentSigningRemote(authApi.dio);
+
   runApp(
     BlocProvider<AuthCubit>.value(
       value: authCubit,
-      child: RepositoryProvider<PendingSignaturesRepository>.value(
-        value: pendingSignaturesRepository,
-        child: MaterialApp(
-          debugShowCheckedModeBanner: false,
-          title: AppStrings.appTitle,
-          theme: AppTheme.light,
-          darkTheme: AppTheme.dark,
-          home: const AuthGate(),
+      child: RepositoryProvider<DocumentStreamRemote>.value(
+        value: documentStreamRemote,
+        child: RepositoryProvider<DocumentFilesRemote>.value(
+          value: documentFilesRemote,
+          child: RepositoryProvider<DocumentSigningRemote>.value(
+            value: documentSigningRemote,
+            child: RepositoryProvider<PendingSignaturesRepository>.value(
+              value: pendingSignaturesRepository,
+              child: MaterialApp(
+                debugShowCheckedModeBanner: false,
+                title: AppStrings.appTitle,
+                theme: AppTheme.light,
+                darkTheme: AppTheme.dark,
+                home: const AuthGate(),
+              ),
+            ),
+          ),
         ),
       ),
     ),
