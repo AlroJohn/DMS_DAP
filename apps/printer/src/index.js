@@ -7,10 +7,14 @@ const QRCode = require("qrcode");
 const pdfPrinter = require("pdf-to-printer");
 const { execSync } = require("child_process");
 
+// Load configuration
+const config = require("../config");
+
 // --- Configuration ---
-const SOCKET_URL = process.env.NEXT_PUBLIC_PRINTER_SOCKET_URL || "http://localhost:3001";
-const PRINTER_FILTER = "Brother"; // Filter to find the Brother printer
-const PRINTER_TOKEN = process.env.PRINTER_SOCKET_TOKEN;
+const SOCKET_URL = config.backendUrl;
+const PRINTER_FILTER = config.printerFilter;
+const PRINTER_TOKEN = config.printerToken;
+const DEBUG = config.debug;
 
 // 24mm tape height ~ 68 points (1mm = 2.835 points)
 // Minimal length for MAXIMUM QR code size
@@ -22,22 +26,37 @@ const PRO_MM_TO_PT = 2.83465;
 const PAGE_WIDTH = LABEL_WIDTH_MM * PRO_MM_TO_PT; // 30mm
 const PAGE_HEIGHT = LABEL_HEIGHT_MM * PRO_MM_TO_PT; // 24mm
 
-// IMPORTANT: Enable Auto-Cut in Brother P-touch Editor or Printer Properties:
-// 1. Open "Devices and Printers" → Right-click "Brother PT-P710BT" → "Printing Preferences"
-// 2. Go to "Advanced" tab → Enable "Auto Cut"
-// 3. Set "Cut Option" to "Cut at end"
-// 4. This ensures labels are cut precisely at the end of each print job
-
-// Setup Socket
-const socket = io(SOCKET_URL, {
+// Setup Socket with configuration
+const socketOptions = {
   auth: PRINTER_TOKEN ? { token: PRINTER_TOKEN } : { printer: true },
-  transports: ["websocket"],
+  transports: ["websocket", "polling"], // Allow fallback to polling
   rejectUnauthorized: false,
-});
+  reconnection: true,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  reconnectionAttempts: Infinity
+};
 
-console.log("Starting Brother PT-P710BT Printer Service...");
+const socket = io(SOCKET_URL, socketOptions);
+
+// Display configuration
+config.display();
+
+console.log("========================================");
+console.log("  BROTHER PRINTER CLIENT - STARTING");
+console.log("========================================");
 console.log(`Target Printer Filter: "${PRINTER_FILTER}"`);
-console.log(`Socket URL: ${SOCKET_URL}`);
+console.log(`Backend URL: ${SOCKET_URL}`);
+console.log(`Authentication: ${PRINTER_TOKEN ? 'Enabled' : 'Disabled'}`);
+console.log(`Debug Mode: ${DEBUG ? 'ON' : 'OFF'}`);
+console.log("========================================\n");
+
+// Check cloud configuration
+if (!config.isConfigured()) {
+  console.log('⚠️  CONFIGURATION WARNING ⚠️');
+  console.log('You are connecting to localhost.');
+  console.log('For AWS deployment, update BACKEND_URL in .env file\n');
+}
 
 // Helper: Find Brother Printer using Powershell (avoids native dependency issues)
 function getBrotherPrinterName() {
@@ -79,13 +98,37 @@ if (detectedPrinter) {
 }
 
 socket.on("connect", () => {
-  console.log(`✅ Connected to Socket Server: ${socket.id}`);
+  console.log(`✅ Connected to Backend Server`);
+  console.log(`   Socket ID: ${socket.id}`);
+  console.log(`   Backend: ${SOCKET_URL}`);
   socket.emit("printer:register");
-  console.log("📡 Printer service registered and ready to print\n");
+  console.log("📡 Printer service registered and ready to print");
+  console.log("   Keep this window open to process print jobs\n");
 });
 
-socket.on("disconnect", () => {
-  console.log("❌ Disconnected from server");
+socket.on("disconnect", (reason) => {
+  console.log(`❌ Disconnected from backend: ${reason}`);
+  if (reason === "io server disconnect") {
+    console.log("   Server closed the connection. Attempting to reconnect...");
+  }
+});
+
+socket.on("connect_error", (error) => {
+  console.error(`❌ Connection Error: ${error.message}`);
+  if (DEBUG) {
+    console.error("   Full error:", error);
+  }
+  console.log("   Will retry connection...\n");
+});
+
+socket.on("reconnect", (attemptNumber) => {
+  console.log(`✅ Reconnected to backend after ${attemptNumber} attempts`);
+});
+
+socket.on("reconnect_attempt", (attemptNumber) => {
+  if (DEBUG || attemptNumber % 5 === 0) {
+    console.log(`🔄 Reconnection attempt ${attemptNumber}...`);
+  }
 });
 
 // TRACK: Prevent duplicate print job processing
@@ -103,7 +146,6 @@ socket.on("printJob", async (job) => {
     return;
   }
   
-  // Check if this job is already being processed
   if (processedJobs.has(jobId)) {
     console.log(`⚠️  DUPLICATE DETECTED - Job ${jobId} is currently being processed`);
     return;
@@ -114,7 +156,9 @@ socket.on("printJob", async (job) => {
   jobTimestamps.set(jobId, now);
   
   console.log(`\n📨 Received Print Job: ${jobId}`);
-  console.log("Job data:", JSON.stringify(job.data, null, 2));
+  if (DEBUG) {
+    console.log("Job data:", JSON.stringify(job.data, null, 2));
+  }
   
   // Clean up old jobs after 10 seconds to prevent memory leak
   setTimeout(() => {
@@ -409,13 +453,42 @@ async function generateQRCodeLabelPDF(filepath, title, qrCodeData) {
 
 // Handle process termination gracefully
 process.on('SIGINT', () => {
-  console.log('\n👋 Shutting down printer service...');
+  console.log('\n\n========================================');
+  console.log('  SHUTTING DOWN PRINTER CLIENT');
+  console.log('========================================');
+  console.log('Disconnecting from backend...');
   socket.disconnect();
+  console.log('✅ Printer service stopped');
+  console.log('========================================\n');
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-  console.log('\n👋 Shutting down printer service...');
+  console.log('\n\n========================================');
+  console.log('  SHUTTING DOWN PRINTER CLIENT');
+  console.log('========================================');
+  console.log('Disconnecting from backend...');
   socket.disconnect();
+  console.log('✅ Printer service stopped');
+  console.log('========================================\n');
   process.exit(0);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('\n❌ UNCAUGHT EXCEPTION:');
+  console.error(error);
+  if (DEBUG) {
+    console.error('\nStack trace:');
+    console.error(error.stack);
+  }
+  console.error('\nPrinter service will continue running...\n');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('\n❌ UNHANDLED REJECTION:');
+  console.error('Reason:', reason);
+  if (DEBUG) {
+    console.error('Promise:', promise);
+  }
+  console.error('\nPrinter service will continue running...\n');
 });

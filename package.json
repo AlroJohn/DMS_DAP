@@ -5,7 +5,8 @@
   "description": "",
   "packageManager": "pnpm@10.18.3",
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --filter=backend --filter=frontend",
+    "dev:all": "turbo run dev",
     "dev:backend": "turbo run dev --filter=backend",
     "dev:frontend": "turbo run dev --filter=frontend",
     "dev:printer": "turbo run dev --filter=printer",
