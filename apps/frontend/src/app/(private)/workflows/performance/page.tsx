@@ -333,7 +333,7 @@ export default function WorkflowPerformancePage() {
           <CardContent>
             <div className="space-y-3">
               <div className="flex items-start gap-3 p-3 bg-green-50 dark:bg-green-950 rounded-lg">
-                <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
                 <div>
                   <div className="font-medium text-sm">Blockchain workflows performing well</div>
                   <div className="text-xs text-muted-foreground">
@@ -342,7 +342,7 @@ export default function WorkflowPerformancePage() {
                 </div>
               </div>
               <div className="flex items-start gap-3 p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg">
-                <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
                 <div>
                   <div className="font-medium text-sm">Invoice processing needs attention</div>
                   <div className="text-xs text-muted-foreground">
@@ -351,7 +351,7 @@ export default function WorkflowPerformancePage() {
                 </div>
               </div>
               <div className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                <Activity className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <Activity className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
                 <div>
                   <div className="font-medium text-sm">IT department leads in efficiency</div>
                   <div className="text-xs text-muted-foreground">

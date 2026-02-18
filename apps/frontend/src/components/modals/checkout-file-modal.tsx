@@ -761,7 +761,7 @@ export function CheckoutFileModal({
                               </div>
                               <div className="min-w-0 flex items-center gap-2">
                                 {isSignatureAction && (
-                                  <Folder className="h-4 w-4 text-primary flex-shrink-0" />
+                                  <Folder className="h-4 w-4 text-primary shrink-0" />
                                 )}
                                 <div>
                                   <p
@@ -825,7 +825,7 @@ export function CheckoutFileModal({
                               </div>
                               <div className="min-w-0 flex items-center gap-2">
                                 {isSignatureAction && (
-                                  <Folder className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                  <Folder className="h-4 w-4 text-blue-500 shrink-0" />
                                 )}
                                 <div>
                                   <p

@@ -734,7 +734,7 @@ export function EditDocumentModal({
                                 variant="ghost"
                                 size="sm"
                                 onClick={clearFilters}
-                                className="text-[11px] uppercase tracking-[0.15em] flex-shrink-0"
+                                className="text-[11px] uppercase tracking-[0.15em] shrink-0"
                               >
                                 <Recycle />
                               </Button>

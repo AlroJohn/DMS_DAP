@@ -222,7 +222,7 @@ export function LoginFormClient({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Card className="p-0 overflow-hidden min-h-[570px] md:min-h-[680px] h-full border-1 border-primary">
+      <Card className="p-0 overflow-hidden min-h-142.5 md:min-h-170 h-full border border-primary">
         <CardContent className="p-0 h-full relative border-0">
           <div className="relative h-full">
             <div className="px-10 flex flex-col justify-center h-full md:w-1/2 z-10">

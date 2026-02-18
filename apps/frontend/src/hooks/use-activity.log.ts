@@ -46,6 +46,7 @@ interface UseActivityLogsOptions {
   endDate?: Date;
   userId?: string;
   status?: string;
+  documentCode?: string;
   autoFetch?: boolean;
 }
 
@@ -57,6 +58,7 @@ export function useActivityLogs(options: UseActivityLogsOptions = {}): UseActivi
     endDate,
     userId,
     status,
+    documentCode,
     autoFetch = true,
   } = options;
 
@@ -90,6 +92,7 @@ export function useActivityLogs(options: UseActivityLogsOptions = {}): UseActivi
       if (endDate) params.append('endDate', endDate.toISOString());
       if (userId) params.append('userId', userId);
       if (status) params.append('status', status);
+      if (documentCode) params.append('documentCode', documentCode);
 
       const response = await fetch(`/api/reports/activity?${params.toString()}`, {
         method: 'GET',
@@ -125,7 +128,7 @@ export function useActivityLogs(options: UseActivityLogsOptions = {}): UseActivi
         setIsLoading(false);
       }
     }
-  }, [limit, offset, startDate, endDate, userId, status, autoFetch]);
+  }, [limit, offset, startDate, endDate, userId, status, documentCode, autoFetch]);
 
   const fetchActivityStats = useCallback(async () => {
     if (!isMountedRef.current || !autoFetch) return;

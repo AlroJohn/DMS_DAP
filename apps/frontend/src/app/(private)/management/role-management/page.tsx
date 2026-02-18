@@ -100,7 +100,7 @@ const RoleManagementPage = () => {
               <TableRow key={role.role_id}>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                    <Shield className="h-4 w-4 text-blue-500 shrink-0" />
                     <span className="font-medium">{role.name}</span>
                   </div>
                 </TableCell>

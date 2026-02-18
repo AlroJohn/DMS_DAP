@@ -134,7 +134,7 @@ const UserManagementPage = () => {
                 <TableCell>
                   <div className="flex flex-col gap-1.5 py-1 min-w-[200px]">
                     <div className="flex items-center gap-1.5">
-                      <Mail className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+                      <Mail className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                       <span className="text-xs">{user.account.email}</span>
                     </div>
                     {!user.account.email_verified && (
@@ -155,7 +155,7 @@ const UserManagementPage = () => {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1.5">
-                    <Building2 className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" />
+                    <Building2 className="h-3.5 w-3.5 text-orange-500 shrink-0" />
                     <span className="text-xs text-muted-foreground">{user.department.name}</span>
                   </div>
                 </TableCell>
@@ -280,13 +280,13 @@ const UserManagementPage = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1.5">
-                      <Mail className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+                      <Mail className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                       <span className="text-xs">{invitation.email}</span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1.5">
-                      <Building2 className="h-3.5 w-3.5 text-orange-500 flex-shrink-0" />
+                      <Building2 className="h-3.5 w-3.5 text-orange-500 shrink-0" />
                       <span className="text-xs text-muted-foreground">{invitation.department.name}</span>
                     </div>
                   </TableCell>

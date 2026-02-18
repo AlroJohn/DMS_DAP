@@ -23,6 +23,7 @@ export default function AuditTrailPage() {
     department: "all",
     classification: "all",
     documentType: "all",
+    documentCode: "",
   });
 
   // Fetch departments and document types for filters
