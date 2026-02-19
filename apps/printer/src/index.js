@@ -30,12 +30,19 @@ const PAGE_HEIGHT = LABEL_HEIGHT_MM * PRO_MM_TO_PT; // 24mm
 const socketOptions = {
   auth: PRINTER_TOKEN ? { token: PRINTER_TOKEN } : { printer: true },
   transports: ["websocket", "polling"], // Allow fallback to polling
-  rejectUnauthorized: false,
+  rejectUnauthorized: false, // Allow self-signed certificates
   reconnection: true,
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
-  reconnectionAttempts: Infinity
+  reconnectionAttempts: Infinity,
+  timeout: 10000, // 10 second timeout for initial connection
+  forceNew: true, // Force a new connection
 };
+
+console.log('\n🔌 Initializing Socket.IO Connection...');
+console.log(`   URL: ${SOCKET_URL}`);
+console.log(`   Transports: websocket, polling (fallback)`);
+console.log(`   Auth: ${PRINTER_TOKEN ? 'Token' : 'Printer flag'}`);
 
 const socket = io(SOCKET_URL, socketOptions);
 

@@ -79,10 +79,12 @@ const app = express();
 const server = http.createServer(app);
 
 // Initialize Socket.IO with proper CORS
+// Allow all origins for Socket.IO to support printer clients and local dev
 const io = new Server(server, {
   cors: {
-    origin: securityConfig.cors.allowedOrigins,
+    origin: true, // Allow all origins (printer clients, frontend, etc.)
     credentials: securityConfig.cors.credentials,
+    methods: ['GET', 'POST'],
   },
 });
 
