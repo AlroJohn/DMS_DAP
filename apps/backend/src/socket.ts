@@ -32,3 +32,22 @@ export const emitNotificationToDepartment = (departmentId: string, event: string
 
   ioInstance.to(`department_${departmentId}`).emit(event, data);
 };
+
+const getSignatureRoomKey = (documentId: string, fileId: string) =>
+  `document-${documentId}:file-${fileId}`;
+
+/**
+ * Notify all clients in the document/file signature room that signatures or text were saved
+ * (e.g. after place-signature or update-text-placeholder). Used so the web refetches when
+ * mobile (or any HTTP client) confirms.
+ */
+export const emitSignatureSave = (documentId: string, fileId: string, userId: string) => {
+  if (!ioInstance) return;
+  const roomKey = getSignatureRoomKey(documentId, fileId);
+  ioInstance.to(roomKey).emit('signature:save', {
+    room: roomKey,
+    documentId,
+    fileId,
+    userId,
+  });
+};

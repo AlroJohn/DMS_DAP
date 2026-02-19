@@ -618,7 +618,6 @@ export function SigningPdfViewer({
       textPlaceholderIds?: string[];
     }) => {
       if (data.room !== roomKey) return;
-      if (data.userId === signeeId) return;
       if (data.placeholderIds?.length) {
         setRemoteSignatureDrafts((prev) => {
           const next = { ...prev };

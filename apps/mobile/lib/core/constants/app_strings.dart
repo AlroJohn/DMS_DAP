@@ -15,6 +15,7 @@ class AppStrings {
   static const String loginButton = 'Sign in';
 
   // Tabs
+  static const String tabHome = 'Home';
   static const String tabInTransit = 'In Transit';
   static const String tabReceiving = 'Receiving';
   static const String tabPendingSignatures = 'Pending signatures';

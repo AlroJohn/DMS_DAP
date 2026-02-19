@@ -1,8 +1,9 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:signature/signature.dart';
+import 'package:syncfusion_flutter_signaturepad/signaturepad.dart';
 
 /// Modal to capture signature by drawing or uploading image. Returns data URL (e.g. data:image/png;base64,...) on save.
 class SignatureCaptureModal extends StatefulWidget {
@@ -28,26 +29,23 @@ class SignatureCaptureModal extends StatefulWidget {
 }
 
 class _SignatureCaptureModalState extends State<SignatureCaptureModal> {
-  final SignatureController _controller = SignatureController(
-    penStrokeWidth: 3,
-    penColor: Colors.black,
-    exportBackgroundColor: Colors.white,
-    exportPenColor: Colors.black,
-    onDrawStart: () {},
-    onDrawEnd: () {},
-  );
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  final GlobalKey<SfSignaturePadState> _signaturePadKey = GlobalKey<SfSignaturePadState>();
 
   Future<String?> _exportSignature() async {
-    final data = await _controller.toPngBytes(height: 200, width: 400);
-    if (data == null || data.isEmpty) return null;
-    final base64 = base64Encode(data);
+    final padState = _signaturePadKey.currentState;
+    if (padState == null) return null;
+    final image = await padState.toImage(pixelRatio: 2.0);
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    if (byteData == null) return null;
+    final bytes = byteData.buffer.asUint8List();
+    if (bytes.isEmpty) return null;
+    final base64 = base64Encode(bytes);
     return 'data:image/png;base64,$base64';
+  }
+
+  void _clear() {
+    _signaturePadKey.currentState?.clear();
   }
 
   Future<void> _pickImage() async {
@@ -77,9 +75,12 @@ class _SignatureCaptureModalState extends State<SignatureCaptureModal> {
             height: 200,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Signature(
-                controller: _controller,
+              child: SfSignaturePad(
+                key: _signaturePadKey,
                 backgroundColor: Colors.white,
+                strokeColor: Colors.black,
+                minimumStrokeWidth: 1,
+                maximumStrokeWidth: 4,
               ),
             ),
           ),
@@ -87,7 +88,7 @@ class _SignatureCaptureModalState extends State<SignatureCaptureModal> {
           Row(
             children: [
               TextButton.icon(
-                onPressed: () => _controller.clear(),
+                onPressed: _clear,
                 icon: const Icon(Icons.clear),
                 label: const Text('Clear'),
               ),

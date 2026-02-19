@@ -90,38 +90,60 @@ class _IncomingList extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     if (state.loadingIncoming && state.incoming.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Loading incoming documents...'),
-          ],
+      return RefreshIndicator(
+        onRefresh: () => context.read<InTransitCubit>().loadIncoming(),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height - 200,
+            ),
+            child: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Loading incoming documents...'),
+                ],
+              ),
+            ),
+          ),
         ),
       );
     }
     if (state.incoming.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.inbox_outlined, size: 64, color: theme.colorScheme.primary),
-              const SizedBox(height: 16),
-              Text(
-                'No incoming documents',
-                style: theme.textTheme.titleMedium,
-                textAlign: TextAlign.center,
+      return RefreshIndicator(
+        onRefresh: () => context.read<InTransitCubit>().loadIncoming(),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height - 200,
+            ),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.inbox_outlined, size: 64, color: theme.colorScheme.primary),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No incoming documents',
+                      style: theme.textTheme.titleMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Documents in transit to you will appear here.',
+                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Documents in transit to you will appear here.',
-                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                textAlign: TextAlign.center,
-              ),
-            ],
+            ),
           ),
         ),
       );
@@ -129,6 +151,7 @@ class _IncomingList extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: () => context.read<InTransitCubit>().loadIncoming(),
       child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         itemCount: state.incoming.length,
         itemBuilder: (context, index) {
@@ -154,38 +177,60 @@ class _OutgoingList extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     if (state.loadingOutgoing && state.outgoing.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Loading outgoing documents...'),
-          ],
+      return RefreshIndicator(
+        onRefresh: () => context.read<InTransitCubit>().loadOutgoing(),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height - 200,
+            ),
+            child: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Loading outgoing documents...'),
+                ],
+              ),
+            ),
+          ),
         ),
       );
     }
     if (state.outgoing.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.send_outlined, size: 64, color: theme.colorScheme.primary),
-              const SizedBox(height: 16),
-              Text(
-                'No outgoing documents',
-                style: theme.textTheme.titleMedium,
-                textAlign: TextAlign.center,
+      return RefreshIndicator(
+        onRefresh: () => context.read<InTransitCubit>().loadOutgoing(),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height - 200,
+            ),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.send_outlined, size: 64, color: theme.colorScheme.primary),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No outgoing documents',
+                      style: theme.textTheme.titleMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Documents you sent in transit will appear here.',
+                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Documents you sent in transit will appear here.',
-                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                textAlign: TextAlign.center,
-              ),
-            ],
+            ),
           ),
         ),
       );
@@ -193,6 +238,7 @@ class _OutgoingList extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: () => context.read<InTransitCubit>().loadOutgoing(),
       child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         itemCount: state.outgoing.length,
         itemBuilder: (context, index) {

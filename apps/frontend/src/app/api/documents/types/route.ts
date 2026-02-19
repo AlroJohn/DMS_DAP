@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 /**
  * GET /api/documents/types
@@ -13,14 +14,21 @@ export async function GET(request: NextRequest) {
       backendUrl = backendUrl.slice(0, -4);
     }
     
-    const cookies = request.headers.get("cookie");
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("accessToken")?.value;
+    const cookiesHeader = request.headers.get("cookie");
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...(cookiesHeader && { Cookie: cookiesHeader }),
+    };
+    if (accessToken) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
+    }
 
     const response = await fetch(`${backendUrl}/api/documents/types`, {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        ...(cookies && { Cookie: cookies }),
-      },
+      headers,
       credentials: "include",
     });
 

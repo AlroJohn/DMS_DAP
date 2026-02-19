@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,8 @@ import 'package:pdfx/pdfx.dart';
 import '../../../data/datasources/remote/document_files_remote.dart';
 import '../../../data/datasources/remote/document_signing_remote.dart';
 import '../../../data/datasources/remote/document_stream_remote.dart';
+import '../../../data/dto/signature_placeholder_dto.dart';
+import '../../../data/dto/text_placeholder_dto.dart';
 import '../../../domain/entities/pending_signature_document.dart';
 import '../../auth/cubit/auth_cubit.dart';
 import '../document_viewer_cubit.dart';
@@ -174,11 +177,17 @@ class _SignModeContentState extends State<_SignModeContent> {
       children: [
         if (viewerState.files.length > 1) _FileSelectionBar(state: viewerState),
         Expanded(
-          child: _PdfViewerContent(
-            bytes: viewerState.bytes,
-            files: viewerState.files,
-            currentFileId: viewerState.currentFileId,
-            onPageChanged: (page) => setState(() => _currentPage = page),
+          child: BlocBuilder<SigningCubit, SigningState>(
+            buildWhen: (prev, curr) => curr is SigningReady || prev is SigningReady,
+            builder: (context, signingState) {
+              return _PdfViewerContent(
+                bytes: viewerState.bytes,
+                files: viewerState.files,
+                currentFileId: viewerState.currentFileId,
+                onPageChanged: (page) => setState(() => _currentPage = page),
+                signOverlay: signingState is SigningReady ? signingState : null,
+              );
+            },
           ),
         ),
         BlocBuilder<SigningCubit, SigningState>(
@@ -416,12 +425,15 @@ class _PdfViewerContent extends StatefulWidget {
     required this.files,
     required this.currentFileId,
     this.onPageChanged,
+    this.signOverlay,
   });
 
   final Uint8List bytes;
   final List<DocumentFileInfo> files;
   final String currentFileId;
   final void Function(int page)? onPageChanged;
+  /// When non-null, placeholders are overlaid on each page (sign mode).
+  final SigningReady? signOverlay;
 
   @override
   State<_PdfViewerContent> createState() => _PdfViewerContentState();
@@ -455,25 +467,315 @@ class _PdfViewerContentState extends State<_PdfViewerContent> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return PdfView(
-      controller: _controller,
-      onPageChanged: widget.onPageChanged,
-      builders: PdfViewBuilders<DefaultBuilderOptions>(
-        options: const DefaultBuilderOptions(),
-        documentLoaderBuilder: (_) => const Center(child: CircularProgressIndicator()),
-        pageLoaderBuilder: (_) => const Center(child: CircularProgressIndicator()),
-        errorBuilder: (_, error) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              error.toString(),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
+  static const double _defaultPageWidth = 612;
+  static const double _defaultPageHeight = 792;
+
+  PhotoViewGalleryPageOptions _buildPageWithOverlay(
+    BuildContext context,
+    Future<PdfPageImage> pageImageFuture,
+    int index,
+    PdfDocument document,
+    SigningReady signOverlay,
+    String currentFileId,
+  ) {
+    return PhotoViewGalleryPageOptions.customChild(
+      childSize: const Size(_defaultPageWidth, _defaultPageHeight),
+      child: FutureBuilder<PdfPageImage>(
+        future: pageImageFuture,
+        builder: (context, imageSnap) {
+          if (!imageSnap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final image = imageSnap.data!;
+          return FutureBuilder<PdfPage>(
+            future: document.getPage(index + 1),
+            builder: (context, pageSnap) {
+              if (!pageSnap.hasData) {
+                return _buildPageImage(image);
+              }
+              final pdfPage = pageSnap.data!;
+              final scaleX = _defaultPageWidth / pdfPage.width;
+              final scaleY = _defaultPageHeight / pdfPage.height;
+              final sigList = signOverlay.signaturePlaceholders
+                  .where((p) =>
+                      p.documentFileId == currentFileId &&
+                      p.pageNumber == index + 1)
+                  .toList();
+              final textList = signOverlay.textPlaceholders
+                  .where((p) =>
+                      p.documentFileId == currentFileId &&
+                      p.pageNumber == index + 1)
+                  .toList();
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  _buildPageImage(image),
+                  Positioned.fill(
+                    child: _PlaceholderOverlay(
+                      scaleX: scaleX,
+                      scaleY: scaleY,
+                      displayWidth: _defaultPageWidth,
+                      displayHeight: _defaultPageHeight,
+                      signaturePlaceholders: sigList,
+                      textPlaceholders: textList,
+                      placedSignatures: signOverlay.placedSignatures,
+                      textValues: signOverlay.textValues,
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
       ),
     );
   }
+
+  Widget _buildPageImage(PdfPageImage image) {
+    return SizedBox(
+      width: _defaultPageWidth,
+      height: _defaultPageHeight,
+      child: Image.memory(
+        image.bytes,
+        width: _defaultPageWidth,
+        height: _defaultPageHeight,
+        fit: BoxFit.fill,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final signOverlay = widget.signOverlay;
+    return PdfView(
+      controller: _controller,
+      onPageChanged: widget.onPageChanged,
+      builders: signOverlay != null
+          ? PdfViewBuilders<DefaultBuilderOptions>(
+              options: const DefaultBuilderOptions(),
+              documentLoaderBuilder: (_) =>
+                  const Center(child: CircularProgressIndicator()),
+              pageLoaderBuilder: (_) =>
+                  const Center(child: CircularProgressIndicator()),
+              errorBuilder: (_, error) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    error.toString(),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+              pageBuilder: (context, pageImage, index, document) =>
+                  _buildPageWithOverlay(
+                context,
+                pageImage,
+                index,
+                document,
+                signOverlay,
+                widget.currentFileId,
+              ),
+            )
+          : PdfViewBuilders<DefaultBuilderOptions>(
+              options: const DefaultBuilderOptions(),
+              documentLoaderBuilder: (_) =>
+                  const Center(child: CircularProgressIndicator()),
+              pageLoaderBuilder: (_) =>
+                  const Center(child: CircularProgressIndicator()),
+              errorBuilder: (_, error) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    error.toString(),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+/// Overlay of signature and text placeholder boxes on a PDF page (sign mode).
+class _PlaceholderOverlay extends StatelessWidget {
+  const _PlaceholderOverlay({
+    required this.scaleX,
+    required this.scaleY,
+    required this.displayWidth,
+    required this.displayHeight,
+    required this.signaturePlaceholders,
+    required this.textPlaceholders,
+    required this.placedSignatures,
+    required this.textValues,
+  });
+
+  final double scaleX;
+  final double scaleY;
+  final double displayWidth;
+  final double displayHeight;
+  final List<SignaturePlaceholderDto> signaturePlaceholders;
+  final List<TextPlaceholderDto> textPlaceholders;
+  final Map<String, String> placedSignatures;
+  final Map<String, String> textValues;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        ...signaturePlaceholders.map((p) {
+          final left = p.xPosition * scaleX;
+          final top = p.yPosition * scaleY;
+          final w = p.width * scaleX;
+          final h = p.height * scaleY;
+          final dataUrl = placedSignatures[p.placeholderId];
+          return Positioned(
+            left: left,
+            top: top,
+            width: w,
+            height: h,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () async {
+                  final dataUrl = await SignatureCaptureModal.show(context);
+                  if (dataUrl != null && context.mounted) {
+                    context.read<SigningCubit>().setSignature(p.placeholderId, dataUrl);
+                  }
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: theme.colorScheme.primary,
+                      width: 2,
+                    ),
+                  ),
+                  child: dataUrl != null && dataUrl.startsWith('data:image')
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: Image.memory(
+                            base64Decode(dataUrl.split(',').last),
+                            fit: BoxFit.contain,
+                          ),
+                        )
+                      : Center(
+                          child: Text(
+                            'Signature',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          );
+        }),
+        ...textPlaceholders.map((p) {
+          final left = p.xPosition * scaleX;
+          final top = p.yPosition * scaleY;
+          final w = p.width * scaleX;
+          final h = p.height * scaleY;
+          final value =
+              textValues[p.placeholderId] ?? p.textValue ?? 'Text';
+          return Positioned(
+            left: left,
+            top: top,
+            width: w,
+            height: h,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () async {
+                  final result = await TextPlaceholderModal.show(
+                    context,
+                    initialValue: value == 'Text' ? '' : value,
+                    hint: 'Text for this field',
+                  );
+                  if (result != null && context.mounted) {
+                    context.read<SigningCubit>().setTextValue(p.placeholderId, result);
+                  }
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: CustomPaint(
+                    painter: _DashedBorderPainter(color: Colors.orange),
+                    child: Center(
+                      child: Text(
+                        value,
+                        style: theme.textTheme.bodySmall,
+                        textAlign: TextAlign.center,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+/// Paints a dashed border (used for text placeholder when Border doesn't support dash).
+class _DashedBorderPainter extends CustomPainter {
+  _DashedBorderPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+    const dashWidth = 4.0;
+    const dashSpace = 3.0;
+    double startX = 0;
+    while (startX < size.width) {
+      canvas.drawLine(
+        Offset(startX, 0),
+        Offset(startX + dashWidth, 0),
+        paint,
+      );
+      startX += dashWidth + dashSpace;
+    }
+    startX = 0;
+    while (startX < size.width) {
+      canvas.drawLine(
+        Offset(startX, size.height),
+        Offset(startX + dashWidth, size.height),
+        paint,
+      );
+      startX += dashWidth + dashSpace;
+    }
+    double startY = 0;
+    while (startY < size.height) {
+      canvas.drawLine(
+        Offset(0, startY),
+        Offset(0, startY + dashWidth),
+        paint,
+      );
+      startY += dashWidth + dashSpace;
+    }
+    startY = 0;
+    while (startY < size.height) {
+      canvas.drawLine(
+        Offset(size.width, startY),
+        Offset(size.width, startY + dashWidth),
+        paint,
+      );
+      startY += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

@@ -962,24 +962,34 @@ export class IntransitService {
         throw new Error('Document is not currently in in-transit status');
       }
 
-      // Only the owning/originating user can cancel (document creator)
+      const lastIntransitTrail = await prisma.documentTrail.findFirst({
+        where: {
+          document_id: documentId,
+          status: 'intransit'
+        },
+        orderBy: {
+          created_at: 'desc'
+        }
+      });
+
       const detail = await prisma.documentAdditionalDetails.findFirst({
         where: { document_id: documentId },
         select: { work_flow_id: true, account_id: true, detail_id: true }
       });
 
-      if (!detail?.account_id) {
-        throw new Error('Only the document owner can cancel this document');
-      }
-
-      const ownerAccountId = detail.account_id;
+      const isSender = lastIntransitTrail?.user_id === userId;
       const userAccount = await prisma.user.findUnique({
         where: { user_id: userId },
         select: { account_id: true }
       });
+      const isOwner = Boolean(
+        detail?.account_id &&
+        userAccount?.account_id &&
+        userAccount.account_id === detail.account_id
+      );
 
-      if (!userAccount?.account_id || userAccount.account_id !== ownerAccountId) {
-        throw new Error('Only the document owner can cancel this document');
+      if (!isSender && !isOwner) {
+        throw new Error('Only the document owner or the user who sent the document can cancel this document');
       }
 
       // If already pending or cancelled, treat as already cancelled
@@ -990,16 +1000,6 @@ export class IntransitService {
           documentId
         };
       }
-
-      const lastIntransitTrail = await prisma.documentTrail.findFirst({
-        where: {
-          document_id: documentId,
-          status: 'intransit'
-        },
-        orderBy: {
-          created_at: 'desc'
-        }
-      });
 
       // Update document status to 'cancelled'
       const updatedDocument = await prisma.document.update({

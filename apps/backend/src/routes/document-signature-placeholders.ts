@@ -4,6 +4,7 @@ import { auditService } from '../services/audit.service';
 import { NotificationService } from '../services/notification.service';
 import { prisma } from '../lib/prisma';
 import multer from 'multer';
+import { emitSignatureSave } from '../socket';
 
 const router = express.Router();
 const notificationService = new NotificationService();
@@ -666,13 +667,7 @@ router.post('/documents/:documentId/place-signature', async (req: Request, res: 
       description: `Document signed by ${user.first_name} ${user.last_name}`
     });
 
-    // Update document status to reflect signing
-    // await prisma.document.update({
-    //   where: { document_id: documentId },
-    //   data: {
-    //     status: 'completed' // or another appropriate status
-    //   }
-    // });
+    if (documentId) emitSignatureSave(documentId, document_file_id, signee_id);
 
     res.status(201).json(signedDocument);
   } catch (error) {

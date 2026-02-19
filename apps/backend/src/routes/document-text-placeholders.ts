@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
+import { emitSignatureSave } from '../socket';
 
 const router = express.Router();
 
@@ -141,6 +142,9 @@ router.put('/documents/:documentId/update-text-placeholder', async (req: Request
         text_value: text_value ?? ''  // Use empty string if null/undefined
       }
     });
+
+    const userId = (req as any).user?.user_id ?? 'system';
+    if (documentId) emitSignatureSave(documentId, placeholder.document_file_id, userId);
 
     res.json(updatedPlaceholder);
   } catch (error) {
