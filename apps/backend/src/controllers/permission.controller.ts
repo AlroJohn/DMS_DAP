@@ -15,6 +15,13 @@ export class PermissionController {
     this.permissionService = new PermissionService();
   }
 
+  private getStringValue = (param: string | string[] | undefined): string | undefined => {
+    if (Array.isArray(param)) {
+      return param[0];
+    }
+    return param;
+  };
+
   private resolveResourceType(permission: string, requested?: string | ResourceType): ResourceType {
     const normalizedRequested = requested?.toString().toLowerCase();
     if (normalizedRequested && RESOURCE_TYPE_VALUES.has(normalizedRequested)) {
@@ -99,7 +106,7 @@ export class PermissionController {
   // Get permission by ID
   getPermissionById = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
 
     // Check if user has permission to read permissions
     const canReadPermissions = await this.permissionService.hasPermission(
@@ -109,6 +116,10 @@ export class PermissionController {
 
     if (!canReadPermissions) {
       return sendError(res, 'Insufficient permissions to view permissions', 403);
+    }
+
+    if (!id) {
+      return sendError(res, 'Permission ID is required', 400);
     }
 
     try {
@@ -196,7 +207,7 @@ export class PermissionController {
   // Update permission
   updatePermission = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
 
     // Check if user has permission to edit permissions
     const canEditPermissions = await this.permissionService.hasPermission(
@@ -206,6 +217,9 @@ export class PermissionController {
 
     if (!canEditPermissions) {
       return sendError(res, 'Insufficient permissions to edit permissions', 403);
+    }
+    if (!id) {
+      return sendError(res, 'Permission ID is required', 400);
     }
 
     const {
@@ -281,7 +295,7 @@ export class PermissionController {
   // Delete permission
   deletePermission = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
 
     // Check if user has permission to delete permissions
     const canDeletePermissions = await this.permissionService.hasPermission(
@@ -291,6 +305,9 @@ export class PermissionController {
 
     if (!canDeletePermissions) {
       return sendError(res, 'Insufficient permissions to delete permissions', 403);
+    }
+    if (!id) {
+      return sendError(res, 'Permission ID is required', 400);
     }
 
     try {
@@ -331,7 +348,7 @@ export class PermissionController {
   // Get roles that have a specific permission
   getRolesWithPermission = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
 
     // Check if user has permission to read permissions
     const canReadPermissions = await this.permissionService.hasPermission(
@@ -342,9 +359,25 @@ export class PermissionController {
     if (!canReadPermissions) {
       return sendError(res, 'Insufficient permissions to view permissions', 403);
     }
+    if (!id) {
+      return sendError(res, 'Permission ID is required', 400);
+    }
 
     try {
-      const roles = await prisma.rolePermission.findMany({
+      type RolePermissionWithRole = Prisma.RolePermissionGetPayload<{
+        include: {
+          role: {
+            select: {
+              role_id: true;
+              name: true;
+              code: true;
+              is_active: true;
+            };
+          };
+        };
+      }>;
+
+      const roles: RolePermissionWithRole[] = await prisma.rolePermission.findMany({
         where: {
           permission_id: id,
           is_active: true

@@ -205,7 +205,7 @@ export function BlockchainSigningModal({ open, onOpenChange, document, onSigned 
             </div>
 
             <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg flex items-center gap-2 text-orange-800">
-              <AlertCircle className="h-5 w-5 flex-shrink-0" />
+              <AlertCircle className="h-5 w-5 shrink-0" />
               <p className="text-sm font-medium">
                 Important: Do not close this window or navigate away while your signature is being processed.
               </p>
@@ -260,7 +260,7 @@ export function BlockchainSigningModal({ open, onOpenChange, document, onSigned 
             </Card>
 
             <div className="bg-green-50 border border-green-200 text-green-800 p-4 rounded-lg flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 flex-shrink-0" />
+              <CheckCircle className="h-5 w-5 shrink-0" />
               <p className="text-sm font-medium">
                 Your document is now tamper-evident and its authenticity is verifiable on the blockchain.
               </p>

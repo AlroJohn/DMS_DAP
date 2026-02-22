@@ -313,24 +313,28 @@ export class DepartmentService {
     const users = await prisma.account.findMany({
       where: {
         department_id: departmentId,
-        deleted_at: null,
+        is_active: true,
       },
       select: {
         account_id: true,
         email: true,
         user: {
           select: {
+            user_id: true,
             first_name: true,
             last_name: true,
-          }
-        },
-        AccountRole: {
-          select: {
-            role: {
+            user_roles: {
+              where: {
+                is_active: true
+              },
               select: {
-                role_id: true,
-                name: true,
-                code: true,
+                role: {
+                  select: {
+                    role_id: true,
+                    name: true,
+                    code: true,
+                  }
+                }
               }
             }
           }
@@ -344,11 +348,12 @@ export class DepartmentService {
     });
 
     return users.map(user => ({
+      user_id: user.user?.user_id || null,
       account_id: user.account_id,
       email: user.email,
       name: `${user.user?.first_name || ''} ${user.user?.last_name || ''}`.trim() || user.email,
       department_id: departmentId,
-      roles: user.AccountRole.map(ar => ar.role)
+      roles: user.user?.user_roles?.map(ur => ur.role) || []
     }));
   }
   /**

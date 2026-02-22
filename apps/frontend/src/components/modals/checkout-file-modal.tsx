@@ -34,12 +34,17 @@ import {
   File,
   Home,
   Trash2,
+  RefreshCcw,
+  CheckCheck,
+  Eraser,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/use-auth";
 import { UploadVersionModal } from "./upload-version-modal";
+import { FullPageLoader } from "@/components/reuseable/full-page-loader";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 interface DocumentFile {
   id: string;
@@ -58,14 +63,17 @@ interface DocumentFile {
   };
   parentFileId?: string;
   versionGroupId?: string;
+  documentGroupId?: string | null;
+  documentGroupName?: string | null;
 }
 
 interface FileItem {
   id: string;
   name: string;
-  type: "file" | "version-group";
+  type: "file" | "version-group" | "document-group";
   data: DocumentFile | null;
   children?: DocumentFile[];
+  childItems?: FileItem[];
 }
 
 interface CheckoutFileModalProps {
@@ -73,54 +81,94 @@ interface CheckoutFileModalProps {
   onOpenChange: (open: boolean) => void;
   documentId: string | null;
   action?: "edit" | "signature";
+  onSuccess?: () => void;
 }
 
 const groupFilesToItems = (filesToGroup: DocumentFile[]): FileItem[] => {
-  const filesByGroup = new Map<string, DocumentFile[]>();
-  const ungroupedFiles: DocumentFile[] = [];
+  // First level: Group by documentGroupId
+  const filesByDocGroup = new Map<string, DocumentFile[]>();
+  const ungroupedByDocGroup: DocumentFile[] = [];
 
   filesToGroup.forEach((file) => {
-    const groupId = file.versionGroupId || file.id;
-    if (file.versionGroupId) {
-      if (!filesByGroup.has(groupId)) {
-        filesByGroup.set(groupId, []);
+    if (file.documentGroupId) {
+      if (!filesByDocGroup.has(file.documentGroupId)) {
+        filesByDocGroup.set(file.documentGroupId, []);
       }
-      filesByGroup.get(groupId)!.push(file);
+      filesByDocGroup.get(file.documentGroupId)!.push(file);
     } else {
-      ungroupedFiles.push(file);
+      ungroupedByDocGroup.push(file);
     }
   });
 
+  // Helper: Group files by versionGroupId (second level)
+  const groupByVersionGroup = (files: DocumentFile[]): FileItem[] => {
+    const filesByVersion = new Map<string, DocumentFile[]>();
+    const ungroupedFiles: DocumentFile[] = [];
+
+    files.forEach((file) => {
+      const groupId = file.versionGroupId || file.id;
+      if (file.versionGroupId) {
+        if (!filesByVersion.has(groupId)) {
+          filesByVersion.set(groupId, []);
+        }
+        filesByVersion.get(groupId)!.push(file);
+      } else {
+        ungroupedFiles.push(file);
+      }
+    });
+
+    const items: FileItem[] = [];
+
+    filesByVersion.forEach((groupFiles, groupId) => {
+      items.push({
+        id: groupId,
+        name:
+          groupFiles.length > 1
+            ? `${groupFiles[0].name.substring(0, 30)}${
+                groupFiles[0].name.length > 30 ? "..." : ""
+              } (${groupFiles.length} versions)`
+            : groupFiles[0].name.substring(0, 30) +
+              (groupFiles[0].name.length > 30 ? "..." : ""),
+        type: "version-group",
+        data: null,
+        children: groupFiles.sort(
+          (a, b) =>
+            new Date(b.uploadDate as string).getTime() -
+            new Date(a.uploadDate as string).getTime(),
+        ),
+      });
+    });
+
+    ungroupedFiles.forEach((file) => {
+      items.push({
+        id: file.id,
+        name: file.name,
+        type: "file",
+        data: file,
+      });
+    });
+
+    return items;
+  };
+
   const items: FileItem[] = [];
 
-  filesByGroup.forEach((groupFiles, groupId) => {
+  // Create document group items
+  filesByDocGroup.forEach((groupFiles, docGroupId) => {
+    const groupName = groupFiles[0]?.documentGroupName || `Group ${docGroupId.substring(0, 8)}`;
+    const childItems = groupByVersionGroup(groupFiles);
     items.push({
-      id: groupId,
-      name:
-        groupFiles.length > 1
-          ? `${groupFiles[0].name.substring(0, 30)}${
-              groupFiles[0].name.length > 30 ? "..." : ""
-            } (${groupFiles.length} versions)`
-          : groupFiles[0].name.substring(0, 30) +
-            (groupFiles[0].name.length > 30 ? "..." : ""),
-      type: "version-group",
+      id: docGroupId,
+      name: groupName,
+      type: "document-group",
       data: null,
-      children: groupFiles.sort(
-        (a, b) =>
-          new Date(b.uploadDate as string).getTime() -
-          new Date(a.uploadDate as string).getTime(),
-      ),
+      childItems,
     });
   });
 
-  ungroupedFiles.forEach((file) => {
-    items.push({
-      id: file.id,
-      name: file.name,
-      type: "file",
-      data: file,
-    });
-  });
+  // Add ungrouped files (grouped by version)
+  const ungroupedItems = groupByVersionGroup(ungroupedByDocGroup);
+  items.push(...ungroupedItems);
 
   return items;
 };
@@ -130,6 +178,7 @@ export function CheckoutFileModal({
   onOpenChange,
   documentId,
   action = "edit",
+  onSuccess,
 }: CheckoutFileModalProps) {
   const router = useRouter();
   const { user } = useAuth();
@@ -139,6 +188,7 @@ export function CheckoutFileModal({
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<DocumentFile | null>(null);
   const [currentPath, setCurrentPath] = useState<
@@ -231,6 +281,7 @@ export function CheckoutFileModal({
       if (!signatureTargets.length) return;
       const primaryFileId = signatureTargets[0];
       onOpenChange(false);
+      setIsNavigating(true);
       const params = new URLSearchParams();
       params.set("mode", "signature");
       params.set("fileId", primaryFileId);
@@ -249,6 +300,7 @@ export function CheckoutFileModal({
     ) {
       // File is already checked out by the current user, just navigate to edit
       onOpenChange(false);
+      setIsNavigating(true);
       router.push(
         `/documents/${documentId}?mode=edit&fileId=${selectedFileId}`,
       );
@@ -283,6 +335,8 @@ export function CheckoutFileModal({
       // Refresh the file list to ensure consistency with server state
       await fetchFiles();
       onOpenChange(false);
+      onSuccess?.();
+      setIsNavigating(true);
       router.push(
         `/documents/${documentId}?mode=edit&fileId=${selectedFileId}`,
       );
@@ -392,6 +446,105 @@ export function CheckoutFileModal({
     setSelectedFileIds([]);
   };
 
+  // Get all selectable file IDs from a document group
+  const getSelectableFileIdsFromDocumentGroup = (item: FileItem): string[] => {
+    const fileIds: string[] = [];
+    if (item.childItems) {
+      item.childItems.forEach((child) => {
+        if (child.type === "version-group" && child.children) {
+          child.children.forEach((file) => {
+            if (isSelectableForSignature(file)) {
+              fileIds.push(file.id);
+            }
+          });
+        } else if (child.type === "file" && child.data) {
+          if (isSelectableForSignature(child.data)) {
+            fileIds.push(child.data.id);
+          }
+        }
+      });
+    }
+    return fileIds;
+  };
+
+  // Get all selectable file IDs from a version group
+  const getSelectableFileIdsFromVersionGroup = (item: FileItem): string[] => {
+    const fileIds: string[] = [];
+    if (item.children) {
+      item.children.forEach((file) => {
+        if (isSelectableForSignature(file)) {
+          fileIds.push(file.id);
+        }
+      });
+    }
+    return fileIds;
+  };
+
+  // Check if all selectable files in a group are selected
+  const isDocumentGroupFullySelected = (item: FileItem): boolean => {
+    const selectableIds = getSelectableFileIdsFromDocumentGroup(item);
+    if (selectableIds.length === 0) return false;
+    return selectableIds.every((id) => selectedFileIds.includes(id));
+  };
+
+  const isDocumentGroupPartiallySelected = (item: FileItem): boolean => {
+    const selectableIds = getSelectableFileIdsFromDocumentGroup(item);
+    if (selectableIds.length === 0) return false;
+    const selectedInGroup = selectableIds.filter((id) => selectedFileIds.includes(id));
+    return selectedInGroup.length > 0 && selectedInGroup.length < selectableIds.length;
+  };
+
+  const isVersionGroupFullySelected = (item: FileItem): boolean => {
+    const selectableIds = getSelectableFileIdsFromVersionGroup(item);
+    if (selectableIds.length === 0) return false;
+    return selectableIds.every((id) => selectedFileIds.includes(id));
+  };
+
+  const isVersionGroupPartiallySelected = (item: FileItem): boolean => {
+    const selectableIds = getSelectableFileIdsFromVersionGroup(item);
+    if (selectableIds.length === 0) return false;
+    const selectedInGroup = selectableIds.filter((id) => selectedFileIds.includes(id));
+    return selectedInGroup.length > 0 && selectedInGroup.length < selectableIds.length;
+  };
+
+  // Toggle selection of all files in a document group
+  const handleDocumentGroupSelection = (item: FileItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const selectableIds = getSelectableFileIdsFromDocumentGroup(item);
+    if (selectableIds.length === 0) return;
+
+    const allSelected = isDocumentGroupFullySelected(item);
+    if (allSelected) {
+      // Deselect all files in this group
+      setSelectedFileIds((prev) => prev.filter((id) => !selectableIds.includes(id)));
+    } else {
+      // Select all files in this group
+      setSelectedFileIds((prev) => {
+        const newIds = new Set([...prev, ...selectableIds]);
+        return Array.from(newIds);
+      });
+    }
+  };
+
+  // Toggle selection of all files in a version group
+  const handleVersionGroupSelection = (item: FileItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const selectableIds = getSelectableFileIdsFromVersionGroup(item);
+    if (selectableIds.length === 0) return;
+
+    const allSelected = isVersionGroupFullySelected(item);
+    if (allSelected) {
+      // Deselect all files in this group
+      setSelectedFileIds((prev) => prev.filter((id) => !selectableIds.includes(id)));
+    } else {
+      // Select all files in this group
+      setSelectedFileIds((prev) => {
+        const newIds = new Set([...prev, ...selectableIds]);
+        return Array.from(newIds);
+      });
+    }
+  };
+
   const handleVersionGroupClick = (item: FileItem) => {
     if (item.children && item.children.length > 0) {
       setCurrentPath((prev) => [...prev, { id: item.id, name: item.name }]);
@@ -406,13 +559,10 @@ export function CheckoutFileModal({
     }
   };
 
-  const handleBack = () => {
-    if (currentPath.length > 0) {
-      const newPath = currentPath.slice(0, -1);
-      setCurrentPath(newPath);
-      if (newPath.length === 0) {
-        setFileItems(groupFilesToItems(files));
-      }
+  const handleDocumentGroupClick = (item: FileItem) => {
+    if (item.childItems && item.childItems.length > 0) {
+      setCurrentPath((prev) => [...prev, { id: item.id, name: item.name }]);
+      setFileItems(item.childItems);
     }
   };
 
@@ -452,6 +602,7 @@ export function CheckoutFileModal({
 
   return (
     <>
+      {isNavigating && <FullPageLoader message="Opening document" />}
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-4xl max-h-[80vh] flex flex-col">
           <DialogHeader>
@@ -468,246 +619,351 @@ export function CheckoutFileModal({
           </DialogHeader>
 
           <div className="flex flex-col flex-1 py-4 space-y-4 min-h-0">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="p-0 h-auto"
-                onClick={handleHome}
-              >
-                <Home className="h-4 w-4 mr-1" />
-                Home
-              </Button>
-              {currentPath.map((path) => (
-                <div key={path.id} className="flex items-center">
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium truncate">
-                    {path.name}
-                  </span>
-                </div>
-              ))}
+            <div className="flex flex-row justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="p-0 h-auto"
+                  onClick={handleHome}
+                >
+                  <Home className="h-4 w-4 mr-1" />
+                  Home
+                </Button>
+                {currentPath.map((path) => (
+                  <div key={path.id} className="flex items-center">
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium truncate">
+                      {path.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-4 items-center">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={fetchFiles}
+                      disabled={isProcessing}
+                      className="justify-center"
+                    >
+                      <RefreshCcw />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Refresh files</p>
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSelectAllSignatureFiles}
+                      disabled={
+                        !isSignatureAction ||
+                        !selectableSignatureFileIds.length ||
+                        isProcessing
+                      }
+                      className="justify-center text-xs w-fit"
+                    >
+                      <CheckCheck />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Select all PDF/s</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearSignatureSelection}
+                      disabled={
+                        !isSignatureAction ||
+                        !selectedFileIds.length ||
+                        isProcessing
+                      }
+                      className="justify-center w-fit border border-black"
+                    >
+                      <Eraser />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Clear all selected</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
             </div>
 
-            <div className="flex items-center justify-between gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleBack}
-                disabled={currentPath.length === 0 || isProcessing}
-              >
-                <ChevronLeft className="h-4 w-4 mr-2" />
-                Back
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={fetchFiles}
-                disabled={isProcessing}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-4 w-4 mr-2"
-                >
-                  <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-                  <path d="M21 3v5h-5"></path>
-                  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
-                  <path d="M8 16H3v5"></path>
-                </svg>
-                Refresh
-              </Button>
-              {isSignatureAction && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>
-                    Selected {selectedFileIds.length} of{" "}
-                    {selectableSignatureFileIds.length}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleSelectAllSignatureFiles}
-                    disabled={
-                      !selectableSignatureFileIds.length || isProcessing
-                    }
-                  >
-                    Select all PDFs
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleClearSignatureSelection}
-                    disabled={!selectedFileIds.length || isProcessing}
-                  >
-                    Clear
-                  </Button>
+            <ScrollArea className="flex-1 overflow-y-auto">
+              {isLoading ? (
+                <div className="flex h-40 items-center justify-center">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div>
+                  <div className="hidden md:grid grid-cols-[32px_1.6fr_0.6fr_0.6fr_0.6fr] gap-3 text-xs uppercase text-muted-foreground px-2 pb-2">
+                    <span />
+                    <span>Name</span>
+                    <span>Version</span>
+                    <span>Status</span>
+                    <span className="text-right">Actions</span>
+                  </div>
+                  <div className="space-y-2">
+                    {fileItems.length > 0 ? (
+                      fileItems.map((item) => {
+                        if (item.type === "document-group") {
+                          const totalFiles = item.childItems?.reduce((sum, child) => {
+                            if (child.type === "version-group") {
+                              return sum + (child.children?.length || 0);
+                            }
+                            return sum + (child.data ? 1 : 0);
+                          }, 0) || 0;
+                          const selectableCount = getSelectableFileIdsFromDocumentGroup(item).length;
+                          const isFullySelected = isDocumentGroupFullySelected(item);
+                          const isPartiallySelected = isDocumentGroupPartiallySelected(item);
+                          return (
+                            <div
+                              key={item.id}
+                              className={`grid grid-cols-[32px_1.6fr_0.6fr_0.6fr_0.6fr] items-center gap-3 rounded-lg border px-2 py-2 text-sm transition-colors cursor-pointer ${
+                                isFullySelected
+                                  ? "bg-primary/15 border-primary/50"
+                                  : isPartiallySelected
+                                    ? "bg-primary/8 border-primary/40"
+                                    : "bg-primary/5 border-primary/30 hover:border-primary/50 hover:bg-primary/10"
+                              }`}
+                              onClick={() => handleDocumentGroupClick(item)}
+                              role="button"
+                              tabIndex={0}
+                            >
+                              <div onClick={(e) => e.stopPropagation()}>
+                                {isSignatureAction ? (
+                                  <Checkbox
+                                    checked={isFullySelected}
+                                    ref={(el) => {
+                                      if (el && isPartiallySelected) {
+                                        (el as any).indeterminate = true;
+                                      }
+                                    }}
+                                    disabled={selectableCount === 0}
+                                    onCheckedChange={() => handleDocumentGroupSelection(item)}
+                                    className="data-[state=indeterminate]:bg-primary/50"
+                                  />
+                                ) : (
+                                  <Folder className="h-5 w-5 text-primary" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex items-center gap-2">
+                                {isSignatureAction && (
+                                  <Folder className="h-4 w-4 text-primary shrink-0" />
+                                )}
+                                <div>
+                                  <p
+                                    className="truncate font-medium"
+                                    title={item.name}
+                                  >
+                                    {item.name}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Document Group
+                                  </p>
+                                </div>
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {totalFiles} file{totalFiles !== 1 ? "s" : ""}
+                              </span>
+                              <Badge variant="default" className="w-fit">
+                                Group
+                              </Badge>
+                              <span className="text-right text-xs text-muted-foreground">
+                                Open
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        if (item.type === "version-group") {
+                          const selectableCount = getSelectableFileIdsFromVersionGroup(item).length;
+                          const isFullySelected = isVersionGroupFullySelected(item);
+                          const isPartiallySelected = isVersionGroupPartiallySelected(item);
+                          return (
+                            <div
+                              key={item.id}
+                              className={`grid grid-cols-[32px_1.6fr_0.6fr_0.6fr_0.6fr] items-center gap-3 rounded-lg border px-2 py-2 text-sm transition-colors cursor-pointer ${
+                                isFullySelected
+                                  ? "bg-blue-500/15 border-blue-500/50"
+                                  : isPartiallySelected
+                                    ? "bg-blue-500/8 border-blue-500/40"
+                                    : "bg-card hover:border-primary/50 hover:bg-accent/40"
+                              }`}
+                              onClick={() => handleVersionGroupClick(item)}
+                              role="button"
+                              tabIndex={0}
+                            >
+                              <div onClick={(e) => e.stopPropagation()}>
+                                {isSignatureAction ? (
+                                  <Checkbox
+                                    checked={isFullySelected}
+                                    ref={(el) => {
+                                      if (el && isPartiallySelected) {
+                                        (el as any).indeterminate = true;
+                                      }
+                                    }}
+                                    disabled={selectableCount === 0}
+                                    onCheckedChange={() => handleVersionGroupSelection(item)}
+                                    className="data-[state=indeterminate]:bg-blue-500/50"
+                                  />
+                                ) : (
+                                  <Folder className="h-5 w-5 text-blue-500" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex items-center gap-2">
+                                {isSignatureAction && (
+                                  <Folder className="h-4 w-4 text-blue-500 shrink-0" />
+                                )}
+                                <div>
+                                  <p
+                                    className="truncate font-medium"
+                                    title={item.name}
+                                  >
+                                    {item.name}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Version Group
+                                  </p>
+                                </div>
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {item.children?.length || 0} file{(item.children?.length || 0) !== 1 ? "s" : ""}
+                              </span>
+                              <Badge variant="outline" className="w-fit">
+                                Versions
+                              </Badge>
+                              <span className="text-right text-xs text-muted-foreground">
+                                Open
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        if (item.data) {
+                          const file = item.data;
+                          const isLocked = file.checkout;
+                          const isLockedByMe =
+                            isLocked &&
+                            file.checkedOutBy?.accountId === user?.accountId;
+                          const isLockedByOther = isLocked && !isLockedByMe;
+                          const isSelectable =
+                            !isSignatureAction ||
+                            isSelectableForSignature(file);
+                          const isSelected = isSignatureAction
+                            ? selectedFileIds.includes(file.id)
+                            : selectedFileId === file.id;
+
+                          return (
+                            <div
+                              key={file.id}
+                              className={`grid grid-cols-[32px_1.6fr_0.6fr_0.6fr_0.6fr] items-center gap-3 rounded-lg border px-2 py-2 text-sm transition-colors ${
+                                !isSelectable
+                                  ? "cursor-not-allowed bg-muted/20 opacity-60"
+                                  : "cursor-pointer bg-card hover:border-primary/50 hover:bg-accent/40"
+                              } ${isSelected ? "border-primary/60 bg-primary/5" : ""}`}
+                              onClick={() =>
+                                isSignatureAction
+                                  ? isSelectable &&
+                                    handleSignatureSelection(file)
+                                  : !isLockedByOther && handleFileClick(file)
+                              }
+                            >
+                              <div onClick={(e) => e.stopPropagation()}>
+                                {isSignatureAction ? (
+                                  <Checkbox
+                                    checked={isSelected}
+                                    disabled={!isSelectable}
+                                    onCheckedChange={() =>
+                                      handleSignatureSelection(file)
+                                    }
+                                  />
+                                ) : (
+                                  <File className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <p
+                                  className="truncate font-medium"
+                                  title={file.name}
+                                >
+                                  {file.name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {file.type || "Unknown type"}
+                                </p>
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {file.version ? `v${file.version}` : "v1.0"}
+                              </span>
+                              <div className="text-xs text-muted-foreground">
+                                {isLockedByOther ? (
+                                  <Badge variant="destructive">Locked</Badge>
+                                ) : isLockedByMe ? (
+                                  <Badge variant="default">Checked out</Badge>
+                                ) : (
+                                  <Badge variant="outline">Available</Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center justify-end gap-2">
+                                {isLockedByMe && (
+                                  <Button
+                                    variant="secondary"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={(e) =>
+                                      handleUnlockFile(file.id, e)
+                                    }
+                                    title="Unlock"
+                                  >
+                                    <Unlock className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {currentPath.length > 0 &&
+                                  !isLockedByOther &&
+                                  !file.isPrimary && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setFileToDelete(file);
+                                      }}
+                                      title="Delete Version"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                        <div className="mb-4 rounded-full bg-muted/50 p-4">
+                          <File className="h-8 w-8 opacity-50" />
+                        </div>
+                        <p>No files found in this location.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-              <div className="text-sm text-muted-foreground">
-                {fileItems.length} items
-              </div>
-            </div>
-
-            <ScrollArea className="flex-1 pr-4 overflow-y-auto">
-              <div className="space-y-2">
-                {isLoading ? (
-                  <div className="flex justify-center items-center h-40">
-                    <Loader2 className="h-8 w-8 animate-spin" />
-                  </div>
-                ) : fileItems.length > 0 ? (
-                  fileItems.map((item) => {
-                    if (item.type === "version-group") {
-                      return (
-                        <div
-                          key={item.id}
-                          className="flex items-center justify-between rounded-md border p-3 hover:bg-accent cursor-pointer"
-                          onClick={() => handleVersionGroupClick(item)}
-                        >
-                          <div className="flex items-center space-x-3">
-                            <Folder className="h-5 w-5 text-blue-500" />
-                            <div>
-                              <div className="font-medium">{item.name}</div>
-                              <div className="text-xs text-muted-foreground">
-                                Version Group
-                              </div>
-                            </div>
-                          </div>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                      );
-                    } else if (item.data) {
-                      const file = item.data;
-                      const isLocked = file.checkout;
-                      const isLockedByMe =
-                        isLocked &&
-                        file.checkedOutBy?.accountId === user?.accountId;
-                      const isLockedByOther = isLocked && !isLockedByMe;
-                      const isSelectable =
-                        !isSignatureAction || isSelectableForSignature(file);
-                      const isSelected =
-                        isSignatureAction && selectedFileIds.includes(file.id);
-                      return (
-                        <div
-                          key={file.id}
-                          className={`flex items-center justify-between rounded-md border p-3 group ${
-                            !isSelectable
-                              ? "cursor-not-allowed bg-muted/30 text-muted-foreground"
-                              : "cursor-pointer hover:bg-accent"
-                          } ${
-                            (!isSignatureAction &&
-                              selectedFileId === file.id) ||
-                            isSelected
-                              ? "bg-accent border-primary"
-                              : ""
-                          }`}
-                          onClick={() =>
-                            isSignatureAction
-                              ? isSelectable && handleSignatureSelection(file)
-                              : !isLockedByOther && handleFileClick(file)
-                          }
-                        >
-                          <div className="flex items-center space-x-3 overflow-hidden">
-                            {isSignatureAction && (
-                              <Checkbox
-                                checked={isSelected}
-                                disabled={!isSelectable}
-                                onClick={(event) => event.stopPropagation()}
-                                onCheckedChange={() =>
-                                  handleSignatureSelection(file)
-                                }
-                              />
-                            )}
-                            <File className="h-5 w-5 text-green-500 flex-shrink-0" />
-                            <div className="overflow-hidden">
-                              <div
-                                className={`font-medium  ${file.name.length > 10 ? "truncate" : ""}`}
-                              >
-                                {file.name}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {file.version
-                                  ? `Version ${file.version}`
-                                  : "No version"}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1 pl-2">
-                            {isLockedByMe ? (
-                              <div className="flex items-center gap-1">
-                                <Badge
-                                  variant="default"
-                                  className="flex items-center gap-1 bg-green-600"
-                                >
-                                  <UserCheck className="h-3 w-3" />
-                                  Locked by you
-                                </Badge>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 px-2"
-                                  onClick={(event) =>
-                                    handleUnlockFile(file.id, event)
-                                  }
-                                  disabled={isProcessing}
-                                  title="Unlock file"
-                                >
-                                  <Lock className="h-3 w-3 mr-1" />
-                                  Unlock
-                                </Button>
-                              </div>
-                            ) : isLockedByOther ? (
-                              <Badge
-                                variant="destructive"
-                                className="flex items-center gap-1"
-                              >
-                                <Lock className="h-3 w-3" />
-                                Locked by{" "}
-                                {file.checkedOutBy?.name || "another user"}
-                              </Badge>
-                            ) : (
-                              <Badge
-                                variant="secondary"
-                                className="flex items-center gap-1"
-                              >
-                                <Unlock className="h-3 w-3" />
-                                Available
-                              </Badge>
-                            )}
-                            {currentPath.length > 0 &&
-                              !isLockedByOther &&
-                              !file.isPrimary && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setFileToDelete(file);
-                                  }}
-                                  disabled={isProcessing}
-                                  title="Delete file"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              )}
-                          </div>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No files found in this document.
-                  </div>
-                )}
-              </div>
             </ScrollArea>
 
             {currentPath.length > 0 && (

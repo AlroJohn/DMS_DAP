@@ -43,7 +43,9 @@ export default function EditProcessType() {
       const response = await fetch(`/api/process-type/${params.id}`);
       
       if (response.ok) {
-        const data: ProcessType = await response.json();
+        const result = await response.json();
+        // Handle response format { success: true, data: {...} }
+        const data: ProcessType = result.success ? result.data : result;
         setFormData({
           name: data.name,
           description: data.description || "",

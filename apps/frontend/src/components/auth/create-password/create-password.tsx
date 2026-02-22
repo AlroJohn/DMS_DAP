@@ -4,7 +4,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/hooks/use-auth";
@@ -15,7 +21,10 @@ interface CreatePasswordFormProps {
   email?: string;
 }
 
-export default function CreatePasswordForm({ token, email }: CreatePasswordFormProps) {
+export default function CreatePasswordForm({
+  token,
+  email,
+}: CreatePasswordFormProps) {
   const router = useRouter();
   const { login } = useAuth(); // Use the login function
 
@@ -49,11 +58,14 @@ export default function CreatePasswordForm({ token, email }: CreatePasswordFormP
 
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/auth/reset-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password }),
-      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/auth/reset-password`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, password }),
+        },
+      );
       const data = await res.json();
       if (!res.ok) {
         setError(data?.error?.message || "Failed to set password");
@@ -69,7 +81,7 @@ export default function CreatePasswordForm({ token, email }: CreatePasswordFormP
             if (loginRes.ok) {
               login(); // Re-fetch user data and update auth state
               toast.success("Password set and logged in");
-              router.push("/dashboard");
+              router.push("/home");
               return;
             }
           } catch {}
@@ -92,7 +104,11 @@ export default function CreatePasswordForm({ token, email }: CreatePasswordFormP
     <Card className="w-full max-w-md">
       <CardHeader>
         <CardTitle>Create your password</CardTitle>
-        <CardDescription>{email ? `Account: ${email}` : "Set a password to finish setting up your account."}</CardDescription>
+        <CardDescription>
+          {email
+            ? `Account: ${email}`
+            : "Set a password to finish setting up your account."}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {error && (
@@ -139,15 +155,27 @@ export default function CreatePasswordForm({ token, email }: CreatePasswordFormP
                   type="button"
                   onClick={() => setShowConfirm((v) => !v)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
-                  aria-label={showConfirm ? "Hide confirm password" : "Show confirm password"}
+                  aria-label={
+                    showConfirm
+                      ? "Hide confirm password"
+                      : "Show confirm password"
+                  }
                 >
                   {showConfirm ? "Hide" : "Show"}
                 </button>
               </div>
             </Field>
             <div className="flex gap-2 justify-end pt-2">
-              <Button type="button" variant="outline" onClick={() => router.push("/login")}>Cancel</Button>
-              <Button type="submit" disabled={isSubmitting || !token}>{isSubmitting ? "Saving..." : "Save password"}</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push("/login")}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting || !token}>
+                {isSubmitting ? "Saving..." : "Save password"}
+              </Button>
             </div>
           </FieldGroup>
         </form>
@@ -155,5 +183,3 @@ export default function CreatePasswordForm({ token, email }: CreatePasswordFormP
     </Card>
   );
 }
-
-

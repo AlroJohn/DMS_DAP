@@ -1,2 +1,0 @@
-# Configure the migration provider. Managed manually.
-provider = "postgresql"

@@ -82,6 +82,16 @@ export interface GenericNotificationEmailData {
   companyName?: string;
 }
 
+/**
+ * Interface for 2FA verification code email data
+ */
+export interface TwoFactorAuthEmailData {
+  email: string;
+  userName?: string;
+  code: string;
+  expiresIn: string; // e.g., "10 minutes"
+}
+
 export class EmailService {
   private transporter: nodemailer.Transporter;
 
@@ -98,13 +108,7 @@ export class EmailService {
     });
 
     // Log SMTP configuration (without password)
-    console.log('Email Service initialized with configuration:', {
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_SECURE === 'true',
-      user: process.env.SMTP_USER || '',
-      from: process.env.SMTP_FROM || process.env.SMTP_USER
-    });
+
   }
 
   /**
@@ -1638,6 +1642,225 @@ The workflow for this document has been completed successfully.
 This is an automated message. Please do not reply to this email.
 
 © ${new Date().getFullYear()} ${companyName}. All rights reserved.
+    `.trim();
+  }
+
+  /**
+   * Send 2FA verification code email
+   */
+  async send2FACodeEmail(data: TwoFactorAuthEmailData): Promise<boolean> {
+    try {
+      const companyName = 'Document Management System';
+      const mailOptions = {
+        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        to: data.email,
+        subject: 'Your Two-Factor Authentication Code',
+        html: this.generate2FACodeEmailHTML(data),
+        text: this.generate2FACodeEmailText(data)
+      };
+
+      const result = await this.transporter.sendMail(mailOptions);
+      console.log('2FA code email sent:', result.messageId);
+      return true;
+    } catch (error) {
+      console.error('Error sending 2FA code email:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Generate HTML email template for 2FA verification code
+   */
+  private generate2FACodeEmailHTML(data: TwoFactorAuthEmailData): string {
+    const companyName = 'Document Management System';
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Your Two-Factor Authentication Code</title>
+        <style>
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6; 
+            color: #333; 
+            margin: 0;
+            padding: 0;
+            background-color: #f6f9fc;
+          }
+          .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background-color: #f6f9fc;
+          }
+          .email-content { 
+            background-color: #ffffff; 
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+          }
+          .header { 
+            background: linear-gradient(135deg, #14298c, #0f1f69); 
+            padding: 30px; 
+            text-align: center; 
+            color: white;
+          }
+          .logo {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+          }
+          .main-content { 
+            padding: 40px 30px; 
+          }
+          .welcome-message {
+            text-align: center;
+            margin-bottom: 30px;
+          }
+          .welcome-message h1 {
+            color: #14298c;
+            margin-top: 0;
+          }
+          .content-text {
+            margin-bottom: 25px;
+          }
+          .content-text p {
+            margin: 0 0 15px 0;
+            font-size: 16px;
+            line-height: 1.6;
+          }
+          .code-container {
+            background: linear-gradient(135deg, #f0f4ff, #e8eeff);
+            border: 2px dashed #14298c;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 30px 0;
+            text-align: center;
+          }
+          .code-label {
+            font-size: 14px;
+            color: #6b7280;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+          }
+          .code-value {
+            font-size: 42px;
+            font-weight: bold;
+            color: #14298c;
+            letter-spacing: 8px;
+            font-family: 'Courier New', monospace;
+          }
+          .security-note { 
+            background: #fff5f5; 
+            border-left: 4px solid #e74c3c; 
+            padding: 15px; 
+            border-radius: 0 8px 8px 0; 
+            margin: 25px 0;
+          }
+          .security-note h3 {
+            color: #e74c3c;
+            margin-top: 0;
+            font-size: 16px;
+          }
+          .security-note ul {
+            padding-left: 20px;
+            margin: 10px 0;
+          }
+          .security-note li {
+            margin-bottom: 8px;
+            font-size: 14px;
+          }
+          .footer { 
+            background-color: #f8f9fa; 
+            padding: 25px 30px; 
+            text-align: center; 
+            font-size: 14px; 
+            color: #6c757d; 
+            border-top: 1px solid #e9ecef;
+          }
+          .divider {
+            height: 1px;
+            background-color: #e9ecef;
+            margin: 20px 0;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="email-content">
+            <div class="header">
+              <div class="logo">${companyName}</div>
+              <h1>Two-Factor Authentication</h1>
+            </div>
+            <div class="main-content">
+              <div class="welcome-message">
+                <h1>Verify Your Identity</h1>
+              </div>
+              
+              <div class="content-text">
+                <p>Hello${data.userName ? ` ${data.userName}` : ''},</p>
+                
+                <p>We received a request to sign in to your account. To complete the sign-in process, please use the following verification code:</p>
+              </div>
+              
+              <div class="code-container">
+                <div class="code-label">Your Verification Code</div>
+                <div class="code-value">${data.code}</div>
+              </div>
+
+              <div class="security-note">
+                <h3>Important Security Information</h3>
+                <ul>
+                  <li>This code will expire in ${data.expiresIn}</li>
+                  <li>If you didn't request this code, please ignore this email and ensure your account password is secure</li>
+                  <li>Never share this code with anyone</li>
+                  <li>This code is valid for one-time use only</li>
+                </ul>
+              </div>
+              
+              <div class="content-text">
+                <p>If you have any concerns about your account security, please contact our support team immediately.</p>
+              </div>
+            </div>
+            <div class="footer">
+              <div class="divider"></div>
+              <p>This is an automated message. Please do not reply to this email.</p>
+              <p>&copy; ${new Date().getFullYear()} ${companyName}. All rights reserved.</p>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  /**
+   * Generate plain text email for 2FA verification code
+   */
+  private generate2FACodeEmailText(data: TwoFactorAuthEmailData): string {
+    return `
+TWO-FACTOR AUTHENTICATION CODE
+
+Hello${data.userName ? ` ${data.userName}` : ''},
+
+We received a request to sign in to your account. To complete the sign-in process, please use the following verification code:
+
+YOUR VERIFICATION CODE: ${data.code}
+
+IMPORTANT SECURITY INFORMATION:
+- This code will expire in ${data.expiresIn}
+- If you didn't request this code, please ignore this email and ensure your account password is secure
+- Never share this code with anyone
+- This code is valid for one-time use only
+
+If you have any concerns about your account security, please contact our support team immediately.
+
+This is an automated message. Please do not reply to this email.
+
+© ${new Date().getFullYear()} Document Management System. All rights reserved.
     `.trim();
   }
 }

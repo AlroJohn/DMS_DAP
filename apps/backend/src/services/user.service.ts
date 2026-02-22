@@ -77,13 +77,13 @@ export class UserService {
             is_active: true,
             email_verified: true,
             last_login: true,
-            department: {
-              select: {
-                department_id: true,
-                name: true,
-                code: true,
-              }
-            }
+          }
+        },
+        department: {
+          select: {
+            department_id: true,
+            name: true,
+            code: true,
           }
         },
         user_roles: {
@@ -122,9 +122,9 @@ export class UserService {
         last_login: user.account.last_login || undefined,
       },
       department: {
-        department_id: user.account.department?.department_id || '',
-        name: user.account.department?.name || '',
-        code: user.account.department?.code || '',
+        department_id: user.department.department_id,
+        name: user.department.name,
+        code: user.department.code,
       },
       user_roles: user.user_roles.map(ur => ({
         role: {
@@ -322,13 +322,13 @@ export class UserService {
             is_active: true,
             email_verified: true,
             last_login: true,
-            department: {
-              select: {
-                department_id: true,
-                name: true,
-                code: true,
-              }
-            }
+          }
+        },
+        department: {
+          select: {
+            department_id: true,
+            name: true,
+            code: true,
           }
         },
         user_roles: {
@@ -368,9 +368,9 @@ export class UserService {
         last_login: user.account.last_login || undefined,
       },
       department: {
-        department_id: user.account.department?.department_id || '',
-        name: user.account.department?.name || '',
-        code: user.account.department?.code || '',
+        department_id: user.department.department_id,
+        name: user.department.name,
+        code: user.department.code,
       },
       user_roles: user.user_roles.map(ur => ({
         role: {

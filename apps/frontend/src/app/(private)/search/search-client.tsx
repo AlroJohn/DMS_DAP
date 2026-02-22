@@ -420,7 +420,7 @@ export default function SearchPageClient() {
         {/* Filters Sidebar */}
         <div className="lg:col-span-1 flex flex-col overflow-hidden">
           <Card className="flex flex-col overflow-hidden">
-            <CardHeader className="flex-shrink-0">
+            <CardHeader className="shrink-0">
               <CardTitle className="flex items-center gap-2">
                 <Filter className="h-4 w-4" />
                 Advanced Filters
@@ -481,7 +481,7 @@ export default function SearchPageClient() {
                     <SelectItem value="pending">Dispatch</SelectItem>
                     <SelectItem value="intransit">In Transit</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="canceled">Canceled</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
                     <SelectItem value="deleted">Deleted</SelectItem>
                   </SelectContent>
                 </Select>
@@ -592,7 +592,7 @@ export default function SearchPageClient() {
             onValueChange={(value) =>
               setSearchType(value as "document" | "ocr")
             }
-            className="flex-shrink-0"
+            className="shrink-0"
           >
             <TabsList className="grid w-full max-w-md grid-cols-2">
               <TabsTrigger value="document">Document Code</TabsTrigger>
@@ -601,7 +601,7 @@ export default function SearchPageClient() {
           </Tabs>
 
           <Card className="flex flex-col flex-1 overflow-hidden min-h-0">
-            <CardHeader className="flex-shrink-0">
+            <CardHeader className="shrink-0">
               <div className="flex items-center gap-4">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -630,7 +630,7 @@ export default function SearchPageClient() {
             </CardHeader>
 
             <CardContent className="flex-1 overflow-y-auto flex flex-col min-h-0">
-              <div className="flex items-center justify-between mb-6 flex-shrink-0">
+              <div className="flex items-center justify-between mb-6 shrink-0">
                 <p className="text-sm text-muted-foreground">
                   Found <span className="font-medium">{totalResults}</span>{" "}
                   documents

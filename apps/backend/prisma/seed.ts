@@ -2,8 +2,50 @@ import { Prisma, Prisma as PrismaType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../src/lib/prisma';
 
+const durationUnitInMinutes = {
+  weeks: 7 * 24 * 60,
+  days: 24 * 60,
+  hours: 60,
+  minutes: 1
+} as const;
+
+type DurationUnit = keyof typeof durationUnitInMinutes;
+type DurationBreakdown = Partial<Record<DurationUnit, number>>;
+
+const convertDurationToMinutes = (breakdown: DurationBreakdown) =>
+  Object.entries(breakdown).reduce((total, [unit, value]) => {
+    if (!value) {
+      return total;
+    }
+    const normalizedUnit = unit as DurationUnit;
+    return total + value * durationUnitInMinutes[normalizedUnit];
+  }, 0);
+
+const formatDurationSummary = (breakdown: DurationBreakdown) => {
+  const parts = Object.entries(breakdown).reduce<string[]>((acc, [unit, value]) => {
+    if (!value) {
+      return acc;
+    }
+    const normalizedUnit = unit as DurationUnit;
+    const singular = normalizedUnit.replace(/s$/, '');
+    const label = value === 1 ? singular : normalizedUnit;
+    acc.push(`${value} ${label}`);
+    return acc;
+  }, []);
+
+  return parts.join(', ') || 'Duration not specified';
+};
+
+const deriveAcronym = (text: string) =>
+  text
+    .split(/[^A-Za-z]+/)
+    .filter(Boolean)
+    .map((word) => word[0]?.toUpperCase() ?? '')
+    .join('');
+
 async function main() {
   console.log('🌱 Starting database seeding for Super Admin...');
+
 
   try {
     const superAdminEmails = [
@@ -83,6 +125,11 @@ async function main() {
           }
         });
 
+        // Delete uploaded files
+        await tx.documentFile.deleteMany({
+          where: { uploaded_by: existingSuperAdmin.account_id }
+        });
+
         await tx.account.delete({
           where: { account_id: existingSuperAdmin.account_id }
         });
@@ -148,6 +195,7 @@ async function main() {
           password: superAdminPassword,
           email_verified: true,
           is_active: true,
+          two_factor_enabled: false,
           last_login: new Date(),
           department_id: tempDepartment.department_id
         }
@@ -342,6 +390,11 @@ async function main() {
         name: 'Secretary',
         code: 'SECRETARY',
         description: 'Standard user with access to own transactions'
+      },
+      {
+        name: 'Viewer',
+        code: 'VIEWER',
+        description: 'Read-only access to view documents and data without any actions'
       }
     ];
 
@@ -482,7 +535,7 @@ async function main() {
       })
     );
 
-    // PRESIDENT Role: Documents, Search, Reports, Notification, Management (Types, Actions, Users only - NO process_type)
+    // PRESIDENT Role: Documents, Search, Reports, Notification, Management (Types, Actions, Users only - NO process_type), role_read, role_assign
     const departmentHeadPermissions = uniquePermissionIds(
       allPermissions.filter(permission => {
         const permStr = normalizePermission(permission.permission);
@@ -492,8 +545,10 @@ async function main() {
         const isReportPerm = hasPrefix(permission.permission, permissionPrefix.report);
         const isUserPerm = hasPrefix(permission.permission, permissionPrefix.user);
         const isDepartmentReadPerm = permStr === 'department_read';
+        const isRoleReadPerm = permStr === 'role_read';
+        const isRoleAssignPerm = permStr === 'role_assign';
 
-        return isDocumentPerm || isNotificationPerm || isReportPerm || isUserPerm || isDepartmentReadPerm;
+        return isDocumentPerm || isNotificationPerm || isReportPerm || isUserPerm || isDepartmentReadPerm || isRoleReadPerm || isRoleAssignPerm;
       })
     );
 
@@ -510,6 +565,25 @@ async function main() {
     await assignPermissionsToRole('SECRETARY', userPermissions);
     await assignPermissionsToRole('PRESIDENT', departmentHeadPermissions);
     await assignPermissionsToRole('ADMINISTRATOR', administratorPermissions);
+
+    // VIEWER Role: Document viewing only - can only view documents, no actions allowed
+    const viewerPermissions = uniquePermissionIds(
+      allPermissions.filter(permission => {
+        const permStr = normalizePermission(permission.permission);
+        // Only document-related read/view permissions - no user, role, department, or system reads
+        return permStr === 'document_read' ||
+               permStr === 'document_metadata_read' ||
+               permStr === 'document_routing_read' ||
+               permStr === 'document_audit_read' ||
+               permStr === 'document_recycle_view' ||
+               permStr === 'document_custody_view' ||
+               permStr === 'document_type_read' ||
+               permStr === 'document_action_read' ||
+               permStr === 'process_type_read';
+      })
+    );
+
+    await assignPermissionsToRole('VIEWER', viewerPermissions);
 
     // Step 8: Get Super Admin user and assign role
     const superAdminUser = await prisma.user.findFirst({
@@ -594,6 +668,7 @@ async function main() {
             password: superAdminPassword,
             email_verified: true,
             is_active: true,
+            two_factor_enabled: false,
             last_login: new Date(),
             department_id: tempDepartment.department_id
           }
@@ -630,6 +705,68 @@ async function main() {
 
     // Step 9: Create groups, centers, and departments for workflow simulation
     console.log('\n🏢 Creating groups, centers, and departments for workflow simulation...');
+    const departmentNameMap: Record<string, string> = {
+      'OPCEO': 'Office of the President and Chief Executive Officer',
+      'APO DAPSec': 'Asian Productivity Office',
+      'BOARDSEC': 'Board Secretariat',
+      'COF': 'Council of Fellows',
+      'DRDO': 'Dap Research and Development Office',
+      'LSO': 'Legal Services Office',
+      'OAR': 'Office of the Academy Registrar',
+      'OAR-Linang': 'Office of the Academy Registrar- Linang',
+      'OVP-CAG': 'Office of the Vice-President- Corporate Affairs Group',
+      'IAS': 'Internal Audit Services',
+      'DAPCC': 'Development Academy of the Philippines Conference Center',
+      'DAPCC-EMS': 'DAPCC- Engineering and Maintenance Services',
+      'DAPCC-FBS': 'DAPCC- Food and Beverages Services',
+      'DAPCC-FMSO': 'DAPCC- Facilities Marketing and Sales Office',
+      'DAPCC-RFS': 'DAPCC- Rooms and Facilities Services',
+      'DAPCC-SS': 'DAPCC- Support Services',
+      'IMC': 'Institutional Marketing Office',
+      'IMSO': 'Integrated Managment System Office',
+      'PMSO': 'Planning & Managment System Office',
+      'DEAN-GSPDM': 'Graduate School of Public and Development Management',
+      'LIBRARY': 'Library',
+      'HGSPC': 'Health Governance & Social Protection Cluster',
+      'SDRLGC': 'Security Governance & Diplomacy Cluster',
+      'SGDC': 'Security Governance & Diplomacy Cluster',
+      'OSVP-P': 'Office of the Senior Vice-President-Programs',
+      'OVP-CCD': 'Office of the Vice-President-',
+      'AAO': 'Advocacy & Admission Office',
+      'JEDO': 'Junior Executive Development Office',
+      'SEDO': 'Senior Executive Development Office',
+      'CSF': 'Center for Strategic Futures',
+      'OVP-CFG': 'Office of the Vice-President- Center For Governance',
+      'AO25SEC': 'AO25 Secretariat',
+      'COE-PSP': 'Center of Excellence on Public Sector Productivity',
+      'LGDO': 'Local Governance and Development Office',
+      'OMO': 'Operations Management Office',
+      'PRO': 'Policy Research Office',
+      'DSM': 'DAP sa Mindanao',
+      'OVP-PDC': 'Office of the Vice President-Productivity Development Center',
+      'AIDO': 'Advocacy and Institutional Development Center',
+      'GQMP': 'Government Quality Management Program',
+      'MGRP': 'Government Quality Management Program',
+      'PDRO': 'Productivity Development Research Office',
+      'PQTO': 'Productivity & Quality Training Office',
+      'TMO': 'Productivity & Quality Training Office',
+      'SHDP': 'Sustainable Human Development Program',
+      'OSVP-S': 'Office of the Senior Vice-President-Services',
+      'ODM-AD': 'Office of the Department Manager-Administrative Department',
+      'BacSec': 'Bids and Awards Committee Secretariat',
+      'CDRD': 'Central Documentation & Records Division',
+      'CS': 'Café Services',
+      'GSD': 'General Services Office',
+      'ICTD': 'Information and Communications & Technology Division',
+      'LD': 'Logistics Division',
+      'ODM-FD': 'Office of the Department Manager-Finance Division',
+      'AD': 'Accounting Division',
+      'BD': 'Budget Division',
+      'TD': 'Treasury Division',
+      'ODM-HRMDD': 'Office of the Department Manager- Human Resource Management and Development Division',
+      'HRD': 'Human Resource Development',
+      'HRM': 'Human Resource Management'
+    };
     const groupDefinitions = [
       {
         name: 'Administration',
@@ -744,16 +881,17 @@ async function main() {
       }
 
       for (const deptCode of groupDef.departments) {
+        const departmentName = departmentNameMap[deptCode] || deptCode;
         const department = await prisma.department.upsert({
           where: { code: deptCode },
           update: {
-            name: deptCode,
+            name: departmentName,
             active: true,
             group_id: group.group_id,
             center_id: null
           },
           create: {
-            name: deptCode,
+            name: departmentName,
             code: deptCode,
             active: true,
             created_by: superAdminAccount.account_id,
@@ -769,16 +907,17 @@ async function main() {
           continue;
         }
         for (const deptCode of centerDef.departments) {
+          const departmentName = departmentNameMap[deptCode] || deptCode;
           const department = await prisma.department.upsert({
             where: { code: deptCode },
             update: {
-              name: deptCode,
+              name: departmentName,
               active: true,
               group_id: group.group_id,
               center_id: center.center_id
             },
             create: {
-              name: deptCode,
+              name: departmentName,
               code: deptCode,
               active: true,
               created_by: superAdminAccount.account_id,
@@ -788,6 +927,246 @@ async function main() {
           });
           createdDepartments.push(department);
         }
+      }
+    }
+
+    const departmentsByCode = new Map(
+      createdDepartments
+        .filter((dept) => dept.code)
+        .map((dept) => [dept.code, dept])
+    );
+
+    const centersFromDb = await prisma.center.findMany({
+      include: {
+        departments: {
+          select: { code: true }
+        }
+      }
+    });
+
+    const centerDepartmentsMap = new Map<string, string[]>(
+      centersFromDb.map((center) => [
+        center.code,
+        center.departments.map((dept) => dept.code)
+      ])
+    );
+
+    interface ProcessDefinition {
+      key: string;
+      name: string;
+      description: string;
+      breakdown: DurationBreakdown;
+      centers?: string[];
+      departments?: string[];
+      code?: string;
+    }
+
+    const centerProcessSeeds: ProcessDefinition[] = [
+      {
+        key: 'CENTER_ENROLLMENT_PUBLIC_COURSES',
+        name: 'ENROLLMENT IN PUBLIC COURSES/DELIVERY OF PUBLIC COURSE OFFERINGS',
+        description: 'Enrollment in public courses and delivery of public course offerings',
+        breakdown: { weeks: 2, days: 5, minutes: 5 },
+        code: 'EIPCDOPCO',
+        centers: ['CFG', 'PDC']
+      },
+      {
+        key: 'CENTER_CUSTOMIZED_TRAINING',
+        name: 'DELIVERY OF CUSTOMIZED TRAINING SERVICES',
+        description: 'Delivery of customized training services',
+        breakdown: { days: 12, minutes: 5 },
+        code: 'DOCTS',
+        centers: ['CFG', 'PDC', 'SHDP']
+      },
+      {
+        key: 'CENTER_TECHNICAL_ASSISTANCE',
+        name: 'REQUEST FOR TECHNICAL ASSISTANCE/ CONSULTANCY/ RESEARCH SERVICES',
+        description: 'Requests for technical assistance, consultancy, and research services',
+        breakdown: { weeks: 2, days: 5, minutes: 5 },
+        code: 'RFTACRS',
+        centers: ['CFG', 'PDC', 'SHDP']
+      },
+      {
+        key: 'CENTER_BANQUET_EXTERNAL',
+        name: 'REQUEST FOR BANQUET SERVICE BY EXTERNAL CLIENTS',
+        description: 'Banquet service requests from external clients',
+        breakdown: { hours: 3 },
+        code: 'RFBSBEC',
+        centers: ['AD']
+      }
+    ];
+
+    const departmentProcessSeeds: ProcessDefinition[] = [
+      {
+        key: 'OAR_APPLICATION_ADMISSION',
+        name: 'APPLICATION FOR ADMISSION AND ENROLLMENT TO MASTERS DEGREE (PUBLIC OFFERING)',
+        description: 'Application for admission and enrollment to masters degree public offering',
+        breakdown: { weeks: 1 },
+        code: 'AFAEETMDPO',
+        departments: ['OAR']
+      },
+      {
+        key: 'OAR_REQUEST_CERTIFICATIONS',
+        name: 'REQUEST FOR CERTIFICATION/S OF STUDENT CREDENTIALS',
+        description: 'Certification requests for student credentials',
+        breakdown: { days: 3, minutes: 40 },
+        code: 'RFCSOSC',
+        departments: ['OAR']
+      },
+      {
+        key: 'OAR_REQUEST_CAV',
+        name: 'REQUEST FOR CERTIFICATION, AUTHENTICATION AND VERIFICATION (CAV)',
+        description: 'Certification, authentication and verification requests',
+        breakdown: { weeks: 1, minutes: 40 },
+        code: 'RFCAV',
+        departments: ['OAR']
+      },
+      {
+        key: 'OAR_REQUEST_COPY_CREDENTIALS',
+        name: 'REQUEST FOR COPY OF STUDENT CREDENTIALS',
+        description: 'Copy requests for student credentials',
+        breakdown: { days: 5, minutes: 30 },
+        code: 'RFCOSC',
+        departments: ['OAR']
+      },
+      {
+        key: 'OAR_REQUEST_CT_COPY',
+        name: 'REQUEST FOR CERTIFIED TRUE COPY OF STUDENT CREDENTIALS',
+        description: 'Certified true copy requests for student credentials',
+        breakdown: { minutes: 40 },
+        code: 'RFCTCOSC',
+        departments: ['OAR']
+      },
+      {
+        key: 'OAR_REQUEST_ID_REPLACEMENT',
+        name: 'REQUEST FOR ID REPLACEMENT',
+        description: 'ID replacement requests',
+        breakdown: { minutes: 50 },
+        code: 'RFIDR',
+        departments: ['OAR']
+      },
+      {
+        key: 'PMSO_PMIS_ACCOUNT',
+        name: 'CREATION OF PROJECT MANAGEMENT INFORMATION SYSTEM (PMIS) ACCOUNT',
+        description: 'Creation of PMIS account',
+        breakdown: { days: 1, hours: 2 },
+        code: 'COPMIS',
+        departments: ['PMSO']
+      },
+      {
+        key: 'PMSO_PROJECT_SPECIAL_ORDER',
+        name: 'ISSUANCE OF PROJECT SPECIAL ORDER',
+        description: 'Issuance of project special order',
+        breakdown: { days: 1, hours: 4 },
+        code: 'IOPSO',
+        departments: ['PMSO']
+      },
+      {
+        key: 'PMSO_REVISED_SPECIAL_ORDER',
+        name: 'ISSUANCE OF REVISED PROJECT SPECIAL ORDER',
+        description: 'Issuance of revised project special order',
+        breakdown: { days: 1, hours: 7 },
+        code: 'IORPSO',
+        departments: ['PMSO']
+      },
+      {
+        key: 'CS_BANQUET_INTERNAL',
+        name: 'REQUEST FOR BANQUET SERVICE BY INTERNAL CLIENTS',
+        description: 'Banquet service requests from internal clients',
+        breakdown: { days: 9, hours: 2 },
+        code: 'RFBSBIC',
+        departments: ['CS']
+      },
+      {
+        key: 'CS_BANQUET_EXTERNAL',
+        name: 'REQUEST FOR BANQUET SERVICE BY EXTERNAL CLIENTS',
+        description: 'Banquet service requests from external clients',
+        breakdown: { hours: 3 },
+        code: 'RFBSBEC',
+        departments: ['CS']
+      },
+      {
+        key: 'LD_BILLING_COLLECTION',
+        name: 'REQUEST FOR BILLING AND COLLECTION',
+        description: 'Billing and collection requests',
+        breakdown: { days: 12, minutes: 27 },
+        code: 'RFBC',
+        departments: ['LD']
+      },
+      {
+        key: 'LD_CASH_ADVANCE_SPECIFIC',
+        name: 'REQUEST FOR CASH ADVANCE WITH SPECIFIC PURPOSE/S',
+        description: 'Cash advance requests for specific purposes',
+        breakdown: { days: 14, minutes: 24 },
+        code: 'RFCAWSP',
+        departments: ['LD']
+      },
+      {
+        key: 'LD_CASH_ADVANCE_TRAVEL',
+        name: 'REQUEST FOR CASH ADVANCE FOR LOCAL OR FOREIGN TRAVEL',
+        description: 'Cash advance requests for travel',
+        breakdown: { days: 7, minutes: 24 },
+        code: 'RFCAFLOFT',
+        departments: ['LD']
+      }
+    ];
+
+    const sanitizeDepartmentCode = (code: string) =>
+      code.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+
+    const upsertProcessType = async (definition: ProcessDefinition, departmentCode: string) => {
+      const department = departmentsByCode.get(departmentCode);
+      if (!department) {
+        console.warn(`⚠️ Department ${departmentCode} missing for process ${definition.key}`);
+        return;
+      }
+      const durationMinutes = convertDurationToMinutes(definition.breakdown);
+      const durationSummary = formatDurationSummary(definition.breakdown);
+      const baseProcessCode = definition.code || deriveAcronym(definition.name);
+      const uniqueCode = `${baseProcessCode}_${sanitizeDepartmentCode(departmentCode)}`;
+      const uniqueName = `${definition.name} (${departmentCode})`;
+      const descriptionWithDuration = `${definition.description} (${durationSummary})`;
+
+      await prisma.processType.upsert({
+        where: { code: uniqueCode },
+        update: {
+          name: uniqueName,
+          description: descriptionWithDuration,
+          duration_value: durationMinutes,
+          duration_unit: 'minutes',
+          origin_department_id: department.department_id,
+          is_active: true
+        },
+        create: {
+          code: uniqueCode,
+          name: uniqueName,
+          description: descriptionWithDuration,
+          duration_value: durationMinutes,
+          duration_unit: 'minutes',
+          origin_department_id: department.department_id,
+          is_active: true
+        }
+      });
+    };
+
+    console.log('\n⏱️ Seeding process types for centers and departments...');
+    for (const definition of [...centerProcessSeeds, ...departmentProcessSeeds]) {
+      const targetDepartments = new Set<string>();
+
+      if (definition.centers?.length) {
+        for (const centerCode of definition.centers) {
+          const centerDepartments = centerDepartmentsMap.get(centerCode);
+          if (!centerDepartments) {
+            continue;
+          }
+          centerDepartments.forEach((dept) => targetDepartments.add(dept));
+        }
+      }
+
+      definition.departments?.forEach((dept) => targetDepartments.add(dept));
+
+      for (const deptCode of targetDepartments) {
+        await upsertProcessType(definition, deptCode);
       }
     }
 
@@ -834,11 +1213,6 @@ async function main() {
     }
 
     const createdUsers = [];
-    const departmentsByCode = new Map(
-      createdDepartments
-        .filter((dept) => dept.code)
-        .map((dept) => [dept.code, dept])
-    );
 
     const commonPassword = await bcrypt.hash('password123', 12);
     const normalizeCode = (code: string) => code.toLowerCase().replace(/\s+/g, '');
@@ -858,6 +1232,7 @@ async function main() {
             password: commonPassword,
             email_verified: true,
             is_active: true,
+            two_factor_enabled: false,
             last_login: new Date(),
             department_id: params.departmentId
           },
@@ -979,12 +1354,15 @@ async function main() {
     // Step 11: Create some document actions for testing
     console.log('\n📝 Creating sample document actions...');
     const documentActions = [
-      { action_name: 'For Approval', description: 'Document requires approval', sender_tag: 'FROM', recipient_tag: 'TO' },
-      { action_name: 'For Signature', description: 'Document requires signature', sender_tag: 'FROM', recipient_tag: 'TO' },
-      { action_name: 'For Review', description: 'Document requires review', sender_tag: 'FROM', recipient_tag: 'TO' },
-      { action_name: 'For Cancellation', description: 'Document is requested to be cancelled', sender_tag: 'FROM', recipient_tag: 'TO' },
-      { action_name: 'Cancelled', description: 'Document has been cancelled', sender_tag: 'FROM', recipient_tag: 'TO' },
-      { action_name: 'Approved', description: 'Document has been approved', sender_tag: 'FROM', recipient_tag: 'TO' }
+      { action_name: 'FOR APPROVAL', description: 'Document requires approval', sender_tag: 'FROM', recipient_tag: 'TO' },
+      { action_name: 'FOR REVIEW', description: 'Document requires review', sender_tag: 'FROM', recipient_tag: 'TO' },
+      { action_name: 'FOR CANCELLATION', description: 'Document is requested to be cancelled', sender_tag: 'FROM', recipient_tag: 'TO' },
+      { action_name: 'FOR SIGNATURE', description: 'Document requires signature', sender_tag: 'FROM', recipient_tag: 'TO' },
+      { action_name: 'FOR COMPLETE', description: 'Document is ready for completion', sender_tag: 'FROM', recipient_tag: 'TO' },
+      { action_name: 'FOR EDIT', description: 'Document requires editing', sender_tag: 'FROM', recipient_tag: 'TO' },
+      { action_name: 'APPROVED', description: 'Document has been approved', sender_tag: 'FROM', recipient_tag: 'TO' },
+      { action_name: 'REVIEWED', description: 'Document has been reviewed', sender_tag: 'FROM', recipient_tag: 'TO' },
+      { action_name: 'CANCELLED', description: 'Document has been cancelled', sender_tag: 'FROM', recipient_tag: 'TO' }
     ];
 
     for (const action of documentActions) {
@@ -1032,6 +1410,8 @@ async function main() {
         console.log(`✅ Sidebar setting already exists: ${setting.section_name}`);
       }
     }
+
+
 
     console.log('\n🧾 Seeded account summary:');
     console.log(`- Super Admin accounts: ${seededSuperAdminEmails.join(', ') || 'none'}`);

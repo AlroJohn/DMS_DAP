@@ -7,30 +7,63 @@ const QRCode = require("qrcode");
 const pdfPrinter = require("pdf-to-printer");
 const { execSync } = require("child_process");
 
+// Load configuration
+const config = require("../config");
+
 // --- Configuration ---
-const SOCKET_URL = process.env.NEXT_PUBLIC_PRINTER_SOCKET_URL || "http://localhost:3001";
-const PRINTER_FILTER = "Brother"; // Filter to find the Brother printer
-const PRINTER_TOKEN = process.env.PRINTER_SOCKET_TOKEN;
+const SOCKET_URL = config.backendUrl;
+const PRINTER_FILTER = config.printerFilter;
+const PRINTER_TOKEN = config.printerToken;
+const DEBUG = config.debug;
 
 // 24mm tape height ~ 68 points (1mm = 2.835 points)
 // Minimal length for MAXIMUM QR code size
-const LABEL_HEIGHT_MM = 24; // Exact 24mm
-const LABEL_WIDTH_MM = 30; // Minimal 30mm for maximum QR size
+const LABEL_HEIGHT_MM = 24; // Exact 24mm (tape width)
+const LABEL_WIDTH_MM = 30; // 30mm for QR codes with margins
+const BARCODE_WIDTH_MM = 100; // 100mm for barcodes (longer)
 const PRO_MM_TO_PT = 2.83465;
 
 const PAGE_WIDTH = LABEL_WIDTH_MM * PRO_MM_TO_PT; // 30mm
 const PAGE_HEIGHT = LABEL_HEIGHT_MM * PRO_MM_TO_PT; // 24mm
 
-// Setup Socket
-const socket = io(SOCKET_URL, {
+// Setup Socket with configuration
+const socketOptions = {
   auth: PRINTER_TOKEN ? { token: PRINTER_TOKEN } : { printer: true },
-  transports: ["websocket"],
-  rejectUnauthorized: false,
-});
+  transports: ["websocket", "polling"], // Allow fallback to polling
+  rejectUnauthorized: false, // Allow self-signed certificates
+  reconnection: true,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  reconnectionAttempts: Infinity,
+  timeout: 10000, // 10 second timeout for initial connection
+  forceNew: true, // Force a new connection
+};
 
-console.log("Starting Brother PT-P710BT Printer Service...");
+console.log('\n🔌 Initializing Socket.IO Connection...');
+console.log(`   URL: ${SOCKET_URL}`);
+console.log(`   Transports: websocket, polling (fallback)`);
+console.log(`   Auth: ${PRINTER_TOKEN ? 'Token' : 'Printer flag'}`);
+
+const socket = io(SOCKET_URL, socketOptions);
+
+// Display configuration
+config.display();
+
+console.log("========================================");
+console.log("  BROTHER PRINTER CLIENT - STARTING");
+console.log("========================================");
 console.log(`Target Printer Filter: "${PRINTER_FILTER}"`);
-console.log(`Socket URL: ${SOCKET_URL}`);
+console.log(`Backend URL: ${SOCKET_URL}`);
+console.log(`Authentication: ${PRINTER_TOKEN ? 'Enabled' : 'Disabled'}`);
+console.log(`Debug Mode: ${DEBUG ? 'ON' : 'OFF'}`);
+console.log("========================================\n");
+
+// Check cloud configuration
+if (!config.isConfigured()) {
+  console.log('⚠️  CONFIGURATION WARNING ⚠️');
+  console.log('You are connecting to localhost.');
+  console.log('For AWS deployment, update BACKEND_URL in .env file\n');
+}
 
 // Helper: Find Brother Printer using Powershell (avoids native dependency issues)
 function getBrotherPrinterName() {
@@ -72,37 +105,77 @@ if (detectedPrinter) {
 }
 
 socket.on("connect", () => {
-  console.log(`✅ Connected to Socket Server: ${socket.id}`);
+  console.log(`✅ Connected to Backend Server`);
+  console.log(`   Socket ID: ${socket.id}`);
+  console.log(`   Backend: ${SOCKET_URL}`);
   socket.emit("printer:register");
-  console.log("📡 Printer service registered and ready to print\n");
+  console.log("📡 Printer service registered and ready to print");
+  console.log("   Keep this window open to process print jobs\n");
 });
 
-socket.on("disconnect", () => {
-  console.log("❌ Disconnected from server");
+socket.on("disconnect", (reason) => {
+  console.log(`❌ Disconnected from backend: ${reason}`);
+  if (reason === "io server disconnect") {
+    console.log("   Server closed the connection. Attempting to reconnect...");
+  }
+});
+
+socket.on("connect_error", (error) => {
+  console.error(`❌ Connection Error: ${error.message}`);
+  if (DEBUG) {
+    console.error("   Full error:", error);
+  }
+  console.log("   Will retry connection...\n");
+});
+
+socket.on("reconnect", (attemptNumber) => {
+  console.log(`✅ Reconnected to backend after ${attemptNumber} attempts`);
+});
+
+socket.on("reconnect_attempt", (attemptNumber) => {
+  if (DEBUG || attemptNumber % 5 === 0) {
+    console.log(`🔄 Reconnection attempt ${attemptNumber}...`);
+  }
 });
 
 // TRACK: Prevent duplicate print job processing
 const processedJobs = new Set();
+const jobTimestamps = new Map();
 
 socket.on("printJob", async (job) => {
-  const jobId = job.jobId || 'unknown';
+  const jobId = job.jobId || `job_${Date.now()}_${Math.random()}`;
+  const now = Date.now();
   
-  // Check if this job was already processed
-  if (processedJobs.has(jobId)) {
-    console.log(`⚠️  DUPLICATE DETECTED - Ignoring already processed job: ${jobId}`);
+  // Check if this exact job was already processed recently (within 5 seconds)
+  const lastProcessed = jobTimestamps.get(jobId);
+  if (lastProcessed && (now - lastProcessed) < 5000) {
+    console.log(`⚠️  DUPLICATE DETECTED - Ignoring job ${jobId} (processed ${now - lastProcessed}ms ago)`);
     return;
   }
   
-  // Mark as processing
-  processedJobs.add(jobId);
+  if (processedJobs.has(jobId)) {
+    console.log(`⚠️  DUPLICATE DETECTED - Job ${jobId} is currently being processed`);
+    return;
+  }
   
-  // Clean up old jobs after 1 minute to prevent memory leak
-  setTimeout(() => {
-    processedJobs.delete(jobId);
-  }, 60000);
+  // Mark as processing IMMEDIATELY
+  processedJobs.add(jobId);
+  jobTimestamps.set(jobId, now);
   
   console.log(`\n📨 Received Print Job: ${jobId}`);
-  console.log("Job data:", JSON.stringify(job.data, null, 2));
+  if (DEBUG) {
+    console.log("Job data:", JSON.stringify(job.data, null, 2));
+  }
+  
+  // Clean up old jobs after 10 seconds to prevent memory leak
+  setTimeout(() => {
+    processedJobs.delete(jobId);
+  }, 10000);
+  
+  // Clean up timestamps after 1 minute
+  setTimeout(() => {
+    jobTimestamps.delete(jobId);
+  }, 60000);
   
   try {
     // Determine content to print
@@ -150,14 +223,31 @@ socket.on("printJob", async (job) => {
 
     console.log(`🖨️  Printing to "${printerName}"...`);
     
-    // Print with Brother-specific settings for 24mm tape
+    // Calculate precise paper size based on content type (in inches for Brother driver)
+    // 24mm width = 0.94", 30mm = 1.18", 100mm = 3.94"
+    let paperSize, length;
+    if (printType === 'qrcode') {
+      // QR Code: 0.94" width x 1.18" length (24mm x 30mm) + minimal feed
+      paperSize = "0.94\"";
+      length = "1.26";  // 1.18" + 0.08" feed
+      console.log(`📏 Using QR Code paper size: 0.94" x 1.26" (24mm x 32mm)`);
+    } else {
+      // Barcode: 0.94" width x 3.94" length (24mm x 100mm)
+      paperSize = "0.94\"";
+      length = "4.02";  // 3.94" + 0.08" feed
+      console.log(`📏 Using Barcode paper size: 0.94" x 4.02" (24mm x 102mm)`);
+    }
+    
+    // Print with Brother-specific settings for 24mm tape with auto-cut
+    // Use ONE print command only to prevent duplicates
     await pdfPrinter.print(pdfPath, {
         printer: printerName,
-        paperSize: "Custom.68x425",  // 24mm x 150mm in points
-        scale: "fit",  // Fit to paper size
-        monochrome: true,  // Black and white for label printer
-        silent: true,  // Suppress printer dialog
-        win32: ['-print-settings "fit"']  // Additional Windows settings
+        paperSize: paperSize,
+        scale: "fit",  // Shrink to fit the paper
+        monochrome: true,
+        silent: true,
+        copies: 1,  // Force single copy
+        duplex: "none"  // No duplex printing
     });
 
     console.log("✅ Print command sent successfully!");
@@ -204,8 +294,7 @@ async function generateLabelPDF(filepath, title, barcodeText) {
   console.log('🔧 [BARCODE GENERATOR] Data:', { filepath, title, barcodeText });
   
   return new Promise((resolve, reject) => {
-    // Barcode label length - 4 inches (100mm) for long barcode
-    const BARCODE_WIDTH_MM = 100; // Long label for barcode
+    // Use the defined BARCODE_WIDTH_MM constant
     const pdfWidth = LABEL_HEIGHT_MM * PRO_MM_TO_PT;  // 24mm width
     const pdfHeight = BARCODE_WIDTH_MM * PRO_MM_TO_PT; // 100mm length
 
@@ -324,7 +413,7 @@ async function generateQRCodeLabelPDF(filepath, title, qrCodeData) {
         type: 'png',
         quality: 1,
         margin: 0,
-        width: 800,
+        width: 400,  // Reduced from 800 for smaller output
         color: {
           dark: '#000000',
           light: '#FFFFFF'
@@ -335,15 +424,19 @@ async function generateQRCodeLabelPDF(filepath, title, qrCodeData) {
       
       console.log('🟦 [QR CODE GENERATOR] ✅ QR code image generated, placing on PDF...');
       
-      // Place QR code - MAXIMUM SIZE
-      const qrSize = DRAW_HEIGHT - 1;
-      const qrX = (DRAW_WIDTH - qrSize) / 2;
-      const qrY = 0.5;
+      // Place QR code with minimal margins to maximize QR size
+      // Leave 2mm margins (top/bottom) = 20mm usable height
+      const margin = 2 * PRO_MM_TO_PT;  // 2mm margin (minimal whitespace)
+      const qrSize = DRAW_HEIGHT - (2 * margin);  // 20mm QR code (larger)
+      const qrX = (DRAW_WIDTH - qrSize) / 2;  // Center horizontally
+      const qrY = margin;  // Top margin
       
       doc.image(qrCodeBuffer, qrX, qrY, {
         width: qrSize,
         height: qrSize
       });
+      
+      console.log(`🟦 [QR CODE GENERATOR] 📐 QR Code size: ${qrSize.toFixed(1)}pts (~${(qrSize / PRO_MM_TO_PT).toFixed(1)}mm square) with ${(margin / PRO_MM_TO_PT).toFixed(1)}mm margins`);
       
       console.log('🟦 [QR CODE GENERATOR] ✅ QR code placed, finalizing PDF...');
       doc.restore();
@@ -368,13 +461,42 @@ async function generateQRCodeLabelPDF(filepath, title, qrCodeData) {
 
 // Handle process termination gracefully
 process.on('SIGINT', () => {
-  console.log('\n👋 Shutting down printer service...');
+  console.log('\n\n========================================');
+  console.log('  SHUTTING DOWN PRINTER CLIENT');
+  console.log('========================================');
+  console.log('Disconnecting from backend...');
   socket.disconnect();
+  console.log('✅ Printer service stopped');
+  console.log('========================================\n');
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-  console.log('\n👋 Shutting down printer service...');
+  console.log('\n\n========================================');
+  console.log('  SHUTTING DOWN PRINTER CLIENT');
+  console.log('========================================');
+  console.log('Disconnecting from backend...');
   socket.disconnect();
+  console.log('✅ Printer service stopped');
+  console.log('========================================\n');
   process.exit(0);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('\n❌ UNCAUGHT EXCEPTION:');
+  console.error(error);
+  if (DEBUG) {
+    console.error('\nStack trace:');
+    console.error(error.stack);
+  }
+  console.error('\nPrinter service will continue running...\n');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('\n❌ UNHANDLED REJECTION:');
+  console.error('Reason:', reason);
+  if (DEBUG) {
+    console.error('Promise:', promise);
+  }
+  console.error('\nPrinter service will continue running...\n');
 });

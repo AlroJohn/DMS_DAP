@@ -1060,6 +1060,9 @@ export class DocumentReportsService {
           case 'month':
             startDate.setDate(endDate.getDate() - 30);
             break;
+          case 'all':
+            startDate = new Date(0); // Beginning of time
+            break;
           default:
             startDate.setDate(endDate.getDate() - 30);
         }

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -14,16 +15,14 @@ import {
 } from "@/components/ui/select";
 import {
   Shield,
-  Download,
   Search,
   Calendar,
   User,
   FileText,
   Loader2,
   RefreshCw,
-  FileTextIcon,
-  FileSpreadsheet,
-  FileImage,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import { useSigningHistory } from "@/hooks/use-singing.history";
 
@@ -31,32 +30,84 @@ export default function SigningHistoryPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(false);
+  const [selectedEntries, setSelectedEntries] = useState<Set<string>>(
+    new Set(),
+  );
 
   const {
     data,
     loading: dataLoading,
     error,
     refetch,
-  } = useSigningHistory(undefined, filter === "all" ? undefined : filter);
+  } = useSigningHistory(undefined, filter);
 
   // Filter signing history based on search term
   const filteredHistory = useMemo(() => {
     if (!data?.signingHistory) return [];
 
-    if (!searchTerm.trim()) return data.signingHistory;
+    let result = data.signingHistory;
 
-    const search = searchTerm.toLowerCase();
-    return data.signingHistory.filter(
-      (entry) =>
-        entry.document.toLowerCase().includes(search) ||
-        entry.signer.toLowerCase().includes(search) ||
-        entry.documentCode.toLowerCase().includes(search) ||
-        entry.department.toLowerCase().includes(search)
-    );
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      result = result.filter(
+        (entry) =>
+          (entry.document || "").toLowerCase().includes(term) ||
+          (entry.signer || "").toLowerCase().includes(term) ||
+          (entry.documentCode || "").toLowerCase().includes(term) ||
+          (entry.department || "").toLowerCase().includes(term),
+      );
+    }
+
+    return result;
   }, [data?.signingHistory, searchTerm]);
+
+  // Get entries to export (selected ones or all if none selected)
+  const entriesToExport = useMemo(() => {
+    if (selectedEntries.size === 0) return filteredHistory;
+    return filteredHistory.filter((entry) =>
+      selectedEntries.has(entry.id),
+    );
+  }, [filteredHistory, selectedEntries]);
+
+  // Toggle entry selection
+  const toggleEntry = (entryId: string) => {
+    const newSelected = new Set(selectedEntries);
+    if (newSelected.has(entryId)) {
+      newSelected.delete(entryId);
+    } else {
+      newSelected.add(entryId);
+    }
+    setSelectedEntries(newSelected);
+  };
+
+  // Select all visible entries
+  const selectAll = () => {
+    const allIds = new Set(
+      filteredHistory.map((entry) => entry.id),
+    );
+    setSelectedEntries(allIds);
+  };
+
+  // Clear all selections
+  const clearAll = () => {
+    setSelectedEntries(new Set());
+  };
+
+  // Check if all visible entries are selected
+  const allSelected =
+    filteredHistory.length > 0 &&
+    filteredHistory.every((entry) => selectedEntries.has(entry.id));
 
   const handleExport = async (format: "pdf" | "csv" | "excel") => {
     if (!data) return;
+
+    // Use selected documents or all filtered if none selected
+    const dataToExport = entriesToExport;
+
+    if (dataToExport.length === 0) {
+      alert("No documents to export. Please select documents or adjust your filters.");
+      return;
+    }
 
     try {
       setLoading(true);
@@ -64,6 +115,15 @@ export default function SigningHistoryPage() {
       if (format === "csv") {
         // Create CSV content
         let csvContent = `Signing History Report\n\n`;
+
+        // Add export info
+        csvContent += `Total Entries: ${dataToExport.length}\n`;
+        if (selectedEntries.size > 0) {
+          csvContent += `Export Type: Selected Entries\n`;
+        } else {
+          csvContent += `Export Type: All Filtered Entries\n`;
+        }
+        csvContent += `\n`;
 
         // Add statistics
         csvContent += "Statistics\n";
@@ -75,11 +135,11 @@ export default function SigningHistoryPage() {
         // Add signing history
         csvContent += "Signing History\n";
         csvContent += `Document,Document Code,Signer,Department,Timestamp,Transaction Hash,Status\n`;
-        filteredHistory.forEach((entry) => {
+        dataToExport.forEach((entry) => {
           csvContent += `"${entry.document}","${entry.documentCode}","${
             entry.signer
           }","${entry.department}","${new Date(
-            entry.timestamp
+            entry.timestamp,
           ).toLocaleString()}","${entry.txHash}","${entry.status}"\n`;
         });
 
@@ -93,7 +153,7 @@ export default function SigningHistoryPage() {
         link.setAttribute("href", url);
         link.setAttribute(
           "download",
-          `signing-history-report-${new Date().toISOString().split("T")[0]}.csv`
+          `signing-history-report-${new Date().toISOString().split("T")[0]}.csv`,
         );
         link.style.visibility = "hidden";
 
@@ -110,6 +170,15 @@ export default function SigningHistoryPage() {
           ["Total Signatures", data.statistics.totalSignatures],
           ["This Week", data.statistics.thisWeek],
           ["Success Rate", data.statistics.successRate],
+          [],
+          ["Export Info", ""],
+          ["Total Entries", dataToExport.length],
+          [
+            "Export Type",
+            selectedEntries.size > 0
+              ? "Selected Entries"
+              : "All Filtered Entries",
+          ],
         ];
 
         const historyData = [
@@ -123,7 +192,7 @@ export default function SigningHistoryPage() {
             "Status",
           ],
         ];
-        filteredHistory.forEach((entry) => {
+        dataToExport.forEach((entry) => {
           historyData.push([
             entry.document,
             entry.documentCode,
@@ -148,7 +217,7 @@ export default function SigningHistoryPage() {
           wb,
           `signing-history-report-${
             new Date().toISOString().split("T")[0]
-          }.xlsx`
+          }.xlsx`,
         );
       } else if (format === "pdf") {
         // For PDF export, we'll create a properly styled PDF using jsPDF
@@ -212,16 +281,28 @@ export default function SigningHistoryPage() {
           }`,
           pageWidth / 2,
           margin + 18,
-          { align: "center" }
+          { align: "center" },
+        );
+
+        // Add export type info
+        doc.text(
+          `Export Type: ${
+            selectedEntries.size > 0
+              ? `Selected Entries (${dataToExport.length})`
+              : `All Filtered Entries (${dataToExport.length})`
+          }`,
+          pageWidth / 2,
+          margin + 24,
+          { align: "center" },
         );
 
         // Add report generation date
         const reportDate = new Date().toLocaleDateString();
-        doc.text(`Generated on: ${reportDate}`, pageWidth / 2, margin + 24, {
+        doc.text(`Generated on: ${reportDate}`, pageWidth / 2, margin + 30, {
           align: "center",
         });
 
-        let currentY = margin + 35;
+        let currentY = margin + 41;
 
         // Add statistics table
         const statsData = [
@@ -256,8 +337,8 @@ export default function SigningHistoryPage() {
         currentY = (doc as any).lastAutoTable.finalY + 10;
 
         // Add signing history table
-        if (filteredHistory.length > 0) {
-          const historyData = filteredHistory.map((entry) => [
+        if (dataToExport.length > 0) {
+          const historyData = dataToExport.map((entry) => [
             entry.document.substring(0, 30) +
               (entry.document.length > 30 ? "..." : ""),
             entry.documentCode,
@@ -311,13 +392,13 @@ export default function SigningHistoryPage() {
           doc.text(
             `Page ${i} of ${pageCount}`,
             pageWidth - margin - 25,
-            doc.internal.pageSize.height - 10
+            doc.internal.pageSize.height - 10,
           );
         }
 
         // Save the PDF
         doc.save(
-          `signing-history-report-${new Date().toISOString().split("T")[0]}.pdf`
+          `signing-history-report-${new Date().toISOString().split("T")[0]}.pdf`,
         );
       }
     } catch (err: any) {
@@ -325,7 +406,7 @@ export default function SigningHistoryPage() {
       alert(
         `Failed to export report as ${format.toUpperCase()}: ${
           err.message || "Unknown error"
-        }`
+        }`,
       );
     } finally {
       setLoading(false);
@@ -362,71 +443,115 @@ export default function SigningHistoryPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Signing History</h1>
           <p className="text-muted-foreground">
-            Complete history of blockchain signatures
+            Complete history of document signed
+            {selectedEntries.size > 0 && (
+              <span className="ml-2 text-primary font-medium">
+                ({selectedEntries.size} selected)
+              </span>
+            )}
           </p>
         </div>
-        <div className="relative group inline-block">
-          <Button
-            disabled={loading || dataLoading}
-            className="w-full sm:w-auto"
-          >
-            {loading || dataLoading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="mr-2 h-4 w-4" />
-            )}
-            Export Report
-          </Button>
-          {/* Dropdown menu for export options */}
-          <div className="absolute right-0 mt-1 w-48 rounded-md shadow-lg bg-background ring-1 ring-black ring-opacity-5 z-10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
-            <div className="py-1" role="menu">
-              <button
-                onClick={() => handleExport("csv")}
-                className="block px-4 py-2 text-sm text-foreground hover:bg-accent w-full text-left rounded-t-md"
-                role="menuitem"
+        <div className="flex gap-2">
+          {filteredHistory.length > 0 && (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={allSelected ? clearAll : selectAll}
               >
-                <div className="flex items-center">
-                  <FileTextIcon className="mr-2 h-4 w-4" />
-                  Export as CSV
-                </div>
-              </button>
-              <button
-                onClick={() => handleExport("excel")}
-                className="block px-4 py-2 text-sm text-foreground hover:bg-accent w-full text-left"
-                role="menuitem"
-              >
-                <div className="flex items-center">
-                  <FileSpreadsheet className="mr-2 h-4 w-4" />
-                  Export as Excel
-                </div>
-              </button>
-              <button
-                onClick={() => handleExport("pdf")}
-                className="block px-4 py-2 text-sm text-foreground hover:bg-accent w-full text-left rounded-b-md"
-                role="menuitem"
-              >
-                <div className="flex items-center">
-                  <FileImage className="mr-2 h-4 w-4" />
+                {allSelected ? (
+                  <>
+                    <Square className="mr-2 h-4 w-4" />
+                    Clear All
+                  </>
+                ) : (
+                  <>
+                    <CheckSquare className="mr-2 h-4 w-4" />
+                    Select All
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+          <div className="relative group inline-block">
+            <Button
+              size="sm"
+              disabled={loading || dataLoading}
+            >
+              {loading || dataLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  Export
+                  {selectedEntries.size > 0 && (
+                    <Badge className="ml-2" variant="secondary">
+                      {selectedEntries.size}
+                    </Badge>
+                  )}
+                </>
+              )}
+            </Button>
+            <div className="absolute right-0 mt-2 w-40 rounded-md shadow-lg bg-background border border-border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              <div className="py-1">
+                <button
+                  onClick={() => handleExport("pdf")}
+                  className="w-full px-4 py-2 text-sm hover:bg-accent transition-colors"
+                >
                   Export as PDF
-                </div>
-              </button>
+                </button>
+                <button
+                  onClick={() => handleExport("excel")}
+                  className="w-full px-4 py-2 text-sm hover:bg-accent transition-colors"
+                >
+                  Export as Excel
+                </button>
+                <button
+                  onClick={() => handleExport("csv")}
+                  className="w-full px-4 py-2 text-sm hover:bg-accent transition-colors"
+                >
+                  Export as CSV
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
+      {filteredHistory.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
+          <p>
+            <strong>Export Options:</strong> Select specific entries using the
+            checkboxes below, or export all{" "}
+            {selectedEntries.size > 0 ? (
+              <span>
+                (Currently exporting: <strong>{entriesToExport.length}</strong>{" "}
+                {selectedEntries.size > 0 ? "selected" : "filtered"}{" "}
+                entry/entries)
+              </span>
+            ) : (
+              <span>
+                filtered entries (<strong>{filteredHistory.length}</strong>)
+              </span>
+            )}
+          </p>
+        </div>
+      )}
+
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search documents or signers..."
+            placeholder="Search documents, codes, or signers..."
             className="pl-9"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
         <Select value={filter} onValueChange={setFilter}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-50">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -494,35 +619,45 @@ export default function SigningHistoryPage() {
               {filteredHistory.map((entry) => (
                 <div
                   key={entry.id}
-                  className="flex items-center justify-between border-b pb-4 last:border-0"
+                  className="flex items-center gap-4 border-b pb-4 last:border-0"
                 >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">{entry.document}</span>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <User className="h-3 w-3" />
-                        {entry.signer}
+                  <Checkbox
+                    checked={selectedEntries.has(entry.id)}
+                    onCheckedChange={() => toggleEntry(entry.id)}
+                    className="mt-1"
+                  />
+                  <div className="flex-1 flex items-center justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">{entry.document}</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {entry.documentCode}
+                        </Badge>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {new Date(entry.timestamp).toLocaleString()}
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <User className="h-3 w-3" />
+                          {entry.signer}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {new Date(entry.timestamp).toLocaleString()}
+                        </div>
+                        <div className="text-xs">{entry.department}</div>
                       </div>
-                      <div className="text-xs">{entry.department}</div>
+                      <code className="text-xs text-muted-foreground break-all">
+                        {entry.txHash}
+                      </code>
                     </div>
-                    <code className="text-xs text-muted-foreground break-all">
-                      {entry.txHash}
-                    </code>
+                    <Badge
+                      variant="outline"
+                      className="border-green-600 text-green-600"
+                    >
+                      <Shield className="mr-1 h-3 w-3" />
+                      {entry.status}
+                    </Badge>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className="border-green-600 text-green-600"
-                  >
-                    <Shield className="mr-1 h-3 w-3" />
-                    {entry.status}
-                  </Badge>
                 </div>
               ))}
             </div>

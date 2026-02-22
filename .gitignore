@@ -6,9 +6,11 @@ ai_docs/
 AGENTS.md
 CLAUDE.md
 QWEN.md
+.md*
 .env
 *.env
 *.env.local
+*.env.example
 *.log
 
 # This section is edited to include "hi"

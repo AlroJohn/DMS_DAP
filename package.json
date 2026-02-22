@@ -1,11 +1,12 @@
 {
-  "name": "DMS",
+  "name": "DMS_DAP",
   "private": true,
   "version": "1.0.0",
   "description": "",
   "packageManager": "pnpm@10.18.3",
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --filter=backend --filter=frontend",
+    "dev:all": "turbo run dev",
     "dev:backend": "turbo run dev --filter=backend",
     "dev:frontend": "turbo run dev --filter=frontend",
     "dev:printer": "turbo run dev --filter=printer",
@@ -13,17 +14,16 @@
     "start": "turbo run start",
     "lint": "turbo run lint",
     "clean": "turbo run clean",
-    "prisma:generate": "prisma generate --schema=apps/backend/prisma/schema.prisma",
-    "prisma:push": "prisma db push --schema=apps/backend/prisma/schema.prisma",
-    "prisma:push:force": "prisma db push --schema=apps/backend/prisma/schema.prisma --force-reset",
-    "prisma:studio": "prisma studio --schema=apps/backend/prisma/schema.prisma",
-    "prisma:migrate": "prisma migrate dev --schema=apps/backend/prisma/schema.prisma",
-    "prisma:deploy": "prisma migrate deploy --schema=apps/backend/prisma/schema.prisma",
-    "prisma:reset": "prisma migrate reset --schema=apps/backend/prisma/schema.prisma",
-    "prisma:seed": "cd apps/backend && pnpm run db:seed --schema=apps/backend/prisma/schema.prisma"
+    "prisma:generate": "pnpm --filter backend exec prisma generate",
+    "prisma:push": "pnpm --filter backend db:push",
+    "prisma:push:force": "pnpm --filter backend exec prisma db push --force-reset",
+    "prisma:studio": "pnpm --filter backend db:studio",
+    "prisma:migrate": "pnpm --filter backend db:migrate",
+    "prisma:deploy": "pnpm --filter backend exec prisma migrate deploy",
+    "prisma:reset": "pnpm --filter backend db:reset",
+    "prisma:seed": "pnpm --filter backend db:seed"
   },
   "devDependencies": {
-    "prisma": "^6.17.1",
     "rimraf": "^6.0.1",
     "turbo": "^2.5.8",
     "typescript": "^5.9.3"

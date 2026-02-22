@@ -4,10 +4,18 @@ import { DocumentTrailsService } from '../services/document-trails.service';
 const documentTrailsService = new DocumentTrailsService();
 
 export class DocumentTrailsController {
+  // Helper method to extract string value from potentially array parameter
+  private getStringValue = (param: string | string[] | undefined): string | undefined => {
+    if (Array.isArray(param)) {
+      return param[0];
+    }
+    return param;
+  };
+
   // Get all document trails for a specific document
-  async getDocumentTrails(req: Request, res: Response) {
+  getDocumentTrails = async (req: Request, res: Response) => {
     try {
-      const { documentId } = req.params;
+      const documentId = this.getStringValue(req.params.documentId);
 
       if (!documentId) {
         return res.status(400).json({
@@ -34,7 +42,7 @@ export class DocumentTrailsController {
   }
 
   // Create a new document trail
-  async createDocumentTrail(req: Request, res: Response) {
+  createDocumentTrail = async (req: Request, res: Response) => {
     try {
       const { document_id, action_id, from_department, to_department, user_id, status, remarks } = req.body;
 
@@ -72,9 +80,9 @@ export class DocumentTrailsController {
   }
 
   // Update an existing document trail
-  async updateDocumentTrail(req: Request, res: Response) {
+  updateDocumentTrail = async (req: Request, res: Response) => {
     try {
-      const { trailId } = req.params;
+      const trailId = this.getStringValue(req.params.trailId);
       const { action_id, from_department, to_department, user_id, status, remarks } = req.body;
 
       if (!trailId) {
@@ -109,9 +117,9 @@ export class DocumentTrailsController {
   }
 
   // Get document trail by ID
-  async getDocumentTrailById(req: Request, res: Response) {
+  getDocumentTrailById = async (req: Request, res: Response) => {
     try {
-      const { trailId } = req.params;
+      const trailId = this.getStringValue(req.params.trailId);
 
       if (!trailId) {
         return res.status(400).json({
@@ -145,9 +153,9 @@ export class DocumentTrailsController {
   }
 
   // Delete a document trail
-  async deleteDocumentTrail(req: Request, res: Response) {
+  deleteDocumentTrail = async (req: Request, res: Response) => {
     try {
-      const { trailId } = req.params;
+      const trailId = this.getStringValue(req.params.trailId);
 
       if (!trailId) {
         return res.status(400).json({
@@ -173,7 +181,7 @@ export class DocumentTrailsController {
   }
 
   // Get all document trails with optional filters
-  async getAllDocumentTrails(req: Request, res: Response) {
+  getAllDocumentTrails = async (req: Request, res: Response) => {
     try {
       const { userId, departmentId, status, fromDate, toDate } = req.query;
 

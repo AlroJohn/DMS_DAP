@@ -1,17 +1,49 @@
 "use client";
 
 import { DataTable } from "@/components/reuseable/tables/data-table";
-import { columns, type ReceivedDocument } from "./columns";
+import { createDocumentColumns, type ReceivedDocument } from "./columns";
 import { useDocuments } from "@/hooks/use-documents";
 import { useSocket } from "@/components/providers/providers";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useProcessType } from "@/hooks/use-process.type";
+import { useDocumentSidebarCounts } from "@/hooks/use-document-sidebar-counts";
 
 export default function DocumentsPage() {
   const { documents, isLoading, error, refetch } = useDocuments(1, 50);
   const { socket } = useSocket();
+  const { processTypes } = useProcessType();
+  const { setCounts } = useDocumentSidebarCounts();
   const mountedRef = useRef(false);
+  const [activeTab, setActiveTab] = useState("active");
+
+  const processTypeMap = useMemo(() => {
+    const map: Record<
+      string,
+      {
+        code?: string;
+        name: string;
+        duration_value?: number | null;
+        duration_unit?: string | null;
+      }
+    > = {};
+    processTypes.forEach((type) => {
+      map[type.process_type_id] = {
+        code: type.code || "",
+        name: type.name,
+        duration_value: type.duration_value ?? null,
+        duration_unit: type.duration_unit ?? null,
+      };
+    });
+    return map;
+  }, [processTypes]);
+
+  const documentColumns = useMemo(
+    () => createDocumentColumns({ processTypeMap, onRefetch: refetch }),
+    [processTypeMap, refetch]
+  );
 
   // Mark component as mounted and clean up on unmount
   useEffect(() => {
@@ -40,10 +72,22 @@ export default function DocumentsPage() {
         contactPerson: d.contactPerson || "",
         contactOrganization: d.contactOrganization || "",
         type: (d.document_type || d.type || "General") as string,
+        processTypeId:
+          d.process_type_id ||
+          d.processTypeId ||
+          d.processType?.process_type_id ||
+          "",
+        processTypeName: d.process_type_name || d.processTypeName || d.processType?.name || "",
         classification: (d.classification || "") as string,
         status: (d.status || "") as string,
+        origin: (d.origin || "") as string,
         activity: d.activity || "",
-        activityTime: d.activityTime || d.created_at || "",
+        activityTime: d.activityTime || d.created_at || d.createdAt || "",
+        createdAt: d.created_at || d.createdAt || d.activityTime || "",
+        processTimerStartAt:
+          d.process_timer_start_at || d.processTimerStartAt || undefined,
+        processTimerCompleteAt:
+          d.process_timer_complete_at || d.processTimerCompleteAt || undefined,
       })),
     [documents]
   );
@@ -108,6 +152,19 @@ export default function DocumentsPage() {
   // Check if the error is authentication-related
   const isAuthError = error && error.includes("Authentication required");
 
+  // Filter documents based on active tab
+  const filteredDocuments = useMemo(() => {
+    if (activeTab === "completed") {
+      return mappedDocuments.filter(doc => doc.status?.toLowerCase() === "completed");
+    }
+    // Active tab shows all non-completed documents
+    return mappedDocuments.filter(doc => doc.status?.toLowerCase() !== "completed");
+  }, [mappedDocuments, activeTab]);
+
+  useEffect(() => {
+    setCounts({ pendingDocuments: filteredDocuments.length });
+  }, [filteredDocuments.length, setCounts]);
+
   return (
     <div className="p-4 w-full flex h-full flex-col bg-background">
       {error && !isAuthError && (
@@ -130,20 +187,75 @@ export default function DocumentsPage() {
           </Alert>
         </div>
       )}
-      <DataTable
-        columns={columns}
-        data={mappedDocuments}
-        selection={true}
-        excludedFilters={["documentId"]}
-        showUploadButton={true}
-        viewType="document"
-        initialState={{
-          columnVisibility: {
-            dates: false,
-          },
-        }}
-        isLoading={isLoading}
-      />
+      
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col h-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="active">Active</TabsTrigger>
+          <TabsTrigger value="completed">Completed</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="active" className="flex-1 mt-0">
+          <DataTable
+            columns={documentColumns}
+            data={filteredDocuments}
+            selection={true}
+            excludedFilters={["documentId"]}
+            showUploadButton={true}
+            viewType="document"
+            initialState={{
+              columnVisibility: {
+                dates: true,
+              },
+              columnOrder: [
+                "select",
+                "scan",
+                "document",
+                "contact",
+                "type",
+                "processType",
+                "origin",
+                "classification",
+                "status",
+                "dates",
+                "actions",
+              ],
+            }}
+            isLoading={isLoading}
+            meta={{ onRefetch: refetch }}
+          />
+        </TabsContent>
+
+        <TabsContent value="completed" className="flex-1 mt-0">
+          <DataTable
+            columns={documentColumns}
+            data={filteredDocuments}
+            selection={true}
+            excludedFilters={["documentId"]}
+            showUploadButton={false}
+            viewType="document"
+            initialState={{
+              columnVisibility: {
+                dates: true,
+              },
+              columnOrder: [
+                "select",
+                "scan",
+                "document",
+                "contact",
+                "type",
+                "processType",
+                "origin",
+                "classification",
+                "status",
+                "dates",
+                "actions",
+              ],
+            }}
+            isLoading={isLoading}
+            meta={{ onRefetch: refetch }}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

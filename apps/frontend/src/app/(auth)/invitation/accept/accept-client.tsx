@@ -121,7 +121,7 @@ export default function AcceptInvitationClient() {
         if (data.data?.token && data.data?.refreshToken) { // This condition might become redundant if backend stops returning tokens
           login() // Trigger useAuth().login() to re-fetch user data and update auth state
           // Redirect to dashboard
-          router.push('/dashboard')
+          router.push('/home')
         } else {
           // Redirect to login page with success message
           router.push('/login?message=account_created')

@@ -36,6 +36,18 @@ interface DocumentAction {
   updated_at: string;
 }
 
+interface ProcessType {
+  process_type_id: string;
+  code: string;
+  name: string;
+  description?: string;
+  duration_value?: number;
+  duration_unit?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 interface User {
   user_id: string;
   account_id: string;
@@ -74,10 +86,12 @@ interface ManagementOverviewData {
   documentTypeCount: CounterData | undefined;
   documentActionCount: CounterData | undefined;
   userCount: CounterData | undefined;
+  processTypeCount: CounterData | undefined;
   departments: Department[];
   documentTypes: DocumentType[];
   documentActions: DocumentAction[];
   users: User[];
+  processTypes: ProcessType[];
   isLoading: boolean;
 }
 
@@ -99,7 +113,12 @@ const fetchCount = async (url: string): Promise<CounterData> => {
 const fetchList = async (url: string): Promise<any[]> => {
   const token = getAccessToken();
 
-  const response = await fetch(url, {
+  // Add pagination parameters to fetch all data
+  const urlWithParams = new URL(url, window.location.origin);
+  urlWithParams.searchParams.set('page', '1');
+  urlWithParams.searchParams.set('limit', '1000'); // Fetch up to 1000 items
+
+  const response = await fetch(urlWithParams.toString(), {
     headers: {
       'Authorization': `Bearer ${token}`,
     },
@@ -107,8 +126,9 @@ const fetchList = async (url: string): Promise<any[]> => {
   if (!response.ok) {
     throw new Error(`Failed to fetch data from ${url}`);
   }
-  const data = await response.json();
-  return data.data;
+  const result = await response.json();
+  // The API returns { success: true, data: [], pagination: {} }
+  return result.data || [];
 };
 
 export const useManagementOverview = (): ManagementOverviewData => {
@@ -140,6 +160,14 @@ export const useManagementOverview = (): ManagementOverviewData => {
   const { data: userCount, isLoading: isLoadingUsers } = useQuery<CounterData>({
     queryKey: ['userCount'],
     queryFn: () => fetchCount('/api/admin/counts/users'),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false, // Disable refetch on window focus
+    refetchOnReconnect: false,   // Disable refetch on reconnect
+  });
+
+  const { data: processTypeCount, isLoading: isLoadingProcessTypes } = useQuery<CounterData>({
+    queryKey: ['processTypeCount'],
+    queryFn: () => fetchCount('/api/admin/counts/process-types'),
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchOnWindowFocus: false, // Disable refetch on window focus
     refetchOnReconnect: false,   // Disable refetch on reconnect
@@ -178,25 +206,37 @@ export const useManagementOverview = (): ManagementOverviewData => {
     refetchOnReconnect: false,   // Disable refetch on reconnect
   });
 
+  const { data: processTypes = [], isLoading: isLoadingProcessTypesList } = useQuery<ProcessType[]>({
+    queryKey: ['processTypes'],
+    queryFn: () => fetchList('/api/process-type'),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false, // Disable refetch on window focus
+    refetchOnReconnect: false,   // Disable refetch on reconnect
+  });
+
   // Combine loading states
   const isLoading = isLoadingDepartments ||
                    isLoadingDocumentTypes ||
                    isLoadingDocumentActions ||
                    isLoadingUsers ||
+                   isLoadingProcessTypes ||
                    isLoadingDepartmentsList ||
                    isLoadingDocumentTypesList ||
                    isLoadingDocumentActionsList ||
-                   isLoadingUsersList;
+                   isLoadingUsersList ||
+                   isLoadingProcessTypesList;
 
   return {
     departmentCount,
     documentTypeCount,
     documentActionCount,
     userCount,
+    processTypeCount,
     departments,
     documentTypes,
     documentActions,
     users,
+    processTypes,
     isLoading,
   };
 };

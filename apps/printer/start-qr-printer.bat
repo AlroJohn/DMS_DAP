@@ -1,38 +1,15 @@
 @echo off
-echo ========================================
-echo  QR CODE PRINTER SERVICE STARTER
-echo ========================================
-echo.
-
-cd /d "%~dp0"
-
-echo Checking Node.js installation...
-node --version >nul 2>&1
-if errorlevel 1 (
-    echo ERROR: Node.js is not installed or not in PATH
-    pause
-    exit /b 1
-)
-
-echo Checking dependencies...
-if not exist "node_modules" (
-    echo Installing dependencies...
-    call pnpm install
-    if errorlevel 1 (
-        echo ERROR: Failed to install dependencies
-        pause
-        exit /b 1
-    )
-)
+REM ========================================
+REM  LEGACY FILE - USE start-printer-client.bat INSTEAD
+REM ========================================
 
 echo.
-echo Starting QR Code Printer Service...
-echo Connect to: http://localhost:3001
+echo ⚠️  NOTICE: This file is deprecated
 echo.
-echo Press Ctrl+C to stop
-echo ========================================
+echo For cloud deployment with configuration management,
+echo please use: start-printer-client.bat
 echo.
+echo Redirecting in 3 seconds...
+timeout /t 3 >nul
 
-node src\index.js
-
-pause
+call start-printer-client.bat

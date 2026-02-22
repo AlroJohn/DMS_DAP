@@ -8,12 +8,11 @@
     "dev:watch": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "db:seed": "tsx prisma/seed.ts",
-    "db:reset": "prisma migrate reset --force",
-    "db:push": "prisma db push",
-    "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio",
-    "fix:document-types": "tsx src/scripts/fix-document-types.ts"
+    "db:seed": "node scripts/run-seed.cjs",
+    "db:reset": "node scripts/run-prisma.cjs migrate reset --force",
+    "db:push": "node scripts/run-prisma.cjs db push",
+    "db:migrate": "node scripts/run-prisma.cjs migrate dev",
+    "db:studio": "node scripts/run-prisma.cjs studio"
   },
   "keywords": [],
   "author": "",
@@ -63,7 +62,8 @@
     "react-webcam": "^7.2.0",
     "socket.io": "^4.8.1",
     "tesseract.js": "^6.0.1",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -80,6 +80,7 @@
     "@types/passport-jwt": "^4.0.1",
     "@types/pdf-parse": "^1.1.5",
     "@types/pdfkit": "^0.12.11",
+    "@types/pngjs": "^6.0.5",
     "@types/qrcode": "^1.5.5",
     "prisma": "6.17.1",
     "ts-node": "^10.9.2",

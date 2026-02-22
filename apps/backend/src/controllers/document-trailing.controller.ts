@@ -3,11 +3,25 @@ import { AuthRequest } from '../middleware/auth-middleware';
 import { auditService } from '../services/audit.service';
 
 export class DocumentTrailingController {
+  // Helper method to extract string value from potentially array parameter
+  private getStringValue = (param: string | string[] | undefined): string | undefined => {
+    if (Array.isArray(param)) {
+      return param[0];
+    }
+    return param;
+  };
+
   // Get document trails for a specific department
   async getDocumentTrailsForDepartment(req: AuthRequest, res: Response) {
     try {
-      const departmentId = req.params.departmentId;
+      const departmentId = this.getStringValue(req.params.departmentId);
       const userId = req.user?.id; // Assuming user info is attached by auth middleware
+      if (!departmentId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Department ID is required',
+        });
+      }
       
       const { 
         status, 
@@ -53,13 +67,13 @@ export class DocumentTrailingController {
   // Get detailed trail history for a specific document
   async getDocumentTrailDetails(req: AuthRequest, res: Response) {
     try {
-      const { documentId } = req.params;
+      const documentId = this.getStringValue(req.params.documentId);
       const departmentId = req.user?.department_id; // Assuming department info is attached by auth middleware
 
-      if (!departmentId) {
+      if (!documentId || !departmentId) {
         return res.status(400).json({
           success: false,
-          message: 'Department ID is required',
+          message: 'Document ID and department ID are required',
         });
       }
 

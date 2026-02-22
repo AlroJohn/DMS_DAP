@@ -8,6 +8,12 @@ import { prisma } from '../lib/prisma';
  */
 export class SearchController {
   // Using the imported prisma instance
+  private static getStringValue(param: string | string[] | undefined): string | undefined {
+    if (Array.isArray(param)) {
+      return param[0];
+    }
+    return param;
+  }
 
   /**
    * Search documents based on query and filters
@@ -207,7 +213,14 @@ export class SearchController {
    */
   static async getSavedSearch(req: Request, res: Response): Promise<void> {
     try {
-      const { searchId } = req.params;
+      const searchId = SearchController.getStringValue(req.params.searchId);
+      if (!searchId) {
+        res.status(400).json({
+          success: false,
+          message: 'Search ID is required'
+        });
+        return;
+      }
 
       // Extract user info from request (assuming it's added by authentication middleware)
       const authReq = req as AuthRequest;
@@ -264,7 +277,14 @@ export class SearchController {
    */
   static async deleteSavedSearch(req: Request, res: Response): Promise<void> {
     try {
-      const { searchId } = req.params;
+      const searchId = SearchController.getStringValue(req.params.searchId);
+      if (!searchId) {
+        res.status(400).json({
+          success: false,
+          message: 'Search ID is required'
+        });
+        return;
+      }
 
       // Extract user info from request (assuming it's added by authentication middleware)
       const authReq = req as AuthRequest;
@@ -321,7 +341,14 @@ export class SearchController {
    */
   static async updateSavedSearch(req: Request, res: Response): Promise<void> {
     try {
-      const { searchId } = req.params;
+      const searchId = SearchController.getStringValue(req.params.searchId);
+      if (!searchId) {
+        res.status(400).json({
+          success: false,
+          message: 'Search ID is required'
+        });
+        return;
+      }
       const { name, description, query, filters, isFavorite, isScheduled, scheduleFrequency } = req.body;
 
       // Extract user info from request (assuming it's added by authentication middleware)
@@ -389,7 +416,14 @@ export class SearchController {
    */
   static async executeSavedSearch(req: Request, res: Response): Promise<void> {
     try {
-      const { searchId } = req.params;
+      const searchId = SearchController.getStringValue(req.params.searchId);
+      if (!searchId) {
+        res.status(400).json({
+          success: false,
+          message: 'Search ID is required'
+        });
+        return;
+      }
 
       // Extract user info from request (assuming it's added by authentication middleware)
       const authReq = req as AuthRequest;

@@ -3,6 +3,8 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar as UiCalendar } from "@/components/ui/calendar";
 import {
   Table,
   TableBody,
@@ -31,7 +33,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { PlusCircle, Search, Edit, Trash2, Loader2, CheckCircle2, XCircle, Zap, ArrowRight, Tag } from "lucide-react";
+import { PlusCircle, Search, Edit, Trash2, Loader2, CheckCircle2, XCircle, Zap, ArrowRight, Tag, Calendar as CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
 import { AlertModal } from "@/components/reuseable/alert-modal";
 import { TablePagination } from "@/components/reuseable/table-pagination";
 import { toast } from "sonner";
@@ -64,6 +67,7 @@ const DocumentActionManagementPage = () => {
     action_date: new Date().toISOString().split('T')[0],
     status: true,
   });
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date(formData.action_date));
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
   const [documentActionToDelete, setDocumentActionToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -142,6 +146,15 @@ const DocumentActionManagementPage = () => {
       [name]: value,
     }));
   };
+
+  // Keep selectedDate in sync when action_date changes externally
+  useEffect(() => {
+    try {
+      setSelectedDate(formData.action_date ? new Date(formData.action_date) : undefined);
+    } catch (e) {
+      setSelectedDate(undefined);
+    }
+  }, [formData.action_date]);
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -320,7 +333,7 @@ const DocumentActionManagementPage = () => {
               <TableRow key={action.document_action_id}>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-purple-500 flex-shrink-0" />
+                    <Zap className="h-4 w-4 text-purple-500 shrink-0" />
                     <span className="font-medium">{action.action_name}</span>
                   </div>
                 </TableCell>
@@ -436,7 +449,7 @@ const DocumentActionManagementPage = () => {
 
   const renderFormModal = (isOpen: boolean, onClose: () => void, title: string) => (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-125">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
@@ -497,14 +510,31 @@ const DocumentActionManagementPage = () => {
 
             <div className="space-y-2">
               <Label htmlFor="action_date">Action Date</Label>
-              <Input
-                id="action_date"
-                name="action_date"
-                type="date"
-                value={formData.action_date}
-                onChange={handleInputChange}
-                required
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left">
+                    <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">
+                      {selectedDate ? format(selectedDate, "MMM d, yyyy") : "Pick a date"}
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <UiCalendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(date) => {
+                      if (date) {
+                        setSelectedDate(date as Date);
+                        setFormData((prev) => ({
+                          ...prev,
+                          action_date: (date as Date).toISOString().split("T")[0],
+                        }));
+                      }
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -572,7 +602,7 @@ const DocumentActionManagementPage = () => {
           </div>
           <div className="flex items-center gap-2">
             <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="h-9 w-[140px]">
+              <SelectTrigger className="h-9 w-35">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>

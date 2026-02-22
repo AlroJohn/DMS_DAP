@@ -11,6 +11,14 @@ export class RecycleBinController {
     this.recycleBinService = new RecycleBinService();
   }
 
+  // Helper method to extract string value from potentially array parameter
+  private getStringValue = (param: string | string[] | undefined): string | undefined => {
+    if (Array.isArray(param)) {
+      return param[0];
+    }
+    return param;
+  };
+
   async getRecycleBinDocuments(req: Request, res: Response) {
     try {
       const authReq = req as AuthRequest;
@@ -34,7 +42,7 @@ export class RecycleBinController {
     try {
       const authReq = req as AuthRequest;
       const userId = authReq.user?.id as string;
-      const { id } = req.params;
+      const id = this.getStringValue(req.params.id);
 
       if (!userId) {
         return res.status(401).json({ error: 'User ID not found in token' });

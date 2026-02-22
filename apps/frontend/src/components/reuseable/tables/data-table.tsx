@@ -6,6 +6,7 @@ import {
   ColumnFiltersState,
   SortingState,
   VisibilityState,
+  ColumnOrderState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -52,6 +53,7 @@ interface DataTableProps<TData, TValue> {
     | "recycle-bin"; // View type to control which actions are shown in toolbar
   initialState?: {
     columnVisibility?: Record<string, boolean>;
+    columnOrder?: string[];
   };
   isLoading?: boolean; // Prop to handle loading state within the table
   onSign?: (document: TData) => void;
@@ -91,6 +93,9 @@ export function DataTable<TData, TValue>({
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>(initialState?.columnVisibility || {});
+  const [columnOrder, setColumnOrder] = React.useState<ColumnOrderState>(
+    initialState?.columnOrder || []
+  );
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
   );
@@ -106,6 +111,7 @@ export function DataTable<TData, TValue>({
       state: {
         sorting,
         columnVisibility,
+        columnOrder,
         rowSelection,
         columnFilters,
         pagination,
@@ -116,6 +122,7 @@ export function DataTable<TData, TValue>({
       onPaginationChange: setPagination,
       autoResetPageIndex: false,
       onColumnVisibilityChange: setColumnVisibility,
+      onColumnOrderChange: setColumnOrder,
       enableRowSelection: selection ? true : false,
       getCoreRowModel: getCoreRowModel(),
       getFilteredRowModel: getFilteredRowModel(),
@@ -184,16 +191,21 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && "selected"}
                   className={row.getIsSelected() ? "bg-muted/50" : undefined}
                 >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {typeof cell.getValue() === "string"
-                        ? formatText(cell.getValue() as string)
-                        : flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                    </TableCell>
-                  ))}
+                  {row.getVisibleCells().map((cell) => {
+                    const cellDef = cell.column.columnDef.cell;
+                    return (
+                      <TableCell key={cell.id}>
+                        {cellDef
+                          ? flexRender(cellDef, cell.getContext())
+                          : typeof cell.getValue() === "string"
+                            ? formatText(cell.getValue() as string)
+                            : flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext()
+                              )}
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               ))
             ) : (

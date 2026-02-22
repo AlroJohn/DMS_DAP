@@ -7,10 +7,25 @@ import { DataTableRowActions } from "@/components/reuseable/tables/data-table-ro
 import { DataTableColumnHeader } from "@/components/reuseable/tables/data-table-column-header";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Calendar, Copy, User, Building2, Check, PackageCheck, Loader2 } from "lucide-react";
+import {
+  Copy,
+  User,
+  Building2,
+  Check,
+  PackageCheck,
+  Loader2,
+} from "lucide-react";
 import { ScanCodes } from "@/components/ui/scan-codes";
 import { useReceiveDocument } from "@/hooks/use-receive-document";
 import { useState } from "react";
+import { ActivityCell } from "@/components/reuseable/tables/activity-cell";
+import { ProcessTypeCell } from "@/components/reuseable/tables/process-type-cell";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,16 +46,26 @@ export type IncomingDocument = {
   documentId: string;
   contactPerson: string;
   contactOrganization: string;
+  contactOrganizationName?: string;
   type: string;
   classification: string;
   status: string;
+  origin: string;
   activity: string;
   activityTime: string;
+  created_at?: string;
+  process_type_id?: string | null;
+  process_timer_start_at?: string | null;
+  process_timer_complete_at?: string | null;
+  process_status?: "ongoing" | "delayed" | "completed" | null;
+  process_delayed_at?: string | null;
+  process_delay_seconds?: number | null;
   requestAction?: string | null;
   releaseRemarks?: string | null;
 };
 
-const formatText = (text: string): string => {
+const formatText = (text: string | null | undefined): string => {
+  if (!text) return "N/A";
   return text
     .replace(/_/g, " ")
     .toLowerCase()
@@ -51,17 +76,32 @@ function ReceiveButton({
   documentId,
   requestAction,
   releaseRemarks,
+  status,
   onReceived,
 }: {
   documentId: string;
   requestAction?: string | null;
   releaseRemarks?: string | null;
+  status?: string | null;
   onReceived?: () => void;
 }) {
   const { mutateAsync: receiveDocument, isPending: isLoading } =
     useReceiveDocument();
   const [isReceived, setIsReceived] = useState(false);
   const [open, setOpen] = useState(false);
+
+  const normalizedStatus = status?.toLowerCase();
+  const isCancelled =
+    normalizedStatus === "cancelled" || normalizedStatus === "canceled";
+
+  if (isCancelled) {
+    return (
+      <Button size="sm" variant="outline" disabled className="gap-2">
+        <Check className="h-4 w-4" />
+        Cancelled
+      </Button>
+    );
+  }
 
   const handleReceive = async () => {
     try {
@@ -70,7 +110,7 @@ function ReceiveButton({
       setIsReceived(true);
       onReceived?.();
       setOpen(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // The onError in the hook will show the toast.
       console.error("Receiving document failed", error);
     }
@@ -109,46 +149,71 @@ function ReceiveButton({
       </AlertDialogTrigger>
       <AlertDialogContent className="sm:max-w-lg">
         <AlertDialogHeader>
-            <div className="flex flex-col items-center text-center space-y-2">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
-                    <PackageCheck className="h-9 w-9 text-blue-600" />
-                </div>
-                <AlertDialogTitle className="text-2xl font-bold">
-                    Confirm Document Receipt
-                </AlertDialogTitle>
-                <AlertDialogDescription className="text-base px-4">
-                    You are about to confirm receipt of a document. This action is final.
-                </AlertDialogDescription>
+          <div className="flex flex-col items-center text-center space-y-2">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
+              <PackageCheck className="h-9 w-9 text-blue-600" />
             </div>
+            <AlertDialogTitle className="text-2xl font-bold">
+              Confirm Document Receipt
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-base px-4">
+              You are about to confirm receipt of a document. This action is
+              final.
+            </AlertDialogDescription>
+          </div>
         </AlertDialogHeader>
 
         <div className="my-6 space-y-6 rounded-lg border bg-background p-6 text-base">
-            <div className="space-y-2">
-                <p className="font-semibold text-muted-foreground">Requested Action</p>
-                <p className="font-bold text-lg text-primary">{actionLabel}</p>
-            </div>
-            <div className="space-y-2">
-                <p className="font-semibold text-muted-foreground">Release Remarks</p>
-                <p className="text-muted-foreground italic">"{remarksLabel}"</p>
-            </div>
+          <div className="space-y-2">
+            <p className="font-semibold text-muted-foreground">
+              Requested Action
+            </p>
+            <p className="font-bold text-lg text-primary">{actionLabel}</p>
+          </div>
+          <div className="space-y-2">
+            <p className="font-semibold text-muted-foreground">
+              Release Remarks
+            </p>
+            <p className="text-muted-foreground italic">"{remarksLabel}"</p>
+          </div>
         </div>
 
         <AlertDialogFooter className="grid grid-cols-2 gap-4 pt-4">
-            <AlertDialogCancel disabled={isLoading} className="h-12 text-lg">Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleReceive} disabled={isLoading} className="h-12 text-lg bg-blue-600 hover:bg-blue-700">
-                {isLoading ? (
-                    <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Working...</>
-                ) : (
-                    <><Check className="mr-2 h-5 w-5" /> Confirm</>
-                )}
-            </AlertDialogAction>
+          <AlertDialogCancel disabled={isLoading} className="h-12 text-lg">
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleReceive}
+            disabled={isLoading}
+            className="h-12 text-lg bg-blue-600 hover:bg-blue-700"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Working...
+              </>
+            ) : (
+              <>
+                <Check className="mr-2 h-5 w-5" /> Confirm
+              </>
+            )}
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
   );
 }
 
-export const incomingColumns: ColumnDef<IncomingDocument>[] = [
+export const createIncomingColumns = (
+  processTypeMap: Record<
+    string,
+    {
+      code?: string;
+      name?: string;
+      duration_value?: number | null;
+      duration_unit?: string | null;
+    }
+  > = {},
+): ColumnDef<IncomingDocument>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -248,9 +313,18 @@ export const incomingColumns: ColumnDef<IncomingDocument>[] = [
           </div>
           <div className="flex items-center gap-1.5">
             <Building2 className="h-3.5 w-3.5 text-blue-500" />
-            <span className="text-xs text-muted-foreground">
-              {data.contactOrganization}
-            </span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-xs text-muted-foreground cursor-help">
+                    {data.contactOrganization}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{data.contactOrganizationName || data.contactOrganization}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       );
@@ -289,6 +363,68 @@ export const incomingColumns: ColumnDef<IncomingDocument>[] = [
     },
   },
   {
+    id: "processType",
+    accessorFn: (row) => {
+      const processTypeId =
+        (row as any).process_type_id || (row as any).processTypeId || "";
+      const record = processTypeId ? processTypeMap[processTypeId] : undefined;
+      return record?.name || "N/A";
+    },
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Process Type" />
+    ),
+    cell: ({ row }) => {
+      const processTypeId =
+        (row.original as any).process_type_id ||
+        (row.original as any).processTypeId ||
+        "";
+      const record = processTypeId ? processTypeMap[processTypeId] : undefined;
+      const name = record?.name || "N/A";
+      const code = record?.code || "";
+      return <ProcessTypeCell name={name} code={code} minClampLength={20} />;
+    },
+    enableSorting: true,
+    enableHiding: true,
+    filterFn: (row, id, value) => {
+      if (!value || (Array.isArray(value) && value.length === 0)) return true;
+      const processType = String(row.getValue(id) ?? "").toLowerCase();
+      return Array.isArray(value)
+        ? (value as string[]).some(
+            (v) => String(v).toLowerCase() === processType,
+          )
+        : false;
+    },
+  },
+  {
+    accessorKey: "origin",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Origin" />
+    ),
+    cell: ({ row }) => {
+      const origin = (row.original as any).origin;
+      if (!origin) return <span className="text-xs text-muted-foreground">-</span>;
+      return (
+        <Badge
+          variant={origin === "internal" ? "default" : "outline"}
+          className="font-medium bg-primary text-background text-xs px-1.5 py-0.5"
+        >
+          {formatText(origin)}
+        </Badge>
+      );
+    },
+    enableSorting: true,
+    enableHiding: true,
+    filterFn: (row, id, value) => {
+      if (!value || (Array.isArray(value) && value.length === 0)) return true;
+      const origin = String(row.getValue(id) ?? "").toLowerCase();
+      return Array.isArray(value)
+        ? (value as string[]).some(
+            (v) => String(v).toLowerCase() === origin,
+          )
+        : false;
+    },
+  },
+  {
     accessorKey: "classification",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Classification" />
@@ -311,7 +447,7 @@ export const incomingColumns: ColumnDef<IncomingDocument>[] = [
       const classification = String(row.getValue(id) ?? "").toLowerCase();
       return Array.isArray(value)
         ? (value as string[]).some(
-            (v) => String(v).toLowerCase() === classification
+            (v) => String(v).toLowerCase() === classification,
           )
         : false;
     },
@@ -405,32 +541,8 @@ export const incomingColumns: ColumnDef<IncomingDocument>[] = [
       <DataTableColumnHeader column={column} title="Activity" />
     ),
     cell: ({ row }) => {
-      const data = row.original;
-      const formattedActivity = data.activity
-        .replace(/_/g, " ")
-        .replace(/\b\w/g, (l: string) => l.toUpperCase());
-      const formattedDate = new Date(data.activityTime).toLocaleString(
-        "en-US",
-        {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        }
-      );
-
       return (
-        <div className="flex flex-col gap-1.5 text-xs">
-          <div className="flex items-center gap-1.5">
-            <Calendar className="w-3 h-3 text-orange-500" />
-            <span className="text-muted-foreground">{formattedActivity}</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Calendar className="w-3 h-3 text-blue-500" />
-            <span className="text-muted-foreground">{formattedDate}</span>
-          </div>
-        </div>
+        <ActivityCell document={row.original} processTypeMap={processTypeMap} />
       );
     },
   },
@@ -441,6 +553,7 @@ export const incomingColumns: ColumnDef<IncomingDocument>[] = [
       const documentId = row.original.id;
       const requestAction = row.original.requestAction;
       const releaseRemarks = row.original.releaseRemarks;
+      const status = row.original.status;
 
       // Get onReceived function from table meta if available
       const onReceived = (table.options.meta as any)?.onReceived;
@@ -450,6 +563,7 @@ export const incomingColumns: ColumnDef<IncomingDocument>[] = [
           documentId={documentId}
           requestAction={requestAction}
           releaseRemarks={releaseRemarks}
+          status={status}
           onReceived={onReceived}
         />
       );
@@ -458,3 +572,5 @@ export const incomingColumns: ColumnDef<IncomingDocument>[] = [
     enableHiding: false,
   },
 ];
+
+export const incomingColumns = createIncomingColumns();

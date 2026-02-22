@@ -31,7 +31,7 @@ export class PendingSignaturesController {
         });
       }
 
-      // Find signature placeholders assigned to this user
+      // Find all signature placeholders for this user (both pending and signed)
       const placeholders = await prisma.signaturePlaceholder.findMany({
         where: {
           OR: [
@@ -42,12 +42,12 @@ export class PendingSignaturesController {
         },
         select: {
           document_id: true,
+          signature_status: true,
         },
-        distinct: ["document_id"],
       });
 
       // Get unique document IDs
-      const documentIds = placeholders.map((p) => p.document_id);
+      const documentIds = [...new Set(placeholders.map((p) => p.document_id))];
 
       if (documentIds.length === 0) {
         return res.status(200).json({
@@ -77,61 +77,57 @@ export class PendingSignaturesController {
       for (const document of documentsData) {
         const documentId = document.document_id;
 
-        // Get all placeholders for this document assigned to user
-        const userPlaceholders = await prisma.signaturePlaceholder.count({
-          where: {
-            document_id: documentId,
-            OR: [
-              { assigned_user_id: userId },
-              { assigned_user_id: null, department_id: user.department_id },
-              { assigned_user_id: null, department_id: null }
-            ],
-          },
-        });
+        // Filter placeholders for this specific document
+        const docPlaceholders = placeholders.filter(p => p.document_id === documentId);
 
-        // Get signatures from this user for this document
-        const userSignatures = await prisma.signedDocument.count({
-          where: {
-            document_id: documentId,
-            signee_id: userId,
-          },
-        });
+        // Count pending (signature_status = false)
+        const pendingCount = docPlaceholders.filter(p => p.signature_status === false).length;
 
-        // Only include if user hasn't signed all their placeholders
-        if (userPlaceholders > userSignatures) {
-          // Fetch document type if document_type is provided
-          let documentType = null;
-          if (document.document_type) {
-            documentType = await prisma.documentType.findFirst({
-              where: { name: document.document_type },
-            });
-          }
+        // Count signed (signature_status = true)
+        const signedCount = docPlaceholders.filter(p => p.signature_status === true).length;
 
-          documentMap.set(documentId, {
-            document_id: document.document_id,
-            document_name: document.title,
-            classification: document.classification,
-            status: document.status,
-            created_at: document.created_at,
-            type: documentType
-              ? {
-                  type_id: documentType.type_id,
-                  type_name: documentType.name,
-                }
-              : null,
-            files: document.files.map((file) => ({
-              file_id: file.file_id,
-              file_name: file.original_name,
-              file_path: file.storage_path,
-            })),
-            pending_signatures: userPlaceholders - userSignatures,
+        // Document is considered signed if there are no pending signatures and at least one signed placeholder
+        const isSigned = pendingCount === 0 && signedCount > 0;
+
+        // Fetch document type if document_type is provided
+        let documentType = null;
+        if (document.document_type) {
+          documentType = await prisma.documentType.findFirst({
+            where: { name: document.document_type },
           });
         }
+
+        documentMap.set(documentId, {
+          document_id: document.document_id,
+          document_name: document.title,
+          classification: document.classification,
+          status: document.status,
+          created_at: document.created_at,
+          type: documentType
+            ? {
+              type_id: documentType.type_id,
+              type_name: documentType.name,
+            }
+            : null,
+          files: document.files.map((file) => ({
+            file_id: file.file_id,
+            file_name: file.original_name,
+            file_path: file.storage_path,
+          })),
+          pending_signatures: pendingCount,
+          is_signed: isSigned,
+        });
       }
 
       const documents = Array.from(documentMap.values()).sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        (a, b) => {
+          // Sort unsigned first
+          if (a.is_signed !== b.is_signed) {
+            return a.is_signed ? 1 : -1;
+          }
+          // Then by date
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
       );
 
       return res.status(200).json({

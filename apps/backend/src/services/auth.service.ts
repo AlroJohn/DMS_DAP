@@ -7,10 +7,16 @@ import { prisma } from '../lib/prisma';
 import { GoogleUserData } from '../config/oauth.config';
 import { EmailService } from './email.service';
 import { PermissionService } from './permission.service';
+import { parseExpiresIn } from '../utils/time';
 
 export interface LoginCredentials {
   email: string;
   password: string;
+}
+
+export interface SessionContext {
+  ipAddress?: string;
+  userAgent?: string;
 }
 
 export interface RegisterData {
@@ -32,6 +38,7 @@ export interface AuthResult {
 export class AuthService {
   private emailService = new EmailService();
   private permissionService = new PermissionService();
+  private static readonly DEFAULT_INACTIVITY_TIMEOUT_MINUTES = 30;
 
   // In-memory user storage for demo - replace with database
   private users: User[] = [
@@ -66,6 +73,104 @@ export class AuthService {
       updated_at: new Date('2024-01-02')
     }
   ];
+
+  private normalizeValue(value?: string): string | undefined {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : undefined;
+  }
+
+  private normalizeIpAddress(ipAddress?: string): string | undefined {
+    const normalized = this.normalizeValue(ipAddress);
+    if (!normalized) {
+      return undefined;
+    }
+    return normalized.startsWith('::ffff:') ? normalized.slice(7) : normalized;
+  }
+
+  private getSessionInactivityCutoff(now: Date): Date {
+    const configuredMinutes = Number.parseInt(
+      process.env.SESSION_INACTIVITY_TIMEOUT_MINUTES || '',
+      10,
+    );
+    const inactivityMinutes = Number.isInteger(configuredMinutes) && configuredMinutes > 0
+      ? configuredMinutes
+      : AuthService.DEFAULT_INACTIVITY_TIMEOUT_MINUTES;
+
+    return new Date(now.getTime() - inactivityMinutes * 60 * 1000);
+  }
+
+  private async enforceSingleActiveSession(
+    accountId: string,
+    sessionContext?: SessionContext,
+  ): Promise<void> {
+    const now = new Date();
+
+    // Mark expired sessions as inactive (prevents stale locks when cookies are gone)
+    await prisma.userSession.updateMany({
+      where: {
+        account_id: accountId,
+        is_active: true,
+        OR: [
+          { expires_at: { lt: now } },
+          { refresh_expires_at: { lt: now } },
+        ],
+      },
+      data: { is_active: false },
+    });
+
+    const activeSessions = await prisma.userSession.findMany({
+      where: {
+        account_id: accountId,
+        is_active: true,
+        expires_at: { gt: now },
+        refresh_expires_at: { gt: now },
+      },
+    });
+
+    if (activeSessions.length === 0) {
+      return;
+    }
+
+    const normalizedIp = this.normalizeIpAddress(sessionContext?.ipAddress);
+    const normalizedUserAgent = this.normalizeValue(sessionContext?.userAgent);
+    const inactivityCutoff = this.getSessionInactivityCutoff(now);
+
+    const reclaimableSessionIds = activeSessions
+      .filter((session) => {
+        const isInactive = session.last_activity < inactivityCutoff;
+        const sessionUserAgent = this.normalizeValue(session.user_agent || undefined);
+        const sessionIp = this.normalizeIpAddress(session.ip_address || undefined);
+        const isSameClient = Boolean(
+          normalizedUserAgent &&
+          sessionUserAgent === normalizedUserAgent &&
+          (!normalizedIp || sessionIp === normalizedIp),
+        );
+        return isInactive || isSameClient;
+      })
+      .map((session) => session.session_id);
+
+    if (reclaimableSessionIds.length > 0) {
+      await prisma.userSession.updateMany({
+        where: {
+          session_id: { in: reclaimableSessionIds },
+        },
+        data: { is_active: false },
+      });
+    }
+
+    const remainingActiveSessions = await prisma.userSession.count({
+      where: {
+        account_id: accountId,
+        is_active: true,
+        expires_at: { gt: now },
+        refresh_expires_at: { gt: now },
+      },
+    });
+
+    if (remainingActiveSessions > 0) {
+      throw new Error('Account is already in use on another device or browser');
+    }
+  }
 
   /**
    * Register a new user
@@ -168,7 +273,13 @@ export class AuthService {
   /**
    * Login user
    */
-  async login(credentials: LoginCredentials): Promise<{ user: Omit<User, 'password'>; token: string; refreshToken: string }> {
+  async login(credentials: LoginCredentials, sessionContext?: SessionContext): Promise<{ 
+    user: Omit<User, 'password'>; 
+    token: string; 
+    refreshToken: string;
+    requires2FA?: boolean;
+    tempToken?: string;
+  }> {
     console.log(`[AuthService] Login attempt for email: ${credentials.email}`);
     // Find account by email in database
     const account = await prisma.account.findUnique({
@@ -202,22 +313,31 @@ export class AuthService {
       throw new Error('User profile not found');
     }
 
-    // Check for existing active sessions
-    const existingActiveSessions = await prisma.userSession.findMany({
-      where: {
-        account_id: account.account_id,
-        is_active: true,
-        refresh_expires_at: {
-          gt: new Date(), // Check if refresh token hasn't expired
+    // Check if 2FA is enabled
+    const twoFactorEnabled = (account as any).two_factor_enabled || false;
+    if (twoFactorEnabled) {
+      console.log(`[AuthService] 2FA required for email: ${credentials.email}`);
+      // Generate temporary token for 2FA verification
+      const tempToken = jwt.sign(
+        { 
+          email: account.email, 
+          accountId: account.account_id,
+          purpose: '2fa_pending'
         },
-      },
-    });
+        config.jwt.secret,
+        { expiresIn: '10m' }
+      );
 
-    const hasActiveSession = existingActiveSessions.length > 0;
-    if (hasActiveSession) {
-      console.log(`[AuthService] Active session detected for email: ${credentials.email}`);
-      throw new Error('Account is already in use on another device or browser');
+      return {
+        user: {} as Omit<User, 'password'>,
+        token: '',
+        refreshToken: '',
+        requires2FA: true,
+        tempToken
+      };
     }
+
+    await this.enforceSingleActiveSession(account.account_id, sessionContext);
 
     // Get user permissions and roles from the role-based system
     const permissions = await this.permissionService.getUserPermissions(account.user.user_id);
@@ -250,16 +370,20 @@ export class AuthService {
     const { token, refreshToken } = this.generateTokens(user, roleCodes);
 
     // Create a user session
-    const refreshTokenExpires = new Date();
-    refreshTokenExpires.setDate(refreshTokenExpires.getDate() + 6); // 6 days validity
+    const accessTokenExpiresAt = new Date(Date.now() + parseExpiresIn(config.jwt.expiresIn));
+    const refreshTokenExpiresAt = new Date(
+      Date.now() + parseExpiresIn(config.jwt.refreshExpiresIn)
+    );
 
     await prisma.userSession.create({
       data: {
         account_id: account.account_id,
         session_token: token, // Or a unique session ID
         refresh_token: refreshToken,
-        expires_at: new Date(Date.now() + 30 * 60 * 1000), // 30 minutes for access token
-        refresh_expires_at: refreshTokenExpires, // 6 days for refresh token
+        ip_address: this.normalizeIpAddress(sessionContext?.ipAddress),
+        user_agent: this.normalizeValue(sessionContext?.userAgent),
+        expires_at: accessTokenExpiresAt,
+        refresh_expires_at: refreshTokenExpiresAt,
         last_activity: new Date(),
       },
     });
@@ -268,6 +392,7 @@ export class AuthService {
       user: this.sanitizeUser(user),
       token,
       refreshToken,
+      requires2FA: false
     };
   }
 
@@ -379,8 +504,9 @@ export class AuthService {
     const { token: newToken, refreshToken: newRefreshToken } = this.generateTokens(userObj, roleCodes);
 
     // Update the session with the new refresh token and expiry
-    const newRefreshTokenExpires = new Date();
-    newRefreshTokenExpires.setDate(newRefreshTokenExpires.getDate() + 6); // 6 days validity
+    const newRefreshTokenExpires = new Date(
+      Date.now() + parseExpiresIn(config.jwt.refreshExpiresIn)
+    );
 
     await prisma.userSession.update({
       where: { session_id: session.session_id },
@@ -492,13 +618,13 @@ export class AuthService {
     };
 
     const token = jwt.sign(payload, config.jwt.secret, {
-      expiresIn: config.jwt.expiresIn
-    } as jwt.SignOptions);
+      expiresIn: config.jwt.expiresIn as jwt.SignOptions['expiresIn'],
+    });
 
     const refreshToken = jwt.sign(
       { userId: user.id },
       config.jwt.refreshSecret || config.jwt.secret,
-      { expiresIn: config.jwt.refreshExpiresIn } as jwt.SignOptions
+      { expiresIn: config.jwt.refreshExpiresIn as jwt.SignOptions['expiresIn'] }
     );
 
     return { token, refreshToken };
@@ -609,7 +735,10 @@ export class AuthService {
   /**
    * Generate tokens for OAuth user
    */
-  async generateTokensForUser(userId: string): Promise<{ token: string; refreshToken: string }> {
+  async generateTokensForUser(
+    userId: string,
+    sessionContext?: SessionContext,
+  ): Promise<{ token: string; refreshToken: string }> {
     try {
       // Get user from database
       const account = await prisma.account.findUnique({
@@ -621,22 +750,7 @@ export class AuthService {
         throw new Error('User not found');
       }
 
-      // Check for existing active sessions
-      const existingActiveSessions = await prisma.userSession.findMany({
-        where: {
-          account_id: account.account_id,
-          is_active: true,
-          refresh_expires_at: {
-            gt: new Date(), // Check if refresh token hasn't expired
-          },
-        },
-      });
-
-      const hasActiveSession = existingActiveSessions.length > 0;
-      if (hasActiveSession) {
-        console.log(`[AuthService] Active session detected for account: ${account.account_id}`);
-        throw new Error('Account is already in use on another device or browser');
-      }
+      await this.enforceSingleActiveSession(account.account_id, sessionContext);
 
       // Get user permissions and roles from the role-based system
       const permissions = await this.permissionService.getUserPermissions(account.user!.user_id);
@@ -667,17 +781,20 @@ export class AuthService {
 
       const tokens = this.generateTokens(user, roleCodes);
 
-      // Create a user session
-      const refreshTokenExpires = new Date();
-      refreshTokenExpires.setDate(refreshTokenExpires.getDate() + 6); // 6 days validity
+      const accessTokenExpiresAt = new Date(Date.now() + parseExpiresIn(config.jwt.expiresIn));
+      const refreshTokenExpiresAt = new Date(
+        Date.now() + parseExpiresIn(config.jwt.refreshExpiresIn)
+      );
 
       await prisma.userSession.create({
         data: {
           account_id: account.account_id,
           session_token: tokens.token,
           refresh_token: tokens.refreshToken,
-          expires_at: new Date(Date.now() + 30 * 60 * 1000), // 30 minutes for access token
-          refresh_expires_at: refreshTokenExpires, // 6 days for refresh token
+          ip_address: this.normalizeIpAddress(sessionContext?.ipAddress),
+          user_agent: this.normalizeValue(sessionContext?.userAgent),
+          expires_at: accessTokenExpiresAt,
+          refresh_expires_at: refreshTokenExpiresAt,
           last_activity: new Date(),
           login_method: 'google', // OAuth login
         },
@@ -932,6 +1049,295 @@ export class AuthService {
     } catch (error) {
       console.error('Error cleaning up expired reset tokens:', error);
       return 0;
+    }
+  }
+
+  /**
+   * Enable two-factor authentication for a user
+   */
+  async enable2FA(userId: string): Promise<{ two_factor_enabled: boolean }> {
+    try {
+      // Get the user's account
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        include: { account: true }
+      });
+
+      if (!user || !user.account) {
+        throw new Error('User not found');
+      }
+
+      // Enable 2FA
+      await prisma.account.update({
+        where: { account_id: user.account.account_id },
+        data: {
+          two_factor_enabled: true,
+          updated_at: new Date()
+        }
+      });
+
+      return { two_factor_enabled: true };
+    } catch (error) {
+      console.error('Error enabling 2FA:', error);
+      throw new Error('Failed to enable two-factor authentication');
+    }
+  }
+
+  /**
+   * Disable two-factor authentication for a user
+   */
+  async disable2FA(userId: string, password: string): Promise<{ two_factor_enabled: boolean }> {
+    try {
+      // Get the user's account
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        include: { account: true }
+      });
+
+      if (!user || !user.account) {
+        throw new Error('User not found');
+      }
+
+      // Verify password
+      if (!user.account.password) {
+        throw new Error('Password verification not available for this account');
+      }
+
+      const isPasswordValid = await bcrypt.compare(password, user.account.password);
+      if (!isPasswordValid) {
+        throw new Error('Incorrect password');
+      }
+
+      // Disable 2FA
+      await prisma.account.update({
+        where: { account_id: user.account.account_id },
+        data: {
+          two_factor_enabled: false,
+          updated_at: new Date()
+        }
+      });
+
+      return { two_factor_enabled: false };
+    } catch (error) {
+      console.error('Error disabling 2FA:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get 2FA status for a user
+   */
+  async get2FAStatus(userId: string): Promise<boolean> {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        include: { account: true }
+      });
+
+      if (!user || !user.account) {
+        throw new Error('User not found');
+      }
+
+      return user.account.two_factor_enabled || false;
+    } catch (error) {
+      console.error('Error getting 2FA status:', error);
+      throw new Error('Failed to get two-factor authentication status');
+    }
+  }
+
+  /**
+   * Generate a random 6-digit code
+   */
+  private generate2FACode(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  /**
+   * Send 2FA verification code to user's email
+   */
+  async send2FACode(email: string, tempToken: string): Promise<void> {
+    try {
+      // Verify the temp token first
+      const decoded = jwt.verify(tempToken, config.jwt.secret) as { email: string; accountId: string; purpose: string };
+      
+      if (decoded.purpose !== '2fa_pending') {
+        throw new Error('Invalid token');
+      }
+
+      if (decoded.email !== email) {
+        throw new Error('Email mismatch');
+      }
+
+      // Get account
+      const account = await prisma.account.findUnique({
+        where: { account_id: decoded.accountId }
+      });
+
+      if (!account) {
+        throw new Error('Account not found');
+      }
+
+      if (!account.two_factor_enabled) {
+        throw new Error('Two-factor authentication is not enabled');
+      }
+
+      // Generate 6-digit code
+      const code = this.generate2FACode();
+
+      // Delete any existing unused codes for this account
+      await prisma.mFACode.deleteMany({
+        where: {
+          account_id: account.account_id,
+          used: false
+        }
+      });
+
+      // Store the code (expires in 10 minutes)
+      const expiresAt = new Date();
+      expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+
+      await prisma.mFACode.create({
+        data: {
+          account_id: account.account_id,
+          code: code,
+          used: false,
+          expires_at: expiresAt
+        }
+      });
+
+      // Get user info for email
+      const user = await prisma.user.findFirst({
+        where: { account_id: account.account_id }
+      });
+
+      // Send email
+      const emailSent = await this.emailService.send2FACodeEmail({
+        email: account.email,
+        userName: user ? `${user.first_name} ${user.last_name}` : undefined,
+        code: code,
+        expiresIn: '10 minutes'
+      });
+
+      if (!emailSent) {
+        throw new Error('Failed to send verification email');
+      }
+    } catch (error) {
+      console.error('Error sending 2FA code:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Verify 2FA code and complete login
+   */
+  async verify2FACodeAndLogin(email: string, code: string, tempToken: string): Promise<AuthResult> {
+    try {
+      // Verify the temp token
+      const decoded = jwt.verify(tempToken, config.jwt.secret) as { email: string; accountId: string; purpose: string };
+      
+      if (decoded.purpose !== '2fa_pending') {
+        throw new Error('Invalid token');
+      }
+
+      if (decoded.email !== email) {
+        throw new Error('Email mismatch');
+      }
+
+      // Get account
+      const account = await prisma.account.findUnique({
+        where: { account_id: decoded.accountId },
+        include: {
+          user: {
+            include: {
+              user_roles: {
+                include: {
+                  role: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!account) {
+        throw new Error('Account not found');
+      }
+
+      // Find and validate the 2FA code
+      const mfaCode = await prisma.mFACode.findFirst({
+        where: {
+          account_id: account.account_id,
+          code: code,
+          used: false,
+          expires_at: { gt: new Date() }
+        }
+      });
+
+      if (!mfaCode) {
+        throw new Error('Invalid or expired verification code');
+      }
+
+      // Mark code as used
+      await prisma.mFACode.update({
+        where: { code_id: mfaCode.code_id },
+        data: { used: true }
+      });
+
+      // Get user permissions
+      let permissions: Permission[] = [];
+      const roleCodes: string[] = [];
+      if (account.user) {
+        permissions = await this.permissionService.getUserPermissions(account.user.user_id);
+        account.user.user_roles?.forEach((ur: any) => {
+          if (ur.role?.code) {
+            roleCodes.push(ur.role.code);
+          }
+        });
+      }
+
+      if (!account.user) {
+        throw new Error('User profile not found');
+      }
+
+      // Build user object for token generation
+      const user: User = {
+        id: account.user.user_id,
+        accountId: account.account_id,
+        email: account.email,
+        name: `${account.user.first_name} ${account.user.last_name}`,
+        password: '',
+        permissions: permissions,
+        roles: account.user.user_roles?.map((ur: any) => ur.role) || [],
+        department_id: account.user.department_id,
+        first_name: account.user.first_name,
+        last_name: account.user.last_name,
+        middle_name: account.user.middle_name,
+        user_name: account.user.user_name,
+        title: account.user.title,
+        type: account.user.type,
+        avatar: account.user.avatar,
+        active: account.user.active,
+        created_at: account.user.created_at,
+        updated_at: account.user.updated_at
+      };
+
+      // Generate tokens
+      const { token, refreshToken } = this.generateTokens(user, roleCodes);
+
+      // Update last login
+      await prisma.account.update({
+        where: { account_id: account.account_id },
+        data: { last_login: new Date() }
+      });
+
+      return {
+        user: this.sanitizeUser(user),
+        token,
+        refreshToken
+      };
+    } catch (error) {
+      console.error('Error verifying 2FA code:', error);
+      throw error;
     }
   }
 }

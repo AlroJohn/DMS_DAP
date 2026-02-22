@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import bwipjs from 'bwip-js';
 import { DocumentService } from './document.service';
 import { DocumentTrailsService } from './document-trails.service';
+import { ProcessStatusService } from './process-status.service';
 import { getSocketInstance } from '../socket';
 
 interface PaginationParams {
@@ -75,11 +76,16 @@ export class IntransitService {
           status: { in: ['intransit', 'pending'] },
           from_department: {
             not: user.department_id // Exclude documents from same department
-          }
+          },
+          OR: [
+            { assigned_to_user_id: null },
+            { assigned_to_user_id: userId }
+          ]
         },
         select: {
           document_id: true,
-          from_department: true
+          from_department: true,
+          assigned_to_user_id: true
         },
         orderBy: {
           created_at: 'desc'
@@ -119,34 +125,24 @@ export class IntransitService {
           const isInWorkflow = workflowDepartments.includes(user.department_id);
           const isNotOriginator = workflowDepartments.length > 0 && workflowDepartments[0] !== user.department_id;
 
-          // Check if not yet received by this user
-          let receivedByUsers: string[] = [];
-          if (detail.received_by_departments) {
-            try {
-              receivedByUsers = Array.isArray(detail.received_by_departments)
-                ? detail.received_by_departments
-                : JSON.parse(detail.received_by_departments as any);
-            } catch (e) {
-              console.error('📍 [getIncomingDocuments] Error parsing received_by_departments:', e);
-            }
-          }
-
-          const notYetReceived = !receivedByUsers.includes(userId);
-
           // Check if document is currently assigned to this department via document trail with 'intransit' status
           const currentIntransitTrail = await prisma.documentTrail.findFirst({
             where: {
               document_id: detail.document_id,
               to_department: user.department_id,
-              status: 'intransit'
+              status: 'intransit',
+              OR: [
+                { assigned_to_user_id: null },
+                { assigned_to_user_id: userId }
+              ]
             },
             orderBy: {
               created_at: 'desc'
             }
           });
 
-          // Include document if in workflow, not originator, not yet received, and has active intransit trail
-          if (isInWorkflow && isNotOriginator && notYetReceived && currentIntransitTrail) {
+          // Include document if in workflow, not originator, and has active intransit trail
+          if (isInWorkflow && isNotOriginator && currentIntransitTrail) {
             incomingDocumentIds.add(detail.document_id);
           }
         } catch (e) {
@@ -155,29 +151,42 @@ export class IntransitService {
       }
 
       // Remove documents that the user has already received IN THE CURRENT TRANSIT CYCLE
-      // We need to check if the latest trail for this document to this department is 'received'
       const documentsToCheck = Array.from(incomingDocumentIds);
       for (const docId of documentsToCheck) {
-        // Check the latest trail for this document coming to this department
-        const latestTrailToThisDept = await prisma.documentTrail.findFirst({
+        const latestIntransitTrail = await prisma.documentTrail.findFirst({
           where: {
             document_id: docId,
             to_department: user.department_id,
+            status: 'intransit'
           },
           orderBy: {
             created_at: 'desc'
           },
           select: {
-            status: true,
-            trail_id: true,
             created_at: true
           }
         });
 
-        // Only remove from incoming if the latest trail shows it was already received
-        // This allows documents to appear again if they're sent back to this department
-        if (latestTrailToThisDept && latestTrailToThisDept.status === 'received') {
-          console.log('📍 [getIncomingDocuments] Document already received in current cycle:', docId);
+        if (!latestIntransitTrail) {
+          incomingDocumentIds.delete(docId);
+          continue;
+        }
+
+        const receivedAfterIntransit = await prisma.documentTrail.findFirst({
+          where: {
+            document_id: docId,
+            status: 'received',
+            user_id: userId,
+            to_department: user.department_id,
+            created_at: {
+              gte: latestIntransitTrail.created_at
+            }
+          },
+          select: { trail_id: true }
+        });
+
+        if (receivedAfterIntransit) {
+          console.log('📍 [getIncomingDocuments] Document already received by user in current cycle:', docId);
           incomingDocumentIds.delete(docId);
         }
       }
@@ -201,19 +210,22 @@ export class IntransitService {
       const departmentNameCache = new Map<string, string>();
       const accountNameCache = new Map<string, string>();
 
-      const getDepartmentName = async (departmentId?: string | null) => {
-        if (!departmentId) return 'N/A';
+      const getDepartmentInfo = async (departmentId?: string | null): Promise<{ code: string; name: string }> => {
+        if (!departmentId) return { code: 'N/A', name: 'N/A' };
         if (departmentNameCache.has(departmentId)) {
-          return departmentNameCache.get(departmentId)!;
+          const cached = departmentNameCache.get(departmentId)!;
+          const [code, name] = cached.split('|');
+          return { code: code || name, name };
         }
 
         const department = await prisma.department.findUnique({
           where: { department_id: departmentId },
-          select: { name: true }
+          select: { name: true, code: true }
         });
-        const departmentName = department?.name ?? 'N/A';
-        departmentNameCache.set(departmentId, departmentName);
-        return departmentName;
+        const code = department?.code || department?.name || 'N/A';
+        const name = department?.name || 'N/A';
+        departmentNameCache.set(departmentId, `${code}|${name}`);
+        return { code, name };
       };
 
       const getAccountOwnerName = async (accountId?: string | null) => {
@@ -297,7 +309,7 @@ export class IntransitService {
           const detail = documentDetailsMap.get(doc.document_id);
           const workflowDepartments = detail ? this.parseWorkflowDepartments(detail.work_flow_id) : [];
           const originatorDeptId = workflowDepartments.length > 0 ? workflowDepartments[0] : null;
-          const contactOrganization = await getDepartmentName(originatorDeptId);
+          const { code: contactOrganization, name: contactOrganizationName } = await getDepartmentInfo(originatorDeptId);
 
           let contactPerson = 'N/A';
           if (doc.files && doc.files.length > 0) {
@@ -350,11 +362,14 @@ export class IntransitService {
             documentId: doc.document_code,
             contactPerson,
             contactOrganization,
+            contactOrganizationName,
             type: 'General',
+            process_type_id: doc.process_type_id,
             classification: doc.classification,
             status: doc.status, // Use actual document status instead of hardcoded 'incoming'
             activity: 'incoming',
             activityTime: doc.created_at.toISOString(),
+            created_at: doc.created_at.toISOString(),
             requestAction: releaseInfo?.requestAction || null,
             releaseRemarks: releaseInfo?.remarks || null
           };
@@ -459,7 +474,6 @@ export class IntransitService {
 
         for (const detail of documentDetails) {
           if (!detail.work_flow_id) continue;
-
           try {
             let workflowDepartments: string[] = [];
 
@@ -545,19 +559,22 @@ export class IntransitService {
       const departmentNameCache = new Map<string, string>();
       const accountNameCache = new Map<string, string>();
 
-      const getDepartmentName = async (departmentId?: string | null) => {
-        if (!departmentId) return 'N/A';
+      const getDepartmentInfo = async (departmentId?: string | null): Promise<{ code: string; name: string }> => {
+        if (!departmentId) return { code: 'N/A', name: 'N/A' };
         if (departmentNameCache.has(departmentId)) {
-          return departmentNameCache.get(departmentId)!;
+          const cached = departmentNameCache.get(departmentId)!;
+          const [code, name] = cached.split('|');
+          return { code: code || name, name };
         }
 
         const department = await prisma.department.findUnique({
           where: { department_id: departmentId },
-          select: { name: true }
+          select: { name: true, code: true }
         });
-        const departmentName = department?.name ?? 'N/A';
-        departmentNameCache.set(departmentId, departmentName);
-        return departmentName;
+        const code = department?.code || department?.name || 'N/A';
+        const name = department?.name || 'N/A';
+        departmentNameCache.set(departmentId, `${code}|${name}`);
+        return { code, name };
       };
 
       const getAccountOwnerName = async (accountId?: string | null) => {
@@ -591,7 +608,7 @@ export class IntransitService {
               in: outgoingDocumentIds
             },
             status: {
-              not: { in: ['completed', 'deleted', 'received'] } // Exclude completed, deleted, and received
+              notIn: ['completed', 'deleted', 'received', 'cancelled'] // Exclude completed, deleted, received, cancelled
             }
           },
           include: {
@@ -625,7 +642,7 @@ export class IntransitService {
               in: outgoingDocumentIds
             },
             status: {
-              not: { in: ['completed', 'deleted', 'received'] } // Exclude completed, deleted, and received
+              notIn: ['completed', 'deleted', 'received', 'cancelled'] // Exclude completed, deleted, received, cancelled
             }
           }
         })
@@ -639,7 +656,7 @@ export class IntransitService {
           const detail = documentDetailsMap.get(doc.document_id);
           const workflowDepartments = detail ? this.parseWorkflowDepartments(detail.work_flow_id) : [];
           const originatorDeptId = workflowDepartments.length > 0 ? workflowDepartments[0] : null;
-          const contactOrganization = await getDepartmentName(originatorDeptId);
+          const { code: contactOrganization, name: contactOrganizationName } = await getDepartmentInfo(originatorDeptId);
 
           let contactPerson = 'N/A';
           if (doc.files && doc.files.length > 0) {
@@ -684,11 +701,14 @@ export class IntransitService {
             documentId: doc.document_code,
             contactPerson,
             contactOrganization,
+            contactOrganizationName,
             type: 'General',
+            process_type_id: doc.process_type_id,
             classification: doc.classification,
             status: doc.status, // Use actual document status instead of hardcoded 'sent'
             activity: 'sent',
-            activityTime: doc.created_at.toISOString()
+            activityTime: doc.created_at.toISOString(),
+            created_at: doc.created_at.toISOString()
           };
         })
       );
@@ -765,6 +785,14 @@ export class IntransitService {
         });
       } catch (error) {
         console.error('Error creating document trail for document completion:', error);
+      }
+
+      // Ensure ProcessStatus reflects completion (in case trail sync did not run)
+      try {
+        const processStatusService = new ProcessStatusService();
+        await processStatusService.syncForDocument(documentId);
+      } catch (syncError) {
+        console.error('Error syncing ProcessStatus after completion:', syncError);
       }
 
       // Emit socket event to notify frontends of document completion
@@ -929,13 +957,41 @@ export class IntransitService {
         throw new Error('Document not found');
       }
 
-      if (document.status !== 'intransit') {
+      const isInTransitStatus = ['intransit', 'intransit_signature'].includes(document.status);
+      if (!isInTransitStatus && document.status !== 'pending' && document.status !== 'cancelled') {
         throw new Error('Document is not currently in in-transit status');
       }
 
-      // Check if the user's department is the one that released the document
-      // We need to check the document trail to determine if the current user's department released it
-      const lastTrail = await prisma.documentTrail.findFirst({
+      // Only the owning/originating user can cancel (document creator)
+      const detail = await prisma.documentAdditionalDetails.findFirst({
+        where: { document_id: documentId },
+        select: { work_flow_id: true, account_id: true, detail_id: true }
+      });
+
+      if (!detail?.account_id) {
+        throw new Error('Only the document owner can cancel this document');
+      }
+
+      const ownerAccountId = detail.account_id;
+      const userAccount = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { account_id: true }
+      });
+
+      if (!userAccount?.account_id || userAccount.account_id !== ownerAccountId) {
+        throw new Error('Only the document owner can cancel this document');
+      }
+
+      // If already pending or cancelled, treat as already cancelled
+      if (!isInTransitStatus && (document.status === 'pending' || document.status === 'cancelled')) {
+        return {
+          success: true,
+          message: 'Document already cancelled',
+          documentId
+        };
+      }
+
+      const lastIntransitTrail = await prisma.documentTrail.findFirst({
         where: {
           document_id: documentId,
           status: 'intransit'
@@ -945,18 +1001,29 @@ export class IntransitService {
         }
       });
 
-      if (!lastTrail || lastTrail.from_department !== user.department_id) {
-        throw new Error('Only the department that released the document can cancel it');
-      }
-
-      // Update document status back to 'pending'
+      // Update document status to 'cancelled'
       const updatedDocument = await prisma.document.update({
         where: { document_id: documentId },
         data: {
-          status: 'pending',
+          status: 'cancelled',
           updated_at: new Date()
         }
       });
+
+      // Clear any received-by users so canceled releases no longer appear in shared lists
+      if (detail?.detail_id) {
+        try {
+          await prisma.documentAdditionalDetails.update({
+            where: { detail_id: detail.detail_id },
+            data: {
+              received_by_departments: [] as any,
+              updated_at: new Date()
+            }
+          });
+        } catch (error) {
+          console.error('Error clearing received_by_departments on cancel:', error);
+        }
+      }
 
       // Create a document trail entry for the cancellation
       const documentTrailsService = new DocumentTrailsService();
@@ -967,8 +1034,19 @@ export class IntransitService {
           to_department: user!.department_id, // For cancellation, same department
           user_id: userId,
           status: 'canceled',
-          remarks: `In-transit document canceled by ${user!.first_name} ${user!.last_name}, status reverted to pending`
+          remarks: `In-transit document canceled by ${user!.first_name} ${user!.last_name}`
         });
+
+        if (lastIntransitTrail?.to_department) {
+          await documentTrailsService.createDocumentTrail({
+            document_id: documentId,
+            from_department: user!.department_id,
+            to_department: lastIntransitTrail.to_department,
+            user_id: userId,
+            status: 'canceled',
+            remarks: `Release canceled by document owner`
+          });
+        }
       } catch (error) {
         console.error('Error creating document trail for in-transit cancellation:', error);
       }
@@ -978,7 +1056,7 @@ export class IntransitService {
       if (io) {
         io.emit('documentUpdated', {
           documentId: documentId,
-          status: 'pending',
+          status: 'cancelled',
           updatedBy: userId,
           timestamp: new Date().toISOString()
         });
@@ -994,7 +1072,7 @@ export class IntransitService {
 
       return {
         success: true,
-        message: 'In-transit document canceled successfully, status reverted to pending',
+        message: 'In-transit document canceled successfully',
         documentId: documentId,
         updatedDocument
       };

@@ -264,7 +264,7 @@ const RoleFormModal: React.FC<RoleFormModalProps> = ({
           onSubmit={handleSubmit}
           className="flex flex-col flex-grow overflow-hidden"
         >
-          <div className="grid grid-cols-2 gap-4 p-2 flex-shrink-0">
+          <div className="grid grid-cols-2 gap-4 p-2 shrink-0">
             <div className="space-y-2">
               <Label htmlFor="name">
                 Role Name<span className="text-red-500">*</span>
@@ -367,7 +367,7 @@ const RoleFormModal: React.FC<RoleFormModalProps> = ({
             )}
           </div>
 
-          <div className="flex justify-end gap-2 flex-shrink-0 pt-4">
+          <div className="flex justify-end gap-2 shrink-0 pt-4">
             <Button
               type="button"
               variant="outline"

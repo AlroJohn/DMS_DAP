@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { DocumentService } from '../services/document.service';
 import { SharedDocumentService } from '../services/shared-document.service';
+import { IntransitService } from '../services/intransit.service';
 import { AuthRequest } from '../middleware/auth-middleware';
 import { asyncHandler } from '../middleware/error-handler';
 import { sendSuccess, sendError, getPaginationParams, validateRequiredFields } from '../utils/response';
@@ -9,11 +10,21 @@ import { CreateDocumentRequest, UpdateDocumentRequest } from '../types';
 export class DocumentController {
   private documentService: DocumentService;
   private sharedDocumentService: SharedDocumentService;
+  private intransitService: IntransitService;
 
   constructor() {
     this.documentService = new DocumentService();
     this.sharedDocumentService = new SharedDocumentService();
+    this.intransitService = new IntransitService();
   }
+
+  // Helper method to extract string value from potentially array parameter
+  private getStringValue = (param: string | string[] | undefined): string | undefined => {
+    if (Array.isArray(param)) {
+      return param[0];
+    }
+    return param;
+  };
 
   /**
    * GET /api/documents - Get all documents with pagination
@@ -40,19 +51,60 @@ export class DocumentController {
   });
 
   /**
+   * GET /api/documents/sidebar-counts - Get sidebar document counts
+   */
+  getSidebarCounts = asyncHandler(async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
+    const userId = authReq.user.id;
+
+    const [allStatusCounts, incomingResult, sharedResult] =
+      await Promise.all([
+        this.documentService.getDocumentCountsByStatus(userId),
+        this.intransitService.getIncomingDocuments(userId, 1, 1),
+        this.sharedDocumentService.getSharedDocuments(userId, 1, 1),
+      ]);
+
+    const incomingInTransitDocuments = incomingResult.pagination?.total ?? 0;
+    const sharedDocuments = sharedResult.pagination?.total ?? 0;
+
+    const [totalOwnedDocuments, outgoingInTransitDocuments] = await Promise.all([
+      this.documentService.getTotalOwnedDocumentsCount(userId),
+      this.documentService.getOutgoingDocumentsCount(userId)
+    ]);
+
+    return sendSuccess(res, {
+      ...allStatusCounts,
+      ownedPendingDocuments: allStatusCounts.pending, // Keep the existing field for compatibility
+      totalOwnedDocuments, // Add the total count for owned documents across all statuses
+      outgoingInTransitDocuments, // Add the count for outgoing in-transit documents
+      incomingInTransitDocuments,
+      sharedDocuments,
+    });
+  });
+
+  /**
    * GET /api/documents/:id - Get document by ID
    */
   getDocumentById = asyncHandler(async (req: Request, res: Response) => {
+    // Helper function to extract string value from potentially array parameter
+    const getStringValue = (param: string | string[] | undefined): string | undefined => {
+      if (Array.isArray(param)) {
+        return param[0]; // Take the first value if it's an array
+      }
+      return param;
+    };
+
     const { id } = req.params;
+    const idStr = getStringValue(id);
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
-      console.log('📍 [DocumentController.getDocumentById] Invalid document ID format:', id);
+    if (!idStr || !uuidRegex.test(idStr)) {
+      console.log('📍 [DocumentController.getDocumentById] Invalid document ID format:', idStr);
       return sendError(res, 'Invalid document ID format', 400);
     }
 
-    const document = await this.documentService.getDocumentById(id);
+    const document = await this.documentService.getDocumentById(idStr);
 
     if (!document) {
       return sendError(res, 'Document not found', 404);
@@ -98,7 +150,7 @@ export class DocumentController {
       return sendError(res, 'File upload is required', 400);
     }
 
-    const requiredFields = ['document_name', 'classification', 'type_id', 'origin'];
+    const requiredFields = ['document_name', 'classification', 'type_id', 'process_type_id', 'origin'];
     const missingFields = validateRequiredFields(req.body, requiredFields);
 
     if (missingFields.length > 0) {
@@ -122,14 +174,24 @@ export class DocumentController {
    */
   uploadFilesToDocument = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
+
+    // Helper function to extract string value from potentially array parameter
+    const getStringValue = (param: string | string[] | undefined): string | undefined => {
+      if (Array.isArray(param)) {
+        return param[0]; // Take the first value if it's an array
+      }
+      return param;
+    };
+
     const { id } = req.params;
+    const idStr = getStringValue(id);
     const files = (req as any).files as Express.Multer.File[] | undefined;
-    const { versionGroupId, enableOcr } = req.body; // Get versionGroupId and enableOcr from request body if provided
+    const { versionGroupId, enableOcr, documentGroupId, documentGroupName } = req.body;
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
-      console.log('📍 [DocumentController.uploadFilesToDocument] Invalid document ID format:', id);
+    if (!idStr || !uuidRegex.test(idStr)) {
+      console.log('📍 [DocumentController.uploadFilesToDocument] Invalid document ID format:', idStr);
       return sendError(res, 'Invalid document ID format', 400);
     }
 
@@ -138,11 +200,13 @@ export class DocumentController {
     }
 
     const uploaded = await this.documentService.uploadFilesToDocument(
-      id,
+      idStr,
       files,
       authReq.user.id,
       versionGroupId,
-      enableOcr === 'true'
+      enableOcr === 'true',
+      documentGroupId,
+      documentGroupName
     );
 
     return sendSuccess(res, uploaded, 201);
@@ -153,14 +217,28 @@ export class DocumentController {
    */
   replaceDocumentFile = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
+
+    // Helper function to extract string value from potentially array parameter
+    const getStringValue = (param: string | string[] | undefined): string | undefined => {
+      if (Array.isArray(param)) {
+        return param[0]; // Take the first value if it's an array
+      }
+      return param;
+    };
+
     const { id, fileId } = req.params;
+    const idStr = getStringValue(id);
+    const fileIdStr = getStringValue(fileId);
     const file = (req as any).file as Express.Multer.File | undefined;
 
     // Validate UUID format for document id
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
-      console.log('📍 [DocumentController.replaceDocumentFile] Invalid document ID format:', id);
+    if (!idStr || !uuidRegex.test(idStr)) {
+      console.log('📍 [DocumentController.replaceDocumentFile] Invalid document ID format:', idStr);
       return sendError(res, 'Invalid document ID format', 400);
+    }
+    if (!fileIdStr) {
+      return sendError(res, 'Invalid file ID format', 400);
     }
 
     if (!file) {
@@ -168,8 +246,8 @@ export class DocumentController {
     }
 
     const updated = await this.documentService.replaceDocumentFile(
-      id,
-      fileId,
+      idStr,
+      fileIdStr,
       file,
       authReq.user.id
     );
@@ -181,11 +259,11 @@ export class DocumentController {
    * GET /api/documents/:id/files - List document files
    */
   getDocumentFiles = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
+    if (!id || !uuidRegex.test(id)) {
       console.log('📍 [DocumentController.getDocumentFiles] Invalid document ID format:', id);
       return sendError(res, 'Invalid document ID format', 400);
     }
@@ -199,13 +277,17 @@ export class DocumentController {
    * GET /api/documents/:id/files/:fileId/download - Download file
    */
   downloadDocumentFile = asyncHandler(async (req: Request, res: Response) => {
-    const { id, fileId } = req.params;
+    const id = this.getStringValue(req.params.id);
+    const fileId = this.getStringValue(req.params.fileId);
 
     // Validate UUID format for document id
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
+    if (!id || !uuidRegex.test(id)) {
       console.log('📍 [DocumentController.downloadDocumentFile] Invalid document ID format:', id);
       return sendError(res, 'Invalid document ID format', 400);
+    }
+    if (!fileId) {
+      return sendError(res, 'Invalid file ID format', 400);
     }
 
     const file = await this.documentService.downloadDocumentFile(id, fileId);
@@ -224,13 +306,17 @@ export class DocumentController {
    * GET /api/documents/:id/files/:fileId/stream - Stream file inline for preview
    */
   streamDocumentFile = asyncHandler(async (req: Request, res: Response) => {
-    const { id, fileId } = req.params;
+    const id = this.getStringValue(req.params.id);
+    const fileId = this.getStringValue(req.params.fileId);
 
     // Validate UUID format for document id
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
+    if (!id || !uuidRegex.test(id)) {
       console.log('📍 [DocumentController.streamDocumentFile] Invalid document ID format:', id);
       return sendError(res, 'Invalid document ID format', 400);
+    }
+    if (!fileId) {
+      return sendError(res, 'Invalid file ID format', 400);
     }
 
     const file = await this.documentService.downloadDocumentFile(id, fileId);
@@ -251,13 +337,17 @@ export class DocumentController {
    */
   deleteDocumentFile = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id, fileId } = req.params;
+    const id = this.getStringValue(req.params.id);
+    const fileId = this.getStringValue(req.params.fileId);
 
     // Validate UUID format for document id
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
+    if (!id || !uuidRegex.test(id)) {
       console.log('📍 [DocumentController.deleteDocumentFile] Invalid document ID format:', id);
       return sendError(res, 'Invalid document ID format', 400);
+    }
+    if (!fileId) {
+      return sendError(res, 'Invalid file ID format', 400);
     }
 
     await this.documentService.deleteDocumentFile(id, fileId, authReq.user.id);
@@ -270,11 +360,11 @@ export class DocumentController {
    */
   updateDocument = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
+    if (!id || !uuidRegex.test(id)) {
       console.log('📍 [DocumentController.updateDocument] Invalid document ID format:', id);
       return sendError(res, 'Invalid document ID format', 400);
     }
@@ -291,7 +381,11 @@ export class DocumentController {
 
     const updateData: UpdateDocumentRequest = {
       name: req.body.name,
-      content: req.body.content
+      content: req.body.content,
+      classification: req.body.classification,
+      origin: req.body.origin,
+      document_type: req.body.document_type,
+      process_type_id: req.body.process_type_id,
     };
 
     const updatedDocument = await this.documentService.updateDocument(id, updateData, authReq.user.id);
@@ -304,11 +398,11 @@ export class DocumentController {
    */
   deleteDocument = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
+    if (!id || !uuidRegex.test(id)) {
       console.log('📍 [DocumentController.deleteDocument] Invalid document ID format:', id);
       return sendError(res, 'Invalid document ID format', 400);
     }
@@ -446,11 +540,11 @@ export class DocumentController {
    */
   completeDocument = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
+    if (!id || !uuidRegex.test(id)) {
       console.log('📍 [DocumentController.completeDocument] Invalid document ID format:', id);
       return sendError(res, 'Invalid document ID format', 400);
     }
@@ -475,15 +569,48 @@ export class DocumentController {
   });
 
   /**
+   * POST /api/documents/:id/uncomplete - Revert a completed document back to pending
+   */
+  uncompleteDocument = asyncHandler(async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
+    const id = this.getStringValue(req.params.id);
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!id || !uuidRegex.test(id)) {
+      console.log('📍 [DocumentController.uncompleteDocument] Invalid document ID format:', id);
+      return sendError(res, 'Invalid document ID format', 400);
+    }
+
+    const existingDocument = await this.documentService.getDocumentById(id);
+    if (!existingDocument) {
+      return sendError(res, 'Document not found', 404);
+    }
+
+    const canAccess = await this.documentService.canUserAccessDocument(id, authReq.user.id);
+    if (!canAccess) {
+      return sendError(res, 'You do not have permission to modify this document', 403);
+    }
+
+    const result = await this.documentService.uncompleteDocument(id, authReq.user.id);
+
+    if (!result.success) {
+      return sendError(res, result.error || 'Failed to uncomplete document', 500);
+    }
+
+    return sendSuccess(res, result.data, 200);
+  });
+
+  /**
    * POST /api/documents/:id/cancel - Cancel a document
    */
   cancelDocument = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
+    if (!id || !uuidRegex.test(id)) {
       console.log('📍 [DocumentController.cancelDocument] Invalid document ID format:', id);
       return sendError(res, 'Invalid document ID format', 400);
     }
@@ -512,11 +639,11 @@ export class DocumentController {
    */
   receiveDocument = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
+    if (!id || !uuidRegex.test(id)) {
       console.log('📍 [DocumentController.receiveDocument] Invalid document ID format:', id);
       return sendError(res, 'Invalid document ID format', 400);
     }
@@ -545,12 +672,12 @@ export class DocumentController {
    */
   signFromPlaceholders = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
     const { signatureData } = req.body;
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
+    if (!id || !uuidRegex.test(id)) {
       return sendError(res, 'Invalid document ID format', 400);
     }
 
@@ -568,12 +695,12 @@ export class DocumentController {
    */
   signDocument = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
     const { signature, primarySigner, additionalSigners, marks, sendEmail } = req.body;
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
+    if (!id || !uuidRegex.test(id)) {
       console.log('📍 [DocumentController.signDocument] Invalid document ID format:', id);
       return sendError(res, 'Invalid document ID format', 400);
     }
@@ -650,7 +777,7 @@ export class DocumentController {
    */
   shareDocument = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
     const { userIds } = req.body;
 
     // Validate required fields
@@ -666,7 +793,7 @@ export class DocumentController {
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
+    if (!id || !uuidRegex.test(id)) {
       console.log('📍 [DocumentController.shareDocument] Invalid document ID format:', id);
       return sendError(res, 'Invalid document ID format', 400);
     }
@@ -696,12 +823,12 @@ export class DocumentController {
    */
   createSignedDocument = asyncHandler(async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    const { id: documentId } = req.params;
+    const documentId = this.getStringValue(req.params.id);
     const { signatureData, x_position, y_position, width, height, page_number } = req.body;
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(documentId)) {
+    if (!documentId || !uuidRegex.test(documentId)) {
       return sendError(res, 'Invalid document ID format', 400);
     }
 
@@ -749,11 +876,11 @@ export class DocumentController {
   });
 
   getDocumentOcrData = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = this.getStringValue(req.params.id);
 
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
+    if (!id || !uuidRegex.test(id)) {
       return sendError(res, 'Invalid document ID format', 400);
     }
 

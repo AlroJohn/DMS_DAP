@@ -1,5 +1,7 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
+import fs from 'fs';
+import path from 'path';
 
 const S3_URI_PREFIX = 's3://';
 
@@ -33,26 +35,53 @@ const parseS3Uri = (uri: string): S3Location | null => {
 const getEnv = (key: string) => process.env[key];
 
 class S3StorageService {
-  private client: S3Client;
+  private client: S3Client | null = null;
+  private isEnabled: boolean;
+  private localBasePath: string;
 
   constructor() {
-    const region = getEnv('AWS_REGION') || getEnv('AWS_DEFAULT_REGION');
-    if (!region) {
-      throw new Error('AWS_REGION is required for S3 storage.');
-    }
+    this.localBasePath = path.resolve(process.cwd(), 'uploads', 'documents');
+    this.isEnabled = false;
+    this.refreshConfig();
+  }
 
+  private refreshConfig(): void {
+    const region = getEnv('AWS_REGION') || getEnv('AWS_DEFAULT_REGION');
+    const bucket = getEnv('S3_BUCKET_NAME');
     const accessKeyId = getEnv('AWS_ACCESS_KEY_ID');
     const secretAccessKey = getEnv('AWS_SECRET_ACCESS_KEY');
+    const canEnable = Boolean(region && bucket);
 
-    this.client = new S3Client({
-      region,
-      credentials: accessKeyId && secretAccessKey
-        ? {
-            accessKeyId,
-            secretAccessKey,
-          }
-        : undefined,
-    });
+    if (!canEnable) {
+      if (this.isEnabled) {
+        console.warn('S3 storage is no longer configured. Falling back to local storage.');
+      } else {
+        console.warn('S3 storage is not configured. Using alternative storage method.');
+      }
+      this.isEnabled = false;
+      this.client = null;
+      return;
+    }
+
+    if (!this.isEnabled || !this.client) {
+      this.client = new S3Client({
+        region: region!,
+        credentials: accessKeyId && secretAccessKey
+          ? {
+              accessKeyId,
+              secretAccessKey,
+            }
+          : undefined,
+      });
+    }
+    this.isEnabled = true;
+  }
+
+  private ensureEnabled(): void {
+    this.refreshConfig();
+    if (!this.isEnabled || !this.client) {
+      throw new Error('S3 storage is not enabled or properly configured.');
+    }
   }
 
   getBucket(): string {
@@ -72,19 +101,35 @@ class S3StorageService {
     body: Buffer;
     contentType?: string;
   }): Promise<string> {
-    const bucket = this.getBucket();
-    await this.client.send(
-      new PutObjectCommand({
-        Bucket: bucket,
-        Key: params.key,
-        Body: params.body,
-        ContentType: params.contentType,
-      })
-    );
-    return buildS3Uri(bucket, params.key);
+    this.refreshConfig();
+    if (this.isEnabled && this.client) {
+      const bucket = this.getBucket();
+      await this.client.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: params.key,
+          Body: params.body,
+          ContentType: params.contentType,
+        })
+      );
+      return buildS3Uri(bucket, params.key);
+    }
+
+    const targetPath = path.resolve(this.localBasePath, params.key);
+    if (!targetPath.startsWith(this.localBasePath)) {
+      throw new Error('Invalid storage path');
+    }
+    await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+    await fs.promises.writeFile(targetPath, params.body);
+    return targetPath;
   }
 
   async getObjectStream(uriOrKey: string): Promise<Readable> {
+    this.ensureEnabled();
+    if (!this.client) {
+      throw new Error('S3 client not initialized');
+    }
+    
     const location = parseS3Uri(uriOrKey) || {
       bucket: this.getBucket(),
       key: uriOrKey,
@@ -117,6 +162,11 @@ class S3StorageService {
   }
 
   async deleteObject(uriOrKey: string): Promise<void> {
+    this.ensureEnabled();
+    if (!this.client) {
+      throw new Error('S3 client not initialized');
+    }
+    
     const location = parseS3Uri(uriOrKey) || {
       bucket: this.getBucket(),
       key: uriOrKey,
@@ -131,5 +181,6 @@ class S3StorageService {
   }
 }
 
+// Export S3 storage service instance
 export const s3Storage = new S3StorageService();
 export { S3_URI_PREFIX, buildS3Uri, parseS3Uri };

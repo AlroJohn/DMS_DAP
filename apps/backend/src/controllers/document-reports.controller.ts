@@ -6,6 +6,13 @@ import { prisma } from '../lib/prisma';
 
 const documentReportsService = new DocumentReportsService();
 
+const getStringValue = (param: string | string[] | undefined): string | undefined => {
+  if (Array.isArray(param)) {
+    return param[0];
+  }
+  return param;
+};
+
 export const getUsageReport = async (req: Request, res: Response) => {
   try {
     const { dateRange } = req.query;
@@ -43,7 +50,7 @@ export const getVersionHistoryReport = async (req: Request, res: Response) => {
 
 export const getDocumentVersionHistory = async (req: Request, res: Response) => {
   try {
-    const { documentId } = req.params;
+    const documentId = getStringValue(req.params.documentId);
     
     if (!documentId) {
       return res.status(400).json({
@@ -206,7 +213,7 @@ export const scheduleComplianceReport = async (req: Request, res: Response) => {
 
 export const downloadScheduledReport = async (req: Request, res: Response) => {
   try {
-    const { reportId } = req.params;
+    const reportId = getStringValue(req.params.reportId);
     const userId = (req as any).user?.id; // User ID from auth middleware
 
     if (!reportId) {
@@ -383,8 +390,14 @@ export const triggerScheduledReports = async (req: Request, res: Response) => {
  */
 export const regenerateScheduledReport = async (req: Request, res: Response) => {
   try {
-    const { reportId } = req.params;
+    const reportId = getStringValue(req.params.reportId);
     const userId = (req as any).user.id;
+    if (!reportId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Report ID is required'
+      });
+    }
 
     // Get the scheduled report
     const scheduledReport = await prisma.scheduledReport.findUnique({
@@ -431,8 +444,14 @@ export const regenerateScheduledReport = async (req: Request, res: Response) => 
  */
 export const setReportForImmediateRun = async (req: Request, res: Response) => {
   try {
-    const { reportId } = req.params;
+    const reportId = getStringValue(req.params.reportId);
     const userId = (req as any).user.id;
+    if (!reportId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Report ID is required'
+      });
+    }
 
     // Get the scheduled report
     const scheduledReport = await prisma.scheduledReport.findUnique({

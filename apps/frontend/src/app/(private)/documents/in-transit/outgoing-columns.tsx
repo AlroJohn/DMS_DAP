@@ -6,8 +6,16 @@ import { DataTableRowActions } from "@/components/reuseable/tables/data-table-ro
 import { DataTableColumnHeader } from "@/components/reuseable/tables/data-table-column-header";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Calendar, Copy, User, Building2 } from "lucide-react";
+import { Copy, User, Building2 } from "lucide-react";
 import { ScanCodes } from "@/components/ui/scan-codes";
+import { ActivityCell } from "@/components/reuseable/tables/activity-cell";
+import { ProcessTypeCell } from "@/components/reuseable/tables/process-type-cell";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export type OutgoingDocument = {
   id: string;
@@ -17,21 +25,42 @@ export type OutgoingDocument = {
   documentId: string;
   contactPerson: string;
   contactOrganization: string;
+  contactOrganizationName?: string;
   type: string;
   classification: string;
   status: string;
+  origin: string;
   activity: string;
   activityTime: string;
+  created_at?: string;
+  process_type_id?: string | null;
+  process_timer_start_at?: string | null;
+  process_timer_complete_at?: string | null;
+  process_status?: "ongoing" | "delayed" | "completed" | null;
+  process_delayed_at?: string | null;
+  process_delay_seconds?: number | null;
 };
 
-const formatText = (text: string): string => {
+const formatText = (text: string | null | undefined): string => {
+  if (!text) return "N/A";
   return text
     .replace(/_/g, " ")
     .toLowerCase()
     .replace(/^\w/, (c) => c.toUpperCase());
 };
 
-export const outgoingColumns: ColumnDef<OutgoingDocument>[] = [
+export const createOutgoingColumns = (
+  onRefetch?: () => void,
+  processTypeMap: Record<
+    string,
+    {
+      code?: string;
+      name?: string;
+      duration_value?: number | null;
+      duration_unit?: string | null;
+    }
+  > = {}
+): ColumnDef<OutgoingDocument>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -42,7 +71,7 @@ export const outgoingColumns: ColumnDef<OutgoingDocument>[] = [
         }
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
         aria-label="Select all"
-        className="translate-y-[2px]"
+        className="translate-y-0.5"
       />
     ),
     cell: ({ row }) => (
@@ -50,7 +79,7 @@ export const outgoingColumns: ColumnDef<OutgoingDocument>[] = [
         checked={row.getIsSelected()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
         aria-label="Select row"
-        className="translate-y-[2px]"
+        className="translate-y-0.5"
       />
     ),
     enableSorting: false,
@@ -131,9 +160,18 @@ export const outgoingColumns: ColumnDef<OutgoingDocument>[] = [
           </div>
           <div className="flex items-center gap-1.5">
             <Building2 className="h-3.5 w-3.5 text-blue-500" />
-            <span className="text-xs text-muted-foreground">
-              {data.contactOrganization}
-            </span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-xs text-muted-foreground cursor-help">
+                    {data.contactOrganization}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{data.contactOrganizationName || data.contactOrganization}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       );
@@ -168,6 +206,68 @@ export const outgoingColumns: ColumnDef<OutgoingDocument>[] = [
       const type = String(row.getValue(id) ?? "").toLowerCase();
       return Array.isArray(value)
         ? (value as string[]).some((v) => String(v).toLowerCase() === type)
+        : false;
+    },
+  },
+  {
+    id: "processType",
+    accessorFn: (row) => {
+      const processTypeId =
+        (row as any).process_type_id || (row as any).processTypeId || "";
+      const record = processTypeId ? processTypeMap[processTypeId] : undefined;
+      return record?.name || "N/A";
+    },
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Process Type" />
+    ),
+    cell: ({ row }) => {
+      const processTypeId =
+        (row.original as any).process_type_id ||
+        (row.original as any).processTypeId ||
+        "";
+      const record = processTypeId ? processTypeMap[processTypeId] : undefined;
+      const name = record?.name || "N/A";
+      const code = record?.code || "";
+      return <ProcessTypeCell name={name} code={code} minClampLength={20} />;
+    },
+    enableSorting: true,
+    enableHiding: true,
+    filterFn: (row, id, value) => {
+      if (!value || (Array.isArray(value) && value.length === 0)) return true;
+      const processType = String(row.getValue(id) ?? "").toLowerCase();
+      return Array.isArray(value)
+        ? (value as string[]).some(
+            (v) => String(v).toLowerCase() === processType
+          )
+        : false;
+    },
+  },
+  {
+    accessorKey: "origin",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Origin" />
+    ),
+    cell: ({ row }) => {
+      const origin = (row.original as any).origin;
+      if (!origin) return <span className="text-xs text-muted-foreground">-</span>;
+      return (
+        <Badge
+          variant={origin === "internal" ? "default" : "outline"}
+          className="font-medium bg-primary text-background text-xs px-1.5 py-0.5"
+        >
+          {formatText(origin)}
+        </Badge>
+      );
+    },
+    enableSorting: true,
+    enableHiding: true,
+    filterFn: (row, id, value) => {
+      if (!value || (Array.isArray(value) && value.length === 0)) return true;
+      const origin = String(row.getValue(id) ?? "").toLowerCase();
+      return Array.isArray(value)
+        ? (value as string[]).some(
+            (v) => String(v).toLowerCase() === origin,
+          )
         : false;
     },
   },
@@ -288,39 +388,18 @@ export const outgoingColumns: ColumnDef<OutgoingDocument>[] = [
       <DataTableColumnHeader column={column} title="Activity" />
     ),
     cell: ({ row }) => {
-      const data = row.original;
-      const formattedActivity = data.activity
-        .replace(/_/g, " ")
-        .replace(/\b\w/g, (l: string) => l.toUpperCase());
-      const formattedDate = new Date(data.activityTime).toLocaleString(
-        "en-US",
-        {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        }
-      );
-
       return (
-        <div className="flex flex-col gap-1.5 text-xs">
-          <div className="flex items-center gap-1.5">
-            <Calendar className="w-3 h-3 text-orange-500" />
-            <span className="text-muted-foreground">{formattedActivity}</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Calendar className="w-3 h-3 text-blue-500" />
-            <span className="text-muted-foreground">{formattedDate}</span>
-          </div>
-        </div>
+        <ActivityCell document={row.original} processTypeMap={processTypeMap} />
       );
     },
   },
   {
     id: "actions",
-    cell: ({ row }) => <DataTableRowActions row={row} viewType="outgoing" />,
+    cell: ({ row }) => <DataTableRowActions row={row} viewType="outgoing" onActionSuccess={onRefetch} />,
     enableSorting: false,
     enableHiding: false,
   },
 ];
+
+// Legacy export for backward compatibility
+export const outgoingColumns = createOutgoingColumns();

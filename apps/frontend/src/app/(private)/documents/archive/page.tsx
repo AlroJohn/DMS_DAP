@@ -6,9 +6,9 @@ import { useArchive } from "@/hooks/use-archive";
 import { useSocket } from "@/components/providers/providers";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useDocumentTypes } from "@/hooks/use-document-types";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useProcessType } from "@/hooks/use-process.type";
 
 export default function ArchivePage() {
   const {
@@ -19,8 +19,8 @@ export default function ArchivePage() {
   } = useArchive();
   const { socket } = useSocket();
   const { documentTypes } = useDocumentTypes();
+  const { processTypes } = useProcessType();
   const mountedRef = useRef(false);
-  const [activeTab, setActiveTab] = useState("completed");
 
   const documentTypeMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -31,8 +31,31 @@ export default function ArchivePage() {
   }, [documentTypes]);
 
   const columns = useMemo(
-    () => createArchiveColumns({ documentTypeMap }),
-    [documentTypeMap]
+    () =>
+      createArchiveColumns({
+        documentTypeMap,
+        processTypeMap: processTypes.reduce(
+          (map, type) => {
+            map[type.process_type_id] = {
+              code: type.code || "",
+              name: type.name,
+              duration_value: type.duration_value ?? null,
+              duration_unit: type.duration_unit ?? null,
+            };
+            return map;
+          },
+          {} as Record<
+            string,
+            {
+              code?: string;
+              name?: string;
+              duration_value?: number | null;
+              duration_unit?: string | null;
+            }
+          >
+        ),
+      }),
+    [documentTypeMap, processTypes]
   );
 
   // Mark component as mounted and clean up on unmount
@@ -60,8 +83,16 @@ export default function ArchivePage() {
       classification: (d.classification || "") as string,
       currentLocation: (d.currentLocation || "Archive") as string,
       status: (d.status || "completed") as string,
+      origin: d.origin || "",
       activity: d.activity || "Archived",
       activityTime: d.activityTime || d.updated_at || d.deleted_at || "",
+      created_at: d.created_at || undefined,
+      process_type_id: d.process_type_id || undefined,
+      process_timer_start_at: d.process_timer_start_at || undefined,
+      process_timer_complete_at: d.process_timer_complete_at || undefined,
+      process_status: d.process_status || undefined,
+      process_delayed_at: d.process_delayed_at || undefined,
+      process_delay_seconds: d.process_delay_seconds || undefined,
       deletedBy: d.deletedBy || d.deleted_by || "",
       deletedAt: d.deletedAt || d.deleted_at || "",
       restoredBy: d.restoredBy || d.restored_by || undefined,
@@ -132,11 +163,6 @@ export default function ArchivePage() {
   // Check if the error is authentication-related
   const isAuthError = error && error.includes("Authentication required");
 
-  // Filter documents based on active tab
-  const filteredDocuments = useMemo(() => {
-    return mappedDocuments.filter(doc => doc.status.toLowerCase() === activeTab);
-  }, [mappedDocuments, activeTab]);
-
   return (
     <div className="w-full p-4 flex h-full flex-col bg-background">
       {error && !isAuthError && (
@@ -160,46 +186,34 @@ export default function ArchivePage() {
         </div>
       )}
       
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col h-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="completed">Completed</TabsTrigger>
-          <TabsTrigger value="archive">Archive</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="completed" className="flex-1 mt-0">
-          <DataTable
-            columns={columns}
-            data={filteredDocuments}
-            selection={true}
-            excludedFilters={["documentId"]}
-            showUploadButton={false}
-            viewType="archive"
-            initialState={{
-              columnVisibility: {
-                dates: false,
-              },
-            }}
-            isLoading={loading}
-          />
-        </TabsContent>
-
-        <TabsContent value="archive" className="flex-1 mt-0">
-          <DataTable
-            columns={columns}
-            data={filteredDocuments}
-            selection={true}
-            excludedFilters={["documentId"]}
-            showUploadButton={false}
-            viewType="archive"
-            initialState={{
-              columnVisibility: {
-                dates: false,
-              },
-            }}
-            isLoading={loading}
-          />
-        </TabsContent>
-      </Tabs>
+      <DataTable
+        columns={columns}
+        data={mappedDocuments}
+        selection={true}
+        excludedFilters={["documentId"]}
+        showUploadButton={false}
+        viewType="archive"
+        initialState={{
+          columnVisibility: {
+            dates: false,
+          },
+          columnOrder: [
+            "select",
+            "scan",
+            "document",
+            "contact",
+            "type",
+            "processType",
+            "origin",
+            "classification",
+            "status",
+            "dates",
+            "actions",
+          ],
+        }}
+        isLoading={loading}
+        meta={{ onRefetch: fetchArchivedDocuments }}
+      />
     </div>
   );
 }

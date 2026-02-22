@@ -30,7 +30,14 @@ interface SharedDocument {
   documentId: string;
   contactPerson: string;
   contactOrganization: string;
+  contactOrganizationName?: string;
   type: string;
+  process_type_id?: string | null;
+  process_timer_start_at?: string | null;
+  process_timer_complete_at?: string | null;
+  process_status?: 'ongoing' | 'delayed' | 'completed' | null;
+  process_delayed_at?: string | null;
+  process_delay_seconds?: number | null;
   classification: string;
   status: string;
   activity: string;
@@ -65,6 +72,59 @@ export class SharedDocumentService {
         .filter(Boolean);
     }
     return [];
+  }
+
+  private async buildProcessTrailTimers(documentIds: string[]) {
+    const startAtByDocument = new Map<string, Date>();
+    const completeAtByDocument = new Map<string, Date>();
+
+    if (documentIds.length === 0) {
+      return { startAtByDocument, completeAtByDocument };
+    }
+
+    const receivedTrails = await prisma.documentTrail.findMany({
+      where: {
+        document_id: { in: documentIds },
+        status: 'received'
+      },
+      select: {
+        document_id: true,
+        action_date: true,
+        created_at: true
+      }
+    });
+
+    receivedTrails.forEach((trail) => {
+      const date = trail.action_date || trail.created_at;
+      if (!date) return;
+      const current = startAtByDocument.get(trail.document_id);
+      if (!current || date < current) {
+        startAtByDocument.set(trail.document_id, date);
+      }
+    });
+
+    const completedTrails = await prisma.documentTrail.findMany({
+      where: {
+        document_id: { in: documentIds },
+        status: 'completed'
+      },
+      select: {
+        document_id: true,
+        action_date: true,
+        created_at: true
+      }
+    });
+
+    completedTrails.forEach((trail) => {
+      const date = trail.action_date || trail.created_at;
+      if (!date) return;
+      const current = completeAtByDocument.get(trail.document_id);
+      if (!current || date < current) {
+        completeAtByDocument.set(trail.document_id, date);
+      }
+    });
+
+    return { startAtByDocument, completeAtByDocument };
   }
   /**
    * Get documents that have been shared to the current user (documents where user is specifically in received_by_users)
@@ -116,9 +176,8 @@ export class SharedDocumentService {
           return false;
         }
 
-        // Exclude documents with certain statuses that shouldn't appear in shared view
-        if (['completed', 'archived', 'intransit', 'in-transit'].includes(detail.Document?.status)) {
-          console.log('📍 [getSharedDocuments] Document has completed/archived/intransit status, skipping:', detail.document_id);
+        if (detail.Document?.status === 'cancelled') {
+          console.log('📍 [getSharedDocuments] Document is cancelled, skipping:', detail.document_id);
           return false;
         }
 
@@ -147,6 +206,18 @@ export class SharedDocumentService {
 
         // Check if the current user is in the received_by_users list
         const isSharedToUser = receivedByUsers.includes(userId);
+
+        // Exclude documents with certain statuses that shouldn't appear in shared view
+        // Allow in-transit documents only if the user has already received them
+        const docStatus = detail.Document?.status;
+        if (['archive', 'archived', 'cancelled'].includes(docStatus)) {
+          console.log('📍 [getSharedDocuments] Document has archived/cancelled status, skipping:', detail.document_id);
+          return false;
+        }
+        if (['intransit', 'in-transit'].includes(docStatus) && !isSharedToUser) {
+          console.log('📍 [getSharedDocuments] Document is in-transit and not received by user, skipping:', detail.document_id);
+          return false;
+        }
 
         console.log('📍 [getSharedDocuments] Document:', detail.document_id,
           'isSharedToUser:', isSharedToUser,
@@ -226,7 +297,7 @@ export class SharedDocumentService {
               in: activeSharedDocumentIds
             },
             status: {
-              not: 'deleted' // Exclude deleted documents
+              notIn: ['deleted', 'cancelled'] // Exclude deleted/cancelled documents
             }
           },
           include: {
@@ -260,13 +331,31 @@ export class SharedDocumentService {
               in: activeSharedDocumentIds
             },
             status: {
-              not: 'deleted' // Exclude deleted documents from count
+              notIn: ['deleted', 'cancelled'] // Exclude deleted/cancelled documents from count
             }
           }
         })
       ]);
 
       console.log('📍 [getSharedDocuments] Documents found:', documents.length, 'Total count:', total);
+
+      const documentIds = documents.map((doc) => doc.document_id);
+      const processStatuses = await prisma.processStatus.findMany({
+        where: { document_id: { in: documentIds } },
+        select: {
+          document_id: true,
+          status: true,
+          started_at: true,
+          completed_at: true,
+          delayed_at: true,
+          delayed_duration_seconds: true
+        }
+      });
+      const processStatusMap = new Map(
+        processStatuses.map((status) => [status.document_id, status])
+      );
+      const { startAtByDocument, completeAtByDocument } =
+        await this.buildProcessTrailTimers(documentIds);
 
       // Create a map of document details for quick lookup
       const documentDetailsMap = new Map();
@@ -306,6 +395,7 @@ export class SharedDocumentService {
           // Get the original creator (first in workflow) to show as contact person
           const detail = documentDetailsMap.get(doc.document_id);
           let contactOrganization = 'N/A';
+          let contactOrganizationName = 'N/A';
 
           if (detail && detail.work_flow_id) {
             const workflowDepartments = this.parseWorkflowSequence(detail.work_flow_id);
@@ -314,11 +404,12 @@ export class SharedDocumentService {
               const originatorDeptId = workflowDepartments[0];  // The "first" department is the originator
               const originatorDept = await prisma.department.findUnique({
                 where: { department_id: originatorDeptId },
-                select: { name: true }
+                select: { name: true, code: true }
               });
 
               if (originatorDept) {
-                contactOrganization = originatorDept.name;
+                contactOrganization = originatorDept.code || originatorDept.name;
+                contactOrganizationName = originatorDept.name;
               }
             }
           }
@@ -402,6 +493,94 @@ export class SharedDocumentService {
             checkedOutAt = checkedOutFile.checked_out_at;
           }
 
+          // Check if user has signature placeholders assigned to them for this document
+          const assignedSignaturePlaceholders = await prisma.signaturePlaceholder.findMany({
+            where: {
+              document_id: doc.document_id,
+              OR: [
+                { assigned_user_id: userId },
+                { 
+                  assigned_user_id: null, 
+                  department_id: user.department_id 
+                },
+                { 
+                  assigned_user_id: null, 
+                  department_id: null 
+                }
+              ]
+            }
+          });
+
+          const hasAssignedSignature = assignedSignaturePlaceholders.length > 0;
+          
+          console.log('🔍 [getSharedDocuments] Signature check for doc:', doc.document_code, {
+            userId,
+            userDepartmentId: user.department_id,
+            placeholdersFound: assignedSignaturePlaceholders.length,
+            hasAssignedSignature,
+            placeholders: assignedSignaturePlaceholders
+          });
+
+          // Check if user has an assigned action for this document
+          // Look for trails where:
+          // 1. User is specifically assigned (assigned_to_user_id = userId), OR
+          // 2. Document released to user's department (assigned_to_user_id is null AND to_department = user's department)
+          
+          console.log('🔍 [getSharedDocuments] Querying trails for doc:', doc.document_code, {
+            document_id: doc.document_id,
+            userId,
+            userDepartmentId: user.department_id
+          });
+          
+          const assignedAction = await prisma.documentTrail.findFirst({
+            where: {
+              document_id: doc.document_id,
+              status: { in: ['pending', 'intransit'] }, // Only look for active actions, not completed ones
+              OR: [
+                { assigned_to_user_id: userId },
+                { 
+                  assigned_to_user_id: null,
+                  to_department: user.department_id
+                }
+              ]
+            },
+            include: {
+              documentAction: {
+                select: {
+                  action_name: true,
+                  sender_tag: true,
+                  recipient_tag: true
+                }
+              }
+            },
+            orderBy: {
+              created_at: 'desc'
+            }
+          });
+
+          const assignedActionType = assignedAction?.documentAction?.action_name || null;
+
+          console.log('🔍 [getSharedDocuments] Action check for doc:', doc.document_code, {
+            userId,
+            userDepartmentId: user.department_id,
+            documentId: doc.document_id,
+            assignedActionType,
+            hasAssignedAction: !!assignedAction,
+            trailDetails: assignedAction ? {
+              trail_id: assignedAction.trail_id,
+              assigned_to_user_id: assignedAction.assigned_to_user_id,
+              to_department: assignedAction.to_department,
+              action_id: assignedAction.action_id,
+              action_name: assignedAction.documentAction?.action_name
+            } : 'NO TRAIL FOUND'
+          });
+
+          const processStatus = processStatusMap.get(doc.document_id);
+          const processStartAt =
+            processStatus?.started_at || startAtByDocument.get(doc.document_id);
+          const processCompleteAt =
+            processStatus?.completed_at || completeAtByDocument.get(doc.document_id);
+
           return {
             id: doc.document_id,
             qrCode,
@@ -410,13 +589,28 @@ export class SharedDocumentService {
             documentId: doc.document_code || doc.document_id,
             contactPerson: contactPerson, // This will now be the root owner (first uploader)
             contactOrganization: contactOrganization,
+            contactOrganizationName: contactOrganizationName,
             type: documentTypeName,
+            process_type_id: doc.process_type_id,
+            process_timer_start_at: processStartAt
+              ? processStartAt.toISOString()
+              : null,
+            process_timer_complete_at: processCompleteAt
+              ? processCompleteAt.toISOString()
+              : null,
+            process_status: processStatus?.status || null,
+            process_delayed_at: processStatus?.delayed_at
+              ? processStatus.delayed_at.toISOString()
+              : null,
+            process_delay_seconds: processStatus?.delayed_duration_seconds ?? null,
             classification: doc.classification,
             status: doc.status,
             activity: 'shared',
             activityTime: new Date(doc.created_at).toLocaleString(),
             checkedOutBy,
             checkedOutAt,
+            hasAssignedSignature,
+            assignedActionType,
           };
         })
       );

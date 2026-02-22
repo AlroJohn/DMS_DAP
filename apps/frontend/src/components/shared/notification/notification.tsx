@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Bell, Check, Clock, FileText, UserPlus, X, CheckCheck } from "lucide-react"
+import { Bell, Check, Clock, FileText, UserPlus, X, CheckCheck, Trash2 } from "lucide-react"
 import {
   Sheet,
   SheetContent,
@@ -23,7 +23,7 @@ interface NotificationSheetProps {
 }
 
 export function NotificationSheet({ open, onOpenChange }: NotificationSheetProps) {
-  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications()
+  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification, deleteAllNotifications } = useNotifications()
 
   // the functions and state come from Notifications context
 
@@ -47,23 +47,37 @@ export function NotificationSheet({ open, onOpenChange }: NotificationSheetProps
       <SheetContent className="w-full sm:max-w-md p-0">
         <div className="flex flex-col h-screen">
           {/* Header */}
-          <div className="flex items-start justify-between p-6 border-b flex-shrink-0">
+          <div className="flex items-start justify-between p-6 border-b shrink-0">
             <div className="flex-1">
               <SheetTitle className="text-xl font-semibold">Notifications</SheetTitle>
               <SheetDescription className="mt-1">
                 You have {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
               </SheetDescription>
             </div>
-            {unreadCount > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={markAllAsRead}
-                className="text-xs mt-5"
-              >
-                Mark all read
-              </Button>
-            )}
+            <div className="flex gap-2">
+              {unreadCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={markAllAsRead}
+                  className="text-xs mt-5"
+                >
+                  <CheckCheck className="h-3.5 w-3.5 mr-1" />
+                  Mark all read
+                </Button>
+              )}
+              {notifications.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={deleteAllNotifications}
+                  className="text-xs mt-5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  Delete all
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Notifications List */}
@@ -95,7 +109,7 @@ export function NotificationSheet({ open, onOpenChange }: NotificationSheetProps
                       {/* Icon */}
                       <div
                         className={cn(
-                          "flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center",
+                          "shrink-0 h-10 w-10 rounded-full flex items-center justify-center",
                           notification.type === "document" &&
                             "bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400",
                           notification.type === "invitation" &&

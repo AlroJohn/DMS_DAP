@@ -18,12 +18,9 @@ import {
   Calendar,
   Building,
   User,
-  Eye,
-  Download,
   Filter,
   ChevronRight,
   Clock,
-  AlertCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -33,6 +30,7 @@ import {
   ReportFilters,
   type ReportFilters as ReportFiltersType,
 } from "@/components/reports/report-filters";
+import { calculateDuration, calculateTotalDocumentDuration, getExpectedDuration, compareDurations } from "@/utils/duration";
 
 interface DocumentTrail {
   id: string;
@@ -50,6 +48,16 @@ interface DocumentTrail {
   updatedAt?: string; // When the trail record was last updated
   remarks: string;
   isOwned: boolean; // Whether the document was created by the current user's department
+  durationMs?: number | null; // Time held in this stage before next action (in milliseconds)
+  documentCreatedAt?: string | null; // Document creation date for total duration calculation
+  processType?: {
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    durationValue: number | null;
+    durationUnit: string | null;
+  } | null;
 }
 
 export default function DocumentTrailingPage() {
@@ -74,6 +82,7 @@ export default function DocumentTrailingPage() {
     department: "all",
     classification: "all",
     documentType: "all",
+    documentCode: "",
   });
   const router = useRouter();
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -207,7 +216,12 @@ export default function DocumentTrailingPage() {
       }
 
       const trails = Array.isArray(result.data) ? result.data : [];
+      console.log('📊 Document Trails Data:', trails.slice(0, 2)); // Log first 2 trails for debugging
       const uniqueDocuments = collapseTrailsToDocuments(trails);
+      console.log('📄 Unique Documents with Process Types:', uniqueDocuments.map(d => ({
+        title: d.documentTitle,
+        processType: d.processType,
+      })).slice(0, 3));
       setDocuments(uniqueDocuments);
       setFilteredDocuments(uniqueDocuments);
     } catch (e) {
@@ -432,7 +446,9 @@ export default function DocumentTrailingPage() {
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
-            <h1 className="text-2xl font-bold">Document Trailing</h1>
+            <h1 className="text-2xl font-bold text-foreground">
+              Document Trailing
+            </h1>
             <p className="text-muted-foreground text-sm">
               Track documents created by departments and shared documents
             </p>
@@ -442,23 +458,21 @@ export default function DocumentTrailingPage() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <FileText className="h-4 w-4" />
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Total Documents
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{documents.length}</div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground mt-1">
               All tracked documents
             </p>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Clock className="h-4 w-4" />
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               In Transit
             </CardTitle>
           </CardHeader>
@@ -466,13 +480,12 @@ export default function DocumentTrailingPage() {
             <div className="text-2xl font-bold">
               {documents.filter((d) => d.status === "intransit").length}
             </div>
-            <p className="text-xs text-muted-foreground">Currently moving</p>
+            <p className="text-xs text-muted-foreground mt-1">Currently moving</p>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Building className="h-4 w-4" />
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Departments
             </CardTitle>
           </CardHeader>
@@ -480,13 +493,12 @@ export default function DocumentTrailingPage() {
             <div className="text-2xl font-bold">
               {[...new Set(documents.map((d) => d.fromDepartment))].length}
             </div>
-            <p className="text-xs text-muted-foreground">Active departments</p>
+            <p className="text-xs text-muted-foreground mt-1">Active departments</p>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <User className="h-4 w-4" />
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               Active Users
             </CardTitle>
           </CardHeader>
@@ -501,9 +513,14 @@ export default function DocumentTrailingPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Document Trails</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            Document Trails
+            {filteredDocuments.length > 0 && (
+              <Badge variant="secondary">{filteredDocuments.length} Result{filteredDocuments.length !== 1 ? 's' : ''}</Badge>
+            )}
+          </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           <div className="space-y-4">
             {/* Search Bar and Filters */}
             <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-end justify-between">
@@ -512,15 +529,12 @@ export default function DocumentTrailingPage() {
                 <label className="text-xs font-medium text-muted-foreground mb-2 block">
                   Search
                 </label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Search documents, users, or remarks..."
-                    className="pl-9 w-full"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
+                <Input
+                  placeholder="Search documents, users, or remarks..."
+                  className="w-full"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
 
               {/* Filters - Right Side */}
@@ -533,7 +547,7 @@ export default function DocumentTrailingPage() {
                     value={ownershipFilter}
                     onValueChange={setOwnershipFilter}
                   >
-                    <SelectTrigger className="w-[160px]">
+                    <SelectTrigger className="w-40">
                       <SelectValue placeholder="Ownership" />
                     </SelectTrigger>
                     <SelectContent>
@@ -549,7 +563,7 @@ export default function DocumentTrailingPage() {
                     Status
                   </label>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[150px]">
+                    <SelectTrigger className="w-37.5">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -610,7 +624,7 @@ export default function DocumentTrailingPage() {
                       });
                     }}
                   >
-                    <SelectTrigger className="w-[140px]">
+                    <SelectTrigger className="w-35">
                       <SelectValue placeholder="Date range" />
                     </SelectTrigger>
                     <SelectContent>
@@ -642,7 +656,7 @@ export default function DocumentTrailingPage() {
                       })
                     }
                   >
-                    <SelectTrigger className="w-[160px]">
+                    <SelectTrigger className="w-40">
                       <SelectValue placeholder="Classification" />
                     </SelectTrigger>
                     <SelectContent>
@@ -668,7 +682,7 @@ export default function DocumentTrailingPage() {
                         })
                       }
                     >
-                      <SelectTrigger className="w-[160px]">
+                      <SelectTrigger className="w-40">
                         <SelectValue placeholder="Document Type" />
                       </SelectTrigger>
                       <SelectContent>
@@ -688,10 +702,9 @@ export default function DocumentTrailingPage() {
             {/* Document List */}
             <div className="space-y-4 pt-4">
               {filteredDocuments.length === 0 ? (
-                <div className="text-center py-12">
+                <div className="text-center py-8">
                   {error ? (
                     <div className="space-y-4">
-                      <AlertCircle className="h-16 w-16 mx-auto text-destructive" />
                       <div className="space-y-2">
                         <h3 className="text-xl font-semibold">
                           Failed to load documents
@@ -705,7 +718,6 @@ export default function DocumentTrailingPage() {
                   ) : documents.length === 0 ? (
                     // No documents at all (empty state)
                     <div className="space-y-4">
-                      <FileText className="h-16 w-16 mx-auto text-muted" />
                       <div className="space-y-2">
                         <h3 className="text-xl font-semibold">
                           No Document Trails Yet
@@ -720,7 +732,6 @@ export default function DocumentTrailingPage() {
                   ) : (
                     // Documents exist but none match the current filters
                     <div className="space-y-4">
-                      <FileText className="h-16 w-16 mx-auto text-muted" />
                       <div className="space-y-2">
                         <h3 className="text-xl font-semibold">
                           No Matching Documents
@@ -741,6 +752,7 @@ export default function DocumentTrailingPage() {
                               department: "all",
                               classification: "all",
                               documentType: "all",
+                              documentCode: "",
                             });
                           }}
                         >
@@ -754,82 +766,101 @@ export default function DocumentTrailingPage() {
                 filteredDocuments.map((doc) => (
                   <div
                     key={doc.id}
-                    className="border rounded-lg p-5 hover:bg-accent/50 transition-all hover:shadow-md bg-card shadow-sm"
+                    className="border rounded-lg p-4 hover:bg-accent/30 transition-colors"
                   >
-                    <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-3">
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                        <div className="flex items-start gap-3 flex-1 min-w-0">
-                          <FileText className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2 mb-1">
-                              <h3 className="font-medium truncate max-w-[200px] sm:max-w-md" title={doc.documentTitle}>
-                                {doc.documentTitle}
-                              </h3>
-                              <Badge variant="secondary" className="text-xs font-mono">
-                                {doc.documentCode}
-                              </Badge>
-                              <Badge
-                                className={`${getStatusColor(
-                                  doc.actionName,
-                                  doc.status,
-                                  doc.remarks
-                                )} px-2 py-1 text-xs`}
-                              >
-                                {getStatusText(
-                                  doc.actionName,
-                                  doc.status,
-                                  doc.remarks
-                                )}
-                              </Badge>
-                            </div>
-                            <p className="text-sm text-muted-foreground truncate max-w-[200px] sm:max-w-md" title={doc.documentType}>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <h3 className="font-semibold text-base truncate max-w-50 sm:max-w-md" title={doc.documentTitle}>
+                              {doc.documentTitle}
+                            </h3>
+                            <Badge variant="secondary" className="text-xs font-mono">
+                              {doc.documentCode}
+                            </Badge>
+                            <Badge
+                              className={`${getStatusColor(
+                                doc.actionName,
+                                doc.status,
+                                doc.remarks
+                              )} px-2 py-1 text-xs`}
+                            >
+                              {getStatusText(
+                                doc.actionName,
+                                doc.status,
+                                doc.remarks
+                              )}
+                            </Badge>
+                          </div>
+                          <div className="items-center gap-2">
+                            <p className="text-sm text-muted-foreground truncate max-w-50 sm:max-w-md" title={doc.documentType}>
                               {doc.documentType}
                             </p>
                           </div>
+                          {doc.processType && (
+                            <div className="flex items-center gap-2 mt-2 p-2 bg-muted rounded-md">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <div className="flex items-center gap-1">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
+                                  <Badge variant="default" className="text-xs bg-blue-600 hover:bg-blue-700">
+                                    {doc.processType.name}
+                                  </Badge>
+                                </div>
+                                {doc.processType.code && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {doc.processType.code}
+                                  </Badge>
+                                )}
+                                {doc.processType.durationValue && doc.processType.durationUnit && (
+                                  <div className="flex items-center gap-1 px-2 py-0.5 bg-muted rounded">
+                                    <span className="text-xs font-semibold">
+                                      {doc.processType.durationValue} {doc.processType.durationUnit}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleViewTrails(doc.documentId)}
-                          className="w-full sm:w-auto flex-shrink-0"
+                          className="w-full sm:w-auto shrink-0"
                         >
-                          <Eye className="h-4 w-4 mr-2" />
                           View Trails
                         </Button>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-                        <div className="flex items-center gap-2">
-                          <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
+                        <div className="p-2 rounded-md bg-muted/20">
                           <div className="flex items-center gap-1 min-w-0">
-                            <span className="text-muted-foreground flex-shrink-0 whitespace-nowrap">
-                              {doc.fromDepartment}
+                            <span className="text-muted-foreground text-xs font-medium">
+                              From: {doc.fromDepartment}
                             </span>
-                            <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mx-1" />
-                            <span className="text-muted-foreground flex-shrink-0 whitespace-nowrap">
+                            <span className="text-muted-foreground text-xs mx-1">→</span>
+                            <span className="text-muted-foreground text-xs font-medium">
                               {doc.toDepartment}
                             </span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="p-2 rounded-md bg-muted/20">
                           <div className="flex items-center gap-1 min-w-0">
-                            <span className="text-muted-foreground flex-shrink-0 whitespace-nowrap">
+                            <span className="text-muted-foreground text-xs">
                               {doc.status === "signed"
                                 ? "Signed by:"
                                 : doc.status === "placeholder_added"
                                 ? "Added by:"
                                 : "By:"}
                             </span>
-                            <span className="truncate font-medium">
+                            <span className="truncate font-medium text-xs">
                               {doc.user}
                             </span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="p-2 rounded-md bg-muted/20">
                           <div className="flex items-center gap-1 min-w-0">
-                            <span className="text-muted-foreground flex-shrink-0 whitespace-nowrap">
+                            <span className="text-muted-foreground text-xs">
                               {doc.status === "signed"
                                 ? "Signed:"
                                 : doc.status === "placeholder_added"
@@ -837,7 +868,7 @@ export default function DocumentTrailingPage() {
                                 : "Action:"}
                             </span>
                             <span
-                              className="truncate font-medium"
+                              className="truncate font-medium text-xs"
                               title={`Action Date: ${format(
                                 new Date(doc.actionDate),
                                 "PPpp"
@@ -853,13 +884,13 @@ export default function DocumentTrailingPage() {
                       </div>
 
                       {/* Timestamp Details Section */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground bg-muted/20 p-3 rounded-md">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs bg-linear-to-br from-muted/30 to-muted/10 p-3 rounded-lg border border-muted">
                         <div className="flex items-center gap-2">
-                          <Calendar className="h-3 w-3 flex-shrink-0" />
+                          <Calendar className="h-3.5 w-3.5 text-primary shrink-0" />
                           <div className="flex items-center gap-1 min-w-0">
-                            <span className="flex-shrink-0">Action Date:</span>
+                            <span className="shrink-0 font-semibold">Action:</span>
                             <span
-                              className="truncate"
+                              className="truncate text-muted-foreground"
                               title={format(new Date(doc.actionDate), "PPpp")}
                             >
                               {format(
@@ -871,11 +902,11 @@ export default function DocumentTrailingPage() {
                         </div>
                         {doc.createdAt && (
                           <div className="flex items-center gap-2">
-                            <Clock className="h-3 w-3 flex-shrink-0" />
+                            <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
                             <div className="flex items-center gap-1 min-w-0">
-                              <span className="flex-shrink-0">Created:</span>
+                              <span className="shrink-0 font-semibold">Created:</span>
                               <span
-                                className="truncate"
+                                className="truncate text-muted-foreground"
                                 title={format(new Date(doc.createdAt), "PPpp")}
                               >
                                 {format(
@@ -888,13 +919,13 @@ export default function DocumentTrailingPage() {
                         )}
                         {doc.updatedAt && doc.updatedAt !== doc.createdAt && (
                           <div className="flex items-center gap-2">
-                            <Clock className="h-3 w-3 flex-shrink-0" />
+                            <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
                             <div className="flex items-center gap-1 min-w-0">
-                              <span className="flex-shrink-0">
-                                Last Updated:
+                              <span className="shrink-0 font-semibold">
+                                Updated:
                               </span>
                               <span
-                                className="truncate"
+                                className="truncate text-muted-foreground"
                                 title={format(new Date(doc.updatedAt), "PPpp")}
                               >
                                 {format(
@@ -909,20 +940,145 @@ export default function DocumentTrailingPage() {
 
                       {doc.remarks && (
                         <div
-                          className={`text-sm p-4 rounded-md border bg-muted/20`}
+                          className="text-sm p-3 rounded-md bg-muted/20"
                         >
-                          <div className="flex flex-col gap-2">
-                            <span className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">
+                          <div className="flex flex-col gap-1">
+                            <span className="font-semibold text-foreground text-xs uppercase tracking-wider">
                               {doc.status === "signed"
                                 ? "Signature Details"
                                 : doc.status === "placeholder_added"
                                 ? "Placeholder Details"
                                 : "Remarks"}
                             </span>
-                            <div className="text-foreground whitespace-pre-line leading-relaxed bg-background p-3 rounded border">
+                            <div className="text-foreground/90 whitespace-pre-line leading-relaxed">
                               {doc.remarks}
                             </div>
                           </div>
+                        </div>
+                      )}
+
+                      {/* Duration Summary - Only show when user held the document */}
+                      {doc.durationMs !== null && doc.durationMs !== undefined && doc.durationMs > 0 && (
+                        <div className="border-t pt-3 mt-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {/* Time held by user/department before release */}
+                            <div className="p-3 bg-linear-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
+                              <div className="mb-1">
+                                <span className="text-xs font-semibold text-blue-900 dark:text-blue-100 uppercase tracking-wider">
+                                  Duration Held
+                                </span>
+                              </div>
+                              <p className="text-lg font-bold text-blue-700 dark:text-blue-300">
+                                {(() => {
+                                  const durationInSeconds = Math.floor(doc.durationMs / 1000);
+                                  const days = Math.floor(durationInSeconds / (24 * 60 * 60));
+                                  const hours = Math.floor((durationInSeconds % (24 * 60 * 60)) / (60 * 60));
+                                  const minutes = Math.floor((durationInSeconds % (60 * 60)) / 60);
+                                  
+                                  const parts: string[] = [];
+                                  if (days > 0) parts.push(`${days}d`);
+                                  if (hours > 0) parts.push(`${hours}h`);
+                                  if (minutes > 0 || parts.length === 0) parts.push(`${minutes}m`);
+                                  
+                                  return parts.join(' ');
+                                })()}
+                              </p>
+                              <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                                {doc.user} held document before next action
+                              </p>
+                            </div>
+
+                            {/* Total document duration */}
+                            {doc.documentCreatedAt && (
+                              <div className={`p-3 rounded-md border ${
+                                doc.status === "completed" 
+                                  ? "bg-linear-to-br from-green-50 to-green-100 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800"
+                                  : "bg-linear-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/20 border-purple-200 dark:border-purple-800"
+                              }`}>
+                                <div className="mb-1">
+                                  <span className={`text-xs font-semibold uppercase tracking-wider ${
+                                    doc.status === "completed"
+                                      ? "text-green-900 dark:text-green-100"
+                                      : "text-purple-900 dark:text-purple-100"
+                                  }`}>
+                                    {doc.status === "completed" ? "Completed At" : "Total Document Age"}
+                                  </span>
+                                </div>
+                                {doc.status === "completed" ? (
+                                  <>
+                                    <p className="text-lg font-bold text-green-700 dark:text-green-300">
+                                      {format(new Date(doc.actionDate), "MMM d, yyyy h:mm a")}
+                                    </p>
+                                    <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                                      {(() => {
+                                        const duration = calculateDuration(doc.documentCreatedAt, doc.actionDate);
+                                        return `Completed in ${duration.shortFormat}`;
+                                      })()}
+                                    </p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <p className="text-lg font-bold text-purple-700 dark:text-purple-300">
+                                      {(() => {
+                                        const duration = calculateTotalDocumentDuration(doc.documentCreatedAt);
+                                        return duration.shortFormat;
+                                      })()}
+                                    </p>
+                                    <p className="text-xs text-purple-600 dark:text-purple-400 mt-0.5">
+                                      Since {format(new Date(doc.documentCreatedAt), "MMM d, yyyy")}
+                                    </p>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Process status if available */}
+                          {doc.processType && doc.processType.durationValue && doc.processType.durationUnit && doc.documentCreatedAt && doc.status !== "completed" && (
+                            <div className={`p-3 rounded-md border mt-2 ${(() => {
+                                const duration = calculateTotalDocumentDuration(doc.documentCreatedAt);
+                                const comparison = compareDurations(duration.days, doc.processType.durationValue, doc.processType.durationUnit);
+                                if (comparison.status === 'on-time') return 'bg-linear-to-br from-green-50 to-green-100 dark:from-green-950/30 dark:to-green-900/20 border-green-200 dark:border-green-800';
+                                if (comparison.status === 'warning') return 'bg-linear-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950/30 dark:to-yellow-900/20 border-yellow-200 dark:border-yellow-800';
+                                return 'bg-linear-to-br from-red-50 to-red-100 dark:from-red-950/30 dark:to-red-900/20 border-red-200 dark:border-red-800';
+                              })()}`}>
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <span className={`text-xs font-semibold uppercase tracking-wider ${(() => {
+                                      const duration = calculateTotalDocumentDuration(doc.documentCreatedAt);
+                                      const comparison = compareDurations(duration.days, doc.processType.durationValue, doc.processType.durationUnit);
+                                      if (comparison.status === 'on-time') return 'text-green-900 dark:text-green-100';
+                                      if (comparison.status === 'warning') return 'text-yellow-900 dark:text-yellow-100';
+                                      return 'text-red-900 dark:text-red-100';
+                                    })()}`}>
+                                    Process Status: 
+                                  </span>
+                                  <span className={`ml-1 text-sm font-bold ${(() => {
+                                      const duration = calculateTotalDocumentDuration(doc.documentCreatedAt);
+                                      const comparison = compareDurations(duration.days, doc.processType.durationValue, doc.processType.durationUnit);
+                                      if (comparison.status === 'on-time') return 'text-green-700 dark:text-green-300';
+                                      if (comparison.status === 'warning') return 'text-yellow-700 dark:text-yellow-300';
+                                      return 'text-red-700 dark:text-red-300';
+                                    })()}`}>
+                                    {(() => {
+                                        const duration = calculateTotalDocumentDuration(doc.documentCreatedAt);
+                                        const comparison = compareDurations(duration.days, doc.processType.durationValue, doc.processType.durationUnit);
+                                        return comparison.message;
+                                      })()}
+                                  </span>
+                                </div>
+                                <p className={`text-xs ${(() => {
+                                    const duration = calculateTotalDocumentDuration(doc.documentCreatedAt);
+                                    const comparison = compareDurations(duration.days, doc.processType.durationValue, doc.processType.durationUnit);
+                                    if (comparison.status === 'on-time') return 'text-green-600 dark:text-green-400';
+                                    if (comparison.status === 'warning') return 'text-yellow-600 dark:text-yellow-400';
+                                    return 'text-red-600 dark:text-red-400';
+                                  })()}`}>
+                                  Expected: {getExpectedDuration(doc.processType.durationValue, doc.processType.durationUnit)}
+                                </p>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
